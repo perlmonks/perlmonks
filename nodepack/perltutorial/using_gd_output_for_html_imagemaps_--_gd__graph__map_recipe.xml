@@ -1,0 +1,168 @@
+<node>
+  <doctext>&lt;h2&gt;Problem&lt;/h2&gt;
+You want to use a graph image produced by GD::Graph::* as an imagemap in a web page
+&lt;h2&gt;Solution&lt;/h2&gt;
+Install and use [cpan://GD::Graph::Map] to create an HTML fragment for img and map tags.&lt;p&gt;
+&lt;code&gt;#! perl -w
+use GD::Graph::pie;
+use GD::Graph::Map;
+use GD::Graph::bars;
+use CGI qw (param header);
+use CGI::Carp (fatalsToBrowser);
+use strict;
+
+# some bogus sales data
+my %sales = (
+    Tom =&gt; {
+        Ravioli =&gt; 20,
+        Lasagne =&gt; 30,
+        SpaghettiOs =&gt; 50
+    },
+    Dick =&gt; {
+        Chai =&gt; 25,
+        Green =&gt; 30,
+        Oolong =&gt;40
+    },
+    
+    Harry =&gt; {
+        Kiwi =&gt; 10,
+        Tomato =&gt; 15,
+        Grapes =&gt; 40
+    },
+    Elspeth =&gt; {
+        knives=&gt; 40,
+        fistpacks=&gt;40,
+        truncheons=&gt;35
+    }
+);
+
+#
+#   if there's a name, show that person's sales;
+#
+if (param (&quot;name&quot;)) { 
+    my $name=param (&quot;name&quot;);    # get requested person's name
+    #   primitive error checking.
+    die &quot;salesman not found. Insert salesman and press any key to continue.\n&quot; unless exists ($sales{$name});
+    
+    # prepare data.
+    # this is not incredibly readable, but I wanted to see if it could be done this way... perl continues to amuse and amaze...
+    # to clarify, we're adding the names of the person's products in the first arrayref,
+    # and the sales in the second array.
+    #
+    my @data = ([keys % {$sales {param (&quot;name&quot;)}}], [values % {$sales {param (&quot;name&quot;)}}]);
+    
+    #
+    # prepare &amp; display graph.
+    # please refer to GD::Graph's docs if this doesn't make sense.
+    #
+    my $my_graph = new GD::Graph::bars( 200, 200 ) || die &quot;$!&quot;;
+    $my_graph-&gt;set( 
+        x_label =&gt; 'Products',
+        y_label =&gt; 'Dollars',
+        title =&gt; &quot;Sales for $name&quot;,
+        bar_spacing =&gt; 8
+    ) ;
+    open PNG, &quot;&gt;../htdocs/$name.png&quot;;
+    binmode PNG; 
+    print PNG $my_graph-&gt;plot(\@data)-&gt;png;
+    close PNG;
+    
+    # finally, print out html;
+    print header;
+    print &quot;&lt;HTML&gt;&lt;BODY BGCOLOR=white&gt;\n&quot;;
+    print &quot;&lt;IMG SRC=\&quot;/$name.png\&quot;&gt;&quot;;
+    print &quot;&lt;/BODY&gt;&lt;/HTML&gt;&quot;;
+} else {
+    #
+    # no name selected; show pie chart.
+    #
+    my @chartdata;
+    # start by pushing the names of the salesmen onto chartdata in an arrayref.
+    push @chartdata, [sort keys %sales];
+    my @salestotals;
+    my $urlbase=&quot;http://127.0.0.1/cgi-bin/gdmap2.cgi?name=&quot;;
+    my @urls;
+    #this loop does 2 things.
+    # first it gathers the total sales for each salesman (the inner foreach loop) and pushes 
+    # that value onto @salestotals, which is used to create the graph.
+    # After that, it creates a url and stores it for creation of the image map.
+   
+    foreach (sort keys %sales) {
+        my $sum;
+        foreach my $item (keys (%{$sales{$_}})) {$sum+=$sales{$_}{$item}} 
+        push @salestotals, $sum;
+        push @urls, $urlbase.$_;
+    }
+    # now we're finished with that, add the sales totals to the chart data
+    push @chartdata, [@salestotals];
+    
+    # all the data's ready for the graph,
+    # time to plot it out.
+    # if this doesn't make sense to you, review GD::Graph workings
+    my $my_graph = new GD::Graph::pie( 200, 200 );   
+    $my_graph-&gt;set( 
+        '3d' =&gt; 0,
+        label =&gt; 'Sales totals',
+    );
+    
+    open PNG, &quot;&gt;../htdocs/salesinfo.png&quot;;
+    binmode PNG; 
+    print PNG $my_graph-&gt;plot(\@chartdata)-&gt;png;
+    close PNG;
+    
+    # ok, the graph's finished. now make the map.
+    # the hrefs param is the list of urls to map to
+    # noImgMarkup indicates that only the &lt;map&gt; tag should be created,
+    # by default, GD::Graph::Map will create both the &lt;map&gt; and an &lt;img&gt; tag
+    # mapName is, ha-ha, will be the name of the map.
+    # info will show mouseover data for the map.
+    my $map = new GD::Graph::Map($my_graph, 
+        hrefs=&gt;\@urls ,
+        noImgMarkup=&gt;1,
+        mapName=&gt;&quot;salesmap&quot;,
+        info =&gt; 'Total sales for %x:  %y (%p%)'
+    );
+    
+    #finally, show the html
+    print header;
+    print &quot;&lt;HTML&gt;&lt;BODY BGCOLOR=white&gt;\n&quot;,
+          '&lt;IMG SRC=&quot;/salesinfo.png&quot; usemap=&quot;#salesmap&quot;&gt;',
+          ($map-&gt;imagemap(&quot;salesinfo.png&quot;, \@chartdata)),
+          &quot;&lt;/BODY&gt;&lt;/HTML&gt;&quot;;
+        
+}&lt;/code&gt;
+&lt;h2&gt;Discussion&lt;/h2&gt;
+This module prepares an imagemap based on the contents of a GD::Graph object,
+and has several constructor options that will alter the contents of the map or
+its behavior.&lt;br /&gt;
+The foremost among these is the &lt;i&gt;hrefs&lt;/i&gt; parameter (an arrayref) -- this list
+determines what each map region links to. If there are more regions than hrefs,
+say by having 8 series of data, but only 4 href elements, each 'leftover' series
+will have 'javascript:;' for a link. This behavior is a little quirky; it seems
+like the author could have stopped creating map regions after the last one was
+finished, but this behavior is apparently to quell some odd behavior on older
+browsers.&lt;br/&gt;
+Next is the &lt;i&gt;noImgMarkup&lt;/i&gt; option -- this suppresses the output of the img
+tag, and can be useful if you have a static image that may require several
+different maps, or whenever the image is either static or has been generated
+previously.&lt;br/&gt;
+&lt;i&gt;mapName&lt;/i&gt; overrides the default name attribute for the map tag.  As the
+default tag is set to &lt;i&gt;time ()&lt;/i&gt;, this may not be useful when
+&lt;i&gt;noImgMarkup&lt;/i&gt; is set.&lt;br/&gt;
+the &lt;i&gt;info&lt;/i&gt; (and &lt;i&gt;legend&lt;/i&gt;, see POD) param determines what information will be 
+displayed when mousing over a region.&lt;br /&gt;
+There are a set of options to control the attributes of the img tag (&lt;i&gt;img_*&lt;/i&gt;, but these
+may be of reduced value for most, as most of the common attributes are preset
+when the tag is generated.&lt;br /&gt;
+Finally, if you'd like the linked page to appear in a separate browser window,
+setting &lt;i&gt;newWindow&lt;/i&gt; to true tag will accomplish the job.&lt;p /&gt;
+Of course, this module requires that you have previous knowledge of the assorted
+GD::Graph modules.
+ </doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>127447</node_id>
+  <author_user>24736</author_user>
+  <title>Using GD output for HTML imagemaps -- GD::Graph::Map recipe</title>
+  <createtime>2001-11-25 23:22:27</createtime>
+  <nodeupdated>2005-08-13 16:32:04</nodeupdated>
+</node>

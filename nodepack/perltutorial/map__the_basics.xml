@@ -1,0 +1,151 @@
+<node>
+  <doctext>&lt;h1&gt;Map Tutorial: The Basics&lt;/h1&gt;
+&lt;p&gt;
+The [map] built-in function allows you to build a new list from another list
+while modifying the elements - simultaneously. Map takes a list and applies either
+a &lt;i&gt;block of code&lt;/i&gt; or an &lt;i&gt;expression&lt;/i&gt; to that list to produce a new list. I will limit
+the scope of this tutorial to the code block form.
+&lt;p&gt;
+When applied correctly, map 
+can produce lightning-fast transforms very efficiently. When abused, it
+can produce some extremely obfuscated code, sacrificing readability and
+maintainability (giving legacy coders unnecessary headaches).
+&lt;p&gt;
+[Vroom] has an excellent tutorial on [Complex Sorting] - in it he has some
+more complex but [extremely] useful explanations of [map].
+The purpose of this tutorial is to talk about
+the easy stuff: to allow a programmer new to the concept to stick one toe in
+the water at a time, so to speak.
+&lt;p&gt;
+&lt;hr&gt;
+&lt;font size=+1&gt;Map: what is it good for?&lt;/font&gt;
+&lt;p&gt;
+Example 1:&lt;br&gt;
+Say that you have a text file that contains paragraphs of words.  If you wanted
+to create a list with each element being a single line, you can use:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @lines = &lt;FILE&gt;;
+	close FILE;
+&lt;/code&gt;
+But say that you wanted each element to contain a single word.  As long as you
+didn't care about punctuation, you can use the map function like so:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @words = map { split } &lt;FILE&gt;;
+	close FILE;
+&lt;/code&gt;
+Remember that [split] uses whitespace as its default delimiter, and
+the special variable $_ as its default variable to split up.  Line 2 can
+be written as:
+&lt;code&gt;
+	my @words = map { split(' ', $_) } &lt;FILE&gt;;
+&lt;/code&gt;
+The choice to use default arguments is a trade-off between understandability and
+laziness/elegance.  Also, remember that a file handle can be taken in list context.
+&lt;p&gt;
+Example 2:&lt;br&gt;
+Let's get rid of punctuation.  First we need a suitable regular expression,
+but before we can derive one, we need to decide if we should split first and
+substitute second, or substitute first and then split.  The former choice would
+require more CPU cycles, because we are applying the regex to EACH word - the latter
+is more efficient, because the regex gets applied to a WHOLE line, and if we use
+the global modifier (g), Perl will quickly and efficiently apply the regex. If we
+only care about periods, commas, exclamation points, and question marks, we can use
+the substition operator like so:
+&lt;code&gt;
+s/[.,!\?]\B//g
+&lt;/code&gt;
+Sorry, but the details of this regex are beyond the scope of the tutorial, be sure
+and check out [root]'s tutorial on [String matching and Regular Expressions].  I will
+tell you what it does, though: it turns &lt;b&gt;Hello World!&lt;/b&gt; into &lt;b&gt;Hello World&lt;/b&gt;
+and it does so without removing punctuation from anacronyms like &lt;b&gt;J.A.P.H.&lt;/b&gt; -
+okay, okay, half-truth: &lt;b&gt;J.A.P.H.&lt;/b&gt; becomes &lt;b&gt;J.A.P.H&lt;/b&gt; - good enough for this
+example (can anyone say &quot;exercise for reader&quot;).
+&lt;p&gt;
+Moving on . . . now we can add this regex.  The inner block of a map statement may
+contain a number of statements separated by semi-colons.  The statements are
+interpreted left to right:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @words = map { s/[.,!\?]\B//g; split; } &lt;FILE&gt;;
+	close FILE;
+&lt;/code&gt;
+&lt;p&gt;
+Example 3: (know what a function returns!)&lt;br&gt;
+Let's say that we didn't want to split the line into words, we just wanted to
+remove punctuation:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @lines = map { s/[.,!\?]\B//g } &lt;FILE&gt;;
+	close FILE;
+&lt;/code&gt;
+Uh-oh.  What happened?  If you try this, you will not receive the output you might
+have expected.  Instead, you will see numbers and/or blank lines.  If the substitution
+operator found no punctuation in a line it will return UNDEF, otherwise it will return
+the number of substitutions on that line.  It does NOT return the line itself. In cases
+like this, the function or operator affects it's argument by reference. Split does not
+work in this manner - it returns what was split off.  Look at example 2 again - the
+last thing that gets passed out of the map block is the return value of split.  So, if we want to
+return the line altered by a substitution, we will have to tell Perl so - like this:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @lines = map { s/[.,!\?]\B//g; $_; } &lt;FILE&gt;;
+	close FILE;
+&lt;/code&gt;
+Much better.
+&lt;p&gt;
+&lt;hr&gt;
+&lt;p&gt;
+&lt;font size=+1&gt;Map: what is it NOT good for?&lt;/font&gt;
+&lt;p&gt;
+Remember, map returns a list - if you do not need a list, don't be tempted to
+use map as an alternative to more traditional iteration constructs, such as
+[for] and [foreach].
+&lt;p&gt;
+Also, some built-in functions, such as [chomp] and [reverse], can be applied to a list
+AT ONCE, so to speak.  For example, if you wanted to slurp the contents of a text file
+into a list without the new lines, you might be tempted to use your new
+knowledge like so:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @lines = map { chomp; $_; } &lt;FILE&gt;;
+	close FILE;
+&lt;/code&gt;
+(remember what we learned from example 3 - chomp returns 
+the numbers of newlines chomped off (1), so we have to
+explicitly let Perl know we want the remaining value). 
+However, it turns out that chomp can do a much better job by itself:
+&lt;code&gt;
+	open (FILE, &quot;foo.txt&quot;);
+	my @lines = &lt;FILE&gt;;
+	chomp(@lines);
+	close FILE;
+&lt;/code&gt;
+The second example actually runs faster. Why?  Because Perl will
+literally stuff the entire file into the array - no iteration needed.  The same
+goes for the chomp - Perl will not iterate through the list.  By using a map statement,
+however, you are forcing iteration to happen. 
+&lt;p&gt;
+I used benchmark to time these two examples using '/usr/dict/words' as the input
+file.  Here were the results for 100 iterations:
+&lt;code&gt;
+Benchmark: timing 100 iterations of chomp, map...
+    chomp: 31 wallclock secs (29.17 usr +  0.54 sys = 29.71 CPU)
+      map: 37 wallclock secs (34.63 usr +  0.59 sys = 35.22 CPU)
+&lt;/code&gt;
+&lt;p&gt;
+Something else to consider is readability and maintainability.  If you want your
+code to be either, map statements might not be a good solution - let's face it, no
+other language really has this one-liner of death implemented, and unless you like
+watching ears bleed, keep it simple! (personally, I like watching ears bleed!)
+&lt;p&gt;
+Of course, there aren't too many obfuscated Perl scripts out there that don't use map.
+Keep up the higher learning!</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>20505</node_id>
+  <author_user>18800</author_user>
+  <title>Map: The Basics</title>
+  <createtime>2000-06-29 22:00:30</createtime>
+  <nodeupdated>2005-08-15 13:15:04</nodeupdated>
+</node>

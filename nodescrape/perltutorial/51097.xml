@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="51097" title="Perl's Warn and Die Signals" created="2001-01-11 07:11:23" updated="2005-08-15 13:57:25">
+<type id="956">
+perltutorial</type>
+<author id="9135">
+Adam</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Perl's Warn and Die Signals&lt;/h1&gt;
+&lt;hr&gt;
+&lt;h2&gt;Introduction:&lt;/h2&gt;
+&lt;hr align=left size=1 width ='75%'&gt;
+&lt;!-- ############################################ --&gt;
+This is a tutorial on using Perl's [warn] and [die] signals.
+It is based on a post I made some time ago, [id://42411|here],
+but covers more of the details and raises more of the pitfalls.
+In this tutorial I attempt to
+separate the warn and die signals from the OS signals,
+explain how they are used and what they can be used for,
+and explore the problems that can come up.
+At the end you will find a list of additional
+&lt;a href="#RecommendedReading"&gt;documents you should read&lt;/a&gt;.
+Note that I write this under the risky assumption that you are
+using Perl 5.6. This does not exclude you if you have an older
+version of Perl, as I believe everything holds for Perl 5.0 with
+the exception of -W and the &lt;tt&gt;warnings&lt;/tt&gt; pragma.
+
+&lt;h2&gt;How are &lt;i&gt;sigwarn&lt;/i&gt; and &lt;i&gt;sigdie&lt;/i&gt; different from OS signals?&lt;/h2&gt;
+&lt;hr align=left size=1 width ='75%'&gt;
+&lt;!-- ############################################ --&gt;
+And why does it matter?
+OS signals originate from the operating system.
+A good example is INT, the interupt signal,
+which can be caused by any number of scenarios including the user
+hitting control-C. Different builds of Perl behave rather differently
+when they receive these signals because the signals themselves are
+platform dependent. Perl's warn and die signals
+(henceforth referred to as &lt;i&gt;sigwarn&lt;/i&gt; and &lt;i&gt;sigdie&lt;/i&gt;)
+are manipulated by the programmer the same way that the OS signals
+are manipulated, and this can lead to the confusion that they are
+the same type of signal. &lt;u&gt;They are not&lt;/u&gt;.
+Perl itself generates sigwarn and sigdie,
+and does so in a reliable and consistent fashion.
+This means that you, the programmer, have much less to fear
+while writing your own signal handler for them.
+I caution you that while implementing signal handlers for other
+signals may look the same as what I am about to show you, it is not.
+Furthermore, it involves much more then I am covering here.
+No further disclaimers on this will be made.
+
+&lt;h2&gt;How are &lt;i&gt;sigwarn&lt;/i&gt; and &lt;i&gt;sigdie&lt;/i&gt; useful?&lt;/h2&gt;
+&lt;hr align=left size=1 width ='75%'&gt;
+&lt;!-- ############################################ --&gt;
+&lt;h3&gt;&lt;i&gt;The fun begins.&lt;/i&gt;&lt;/h3&gt;
+When a program (or Perl) calls [die] (or [warn]) a signal is sent.
+If a signal handling routine has been defined (and is in scope) for that signal,
+then it is executed, otherwise Perl catches it and handles it accordingly.
+These signals can be generated from a variety of sources, including
+-w, -W, &lt;tt&gt;&lt;a href="http://search.cpan.org/doc/GSAR/perl-5.6.0/pod/perllexwarn.pod"&gt;use warnings&lt;/a&gt;&lt;/tt&gt;,
+[warn], [die], &lt;a href="http://search.cpan.org/search?mode=module&amp;query=Carp"&gt;carp, cluck, croak, confess&lt;/a&gt;,
+and more.
+
+&lt;emph&gt;What's important is to realize that you, the programmer,
+can exercise some control over the way your program behaves
+when these occur.&lt;/emph&gt;
+
+&lt;h3&gt;How?&lt;/h3&gt;
+You can write handlers. Lets examine some simple scenarios where a signal handler could be useful.
+Say I've got a program that tests the subroutines in a module. It calls each routine and
+prints something to STDOUT signifying the result. To truly test the routine, the test also
+throws the "unexpected" at it, intentionally trying to raise a warning. Warnings
+get printed to STDERR though, and for my test I want everything to go to STDOUT.
+There are two solutions, one is to redirect STDERR to STDOUT. No problem, the docs for [open] tell
+me how to do that, but then I don't get to know where the warning came from, only the output.
+Worse, if the warning happened around a normal [print] then I can't control which shows up first.
+(And I want the output to be consistent so that I don't actually have to read it, I can just compare
+it against a previous run.) So instead I decide to write a sigwarn handler that will print the
+warning to STDOUT (instead of STDERR) &lt;b&gt;and&lt;/b&gt; give me the exact offending line (which Perl does
+not always do. Playing with [caller] is even more important with [die] though).
+&lt;code&gt;
+$SIG{__WARN__} = sub
+{
+    my @loc = caller(1);
+    print STDOUT "Warning generated at line $loc[2] in $loc[1]:\n", @_, "\n";
+    return 1;
+};
+&lt;/code&gt;
+Some things to note: I have assigned an anonymous subroutine as the signal handler.
+I could have defined the sub, and then set $SIG{__WARN__} equal to a subref. One important
+thing about this is the semi-colon. Since the %SIG assignment takes 6 lines, it's easy to
+forget that it was an assignment, not a code block. As your handlers get more complicated I
+recommend writing them as named subroutines, although that carries additional risk which I will
+address in a later section. Next, my routine explicitly returns 1. Remember that all Perl
+subroutines return &lt;i&gt;something&lt;/i&gt;. If I hadn't returned 1, I would have been returning
+1 or the empty string, depending on the success of the [print] statement. Yes, print can fail.
+Should you check your prints? Yes... if you are writing to a file. This is as easy as
+&lt;tt&gt;print( "hello world" ) or die $!;&lt;/tt&gt; but can be even more fun with the help of OO file
+handles like
+&lt;a href="http://search.cpan.org/doc/GSAR/perl-5.6.1-TRIAL1/ext/IO/lib/IO/File.pm"&gt;IO::File&lt;/a&gt;.
+OO things are good because they have DESTROY methods which get called by Perl when you finish,
+exit, or die. But I digress. My point was that your subroutines should always explicitly return
+something. If the subroutine is a 'void' method, have it return undef.&lt;P&gt;
+
+So that covers the how, and some of the why, but doesn't give you the full potential. When a
+program runs into a bad situation, the programmer often has it call [die]. This causes Perl
+to send out sigdie, and if a handler is defined it gets called. One last thing on warnings
+before we delve head first into sigdie: Make Warnings Fatal Everywhere You Can! You can
+do this at compile time in 5.6 with the &lt;tt&gt;use warnings&lt;/tt&gt; pragma:
+&lt;code&gt;
+use warnings FATAL =&gt; qw( all );
+&lt;/code&gt;
+You can replace 'all' in there with a more specific list if the need arises, which is why I use qw().
+But this pragma is scoped (so is [strict], btw) so it only makes YOUR warnings fatal. So, and this
+works for older versions of Perl, catch sigwarn and call die:
+&lt;code&gt;
+$SIG{__WARN__} = sub { CORE::die "Warning:\n", @_, "\n" };
+&lt;/code&gt;
+Yeah, you probably wanted line numbers, but I already showed you how to add that. Note that
+by specifying CORE::die I out run any attempt to replace the [die] function. (Yes, some
+modules redefine die instead of implementing a signal handler.) So now onto
+sigdie.
+&lt;h3&gt;SigDie&lt;/h3&gt;
+Catching the signal generated from [die] is good for one thing, and one thing only: debugging.
+Don't use it to clean up stuff. Use END routines and DESTROY methods for that. (If all this
+OO talk has thrown you for a loop, read Tom's [perltoot] and the docs for [bless]. I believe
+there are a few more OO resources in the monastery as well. At this point I'll simply say
+that if an instaniated blessed object has a DESTROY method then it gets called when that
+object goes out of scope.) Don't even try to recover from death abusing sigdie... once Perl
+decides to die, the games over. (Ok, that's only partly true. See my discussion on [eval] below.)
+So then, the purpose of catching sigdie is to gain more insight into &lt;b&gt;why&lt;/b&gt; the program
+died. This is generally done by printing the punctuation ($!, $^E, $@, $?) and the call stack.
+Somewhere in the code catacombs I printed a "trick" for getting a call stack easily. I'll repeat
+it here:
+&lt;code&gt;
+use Carp;
+sub CallStack
+{
+    local $@;
+    eval { confess( '' ) };
+    my @stack = split m/\n/, $@;
+    shift @stack for 1..3; # Cover our tracks.
+    return wantarray ? @stack : join "\n", @stack;
+}
+&lt;/code&gt;
+Important side note: &lt;i&gt;You shouldn't make your signal handlers complicated. Things are falling
+down everywhere, so don't make things complicated with subroutine calls and system activity.&lt;/i&gt;
+Right? Sort of. Sigdie is special in that it is a Perl signal, not an OS signal. So things
+aren't crashing (yet). This means we can still do stuff, but beware - now that your signal
+has been called, it has been disabled! If you die while handling sigdie, you really die!
+This prevents recursive doom, but it also means you walk a fine line of loosing this
+precious debug info at any time. So then, print all this info out everywhere you can
+think of. Get it on the screen first, then try to write it to a file (that could fail)
+or write it to an OS log (that can also fail).
+&lt;h3&gt;eval&lt;/h3&gt;
+By now you must have wondered, "what happens if [die] gets called inside an [eval] block?"
+Your signal handler gets called. That is good, and bad. You need to be aware of this
+potential and decide how you want to handle it. You might want to check
+&lt;A HREF="index.pl?node_id=403#item__S"&gt;$^S&lt;/A&gt; at some point in your handler and adjust
+based on what state the code is in: Compile ($^S eq undef), Normal ($^S eq ''), or
+Run ($^S eq 1). When in doubt, and you have a particular [eval] block where you
+don't want the handler to be invoked, then turn it off using [local]:
+&lt;code&gt;
+sub Something
+{
+  local $@; # Don't step on other code.
+
+  # try
+  eval{
+    local $SIG{__DIE__}; # No sigdie handler
+    # do stuff that might die
+  }
+
+  # catch
+  HandleEvalError( $@ ) if $@;
+}
+&lt;/code&gt;
+&lt;h2&gt;Potential Problems&lt;/h2&gt;
+&lt;hr align=left size=1 width ='75%'&gt;
+&lt;!-- ############################################ --&gt;
+This section is more of a recap of my pitfalls of [id://42411] post.
+Things you should realize before making a sigdie-mess:
+&lt;ol&gt;
+&lt;li&gt;Declare your handler subroutine before setting the handler.&lt;BR&gt;
+&lt;code&gt;
+BEGIN{ $SIG{__DIE__} = \&amp;FatalErr }
+
+# Real problem if compile fails before getting here.
+sub FatalErr { # do stuff, maybe print @_ or something.
+}
+&lt;/code&gt;
+&lt;small&gt;Why does moving the sub up work? Well... BEGIN is actually just
+another sub routine, except that it gets called as soon as it's compiled.
+INIT, by the way, is also a simillarly special sub routine, except that it gets called as the first step of runtime.&lt;/small&gt;
+&lt;/li&gt;
+&lt;li&gt;Functions called with an ampersand and no argument list are passed the current values of @_. This means that your sigdie handler gets the same argument list that [die] got. One thing to note is that the file/line number
+appending has already taken place by the time your handler gets @_. And if you had a file handle open then $. is in there too.
+&lt;/li&gt;
+&lt;li&gt;Your handler only gets called if someone uses [die]. This means that if you aren't checking your
+system calls and using [die] like C's Assert, then you won't get any added functionality.
+&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;a name="RecommendedReading"&gt;&lt;h2&gt;Recommended reading:&lt;/h2&gt;&lt;/a&gt;
+&lt;hr align=left size=1 width ='75%'&gt;
+&lt;!-- ############################################ --&gt;
+&lt;ul&gt;
+&lt;li&gt;[die]&lt;/li&gt;
+&lt;li&gt;[warn]&lt;/li&gt;
+&lt;li&gt;[eval]&lt;/li&gt;
+&lt;li&gt;[perlvar]
+&lt;ul&gt;
+    &lt;li&gt;&lt;A HREF="index.pl?node_id=403#item__SIG"&gt;%SIG&lt;/A&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;A HREF="index.pl?node_id=403#item__S"&gt;$^S&lt;/A&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;A HREF="index.pl?node_id=403#item__W"&gt;$^W&lt;/A&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="http://search.cpan.org/doc/GSAR/perl-5.6.0/pod/perllexwarn.pod"&gt;warnings pragma&lt;/a&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;!-- ############################################ --&gt;
+&lt;h5&gt;I hope that this tutorial has been a help to you, and that you find good, safe, and useful places for
+sigwarn and sigdie. - [Adam]&lt;/h5&gt;
+&lt;p&gt;&lt;small&gt;
+A few of my past posts on the subject:&lt;BR&gt;
+[id://21573]             &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;
+[id://35320|Code timing] &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;
+[id://37704]             &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;
+[id://39345]             &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;
+[id://42411]
+&lt;/small&gt;</field>
+</data>
+</node>

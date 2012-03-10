@@ -1,0 +1,72 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>367767</node_id>
+  <author_user>357600</author_user>
+  <title>get_display_types</title>
+  <createtime>2004-06-17 17:08:53</createtime>
+  <code>my ($href)=@_;
+my $N=($href-&gt;{target}||=$NODE);
+# Make sure we're dealing with a nodetype.
+my @nodetypes;
+
+my $type = $N-&gt;{type_nodetype}==1 ? $N : $N-&gt;{type};
+while ($type) {
+   push @nodetypes, $type;
+   $type = getType($type-&gt;{extends_nodetype});
+}
+
+return 'bad mojo!'
+  unless @nodetypes;
+
+# Often left implicit.  Make sure we get it.
+if ($nodetypes[-1]{node_id} != 7) {
+   push @nodetypes, getType('node');
+}
+
+my %htmlpages;
+
+my $sth = $DB-&gt;{dbh}-&gt;prepare(&quot;
+      SELECT htmlpage_id,
+             displaytype
+        FROM htmlpage
+       WHERE pagetype_nodetype = ?
+         and displaytype not like 'deprecated'
+&quot;.($href-&gt;{short} ? &quot;and displaytype not like '%deprecated%'&quot; : &quot;&quot;));
+
+my @order;
+foreach $type (@nodetypes) {
+   $sth-&gt;execute($type-&gt;{node_id});
+   foreach (@{$sth-&gt;fetchall_arrayref}) {
+      unless ($htmlpages{$_-&gt;[1]}) {
+        $htmlpages{$_-&gt;[1]}= $_;
+        push @order,$_;
+        push @$_,$type;
+      }
+   }
+}
+$href-&gt;{nodetypes}=\@nodetypes;
+$href-&gt;{order}=\@order;
+$href-&gt;{pages}=\%htmlpages;
+my $last='';
+my @links;
+my $trusted={trusted=&gt;'yes'};
+foreach (@order) {
+  last if $href-&gt;{direct} and $last and $last ne $_-&gt;[-1];
+  if ($href-&gt;{short}) {
+    push @links,linkNode($href-&gt;{current} ? $N : $_-&gt;[0] , $_-&gt;[1],
+          { (!$href-&gt;{direct} ? (displaytype=&gt;$_-&gt;[1]) : ()),
+            #-class =&gt; $N-&gt;{type}{title} ne $_-&gt;[-1] ? 'inherited-page' : 'direct-page'
+          },$trusted);
+  } else {
+    push @links,$q-&gt;td([ '&amp;bull;'.$_-&gt;[1],linkNode($_-&gt;[0]),
+                           $_-&gt;[-1] eq $last
+                           ? '&amp;nbsp;'
+                           : '(via '.linkNode($_-&gt;[-1]).')'
+                       ]);
+  }
+  $last=$_-&gt;[-1];
+}
+return $href-&gt;{short} ? join($href-&gt;{direct} ? &quot;, &quot; : &quot; | &quot;,@links) : $q-&gt;table($q-&gt;Tr(\@links));
+</code>
+  <nodeupdated>2005-05-15 05:46:01</nodeupdated>
+</node>

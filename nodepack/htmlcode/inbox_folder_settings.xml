@@ -1,0 +1,131 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>526174</node_id>
+  <author_user>357600</author_user>
+  <title>inbox_folder_settings</title>
+  <createtime>2006-01-28 10:45:14</createtime>
+  <code>my ( $box_node, %opts )= @_; 
+$box_node||=$USER;
+
+my $query=qq[
+  select archive id, count(archive) num, &quot;archive&quot; sent 
+  from message 
+  where for_user= $box_node-&gt;{node_id} 
+  group by archive 
+  union 
+  select folder, count(folder), &quot;folder&quot; from message
+  where author_user= $box_node-&gt;{node_id}
+  group by folder
+  order by id, sent
+];
+
+$query=~s/\s+/ /g;
+my $count_recs=$DB-&gt;getDatabaseHandle
+            -&gt;selectall_arrayref($query);
+my %counts;
+foreach my $rec (@{$count_recs||[]}) {
+  my ($id,$num,$sent)=@$rec;
+  next if $id &lt; -1;
+  $counts{$id}{count} += $num;
+  $counts{$id}{$sent} = $num;
+}
+
+my ( $box, $box_vars, $hash, $old );
+if ( $box_node-&gt;{type}{title} eq 'user' ) {
+   $box= $box_node;
+   $box_vars= $box-&gt;{node_id} == $USER-&gt;{node_id} ? $VARS : getVars($box);
+   $box_vars-&gt;{msgfolder} = {} 
+      if ref($box_vars-&gt;{msgfolder}) ne 'HASH';
+   $hash= $box_vars-&gt;{msgfolder};
+   $box_vars-&gt;{archive_folder_names} = [] 
+      if ref($box_vars-&gt;{archive_folder_names}) ne 'ARRAY';
+   $old= $box_vars-&gt;{archive_folder_names}; 
+} else {
+   $box= getNode(&quot;$box_node-&gt;{title} folder settings&quot;, 'setting');
+   $box_vars= $box ? getVars($box) : {};
+   $hash= $box_vars;
+}
+
+my @param;
+if ( canUpdateNode($box,$USER) ) {
+    @param= map { /^set_folder_name(-1|0|[1-9][0-9]?)$/ 
+                     ? $1 : () 
+               } $q-&gt;param;
+    foreach my $set (@param) {
+        my $val= $q-&gt;param(&quot;set_folder_name$set&quot;);  
+        if ( !$val &amp;&amp; !$counts{$set}{count} ) {
+            delete $hash-&gt;{$set};
+        } elsif ($val) {
+            $hash-&gt;{$set}=$val;
+        }
+    }
+}
+
+# defaults
+
+$hash-&gt;{-1} ||= 'Deleted';
+$hash-&gt;{0} ||= $old-&gt;[0] || 'Inbox';
+$hash-&gt;{1} ||= $old-&gt;[1] || 'Archive';
+
+foreach my $id (keys %counts) {
+  $hash-&gt;{$id}=$old-&gt;[$id] || &quot;Folder $id&quot; 
+    if !$hash-&gt;{$id} &amp;&amp; $counts{$id}{count};
+}
+
+if ( @param &amp;&amp; $box ) {
+    # @param can only be true if the user can update the node.
+    if ( $box-&gt;{node_id} != $USER-&gt;{node_id} ) {
+       setVars( $box, $box_vars );
+    } else {
+       delete $box_vars-&gt;{$_} 
+           for qw( archive_folder_names 
+                   archive_folder_positions );
+    } 
+}
+
+%{$opts{hash}}=%$hash 
+    if $opts{hash};
+%{$opts{counts}}=%counts
+    if $opts{counts};
+
+my @order=sort {$a &lt;=&gt; $b} keys %$hash;
+if ( $opts{order} ) {
+    @{$opts{order}}=@order[1..$#order,0];
+}
+
+return 1 if ! $opts{html};
+my @html;
+my @empty;
+my %special=( -1 =&gt; 'Deleted', 0 =&gt; 'Inbox' );
+foreach my $id (-1..$order[-1]+3) {
+    my ($lhs,$xtra,$ary);
+    if ($hash-&gt;{$id}) {
+        $ary=\@html;
+        $lhs= &quot;&lt;b&gt;$hash-&gt;{$id}&lt;/b&gt;&quot;;
+        $xtra=&quot;$counts{$id}{count} msgs&quot;
+           if $counts{$id}{count};
+        if ( $special{$id} ) {
+          $xtra.=&quot;&lt;br/&gt;&quot; if $xtra;
+          $xtra.=&quot;&lt;small&gt;( $special{$id} )&lt;/small&gt;&quot;;
+        }
+    } elsif ( @empty &lt; 3 )  {
+        $ary=\@empty;
+        $xtra=&quot;&lt;i&gt;Create New:&lt;/i&gt;&quot;;
+    }
+    next unless $ary;
+    push @$ary,
+         sprintf &quot;&lt;tr&gt;&lt;td align='center'&gt;%s&lt;/td&gt;&lt;td align='center'&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&quot;,
+            $lhs||'&amp;nbsp;',$xtra||'&amp;nbsp;',$q-&gt;textfield( 
+                -name =&gt; &quot;set_folder_name$id&quot;,
+                -value=&gt; ( $hash-&gt;{$id} || '' ),
+                -force=&gt;1,
+                -size =&gt; 30 
+            );
+}    
+return join &quot;\n&quot;,
+       $opts{html} ne 'inline' ? &quot;&lt;table&gt;&quot; : (),
+         @html,
+         @empty,
+       $opts{html} ne 'inline' ? &quot;&lt;/table&gt;&quot; : ();</code>
+  <nodeupdated>2006-01-28 05:45:14</nodeupdated>
+</node>

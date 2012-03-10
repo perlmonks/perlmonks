@@ -1,0 +1,1034 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perltie - how to hide an object class in a simple variable
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SYNOPSIS&quot;&gt;SYNOPSIS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;PRE&gt; tie VARIABLE, CLASSNAME, LIST
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; $object = tied VARIABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; untie VARIABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Prior to release 5.0 of Perl, a programmer could use 
+&lt;CODE&gt;dbmopen()&lt;/CODE&gt; to connect an on-disk database in the standard Unix 
+&lt;CODE&gt;dbm(3x)&lt;/CODE&gt; format magically to a &lt;CODE&gt;%HASH&lt;/CODE&gt; in their program. However, their Perl was either built with one particular dbm library or another, but not both, and you couldn't extend this mechanism to other packages or types of variables.
+
+&lt;P&gt;
+Now you can.
+
+&lt;P&gt;
+The 
+&lt;CODE&gt;tie()&lt;/CODE&gt; function binds a variable to a class (package) that will provide the implementation for access methods for that variable. Once this magic has been performed, accessing a tied variable automatically triggers method calls in the proper class. The complexity of the class is hidden behind magic methods calls. The method names are in 
+&lt;FONT SIZE=-1&gt;ALL&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CAPS,&lt;/FONT&gt; which is a convention that Perl uses to indicate that they're called implicitly rather than explicitly--just like the 
+&lt;CODE&gt;BEGIN()&lt;/CODE&gt; and 
+&lt;CODE&gt;END()&lt;/CODE&gt; functions.
+
+&lt;P&gt;
+In the 
+&lt;CODE&gt;tie()&lt;/CODE&gt; call, &lt;CODE&gt;VARIABLE&lt;/CODE&gt; is the name of the variable to be enchanted.  &lt;CODE&gt;CLASSNAME&lt;/CODE&gt; is the name of a class implementing objects of the correct type. Any
+additional arguments in the &lt;CODE&gt;LIST&lt;/CODE&gt; are passed to the appropriate constructor method for that class--meaning 
+&lt;CODE&gt;TIESCALAR(),&lt;/CODE&gt; 
+&lt;CODE&gt;TIEARRAY(),&lt;/CODE&gt; 
+&lt;CODE&gt;TIEHASH(),&lt;/CODE&gt; or 
+&lt;CODE&gt;TIEHANDLE().&lt;/CODE&gt; (Typically these are arguments such as might be passed to the 
+&lt;CODE&gt;dbminit()&lt;/CODE&gt; function of 
+&lt;FONT SIZE=-1&gt;C.)&lt;/FONT&gt; The object returned by the ``new'' method is also returned by the 
+&lt;CODE&gt;tie()&lt;/CODE&gt; function, which would be useful if you wanted to access other methods in
+
+&lt;CODE&gt;CLASSNAME&lt;/CODE&gt;. (You don't actually have to return a reference to a right ``type'' (e.g., 
+&lt;FONT SIZE=-1&gt;HASH&lt;/FONT&gt; or
+ &lt;CODE&gt;CLASSNAME&lt;/CODE&gt;) so long as it's a properly blessed object.) You can also retrieve a reference to the underlying object using the 
+&lt;CODE&gt;tied()&lt;/CODE&gt; function.
+
+&lt;P&gt;
+Unlike 
+&lt;CODE&gt;dbmopen(),&lt;/CODE&gt; the 
+&lt;CODE&gt;tie()&lt;/CODE&gt; function will not
+ [perlfunc:use|use] or [perlfunc:require|require] a module for you--you need to do that explicitly yourself.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Tying_Scalars&quot;&gt;Tying Scalars&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class implementing a tied scalar should define the following methods: 
+&lt;FONT SIZE=-1&gt;TIESCALAR,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FETCH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STORE,&lt;/FONT&gt; and possibly 
+&lt;FONT SIZE=-1&gt;DESTROY.&lt;/FONT&gt;
+
+&lt;P&gt;
+Let's look at each in turn, using as an example a tie class for scalars
+that allows the user to do something like:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie $his_speed, 'Nice', getppid();
+    tie $my_speed,  'Nice', $$;
+&lt;/PRE&gt;
+&lt;P&gt;
+And now whenever either of those variables is accessed, its current system
+priority is retrieved and returned. If those variables are set, then the
+process's priority is changed!
+
+&lt;P&gt;
+We'll use Jarkko Hietaniemi &amp;lt;&lt;EM&gt;jhi@iki.fi&lt;/EM&gt;&amp;gt;'s BSD::Resource class (not included) to access the 
+&lt;FONT SIZE=-1&gt;PRIO_PROCESS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PRIO_MIN,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;PRIO_MAX&lt;/FONT&gt; constants from your system, as well as the 
+&lt;CODE&gt;getpriority()&lt;/CODE&gt; and 
+&lt;CODE&gt;setpriority()&lt;/CODE&gt; system calls. Here's the preamble of the class.
+
+&lt;P&gt;
+&lt;PRE&gt;    package Nice;
+    use Carp;
+    use BSD::Resource;
+    use strict;
+    $Nice::DEBUG = 0 unless defined $Nice::DEBUG;
+&lt;/PRE&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TIESCALAR&quot;&gt;TIESCALAR classname, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the constructor for the class. That means it is expected to return
+a blessed reference to a new scalar (probably anonymous) that it's
+creating. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub TIESCALAR {
+        my $class = shift;
+        my $pid = shift || $$; # 0 means me
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if ($pid !~ /^\d+$/) {
+            carp &amp;quot;Nice::Tie::Scalar got non-numeric pid $pid&amp;quot; if $^W;
+            return undef;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        unless (kill 0, $pid) { # EPERM or ERSCH, no doubt
+            carp &amp;quot;Nice::Tie::Scalar got bad pid $pid: $!&amp;quot; if $^W;
+            return undef;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        return bless \$pid, $class;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+This tie class has chosen to return an error rather than raising an exception if its constructor should fail. While this is how 
+&lt;CODE&gt;dbmopen()&lt;/CODE&gt; works, other classes may well not wish to be so forgiving. It checks the global variable
+ &lt;CODE&gt;$^W&lt;/CODE&gt; to see whether to emit a bit of noise anyway.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FETCH&quot;&gt;FETCH this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time the tied variable is accessed (read). It takes no arguments beyond its self reference, which is the object representing the scalar we're dealing with. Because in this case we're using just a 
+&lt;FONT SIZE=-1&gt;SCALAR&lt;/FONT&gt; ref for the tied scalar object, a simple &lt;CODE&gt;$$self&lt;/CODE&gt; allows the method to get at the real value stored there. In our example below, that real value is the process 
+&lt;FONT SIZE=-1&gt;ID&lt;/FONT&gt; to which we've tied our variable.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub FETCH {
+        my $self = shift;
+        confess &amp;quot;wrong type&amp;quot; unless ref $self;
+        croak &amp;quot;usage error&amp;quot; if @_;
+        my $nicety;
+        local($!) = 0;
+        $nicety = getpriority(PRIO_PROCESS, $$self);
+        if ($!) { croak &amp;quot;getpriority failed: $!&amp;quot; }
+        return $nicety;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+This time we've decided to blow up (raise an exception) if the renice
+fails--there's no place for us to return an error otherwise, and it's
+probably the right thing to do.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_STORE&quot;&gt;STORE this, value&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time the tied variable is set
+(assigned). Beyond its self reference, it also expects one (and only one)
+argument--the new value the user is trying to assign.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub STORE {
+        my $self = shift;
+        confess &amp;quot;wrong type&amp;quot; unless ref $self;
+        my $new_nicety = shift;
+        croak &amp;quot;usage error&amp;quot; if @_;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if ($new_nicety &amp;lt; PRIO_MIN) {
+            carp sprintf
+              &amp;quot;WARNING: priority %d less than minimum system priority %d&amp;quot;,
+                  $new_nicety, PRIO_MIN if $^W;
+            $new_nicety = PRIO_MIN;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if ($new_nicety &amp;gt; PRIO_MAX) {
+            carp sprintf
+              &amp;quot;WARNING: priority %d greater than maximum system priority %d&amp;quot;,
+                  $new_nicety, PRIO_MAX if $^W;
+            $new_nicety = PRIO_MAX;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        unless (defined setpriority(PRIO_PROCESS, $$self, $new_nicety)) {
+            confess &amp;quot;setpriority failed: $!&amp;quot;;
+        }
+        return $new_nicety;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DESTROY&quot;&gt;DESTROY this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered when the tied variable needs to be destructed. As with other object classes, such a method is seldom necessary, because Perl deallocates its moribund object's memory for you automatically--this isn't 
+&lt;FONT SIZE=-1&gt;C++,&lt;/FONT&gt; you know. We'll use a 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; method here for debugging purposes only.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub DESTROY {
+        my $self = shift;
+        confess &amp;quot;wrong type&amp;quot; unless ref $self;
+        carp &amp;quot;&amp;#091; Nice::DESTROY pid $$self &amp;#093;&amp;quot; if $Nice::DEBUG;
+    }
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+That's about all there is to it. Actually, it's more than all there is to it, because we've done a few nice things here for the sake of completeness, robustness, and general aesthetics. Simpler 
+&lt;FONT SIZE=-1&gt;TIESCALAR&lt;/FONT&gt; classes are certainly possible.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Tying_Arrays&quot;&gt;Tying Arrays&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class implementing a tied ordinary array should define the following methods: 
+&lt;FONT SIZE=-1&gt;TIEARRAY,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FETCH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STORE,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FETCHSIZE,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STORESIZE&lt;/FONT&gt; and perhaps 
+&lt;FONT SIZE=-1&gt;DESTROY.&lt;/FONT&gt;
+ 
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;FETCHSIZE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STORESIZE&lt;/FONT&gt; are used to provide
+ &lt;CODE&gt;$#array&lt;/CODE&gt; and equivalent [perlfunc:scalar|scalar(@array)] access. The methods 
+&lt;FONT SIZE=-1&gt;POP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PUSH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;SHIFT,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;UNSHIFT,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;SPLICE&lt;/FONT&gt; are required if the perl operator with the corresponding (but lowercase) name is to operate on the tied array. The
+ &lt;STRONG&gt;Tie::Array&lt;/STRONG&gt; class can be used as a base class to implement these in terms of the basic
+five methods above.  
+
+&lt;P&gt;
+In addition 
+&lt;FONT SIZE=-1&gt;EXTEND&lt;/FONT&gt; will be called when perl would have
+pre-extended allocation in a real array.
+
+&lt;P&gt;
+This means that tied arrays are now &lt;EM&gt;complete&lt;/EM&gt;. The example below needs upgrading to illustrate this. (The documentation
+in &lt;STRONG&gt;Tie::Array&lt;/STRONG&gt; is more complete.)
+
+&lt;P&gt;
+For this discussion, we'll implement an array whose indices are fixed at
+its creation. If you try to access anything beyond those bounds, you'll
+take an exception. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    require Bounded_Array;
+    tie @ary, 'Bounded_Array', 2;
+    $| = 1;
+    for $i (0 .. 10) {
+        print &amp;quot;setting index $i: &amp;quot;;
+        $ary&amp;#091;$i&amp;#093; = 10 * $i;
+        $ary&amp;#091;$i&amp;#093; = 10 * $i;
+        print &amp;quot;value of elt $i now $ary&amp;#091;$i&amp;#093;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The preamble code for the class is as follows:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Bounded_Array;
+    use Carp;
+    use strict;
+&lt;/PRE&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TIEARRAY&quot;&gt;TIEARRAY classname, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the constructor for the class. That means it is expected to return a blessed reference through which the new array (probably an anonymous 
+&lt;FONT SIZE=-1&gt;ARRAY&lt;/FONT&gt; ref) will be accessed.
+
+&lt;P&gt;
+In our example, just to show you that you don't &lt;EM&gt;really&lt;/EM&gt; have to return an 
+&lt;FONT SIZE=-1&gt;ARRAY&lt;/FONT&gt; reference, we'll choose a 
+&lt;FONT SIZE=-1&gt;HASH&lt;/FONT&gt; reference to represent our object. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;HASH&lt;/FONT&gt; works out well as a generic record type: the
+ &lt;CODE&gt;{BOUND}&lt;/CODE&gt; field will store the maximum bound allowed, and the &lt;CODE&gt;{ARRAY}&lt;/CODE&gt; field will hold the true 
+&lt;FONT SIZE=-1&gt;ARRAY&lt;/FONT&gt; ref. If someone outside the class tries to dereference the object returned (doubtless thinking it an 
+&lt;FONT SIZE=-1&gt;ARRAY&lt;/FONT&gt; ref), they'll blow up. This just goes to show you that you should respect an object's privacy.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub TIEARRAY {
+        my $class = shift;
+        my $bound = shift;
+        confess &amp;quot;usage: tie(\@ary, 'Bounded_Array', max_subscript)&amp;quot;
+            if @_ || $bound =~ /\D/;
+        return bless {
+            BOUND =&amp;gt; $bound,
+            ARRAY =&amp;gt; &amp;#091;&amp;#093;,
+        }, $class;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;FETCH this, index&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time an individual element the tied
+array is accessed (read). It takes one argument beyond its self reference:
+the index whose value we're trying to fetch.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub FETCH {
+      my($self,$idx) = @_;
+      if ($idx &amp;gt; $self-&amp;gt;{BOUND}) {
+        confess &amp;quot;Array OOB: $idx &amp;gt; $self-&amp;gt;{BOUND}&amp;quot;;
+      }
+      return $self-&amp;gt;{ARRAY}&amp;#091;$idx&amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+As you may have noticed, the name of the 
+&lt;FONT SIZE=-1&gt;FETCH&lt;/FONT&gt; method (et al.) is the same for all accesses, even though the constructors differ in names 
+&lt;FONT SIZE=-1&gt;(TIESCALAR&lt;/FONT&gt; vs 
+&lt;FONT SIZE=-1&gt;TIEARRAY).&lt;/FONT&gt; While in theory you could have the same class servicing several tied types, in practice this becomes cumbersome, and it's easiest to keep them at simply one tie type per class.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;STORE this, index, value&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time an element in the tied array is
+set (written). It takes two arguments beyond its self reference: the index
+at which we're trying to store something and the value we're trying to put
+there. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub STORE {
+      my($self, $idx, $value) = @_;
+      print &amp;quot;&amp;#091;STORE $value at $idx&amp;#093;\n&amp;quot; if _debug;
+      if ($idx &amp;gt; $self-&amp;gt;{BOUND} ) {
+        confess &amp;quot;Array OOB: $idx &amp;gt; $self-&amp;gt;{BOUND}&amp;quot;;
+      }
+      return $self-&amp;gt;{ARRAY}&amp;#091;$idx&amp;#093; = $value;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;DESTROY this&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered when the tied variable needs to be
+destructed. As with the scalar tie class, this is almost never needed in a
+language that does its own garbage collection, so this time we'll just
+leave it out.
+
+&lt;/DL&gt;
+&lt;P&gt;
+The code we presented at the top of the tied array class accesses many
+elements of the array, far more than we've set the bounds to. Therefore, it
+will blow up once they try to access beyond the 2nd element of @ary, as the
+following output demonstrates:
+
+&lt;P&gt;
+&lt;PRE&gt;    setting index 0: value of elt 0 now 0
+    setting index 1: value of elt 1 now 10
+    setting index 2: value of elt 2 now 20
+    setting index 3: Array OOB: 3 &amp;gt; 2 at Bounded_Array.pm line 39
+            Bounded_Array::FETCH called at testba line 12
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Tying_Hashes&quot;&gt;Tying Hashes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+As the first Perl data type to be tied (see 
+&lt;CODE&gt;dbmopen()),&lt;/CODE&gt; hashes have the most complete and useful 
+&lt;CODE&gt;tie()&lt;/CODE&gt; implementation. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class implementing a tied hash should define the following methods: 
+&lt;FONT SIZE=-1&gt;TIEHASH&lt;/FONT&gt; is the constructor. 
+&lt;FONT SIZE=-1&gt;FETCH&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STORE&lt;/FONT&gt; access the key and value pairs. 
+&lt;FONT SIZE=-1&gt;EXISTS&lt;/FONT&gt; reports whether a key is present in the hash, and 
+&lt;FONT SIZE=-1&gt;DELETE&lt;/FONT&gt; deletes one. 
+&lt;FONT SIZE=-1&gt;CLEAR&lt;/FONT&gt; empties the hash by deleting all the key and value pairs. 
+&lt;FONT SIZE=-1&gt;FIRSTKEY&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;NEXTKEY&lt;/FONT&gt; implement the 
+&lt;CODE&gt;keys()&lt;/CODE&gt; and 
+&lt;CODE&gt;each()&lt;/CODE&gt; functions to iterate over all the keys. And 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; is called when the tied variable is garbage collected.
+
+&lt;P&gt;
+If this seems like a lot, then feel free to inherit from merely the
+standard Tie::Hash module for most of your methods, redefining only the
+interesting ones. See &lt;U&gt;Hash&lt;/U&gt;&lt;!--../lib/Tie/Hash.html--&gt; for details.
+
+&lt;P&gt;
+Remember that Perl distinguishes between a key not existing in the hash,
+and the key existing in the hash but having a corresponding value of
+[perlfunc:undef|undef]. The two possibilities can be tested with the [perlfunc:exists|exists()] and
+[perlfunc:defined|defined()] functions.
+
+&lt;P&gt;
+Here's an example of a somewhat interesting tied hash class: it gives you a
+hash representing a particular user's dot files. You index into the hash
+with the name of the file (minus the dot) and you get back that dot file's
+contents. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    use DotFiles;
+    tie %dot, 'DotFiles';
+    if ( $dot{profile} =~ /MANPATH/ ||
+         $dot{login}   =~ /MANPATH/ ||
+         $dot{cshrc}   =~ /MANPATH/    )
+    {
+        print &amp;quot;you seem to set your MANPATH\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Or here's another sample of using our tied class:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %him, 'DotFiles', 'daemon';
+    foreach $f ( keys %him ) {
+        printf &amp;quot;daemon dot file %s is size %d\n&amp;quot;,
+            $f, length $him{$f};
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+In our tied hash DotFiles example, we use a regular hash for the object
+containing several important fields, of which only the &lt;CODE&gt;{LIST}&lt;/CODE&gt; field will be what the user thinks of as the real hash.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_USER&quot;&gt;USER&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+whose dot files this object represents
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_HOME&quot;&gt;HOME&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+where those dot files live
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_CLOBBER&quot;&gt;CLOBBER&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+whether we should try to change or remove those dot files
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_LIST&quot;&gt;LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+the hash of dot file names and content mappings
+
+&lt;/DL&gt;
+&lt;P&gt;
+Here's the start of &lt;EM&gt;Dotfiles.pm&lt;/EM&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;    package DotFiles;
+    use Carp;
+    sub whowasi { (caller(1))&amp;#091;3&amp;#093; . '()' }
+    my $DEBUG = 0;
+    sub debug { $DEBUG = @_ ? shift : 1 }
+&lt;/PRE&gt;
+&lt;P&gt;
+For our example, we want to be able to emit debugging info to help in tracing during development. We keep also one convenience function around internally to help print out warnings; 
+&lt;CODE&gt;whowasi()&lt;/CODE&gt; returns the function name that calls it.
+
+&lt;P&gt;
+Here are the methods for the DotFiles tied hash.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TIEHASH&quot;&gt;TIEHASH classname, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the constructor for the class. That means it is expected to return
+a blessed reference through which the new object (probably but not
+necessarily an anonymous hash) will be accessed.
+
+&lt;P&gt;
+Here's the constructor:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub TIEHASH {
+        my $self = shift;
+        my $user = shift || $&amp;gt;;
+        my $dotdir = shift || '';
+        croak &amp;quot;usage: @{&amp;#091;&amp;amp;whowasi&amp;#093;} &amp;#091;USER &amp;#091;DOTDIR&amp;#093;&amp;#093;&amp;quot; if @_;
+        $user = getpwuid($user) if $user =~ /^\d+$/;
+        my $dir = (getpwnam($user))&amp;#091;7&amp;#093;
+                || croak &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: no user $user&amp;quot;;
+        $dir .= &amp;quot;/$dotdir&amp;quot; if $dotdir;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        my $node = {
+            USER    =&amp;gt; $user,
+            HOME    =&amp;gt; $dir,
+            LIST    =&amp;gt; {},
+            CLOBBER =&amp;gt; 0,
+        };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        opendir(DIR, $dir)
+                || croak &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: can't opendir $dir: $!&amp;quot;;
+        foreach $dot ( grep /^\./ &amp;amp;&amp;amp; -f &amp;quot;$dir/$_&amp;quot;, readdir(DIR)) {
+            $dot =~ s/^\.//;
+            $node-&amp;gt;{LIST}{$dot} = undef;
+        }
+        closedir DIR;
+        return bless $node, $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+It's probably worth mentioning that if you're going to filetest the return values out of a readdir, you'd better prepend the directory in question. Otherwise, because we didn't 
+&lt;CODE&gt;chdir()&lt;/CODE&gt; there, it would have been testing the wrong file.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;FETCH this, key&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time an element in the tied hash is
+accessed (read). It takes one argument beyond its self reference: the key
+whose value we're trying to fetch.
+
+&lt;P&gt;
+Here's the fetch for our DotFiles example.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub FETCH {
+        carp &amp;amp;whowasi if $DEBUG;
+        my $self = shift;
+        my $dot = shift;
+        my $dir = $self-&amp;gt;{HOME};
+        my $file = &amp;quot;$dir/.$dot&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        unless (exists $self-&amp;gt;{LIST}-&amp;gt;{$dot} || -f $file) {
+            carp &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: no $dot file&amp;quot; if $DEBUG;
+            return undef;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if (defined $self-&amp;gt;{LIST}-&amp;gt;{$dot}) {
+            return $self-&amp;gt;{LIST}-&amp;gt;{$dot};
+        } else {
+            return $self-&amp;gt;{LIST}-&amp;gt;{$dot} = `cat $dir/.$dot`;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+It was easy to write by having it call the Unix 
+&lt;CODE&gt;cat(1)&lt;/CODE&gt; command, but it would
+probably be more portable to open the file manually (and somewhat more
+efficient). Of course, because dot files are a Unixy concept, we're not
+that concerned.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;STORE this, key, value&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time an element in the tied hash is set
+(written). It takes two arguments beyond its self reference: the index at
+which we're trying to store something, and the value we're trying to put
+there.
+
+&lt;P&gt;
+Here in our DotFiles example, we'll be careful not to let them try to overwrite the file unless they've called the 
+&lt;CODE&gt;clobber()&lt;/CODE&gt; method on the original object reference returned by 
+&lt;CODE&gt;tie().&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    sub STORE {
+        carp &amp;amp;whowasi if $DEBUG;
+        my $self = shift;
+        my $dot = shift;
+        my $value = shift;
+        my $file = $self-&amp;gt;{HOME} . &amp;quot;/.$dot&amp;quot;;
+        my $user = $self-&amp;gt;{USER};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        croak &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: $file not clobberable&amp;quot;
+            unless $self-&amp;gt;{CLOBBER};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        open(F, &amp;quot;&amp;gt; $file&amp;quot;) || croak &amp;quot;can't open $file: $!&amp;quot;;
+        print F $value;
+        close(F);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If they wanted to clobber something, they might say:
+
+&lt;P&gt;
+&lt;PRE&gt;    $ob = tie %daemon_dots, 'daemon';
+    $ob-&amp;gt;clobber(1);
+    $daemon_dots{signature} = &amp;quot;A true daemon\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Another way to lay hands on a reference to the underlying object is to use the 
+&lt;CODE&gt;tied()&lt;/CODE&gt; function, so they might alternately have set clobber using:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %daemon_dots, 'daemon';
+    tied(%daemon_dots)-&amp;gt;clobber(1);
+&lt;/PRE&gt;
+&lt;P&gt;
+The clobber method is simply:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub clobber {
+        my $self = shift;
+        $self-&amp;gt;{CLOBBER} = @_ ? shift : 1;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DELETE&quot;&gt;DELETE this, key&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method is triggered when we remove an element from the hash, typically by using the 
+&lt;CODE&gt;delete()&lt;/CODE&gt; function. Again, we'll be careful to check whether they really want to clobber files.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub DELETE   {
+        carp &amp;amp;whowasi if $DEBUG;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        my $self = shift;
+        my $dot = shift;
+        my $file = $self-&amp;gt;{HOME} . &amp;quot;/.$dot&amp;quot;;
+        croak &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: won't remove file $file&amp;quot;
+            unless $self-&amp;gt;{CLOBBER};
+        delete $self-&amp;gt;{LIST}-&amp;gt;{$dot};
+        my $success = unlink($file);
+        carp &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: can't unlink $file: $!&amp;quot; unless $success;
+        $success;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The value returned by 
+&lt;FONT SIZE=-1&gt;DELETE&lt;/FONT&gt; becomes the return value of the call to 
+&lt;CODE&gt;delete().&lt;/CODE&gt; If you want to emulate the normal behavior of 
+&lt;CODE&gt;delete(),&lt;/CODE&gt; you should return whatever 
+&lt;FONT SIZE=-1&gt;FETCH&lt;/FONT&gt; would have returned for this key. In this example, we have chosen instead to return a value which tells the caller whether the file was successfully deleted.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_CLEAR&quot;&gt;CLEAR this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method is triggered when the whole hash is to be cleared, usually by
+assigning the empty list to it.
+
+&lt;P&gt;
+In our example, that would remove all the user's dot files! It's such a dangerous thing that they'll have to set 
+&lt;FONT SIZE=-1&gt;CLOBBER&lt;/FONT&gt; to something higher than 1 to make it happen.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub CLEAR    {
+        carp &amp;amp;whowasi if $DEBUG;
+        my $self = shift;
+        croak &amp;quot;@{&amp;#091;&amp;amp;whowasi&amp;#093;}: won't remove all dot files for $self-&amp;gt;{USER}&amp;quot;
+            unless $self-&amp;gt;{CLOBBER} &amp;gt; 1;
+        my $dot;
+        foreach $dot ( keys %{$self-&amp;gt;{LIST}}) {
+            $self-&amp;gt;DELETE($dot);
+        }
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_EXISTS&quot;&gt;EXISTS this, key&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method is triggered when the user uses the 
+&lt;CODE&gt;exists()&lt;/CODE&gt; function on a
+particular hash. In our example, we'll look at the &lt;CODE&gt;{LIST}&lt;/CODE&gt;
+hash element for this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub EXISTS   {
+        carp &amp;amp;whowasi if $DEBUG;
+        my $self = shift;
+        my $dot = shift;
+        return exists $self-&amp;gt;{LIST}-&amp;gt;{$dot};
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FIRSTKEY&quot;&gt;FIRSTKEY this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered when the user is going to iterate through the hash, such as via a 
+&lt;CODE&gt;keys()&lt;/CODE&gt; or 
+&lt;CODE&gt;each()&lt;/CODE&gt; call.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub FIRSTKEY {
+        carp &amp;amp;whowasi if $DEBUG;
+        my $self = shift;
+        my $a = keys %{$self-&amp;gt;{LIST}};          # reset each() iterator
+        each %{$self-&amp;gt;{LIST}}
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_NEXTKEY&quot;&gt;NEXTKEY this, lastkey&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method gets triggered during a 
+&lt;CODE&gt;keys()&lt;/CODE&gt; or 
+&lt;CODE&gt;each()&lt;/CODE&gt; iteration. It has a second argument which is the last key that had been accessed. This is useful if you're carrying about ordering or calling the iterator from more than one sequence, or not really storing things in a hash anywhere.
+
+&lt;P&gt;
+For our example, we're using a real hash so we'll do just the simple thing, but we'll have to go through the 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; field indirectly.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub NEXTKEY  {
+        carp &amp;amp;whowasi if $DEBUG;
+        my $self = shift;
+        return each %{ $self-&amp;gt;{LIST} }
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;DESTROY this&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method is triggered when a tied hash is about to go out of scope. You
+don't really need it unless you're trying to add debugging or have
+auxiliary state to clean up. Here's a very simple function:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub DESTROY  {
+        carp &amp;amp;whowasi if $DEBUG;
+    }
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+Note that functions such as 
+&lt;CODE&gt;keys()&lt;/CODE&gt; and 
+&lt;CODE&gt;values()&lt;/CODE&gt; may return huge lists when used on large objects, like 
+&lt;FONT SIZE=-1&gt;DBM&lt;/FONT&gt; files. You may prefer to use the 
+&lt;CODE&gt;each()&lt;/CODE&gt; function to iterate over such. Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    # print out history file offsets
+    use NDBM_File;
+    tie(%HIST, 'NDBM_File', '/usr/lib/news/history', 1, 0);
+    while (($key,$val) = each %HIST) {
+        print $key, ' = ', unpack('L',$val), &amp;quot;\n&amp;quot;;
+    }
+    untie(%HIST);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Tying_FileHandles&quot;&gt;Tying FileHandles&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This is partially implemented now.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class implementing a tied filehandle should define the following methods: 
+&lt;FONT SIZE=-1&gt;TIEHANDLE,&lt;/FONT&gt; at least one of 
+&lt;FONT SIZE=-1&gt;PRINT,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PRINTF,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;WRITE,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;READLINE,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;GETC,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;READ,&lt;/FONT&gt; and possibly 
+&lt;FONT SIZE=-1&gt;CLOSE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;DESTROY.&lt;/FONT&gt;
+
+&lt;P&gt;
+It is especially useful when perl is embedded in some other program, where output to 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; may have to be redirected in some special way. See nvi and the Apache module for examples.
+
+&lt;P&gt;
+In our example we're going to create a shouting handle.
+
+&lt;P&gt;
+&lt;PRE&gt;    package Shout;
+&lt;/PRE&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TIEHANDLE&quot;&gt;TIEHANDLE classname, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the constructor for the class. That means it is expected to return
+a blessed reference of some sort. The reference can be used to hold some
+internal information.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub TIEHANDLE { print &amp;quot;&amp;lt;shout&amp;gt;\n&amp;quot;; my $i; bless \$i, shift }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_WRITE&quot;&gt;WRITE this, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the handle is written to via the
+[perlfunc:syswrite|syswrite] function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub WRITE {
+        $r = shift;
+        my($buf,$len,$offset) = @_;
+        print &amp;quot;WRITE called, \$buf=$buf, \$len=$len, \$offset=$offset&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PRINT&quot;&gt;PRINT this, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time the tied handle is printed to with
+the [perlfunc:print|print()] function. Beyond its self reference it also expects the list that was
+passed to the print function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub PRINT { $r = shift; $$r++; print join($,,map(uc($_),@_)),$\ }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PRINTF&quot;&gt;PRINTF this, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time the tied handle is printed to with
+the [perlfunc:printf|printf()] function. Beyond its self reference it also expects the format and list
+that was passed to the printf function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub PRINTF {
+        shift;
+        my $fmt = shift;
+        print sprintf($fmt, @_).&amp;quot;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_READ&quot;&gt;READ this, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the handle is read from via the [perlfunc:read|read]
+or [perlfunc:sysread|sysread] functions.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub READ {
+        $r = shift;
+        my($buf,$len,$offset) = @_;
+        print &amp;quot;READ called, \$buf=$buf, \$len=$len, \$offset=$offset&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_READLINE&quot;&gt;READLINE this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the handle is read from via 
+&lt;FONT SIZE=-1&gt;&amp;lt;HANDLE&amp;gt;.&lt;/FONT&gt; The method should return undef when
+there is no more data.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub READLINE { $r = shift; &amp;quot;PRINT called $$r times\n&amp;quot;; }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_GETC&quot;&gt;GETC this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the [perlfunc:getc|getc] function is called.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub GETC { print &amp;quot;Don't GETC, Get Perl&amp;quot;; return &amp;quot;a&amp;quot;; }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_CLOSE&quot;&gt;CLOSE this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the handle is closed via the [perlfunc:close|close]
+function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub CLOSE { print &amp;quot;CLOSE called.\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;DESTROY this&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+As with the other types of ties, this method will be called when the tied
+handle is about to be destroyed. This is useful for debugging and possibly
+cleaning up.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub DESTROY { print &amp;quot;&amp;lt;/shout&amp;gt;\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+Here's how to use our little example:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie(*FOO,'Shout');
+    print FOO &amp;quot;hello\n&amp;quot;;
+    $a = 4; $b = 6;
+    print FOO $a, &amp;quot; plus &amp;quot;, $b, &amp;quot; equals &amp;quot;, $a + $b, &amp;quot;\n&amp;quot;;
+    print &amp;lt;FOO&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_C_untie_Gotcha&quot;&gt;The [perlfunc:untie|untie] Gotcha&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you intend making use of the object returned from either 
+&lt;CODE&gt;tie()&lt;/CODE&gt; or 
+&lt;CODE&gt;tied(),&lt;/CODE&gt; and if the tie's target class defines a destructor, there is a subtle gotcha you
+ &lt;EM&gt;must&lt;/EM&gt; guard against.
+
+&lt;P&gt;
+As setup, consider this (admittedly rather contrived) example of a tie; all
+it does is use a file to keep a log of the values assigned to a scalar.
+
+&lt;P&gt;
+&lt;PRE&gt;    package Remember;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+    use IO::File;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub TIESCALAR {
+        my $class = shift;
+        my $filename = shift;
+        my $handle = new IO::File &amp;quot;&amp;gt; $filename&amp;quot;
+                         or die &amp;quot;Cannot open $filename: $!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $handle &amp;quot;The Start\n&amp;quot;;
+        bless {FH =&amp;gt; $handle, Value =&amp;gt; 0}, $class;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub FETCH {
+        my $self = shift;
+        return $self-&amp;gt;{Value};
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub STORE {
+        my $self = shift;
+        my $value = shift;
+        my $handle = $self-&amp;gt;{FH};
+        print $handle &amp;quot;$value\n&amp;quot;;
+        $self-&amp;gt;{Value} = $value;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub DESTROY {
+        my $self = shift;
+        my $handle = $self-&amp;gt;{FH};
+        print $handle &amp;quot;The End\n&amp;quot;;
+        close $handle;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    1;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is an example that makes use of this tie:
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+    use Remember;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my $fred;
+    tie $fred, 'Remember', 'myfile.txt';
+    $fred = 1;
+    $fred = 4;
+    $fred = 5;
+    untie $fred;
+    system &amp;quot;cat myfile.txt&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is the output when it is executed:
+
+&lt;P&gt;
+&lt;PRE&gt;    The Start
+    1
+    4
+    5
+    The End
+&lt;/PRE&gt;
+&lt;P&gt;
+So far so good. Those of you who have been paying attention will have
+spotted that the tied object hasn't been used so far. So lets add an extra
+method to the Remember class to allow comments to be included in the file
+-- say, something like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub comment {
+        my $self = shift;
+        my $text = shift;
+        my $handle = $self-&amp;gt;{FH};
+        print $handle $text, &amp;quot;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+And here is the previous example modified to use the &lt;CODE&gt;comment&lt;/CODE&gt; method (which requires the tied object):
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+    use Remember;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my ($fred, $x);
+    $x = tie $fred, 'Remember', 'myfile.txt';
+    $fred = 1;
+    $fred = 4;
+    comment $x &amp;quot;changing...&amp;quot;;
+    $fred = 5;
+    untie $fred;
+    system &amp;quot;cat myfile.txt&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+When this code is executed there is no output. Here's why:
+
+&lt;P&gt;
+When a variable is tied, it is associated with the object which is the return value of the 
+&lt;FONT SIZE=-1&gt;TIESCALAR,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;TIEARRAY,&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;TIEHASH&lt;/FONT&gt; function. This object normally has only one reference, namely, the implicit reference from the tied variable. When 
+&lt;CODE&gt;untie()&lt;/CODE&gt; is called, that reference is destroyed. Then, as in the first example above, the object's destructor 
+&lt;FONT SIZE=-1&gt;(DESTROY)&lt;/FONT&gt; is called, which is normal for objects that have no more valid references; and thus the file is closed.
+
+&lt;P&gt;
+In the second example, however, we have stored another reference to the
+tied object in &lt;CODE&gt;$x&lt;/CODE&gt;. That means that when 
+&lt;CODE&gt;untie()&lt;/CODE&gt; gets called there will
+still be a valid reference to the object in existence, so the destructor is
+not called at that time, and thus the file is not closed. The reason there
+is no output is because the file buffers have not been flushed to disk.
+
+&lt;P&gt;
+Now that you know what the problem is, what can you do to avoid it? Well,
+the good old &lt;CODE&gt;-w&lt;/CODE&gt; flag will spot any instances where you call 
+&lt;CODE&gt;untie()&lt;/CODE&gt; and there are still
+valid references to the tied object. If the second script above is run with
+the &lt;CODE&gt;-w&lt;/CODE&gt; flag, Perl prints this warning message:
+
+&lt;P&gt;
+&lt;PRE&gt;    untie attempted while 1 inner references still exist
+&lt;/PRE&gt;
+&lt;P&gt;
+To get the script to work properly and silence the warning make sure there
+are no valid references to the tied object &lt;EM&gt;before&lt;/EM&gt; 
+&lt;CODE&gt;untie()&lt;/CODE&gt; is called:
+
+&lt;P&gt;
+&lt;PRE&gt;    undef $x;
+    untie $fred;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+See &lt;U&gt;the DB_File manpage&lt;/U&gt;&lt;!--../lib/DB_File.html--&gt; or &lt;U&gt;the Config manpage&lt;/U&gt;&lt;!--../lib/Config.html--&gt; for some interesting 
+&lt;CODE&gt;tie()&lt;/CODE&gt; implementations.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;BUGS&quot;&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Tied arrays are &lt;EM&gt;incomplete&lt;/EM&gt;. They are also distinctly lacking something for the &lt;CODE&gt;$#ARRAY&lt;/CODE&gt; access (which is hard, as it's an lvalue), as well as the other obvious array functions, like 
+&lt;CODE&gt;push(),&lt;/CODE&gt; 
+&lt;CODE&gt;pop(),&lt;/CODE&gt; 
+&lt;CODE&gt;shift(),&lt;/CODE&gt; 
+&lt;CODE&gt;unshift(),&lt;/CODE&gt; and 
+&lt;CODE&gt;splice().&lt;/CODE&gt;
+
+&lt;P&gt;
+You cannot easily tie a multilevel data structure (such as a hash of hashes) to a dbm file. The first problem is that all but 
+&lt;FONT SIZE=-1&gt;GDBM&lt;/FONT&gt; and Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; have size limitations, but beyond that, you also have problems with how references are to be represented on disk. One experimental module that does attempt to address this need partially is the 
+&lt;FONT SIZE=-1&gt;MLDBM&lt;/FONT&gt; module. Check your nearest 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; site as described in
+ [perlman:perlmodlib|the perlmodlib manpage] for source code to 
+&lt;FONT SIZE=-1&gt;MLDBM.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>401</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perltie</title>
+  <createtime>1999-08-25 02:41:46</createtime>
+  <nodeupdated>2005-08-12 21:25:16</nodeupdated>
+</node>

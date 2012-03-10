@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1259" title="perlman:Thread::Queue" created="1999-12-22 19:53:31" updated="2005-08-10 15:33:20">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+Thread::Queue - thread-safe queues
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+&lt;PRE&gt;    use Thread::Queue;
+    my $q = new Thread::Queue;
+    $q-&amp;gt;enqueue(&amp;quot;foo&amp;quot;, &amp;quot;bar&amp;quot;);
+    my $foo = $q-&amp;gt;dequeue;    # The &amp;quot;bar&amp;quot; is still in the queue.
+    my $foo = $q-&amp;gt;dequeue_nb; # returns &amp;quot;bar&amp;quot;,</field>
+<field name="description">
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; queue, as implemented by &lt;CODE&gt;Thread::Queue&lt;/CODE&gt; is a thread-safe data structure much like a list. Any number of threads can
+safely add elements to the end of the list, or remove elements from the
+head of the list. (Queues don't permit adding or removing elements from the
+middle of the list)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="FUNCTIONS_AND_METHODS"&gt;FUNCTIONS AND METHODS&lt;/A&gt;&lt;/H1&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_new"&gt;new&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;new&lt;/CODE&gt; function creates a new empty queue.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_enqueue"&gt;enqueue LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;enqueue&lt;/CODE&gt; method adds a list of scalars on to the end of the queue. The queue will
+grow as needed to accomodate the list.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dequeue"&gt;dequeue&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;dequeue&lt;/CODE&gt; method removes a scalar from the head of the queue and returns it. If the
+queue is currently empty, &lt;CODE&gt;dequeue&lt;/CODE&gt; will block the thread until another thread &lt;CODE&gt;enqueue&lt;/CODE&gt;s a scalar.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dequeue_nb"&gt;dequeue_nb&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;dequeue_nb&lt;/CODE&gt; method, like the &lt;CODE&gt;dequeue&lt;/CODE&gt; method, removes a scalar from the head of the queue and returns it. Unlike &lt;CODE&gt;dequeue&lt;/CODE&gt;, though,
+&lt;CODE&gt;dequeue_nb&lt;/CODE&gt; won't block if the queue is empty, instead returning
+[perlfunc:undef|undef].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_pending"&gt;pending&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;pending&lt;/CODE&gt; method returns the number of items still in the queue. (If there can be
+multiple readers on the queue it's best to lock the queue before checking
+to make sure that it stays in a consistent state)
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:lib:Thread|Thread]
+  
+=cut
+
+&lt;P&gt;
+sub new { my &lt;CODE&gt;$class&lt;/CODE&gt; = shift; return bless &amp;#091;@_&amp;#093;, $class; }
+
+&lt;P&gt;
+sub dequeue { use attrs 
+&lt;CODE&gt;qw(locked&lt;/CODE&gt; method); my &lt;A
+HREF="../../pod/perlop.html#item__q"&gt;$q&lt;/A&gt; = shift;
+cond_wait [perlman:perlop|perlop]
+until @$q; return shift @$q; }
+
+&lt;P&gt;
+sub dequeue_nb { use attrs 
+&lt;CODE&gt;qw(locked&lt;/CODE&gt; method); my &lt;A
+HREF="../../pod/perlop.html#item__q"&gt;$q&lt;/A&gt; = shift; if
+(@$q) { return shift @$q; } else { return undef; } }
+
+&lt;P&gt;
+sub enqueue { use attrs 
+&lt;CODE&gt;qw(locked&lt;/CODE&gt; method); my [perlman:perlop|perlop] = shift; 
+&lt;CODE&gt;push(@$q,&lt;/CODE&gt; @_) and cond_broadcast $q; }
+
+&lt;P&gt;
+sub pending { use attrs 
+&lt;CODE&gt;qw(locked&lt;/CODE&gt; method); my [perlman:perlop|perlop] = shift; return 
+&lt;CODE&gt;scalar(@$q);&lt;/CODE&gt; }
+
+&lt;P&gt;
+1;
+&lt;HR&gt;
+</field>
+</data>
+</node>

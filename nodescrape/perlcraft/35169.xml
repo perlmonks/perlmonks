@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="35169" title="HTML-ized photos" created="2000-10-03 19:11:02" updated="2005-07-21 01:20:21">
+<type id="121">
+perlcraft</type>
+<author id="19316">
+jimt</author>
+<data>
+<field name="doctext">
+=pod
+Those of you that have been reading my occasional posts may have deduced by now that 
+I'm quite fond of ASCII art, judging by the JAPH at Node 31485 (just another JAPH) and
+my favoritest node so far at 31871 (perl in multiple dimensions).  Consequently, this
+node should come as no surprise to any of you.
+
+This program takes 2 or more arguments on the command line.  The first argument is
+an ASCII (P3) PPM image file, the second argument is an output html file.  The
+subsequent arguments can be any random text files you have lying around, or none
+if you'd prefer.
+
+It then translates the PPM image into an HTML one.  So you can build ASCII based
+pictures out of any graphics you have kicking around (so long as you convert them
+to PPM first).
+
+Need an example?  Check out this:
+
+http://members.home.net/jimandkoka/perl/jim_ascii.html
+
+Self-portrait of the artist/programmer.  Be warned that it's big (~1.1 megs).  Rather
+post-modern, writing a program to generate a photo of the programmer using other
+programs.  The characters making up my picture are the source to my Mail::Bulkmail and
+Carp::Notify modules.  :)
+
+And it would be easy enough to hook into GD and use that to pull data out of JPEGs, but
+I could do PPM files myself, and besides, nominally useless perl programs probably deserve
+at least some degree of obfuscation to them.
+
+=cut
+
+my $image  = shift @ARGV or die "No PPM image";
+my $output = shift @ARGV or die "No output file";
+my @text   = ();
+
+my $bgcolor         = "333333";
+my $removal_regex   = "3.3.3.";
+
+while (chomp($_ = &lt;&gt;)){
+	s/\s+//g;
+	tr/&lt;&gt;&amp;/###/;
+	push @text, split //;	#egad.  The files are slurped into memory.
+};							#I'll fix this later.  :*)
+
+open (PPM, $image);
+open (IMAGE, "&gt;$output");
+
+print IMAGE &lt;&lt;"eHTML";
+&lt;HTML&gt;
+	&lt;HEAD&gt;
+		&lt;TITLE&gt;IMAGE&lt;/TITLE&gt;
+	&lt;/HEAD&gt;
+	
+	&lt;STYLE TYPE = "text/css"&gt;
+		BODY {
+			font-size:3pt;
+			font-family:monospace
+		}
+	&lt;/STYLE&gt;
+	
+	&lt;BODY BGCOLOR = #$bgcolor&gt;
+	
+eHTML
+
+my ($type, $width, $height, $colors) = ();
+
+while (defined(chomp(my $line = &lt;PPM&gt;))){
+	$line =~ s/\s*#.*//;
+	my @line = split ' ', $line;
+	if ($line){
+		foreach ($type, $width, $height, $colors){
+			$_ = shift @line if @line &amp;&amp; ! defined $_;
+		};
+	};
+	
+	if (defined $colors){
+		seek PPM, -(length($line) - length $colors), 1 if @line;
+		last;
+	};
+};
+
+if ($type ne "P3"){die "Not an ASCII PPM file\n"};
+
+my $num_triples = 0;
+while (chomp($_ = &lt;PPM&gt;)){
+	next if /^\s*#/;
+	my @triples = split ' ';
+	while (my ($r, $g, $b) = 
+			map {
+				$_ = $type eq "P3" ? $_ : ord($_);
+				$_ = int ($_ / $colors * 255);
+				uc sprintf("%02lx", $_)
+			}
+			splice(@triples, 0, 3)
+		){
+		$num_triples++;
+		if ($removal_regex &amp;&amp; "$r$g$b" =~ /^$removal_regex$/){
+			print IMAGE "&amp;nbsp;";
+		}
+		else {		
+			my $char = $text[$i++ % @text] or "#"; 
+			print IMAGE "&lt;FONT COLOR = '#$r$g$b'&gt;$char&lt;/FONT&gt;";
+		};
+	};
+	print IMAGE "&lt;BR&gt;" unless $num_triples % $width;
+};
+	
+print IMAGE "\n\t&lt;/BODY&gt;\n\n&lt;/HTML&gt;";
+
+</field>
+</data>
+</node>

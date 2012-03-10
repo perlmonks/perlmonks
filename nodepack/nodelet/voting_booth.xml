@@ -1,0 +1,66 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>929</author_user>
+  <createtime>1999-12-28 18:45:25</createtime>
+  <node_id>1448</node_id>
+  <title>Voting Booth</title>
+  <nlcode>[%
+
+# Note: when patching this, don't forget to synch with [poll vote page]
+
+my $poll_type_id = getId( getType( 'poll' ) );
+
+my $latest_poll = $DB-&gt;sqlSelect(
+    &quot;max( node_id )&quot;,
+    &quot;node&quot;,
+    join &quot; and &quot;,
+        &quot;type_nodetype=$poll_type_id&quot;,
+        &quot;date_sub( curdate(), interval 30 day ) &lt; createtime&quot;,
+);
+return &quot;&lt;p&gt;No recent polls found&lt;br /&gt;&quot;
+    if  ! $latest_poll;
+
+my $N = getNodeById( $latest_poll );
+my @choice = split( /\n/, $N-&gt;{choices} );
+my @choice_votecount = split( /\n/, $N-&gt;{numbers} );
+
+my %labels = map {
+    $_ =&gt; htmlcode(
+        'ParseLinksInContent','',
+        $choice[ $_ ],
+        simplecode =&gt; 1,
+    )
+} 0 .. $#choice;
+
+my $total_votes = 0;
+$total_votes += $_ foreach @choice_votecount;
+
+'&lt;h4&gt;'
+. htmlcode( 'ParseLinksInContent','', $N-&gt;{title}, simplecode =&gt; 1 )
+. '&lt;/h4&gt;'
+. ( $N-&gt;{prologue} &amp;&amp; htmlcode( 'ParseLinksInContent','', $N-&gt;{prologue} ) )
+. htmlcode( 'openform','', -displaytype =&gt; 'display', -node_id =&gt; $N-&gt;{node_id} )
+. &quot;\n&lt;p&gt;\n&quot;
+. $query-&gt;radio_group(
+    -name      =&gt; 'vote',
+    -values    =&gt; [ 0 .. $#choice ],
+    -labels    =&gt; \%labels,
+    -linebreak =&gt;'true',
+    -default   =&gt; 'n/a',
+)
+. &lt;&lt;'END_HTML'
+&lt;input type=&quot;submit&quot; value=&quot;Vote&quot;&gt;
+&lt;/p&gt;
+&lt;/form&gt;
+
+&lt;p&gt;
+END_HTML
+. linkNode($N, &quot;Results ($total_votes votes)&quot;)
+. ', '
+%]
+[%
+linkNodeTitle(&quot;past polls|past polls&quot;).&quot;&lt;/p&gt;&quot;
+%]</nlcode>
+  <nodeupdated>1331254705</nodeupdated>
+</node>

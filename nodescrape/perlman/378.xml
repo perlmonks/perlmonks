@@ -1,0 +1,577 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="378" title="perlman:perlop2" created="1999-08-25 02:09:27" updated="2005-08-12 23:18:13">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+&lt;H2&gt;&lt;A NAME="Gory_details_of_parsing_quoted_c"&gt;Gory details of parsing quoted constructs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When presented with something which may have several different
+interpretations, Perl uses the principle &lt;STRONG&gt;DWIM&lt;/STRONG&gt; (expanded to Do What 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; Mean - not what 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; wrote) to pick up the most probable interpretation of the source. This strategy is so successful that Perl users usually do not suspect ambivalence of what they write. However, time to time Perl's ideas differ from what the author meant.
+  
+
+&lt;P&gt;
+The target of this section is to clarify the Perl's way of interpreting
+quoted constructs. The most frequent reason one may have to want to know
+the details discussed in this section is hairy regular expressions.
+However, the first steps of parsing are the same for all Perl quoting
+operators, so here they are discussed together.
+
+&lt;P&gt;
+Some of the passes discussed below are performed concurrently, but as far
+as results are the same, we consider them one-by-one. For different quoting
+constructs Perl performs different number of passes, from one to five, but
+they are always performed in the same order.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Finding"&gt;Finding the end&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+First pass is finding the end of the quoted construct, be it multichar
+ender
+&lt;CODE&gt;&amp;quot;\nEOF\n&amp;quot;&lt;/CODE&gt; of &lt;CODE&gt;&amp;lt;&amp;lt;EOF&lt;/CODE&gt; construct, &lt;CODE&gt;/&lt;/CODE&gt; which terminates [perlman:perlop] construct,
+&lt;CODE&gt;&amp;#093;&lt;/CODE&gt; which terminates [perlman:perlop] construct, or &lt;CODE&gt;&amp;gt;&lt;/CODE&gt; which terminates a fileglob started with &lt;CODE&gt;&amp;lt;&lt;/CODE&gt;.
+
+&lt;P&gt;
+When searching for multichar construct no skipping is performed. When
+searching for one-char non-matching delimiter, such as &lt;CODE&gt;/&lt;/CODE&gt;, combinations
+&lt;CODE&gt;\\&lt;/CODE&gt; and &lt;CODE&gt;\/&lt;/CODE&gt; are skipped. When searching for one-char matching delimiter, such as &lt;CODE&gt;&amp;#093;&lt;/CODE&gt;, combinations &lt;CODE&gt;\\&lt;/CODE&gt;, &lt;CODE&gt;\&amp;#093;&lt;/CODE&gt; and &lt;CODE&gt;\&amp;#091;&lt;/CODE&gt; are skipped, and nested &lt;CODE&gt;&amp;#091;&lt;/CODE&gt;, &lt;CODE&gt;&amp;#093;&lt;/CODE&gt; are skipped as well.
+
+&lt;P&gt;
+For 3-parts constructs, [perlman:perlop] etc. the search is repeated once more.
+
+&lt;P&gt;
+During this search no attention is paid to the semantic of the construct,
+thus
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;quot;$hash{&amp;quot;$foo/$bar&amp;quot;}&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    m/ 
+      bar       #  This is not a comment, this slash / terminated m//!
+     /x
+&lt;/PRE&gt;
+&lt;P&gt;
+do not form legal quoted expressions. Note that since the slash which
+terminated [perlman:perlop] was followed by a &lt;CODE&gt;SPACE&lt;/CODE&gt;, this is not &lt;CODE&gt;m//x&lt;/CODE&gt;, thus &lt;CODE&gt;#&lt;/CODE&gt; was interpreted as a literal &lt;CODE&gt;#&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Removal"&gt;Removal of backslashes before delimiters&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+During the second pass the text between the starting delimiter and the
+ending delimiter is copied to a safe location, and the &lt;CODE&gt;\&lt;/CODE&gt; is removed from combinations consisting of &lt;CODE&gt;\&lt;/CODE&gt; and 
+&lt;CODE&gt;delimiter(s)&lt;/CODE&gt; (both
+starting and ending delimiter if they differ).
+
+&lt;P&gt;
+The removal does not happen for multi-char delimiters.
+
+&lt;P&gt;
+Note that the combination &lt;CODE&gt;\\&lt;/CODE&gt; is left as it was!
+
+&lt;P&gt;
+Starting from this step no information about the 
+&lt;CODE&gt;delimiter(s)&lt;/CODE&gt; is used in
+the parsing.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Interpolation"&gt;Interpolation&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Next step is interpolation in the obtained delimiter-independent text.
+There are four different cases.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_C"&gt;C&amp;lt;&amp;lt;&amp;lt;'EOF'&amp;gt;, m'', s''', tr///, y///&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+No interpolation is performed.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__"&gt;'', q//&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The only interpolation is removal of &lt;CODE&gt;\&lt;/CODE&gt; from pairs &lt;CODE&gt;\\&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__"&gt;&amp;quot;&amp;quot;, ``, qq//, qx//, C&amp;lt;&amp;lt;file*globgt&amp;gt;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;\Q&lt;/CODE&gt;, &lt;CODE&gt;\U&lt;/CODE&gt;, &lt;CODE&gt;\u&lt;/CODE&gt;, &lt;CODE&gt;\L&lt;/CODE&gt;, &lt;CODE&gt;\l&lt;/CODE&gt; (possibly paired with &lt;CODE&gt;\E&lt;/CODE&gt;) are converted to corresponding Perl constructs, thus &lt;CODE&gt;&amp;quot;$foo\Qbaz$bar&amp;quot;&lt;/CODE&gt; is converted to 
+
+&lt;P&gt;
+&lt;PRE&gt;   $foo . (quotemeta(&amp;quot;baz&amp;quot; . $bar));
+&lt;/PRE&gt;
+&lt;P&gt;
+Other combinations of &lt;CODE&gt;\&lt;/CODE&gt; with following chars are substituted with appropriate expansions.  
+
+&lt;P&gt;
+Interpolated scalars and arrays are converted to [perlfunc:join|join] and &lt;CODE&gt;.&lt;/CODE&gt; Perl constructs, thus &lt;CODE&gt;&amp;quot;'@arr'&amp;quot;&lt;/CODE&gt; becomes
+
+&lt;P&gt;
+&lt;PRE&gt;  &amp;quot;'&amp;quot; . (join $&amp;quot;, @arr) . &amp;quot;'&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Since all three above steps are performed simultaneously left-to-right, the
+is no way to insert a literal &lt;CODE&gt;$&lt;/CODE&gt; or &lt;CODE&gt;@&lt;/CODE&gt; inside &lt;CODE&gt;\Q\E&lt;/CODE&gt; pair: it cannot be protected by &lt;CODE&gt;\&lt;/CODE&gt;, since any &lt;CODE&gt;\&lt;/CODE&gt; (except in &lt;CODE&gt;\E&lt;/CODE&gt;) is interpreted as a literal inside &lt;CODE&gt;\Q\E&lt;/CODE&gt;, and any &lt;CODE&gt;$&lt;/CODE&gt; is interpreted as starting an interpolated scalar.
+
+&lt;P&gt;
+Note also that the interpolating code needs to make decision where the
+interpolated scalar ends, say, whether &lt;CODE&gt;&amp;quot;a $b -&amp;gt; {c}&amp;quot;&lt;/CODE&gt; means 
+
+&lt;P&gt;
+&lt;PRE&gt;  &amp;quot;a &amp;quot; . $b . &amp;quot; -&amp;gt; {c}&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+or 
+
+&lt;P&gt;
+&lt;PRE&gt;  &amp;quot;a &amp;quot; . $b -&amp;gt; {c};
+&lt;/PRE&gt;
+&lt;P&gt;
+Most the time the decision is to take the longest possible text which does
+not include spaces between components and contains matching
+braces/brackets.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__RE_"&gt;?RE?, /RE/, m/RE/, s/RE/foo/,&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Processing of &lt;CODE&gt;\Q&lt;/CODE&gt;, &lt;CODE&gt;\U&lt;/CODE&gt;, &lt;CODE&gt;\u&lt;/CODE&gt;, &lt;CODE&gt;\L&lt;/CODE&gt;, &lt;CODE&gt;\l&lt;/CODE&gt; and interpolation happens (almost) as with [perlman:perlop] constructs, but &lt;EM&gt;the substitution of &lt;CODE&gt;\&lt;/CODE&gt; followed by
+other chars is not performed&lt;/EM&gt;! Moreover, inside &lt;CODE&gt;(?{BLOCK})&lt;/CODE&gt; no processing is performed at all.
+
+&lt;P&gt;
+Interpolation has several quirks: &lt;CODE&gt;$|&lt;/CODE&gt;, &lt;CODE&gt;$(&lt;/CODE&gt; and &lt;CODE&gt;$)&lt;/CODE&gt; are not interpolated, and constructs &lt;CODE&gt;$var&amp;#091;SOMETHING&amp;#093;&lt;/CODE&gt; are &lt;EM&gt;voted&lt;/EM&gt; (by several different estimators) to be an array element or &lt;CODE&gt;$var&lt;/CODE&gt; followed by a 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; alternative. This is the place where the notation &lt;CODE&gt;${arr&amp;#091;$bar&amp;#093;}&lt;/CODE&gt; comes handy: &lt;CODE&gt;/${arr&amp;#091;0-9&amp;#093;}/&lt;/CODE&gt;
+is interpreted as an array element &lt;CODE&gt;-9&lt;/CODE&gt;, not as a regular expression from variable &lt;CODE&gt;$arr&lt;/CODE&gt; followed by a digit, which is the interpretation of 
+&lt;CODE&gt;/$arr&amp;#091;0-9&amp;#093;/&lt;/CODE&gt;.
+
+&lt;P&gt;
+Note that absence of processing of &lt;CODE&gt;\\&lt;/CODE&gt; creates specific restrictions on the post-processed text: if the delimiter
+is &lt;CODE&gt;/&lt;/CODE&gt;, one cannot get the combination
+&lt;CODE&gt;\/&lt;/CODE&gt; into the result of this step: &lt;CODE&gt;/&lt;/CODE&gt; will finish the regular expression,
+&lt;CODE&gt;\/&lt;/CODE&gt; will be stripped to &lt;CODE&gt;/&lt;/CODE&gt; on the previous step, and &lt;CODE&gt;\\/&lt;/CODE&gt; will be left as is. Since &lt;CODE&gt;/&lt;/CODE&gt; is equivalent to &lt;CODE&gt;\/&lt;/CODE&gt; inside a regular expression, this does not matter unless the delimiter is special character for the 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine, as in
+ &lt;CODE&gt;s*foo*bar*&lt;/CODE&gt;, &lt;CODE&gt;m&amp;#091;foo&amp;#093;&lt;/CODE&gt;, or &lt;CODE&gt;?foo?&lt;/CODE&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+This step is the last one for all the constructs except regular
+expressions, which are processed further.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;Interpolation of regular expressions&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+All the previous steps were performed during the compilation of Perl code,
+this one happens in run time (though it may be optimized to be calculated
+at compile time if appropriate). After all the preprocessing performed
+above (and possibly after evaluation if catenation, joining, up/down-casing
+and [perlfunc:quotemeta|quotemeta()]ing are involved) the resulting &lt;EM&gt;string&lt;/EM&gt; is passed to 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine for compilation.
+
+&lt;P&gt;
+Whatever happens in the 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine is better be discussed in [perlman:perlre|the perlre manpage], but for the sake of continuity let us do it here.
+
+&lt;P&gt;
+This is the first step where presence of the &lt;CODE&gt;//x&lt;/CODE&gt; switch is relevant. The 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine scans the string left-to-right, and converts
+it to a finite automaton.  
+
+&lt;P&gt;
+Backslashed chars are either substituted by corresponding literal strings, or generate special nodes of the finite automaton. Characters which are special to the 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine generate corresponding nodes.
+  &lt;CODE&gt;(?#...)&lt;/CODE&gt;
+comments are ignored. All the rest is either converted to literal strings
+to match, or is ignored (as is whitespace and &lt;CODE&gt;#&lt;/CODE&gt;-style comments if
+&lt;CODE&gt;//x&lt;/CODE&gt; is present).
+
+&lt;P&gt;
+Note that the parsing of the construct &lt;CODE&gt;&amp;#091;...&amp;#093;&lt;/CODE&gt; is performed using absolutely different rules than the rest of the regular
+expression. Similarly, the &lt;CODE&gt;(?{...})&lt;/CODE&gt; is only checked for matching braces.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Optimization"&gt;Optimization of regular expressions&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This step is listed for completeness only. Since it does not change
+semantics, details of this step are not documented and are subject to
+change.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="I_O_Operators"&gt;I/O Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are several 
+&lt;FONT SIZE=-1&gt;I/O&lt;/FONT&gt; operators you should know about. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; string enclosed by backticks (grave accents) first undergoes variable substitution just like a double quoted string. It is then interpreted as a command, and the output of that command is the value of the pseudo-literal, like in a shell. In scalar context, a single string consisting of all the output is returned. In list context, a list of values is returned, one for each line of output. (You can set
+ &lt;CODE&gt;$/&lt;/CODE&gt; to use a different line terminator.) The command is executed each time the
+pseudo-literal is evaluated. The status value of the command is returned in &lt;CODE&gt;$?&lt;/CODE&gt; (see [perlman:perlvar|the perlvar manpage] for the interpretation of &lt;CODE&gt;$?&lt;/CODE&gt;). Unlike in &lt;STRONG&gt;csh&lt;/STRONG&gt;, no translation is done on the return data--newlines remain newlines.
+Unlike in any of the shells, single quotes do not hide variable names in
+the command from interpretation. To pass a $ through to the shell you need
+to hide it with a backslash. The generalized form of backticks is [perlman:perlop]. (Because backticks always undergo shell expansion as well, see [perlman:perlsec|the perlsec manpage] for security concerns.)
+
+&lt;P&gt;
+Evaluating a filehandle in angle brackets yields the next line from that
+file (newline, if any, included), or [perlfunc:undef|undef] at end of file. Ordinarily you must assign that value to a variable, but
+there is one situation where an automatic assignment happens.  &lt;EM&gt;If and ONLY if&lt;/EM&gt; the input symbol is the only thing inside the conditional of a &lt;CODE&gt;while&lt;/CODE&gt; or
+&lt;CODE&gt;for(;;)&lt;/CODE&gt; loop, the value is automatically assigned to the variable
+&lt;CODE&gt;$_&lt;/CODE&gt;. In these loop constructs, the assigned value (whether assignment is
+automatic or explicit) is then tested to see if it is defined. The defined
+test avoids problems where line has a string value that would be treated as
+false by perl e.g. ``'' or ``0'' with no trailing newline. (This may seem
+like an odd thing to you, but you'll use the construct in almost every Perl
+script you write.) Anyway, the following lines are equivalent to each
+other:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (defined($_ = &amp;lt;STDIN&amp;gt;)) { print; }
+    while ($_ = &amp;lt;STDIN&amp;gt;) { print; }
+    while (&amp;lt;STDIN&amp;gt;) { print; }
+    for (;&amp;lt;STDIN&amp;gt;;) { print; }
+    print while defined($_ = &amp;lt;STDIN&amp;gt;);
+    print while ($_ = &amp;lt;STDIN&amp;gt;);
+    print while &amp;lt;STDIN&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+and this also behaves similarly, but avoids the use of &lt;CODE&gt;$_&lt;/CODE&gt; :
+
+&lt;P&gt;
+&lt;PRE&gt;    while (my $line = &amp;lt;STDIN&amp;gt;) { print $line }    
+&lt;/PRE&gt;
+&lt;P&gt;
+If you really mean such values to terminate the loop they should be tested
+for explicitly:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (($_ = &amp;lt;STDIN&amp;gt;) ne '0') { ... }
+    while (&amp;lt;STDIN&amp;gt;) { last unless $_; ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+In other boolean contexts, &lt;CODE&gt;&amp;lt;&amp;lt;EM&amp;gt;filehandle&amp;lt;/EM&amp;gt;&amp;gt;&lt;/CODE&gt; without explicit [perlfunc:defined|defined]
+test or comparison will solicit a warning if &lt;CODE&gt;-w&lt;/CODE&gt; is in effect.
+
+&lt;P&gt;
+The filehandles 
+&lt;FONT SIZE=-1&gt;STDIN,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STDOUT,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; are predefined. (The filehandles
+ &lt;CODE&gt;stdin&lt;/CODE&gt;, &lt;CODE&gt;stdout&lt;/CODE&gt;, and &lt;CODE&gt;stderr&lt;/CODE&gt; will also work except in packages, where they would be interpreted as local identifiers rather than global.) Additional filehandles may be created with the 
+&lt;CODE&gt;open()&lt;/CODE&gt; function. See
+ [perlfunc:open|open()] for details on this.
+
+&lt;P&gt;
+If a 
+&lt;FONT SIZE=-1&gt;&amp;lt;FILEHANDLE&amp;gt;&lt;/FONT&gt; is used in a context that is
+looking for a list, a list consisting of all the input lines is returned,
+one line per list element. It's easy to make a &lt;EM&gt;LARGE&lt;/EM&gt; data space this way, so use with care.
+
+&lt;P&gt;
+The null filehandle &amp;lt;&amp;gt; is special and can be used to emulate the
+behavior of &lt;STRONG&gt;sed&lt;/STRONG&gt; and &lt;STRONG&gt;awk&lt;/STRONG&gt;. Input from &amp;lt;&amp;gt; comes either from standard input, or from each file
+listed on the command line. Here's how it works: the first time &amp;lt;&amp;gt;
+is evaluated, the &lt;CODE&gt;@ARGV&lt;/CODE&gt; array is checked, and if it is empty, &lt;CODE&gt;$ARGV&amp;#091;0&amp;#093;&lt;/CODE&gt; is set to ``-'', which when opened gives you standard input. The
+&lt;CODE&gt;@ARGV&lt;/CODE&gt; array is then processed as a list of filenames. The loop
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        ...                     # code for each line
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to the following Perl-like pseudo code:
+
+&lt;P&gt;
+&lt;PRE&gt;    unshift(@ARGV, '-') unless @ARGV;
+    while ($ARGV = shift) {
+        open(ARGV, $ARGV);
+        while (&amp;lt;ARGV&amp;gt;) {
+            ...         # code for each line
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+except that it isn't so cumbersome to say, and will actually work. It really does shift array &lt;CODE&gt;@ARGV&lt;/CODE&gt; and put the current filename into variable 
+&lt;FONT SIZE=-1&gt;$ARGV.&lt;/FONT&gt; It also uses filehandle
+ &lt;EM&gt;ARGV&lt;/EM&gt; internally--&amp;lt;&amp;gt; is just a synonym for 
+&lt;FONT SIZE=-1&gt;&amp;lt;ARGV&amp;gt;,&lt;/FONT&gt; which is magical. (The pseudo code above doesn't work because it treats 
+&lt;FONT SIZE=-1&gt;&amp;lt;ARGV&amp;gt;&lt;/FONT&gt; as non-magical.)
+
+&lt;P&gt;
+You can modify &lt;CODE&gt;@ARGV&lt;/CODE&gt; before the first &amp;lt;&amp;gt; as long as
+the array ends up containing the list of filenames you really want. Line
+numbers (&lt;CODE&gt;$.&lt;/CODE&gt;) continue as if the input were one big happy file. (But see example under [perlfunc:eof|eof] for how to reset line numbers on each file.)
+
+&lt;P&gt;
+If you want to set &lt;CODE&gt;@ARGV&lt;/CODE&gt; to your own list of files, go right
+ahead. This sets &lt;CODE&gt;@ARGV&lt;/CODE&gt; to all plain text files if no
+&lt;CODE&gt;@ARGV&lt;/CODE&gt; was given:
+
+&lt;P&gt;
+&lt;PRE&gt;    @ARGV = grep { -f &amp;amp;&amp;amp; -T } glob('*') unless @ARGV;
+&lt;/PRE&gt;
+&lt;P&gt;
+You can even set them to pipe commands. For example, this automatically
+filters compressed arguments through &lt;STRONG&gt;gzip&lt;/STRONG&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;    @ARGV = map { /\.(gz|Z)$/ ? &amp;quot;gzip -dc &amp;lt; $_ |&amp;quot; : $_ } @ARGV;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you want to pass switches into your script, you can use one of the
+Getopts modules or put a loop on the front like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    while ($_ = $ARGV&amp;#091;0&amp;#093;, /^-/) {
+        shift;
+        last if /^--$/;
+        if (/^-D(.*)/) { $debug = $1 }
+        if (/^-v/)     { $verbose++  }
+        # ...           # other switches
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        # ...           # code for each line
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The &amp;lt;&amp;gt; symbol will return [perlfunc:undef|undef] for end-of-file only once. If you call it again after this it will assume you are processing another &lt;CODE&gt;@ARGV&lt;/CODE&gt; list, and if you haven't set 
+&lt;FONT SIZE=-1&gt;@ARGV,&lt;/FONT&gt; will input from 
+&lt;FONT SIZE=-1&gt;STDIN.&lt;/FONT&gt;
+
+&lt;P&gt;
+If the string inside the angle brackets is a reference to a scalar variable
+(e.g., &amp;lt;$foo&amp;gt;), then that variable contains the name of the
+filehandle to input from, or its typeglob, or a reference to the same. For
+example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $fh = \*STDIN;
+    $line = &amp;lt;$fh&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+If what's within the angle brackets is neither a filehandle nor a simple
+scalar variable containing a filehandle name, typeglob, or typeglob
+reference, it is interpreted as a filename pattern to be globbed, and
+either a list of filenames or the next filename in the list is returned,
+depending on context. This distinction is determined on syntactic grounds
+alone. That means &lt;CODE&gt;&amp;lt;$x&amp;gt;&lt;/CODE&gt; is always a readline from an indirect handle, but &lt;CODE&gt;&amp;lt;$hash{key}&amp;gt;&lt;/CODE&gt; is always a glob. That's because &lt;CODE&gt;$x&lt;/CODE&gt; is a simple scalar
+variable, but &lt;CODE&gt;$hash{key}&lt;/CODE&gt; is not--it's a hash element.
+
+&lt;P&gt;
+One level of double-quote interpretation is done first, but you can't say &lt;CODE&gt;&amp;lt;$foo&amp;gt;&lt;/CODE&gt; because that's an indirect filehandle as explained in the previous
+paragraph. (In older versions of Perl, programmers would insert curly
+brackets to force interpretation as a filename glob:
+&lt;CODE&gt;&amp;lt;${foo}&amp;gt;&lt;/CODE&gt;. These days, it's considered cleaner to call the internal function
+directly as [perlfunc:glob|glob($foo)], which is probably the right way to have done it in the first place.)
+Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;*.c&amp;gt;) {
+        chmod 0644, $_;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    open(FOO, &amp;quot;echo *.c | tr -s ' \t\r\f' '\\012\\012\\012\\012'|&amp;quot;);
+    while (&amp;lt;FOO&amp;gt;) {
+        chop;
+        chmod 0644, $_;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+In fact, it's currently implemented that way. (Which means it will not work on filenames with spaces in them unless you have 
+&lt;CODE&gt;csh(1)&lt;/CODE&gt; on your machine.) Of course, the shortest way to do the above is:
+
+&lt;P&gt;
+&lt;PRE&gt;    chmod 0644, &amp;lt;*.c&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Because globbing invokes a shell, it's often faster to call 
+&lt;CODE&gt;readdir()&lt;/CODE&gt; yourself and do your own 
+&lt;CODE&gt;grep()&lt;/CODE&gt; on the filenames. Furthermore, due to its current implementation of using a shell, the 
+&lt;CODE&gt;glob()&lt;/CODE&gt; routine may get ``Arg list too long'' errors (unless you've installed 
+&lt;CODE&gt;tcsh(1L)&lt;/CODE&gt; as
+ &lt;EM&gt;/bin/csh&lt;/EM&gt;).
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; glob evaluates its (embedded) argument only when it
+is starting a new list. All values must be read before it will start over.
+In a list context this isn't important, because you automatically get them
+all anyway. In scalar context, however, the operator returns the next value
+each time it is called, or a [perlfunc:undef|undef] value if you've just run out. As for filehandles an automatic [perlfunc:defined|defined] is generated when the glob occurs in the test part of a &lt;CODE&gt;while&lt;/CODE&gt; or &lt;CODE&gt;for&lt;/CODE&gt; - because legal glob returns (e.g. a file called &lt;EM&gt;0&lt;/EM&gt;) would otherwise terminate the loop. Again, [perlfunc:undef|undef] is returned only once. So if you're expecting a single value from a glob,
+it is much better to say
+
+&lt;P&gt;
+&lt;PRE&gt;    ($file) = &amp;lt;blurch*&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+than
+
+&lt;P&gt;
+&lt;PRE&gt;    $file = &amp;lt;blurch*&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+because the latter will alternate between returning a filename and returning 
+&lt;FONT SIZE=-1&gt;FALSE.&lt;/FONT&gt;
+
+&lt;P&gt;
+It you're trying to do variable interpolation, it's definitely better to use the 
+&lt;CODE&gt;glob()&lt;/CODE&gt; function, because the older notation can cause people to become confused with the indirect filehandle notation.
+
+&lt;P&gt;
+&lt;PRE&gt;    @files = glob(&amp;quot;$dir/*.&amp;#091;ch&amp;#093;&amp;quot;);
+    @files = glob($files&amp;#091;$i&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Constant_Folding"&gt;Constant Folding&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Like 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; Perl does a certain amount of expression evaluation
+at compile time, whenever it determines that all arguments to an operator
+are static and have no side effects. In particular, string concatenation
+happens at compile time between literals that don't do variable
+substitution. Backslash interpretation also happens at compile time. You
+can say
+
+&lt;P&gt;
+&lt;PRE&gt;    'Now is the time for all' . &amp;quot;\n&amp;quot; .
+        'good men to come to.'
+&lt;/PRE&gt;
+&lt;P&gt;
+and this all reduces to one string internally. Likewise, if you say
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach $file (@filenames) {
+        if (-s $file &amp;gt; 5 + 100 * 2**16) {  }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+the compiler will precompute the number that expression represents so that
+the interpreter won't have to.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Bitwise_String_Operators"&gt;Bitwise String Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Bitstrings of any size may be manipulated by the bitwise operators (&lt;CODE&gt;~ | &amp;amp; ^&lt;/CODE&gt;).
+
+&lt;P&gt;
+If the operands to a binary bitwise op are strings of different sizes,
+&lt;STRONG&gt;or&lt;/STRONG&gt; and &lt;STRONG&gt;xor&lt;/STRONG&gt; ops will act as if the shorter operand had additional zero bits on the
+right, while the &lt;STRONG&gt;and&lt;/STRONG&gt; op will act as if the longer operand were truncated to the length of the
+shorter.
+
+&lt;P&gt;
+&lt;PRE&gt;    # ASCII-based examples 
+    print &amp;quot;j p \n&amp;quot; ^ &amp;quot; a h&amp;quot;;            # prints &amp;quot;JAPH\n&amp;quot;
+    print &amp;quot;JA&amp;quot; | &amp;quot;  ph\n&amp;quot;;              # prints &amp;quot;japh\n&amp;quot;
+    print &amp;quot;japh\nJunk&amp;quot; &amp;amp; '_____';       # prints &amp;quot;JAPH\n&amp;quot;;
+    print 'p N$' ^ &amp;quot; E&amp;lt;H\n&amp;quot;;            # prints &amp;quot;Perl\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you are intending to manipulate bitstrings, you should be certain that
+you're supplying bitstrings: If an operand is a number, that will imply a &lt;STRONG&gt;numeric&lt;/STRONG&gt; bitwise operation. You may explicitly show which type of operation you
+intend by using &lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt; or &lt;CODE&gt;0+&lt;/CODE&gt;, as in the examples below.
+
+&lt;P&gt;
+&lt;PRE&gt;    $foo =  150  |  105 ;       # yields 255  (0x96 | 0x69 is 0xFF)
+    $foo = '150' |  105 ;       # yields 255
+    $foo =  150  | '105';       # yields 255
+    $foo = '150' | '105';       # yields string '155' (under ASCII)
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $baz = 0+$foo &amp;amp; 0+$bar;     # both ops explicitly numeric
+    $biz = &amp;quot;$foo&amp;quot; ^ &amp;quot;$bar&amp;quot;;     # both ops explicitly stringy
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Integer_Arithmetic"&gt;Integer Arithmetic&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+By default Perl assumes that it must do most of its arithmetic in floating
+point. But by saying
+
+&lt;P&gt;
+&lt;PRE&gt;    use integer;
+&lt;/PRE&gt;
+&lt;P&gt;
+you may tell the compiler that it's okay to use integer operations from here to the end of the enclosing 
+&lt;FONT SIZE=-1&gt;BLOCK.&lt;/FONT&gt; An inner 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; may countermand this by saying
+
+&lt;P&gt;
+&lt;PRE&gt;    no integer;
+&lt;/PRE&gt;
+&lt;P&gt;
+which lasts until the end of that 
+&lt;FONT SIZE=-1&gt;BLOCK.&lt;/FONT&gt;
+
+&lt;P&gt;
+The bitwise operators (``&amp;amp;'', ``|'', ``^'', ``~'', ``&amp;lt;&amp;lt;``, and ''&amp;gt;&amp;gt;``) always produce integral results. (But see also &lt;A HREF="#Bitwise_String_Operators"&gt;Bitwise String Operators&lt;/A&gt;.) However, &lt;CODE&gt;use integer&lt;/CODE&gt; still has meaning for them. By default, their results are interpreted as
+unsigned integers. However, if &lt;CODE&gt;use integer&lt;/CODE&gt; is in effect, their results are interpreted as signed integers. For
+example, &lt;CODE&gt;~0&lt;/CODE&gt; usually evaluates to a large integral value. However, &lt;CODE&gt;use integer; ~0&lt;/CODE&gt; is -1 on twos-complement machines.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Floating_point_Arithmetic"&gt;Floating-point Arithmetic&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+While &lt;CODE&gt;use integer&lt;/CODE&gt; provides integer-only arithmetic, there is no similar ways to provide rounding or truncation at a certain number of decimal places. For rounding to a certain number of digits, 
+&lt;CODE&gt;sprintf()&lt;/CODE&gt; or 
+&lt;CODE&gt;printf()&lt;/CODE&gt; is usually the easiest route.
+
+&lt;P&gt;
+Floating-point numbers are only approximations to what a mathematician
+would call real numbers. There are infinitely more reals than floats, so
+some corners must be cut. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    printf &amp;quot;%.20g\n&amp;quot;, 123456789123456789;
+    #        produces 123456789123456784
+&lt;/PRE&gt;
+&lt;P&gt;
+Testing for exact equality of floating-point equality or inequality is not a good idea. Here's a (relatively expensive) work-around to compare whether two floating-point numbers are equal to a particular number of decimal places. See Knuth, volume 
+&lt;FONT SIZE=-1&gt;II,&lt;/FONT&gt; for a more robust treatment of this topic.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fp_equal {
+        my ($X, $Y, $POINTS) = @_;
+        my ($tX, $tY);
+        $tX = sprintf(&amp;quot;%.${POINTS}g&amp;quot;, $X);
+        $tY = sprintf(&amp;quot;%.${POINTS}g&amp;quot;, $Y);
+        return $tX eq $tY;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; module (part of the standard perl distribution) implements 
+&lt;CODE&gt;ceil(),&lt;/CODE&gt; 
+&lt;CODE&gt;floor(),&lt;/CODE&gt; and a number of other mathematical and trigonometric functions. The Math::Complex module (part of the standard perl distribution) defines a number of mathematical functions that can also work on real numbers. Math::Complex not as efficient as 
+&lt;FONT SIZE=-1&gt;POSIX,&lt;/FONT&gt; but 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; can't work with complex numbers.
+
+&lt;P&gt;
+Rounding in financial applications can have serious implications, and the
+rounding method used should be specified precisely. In these cases, it
+probably pays not to trust whichever system rounding is being used by Perl,
+but to instead implement the rounding function you need yourself.
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Bigger_Numbers"&gt;Bigger Numbers&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The standard Math::BigInt and Math::BigFloat modules provide variable
+precision arithmetic and overloaded operators. At the cost of some space
+and considerable speed, they avoid the normal pitfalls associated with
+limited-precision representations.
+
+&lt;P&gt;
+&lt;PRE&gt;    use Math::BigInt;
+    $x = Math::BigInt-&amp;gt;new('123456789123456789');
+    print $x * $x;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # prints +15241578780673678515622620750190521
+&lt;/PRE&gt;
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

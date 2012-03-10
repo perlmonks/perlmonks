@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="179173" title="moderation nodelets" created="2000-07-28 17:02:08" updated="2005-06-05 14:14:43">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<keywords>
+<keyword rating="">
+obsolete</keyword>
+</keywords>
+<field name="code">
+[%
+  my $isGod= isGod($USER);
+  return   unless  $isGod  ||  Everything::isApproved($USER,'CanConsider');
+
+  my $SETTING = getVars( getNode('approval nodelet settings','setting') );
+  my $type = $NODE-&gt;{type}{title};
+
+  my %types;
+  {
+    my @types = split /,/, $SETTING-&gt;{types};
+    @types{@types} = (1) x @types;
+  }
+
+  return unless $types{$type} or grep $_ eq $type,
+    qw/modulereview bookreview note sourcecode snippet perltutorial perlnews/;
+
+  my $nid = getId($NODE);
+
+  my $ok = 0;
+  $ok = $DB-&gt;sqlSelect(
+   '*',
+   'links',
+   "from_node = $SETTING-&gt;{$type.'_node'}"
+   . " and to_node = $nid"
+   . " and linktype = $SETTING-&gt;{$type.'_linktype'}",
+   "limit 1"
+  ) if $types{$type};
+
+  my $fp = 0;
+  $fp = $DB-&gt;sqlSelect(
+   '*',
+   'links',
+   "from_node = $SETTING-&gt;{'front_page'}"
+   . " and to_node = $nid"
+   . " and linktype = $SETTING-&gt;{'frontpage_linktype'}",
+   "limit 1"
+  ) if $types{$type};
+
+  my $checkboxes = '';
+  my $message    = ''; 
+  my $disabled = $NODE-&gt;{author_user} == $USER-&gt;{user_id}
+    ? qq[ disabled="disabled"] : "";
+
+  $disabled = "" if $isGod;
+
+  if (  $ok  ||  $fp  ) {
+    my $okid = 0;
+    $okid = $DB-&gt;sqlSelect(
+      'user_id',
+      'approved',
+      qq[node_id = $nid and action = "ok"],
+      "order by tstamp desc limit 1"
+    )   if  $ok;
+
+    my $fpid = 0;
+    $fpid = $DB-&gt;sqlSelect(
+      'user_id',
+      'approved',
+      qq[node_id = $nid and action = "fp"],
+      "order by tstamp desc limit 1"
+    )   if  $ok;
+
+    $message .= sprintf 'Approved by %s&lt;br /&gt;', linkNode($okid)
+      if  $okid  &amp;&amp;  $okid != $fpid;
+    $message .= sprintf 'Front-paged by %s&lt;br /&gt;', linkNode($fpid)
+      if  $fpid;
+
+    $checkboxes = qq[
+    &lt;input type="checkbox" name="$nid" value="fp"$disabled /&gt;&amp;nbsp;FrontPage&lt;br /&gt;]
+      if  ! $fp;
+
+  } elsif (  $types{$type}  ) {
+
+    $checkboxes = qq[
+      &lt;input type="checkbox" name="$nid" value="ok"$disabled /&gt;&amp;nbsp;Approve
+      &lt;input type="checkbox" name="$nid" value="fp"$disabled /&gt;&amp;nbsp;FrontPage&lt;br /&gt;];
+
+  }
+
+  my $mover = '';
+  $mover .= 'Move to: ' . htmlcode('writeupmover') . "&lt;br /&gt;\n"
+    if !$ok &amp;&amp; !$fp &amp;&amp; $types{$type};
+
+  my $consider = '';
+
+  my $reaped =
+    $NODE-&gt;{author_user} == $HTMLVARS{NodeReaperID};
+  my $considered = $DB-&gt;sqlSelect(
+    'description', 'considernodes', "considernodes_id = $nid" );
+
+  my $isEd= do {
+      my $ED= getNode('editors','usergroup');
+      $ED  &amp;&amp;  Everything::isApproved( $USER, $ED );
+  };
+
+  my $vote = '';
+  if (  $considered  ) {
+
+      my $has_voted = $DB-&gt;sqlSelect(
+        'count(*)',
+        'considervote',
+        "considervote_id = $nid AND voter_user = " . getId($USER),
+      );
+
+      my ($edit, $keep, $delete) = $DB-&gt;sqlSelect(
+        'edit, keep, del',
+        'considernodes',
+        "considernodes_id = $nid",
+      );
+      my $canUnconsider=  $isGod
+        ||  $isEd  &amp;&amp;  ( 2 &lt;= $edit || 4 &lt;= $keep );
+      if (  $has_voted  ||  $isGod  ) {
+
+        $vote .= sprintf 'Keep/Edit/Delete: %d/%d/%d', $keep, $edit, $delete;
+      }
+      if (  ! $has_voted  ||  $canUnconsider  ) {
+        my @list= 'nada';
+        unshift @list, qw/edit keep delete/   unless  $has_voted;
+        #push @list, 'nuke'  if  $isGod;
+        push @list, 'unconsider'   if  $canUnconsider;
+
+        $vote .= "&lt;br /&gt;"   if  $vote;
+        $vote .= qq[
+          &lt;input type="hidden" name="op" value="consider" /&gt;];
+        $vote .= $query-&gt;radio_group(
+            -name =&gt; $nid, values =&gt; \@list, -default =&gt; 'nada');
+      }
+  }
+
+  if (  $reaped  ||  $considered  ) {
+
+    # disable approving:
+    $checkboxes = ''   if  $reaped  &amp;&amp;  ! $isEd;
+
+    $considered =~ s/^( \[(.+?)\] | [(](.+?)[)] )(.*)/
+        sprintf '[%s] %s', linkNodeTitle($2||$3), $4/xeg;
+
+    $consider = qq[
+      ] . linkNode(28877, 'Considered') . ': ' . $considered . '&lt;hr /&gt;' . q[
+      ] . $vote . '&lt;hr /&gt;'
+        if  $considered;
+
+  } elsif( $query-&gt;param('considerreason') ) {
+
+    my $description = sprintf '[%s] %s',
+      $USER-&gt;{title}, $query-&gt;param('considerreason');
+
+    $DB-&gt;sqlInsert(
+      'considernodes',
+      {
+        considernodes_id  =&gt; $nid,
+        -considertime     =&gt; 'now()',
+        description       =&gt; $description
+      }
+    );
+
+    $considered = sprintf '[%s] %s',
+      linkNode($USER), $query-&gt;param('considerreason');
+
+    $consider = qq[
+      ] . linkNode(28877, 'Considered') . ': '
+        . $query-&gt;escapeHTML($description) . '&lt;br /&gt;' . q[
+      &lt;hr /&gt;] . $vote . '&lt;hr /&gt;';
+
+  } else {
+
+    $consider .= qq[
+      Consider node:
+      &lt;input type="text" name="considerreason" size="20" maxlength="128" /&gt;];
+
+  }
+
+  $message = qq[
+    &lt;br /&gt;] . $message
+    if  $message  &amp;&amp;  ! $considered;
+
+  my $submit = '';
+  $submit = qq[&lt;input type="submit" name="sexisgood" value="submit" /&gt;]
+    if  $mover  ||  $checkboxes  ||  $consider;
+  return ""   if  ! $submit  &amp;&amp;  ! $message;
+
+  my $ops = '';
+
+  return qq[
+    ] . htmlcode('openform') . qq[
+    &lt;input type="hidden" name="linktype"  value="$SETTING-&gt;{$type."_linktype"}" /&gt;
+    &lt;input type="hidden" name="sectionid" value="$SETTING-&gt;{$type."_node"}" /&gt;
+    &lt;input type="hidden" name="op" value="approve" /&gt;
+    $mover
+    $checkboxes
+    $consider
+    $message
+    $submit
+    ] . linkNode(17645, 'help') . qq[
+  &lt;/form&gt;
+  ];
+%]</field>
+</data>
+</node>

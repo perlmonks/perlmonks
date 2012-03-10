@@ -1,0 +1,136 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>16955</node_id>
+  <author_user>929</author_user>
+  <title>cachedlistapproved</title>
+  <createtime>2000-02-10 17:42:06</createtime>
+  <code>use lib $HTMLVARS{uselib};
+use Everything::Experience;
+
+my( $type, $linktype, $title, $length, @options )= @_;
+my( $showall, $showunapproved, $tempkey );
+my $lt_id = getId( getNode( $linktype, 'linktype' ) );
+
+my $updateinterval   = 180;
+my $daysBeforeExpire = 7;
+my $expireTime = $DB-&gt;sqlSelect(&quot;from_unixtime(unix_timestamp(now())-86400*$daysBeforeExpire)&quot;);
+my $SETTING = getNode('listapproved settings','setting');
+my $LAS = getVars $SETTING;
+
+my $outercontainer = $LAS-&gt;{&quot;outerContainerForType_&quot;.$type} || $LAS-&gt;{defaultOuterContainer};
+my $innercontainer = $LAS-&gt;{&quot;innerContainerForType_&quot;.$type} || $LAS-&gt;{defaultInnerContainer};
+my $innerhtmlcode  = $LAS-&gt;{&quot;innerHtmlcodeForType_&quot;.$type}  || $LAS-&gt;{defaultInnerHtmlcode};
+
+my $start = my $count = $q-&gt;param('next') || 0;
+my $maxlength = $length ||= 10;
+my $max = $count + $length;
+my $numshown = 0;
+
+foreach(@options){
+    if(lc($_) eq &quot;showunapproved&quot;){$showunapproved=1}
+    elsif(lc($_) eq &quot;showall&quot;){$showall=1;}
+    elsif(/linkto\|(.*)\|(.*)/){
+        $HTMLVARS{listapproved}{linkto_node_id}=getId(getNode($1,$2));  
+    }
+    elsif(/outerContainerOverride:(.*)/){
+        $tempkey=$1;
+        $outercontainer=$$LAS{$tempkey};
+    } elsif(/innerContainerOverride:(.*)/){
+        $tempkey=$1;
+        $innercontainer=$$LAS{$tempkey};
+    } elsif(/innerHtmlcodeOverride:(.*)/){
+        $tempkey=$1;
+        $innerhtmlcode=$$LAS{tempkey};
+    } elsif(/updateinterval:(.*)/){
+        $updateinterval=$1;
+    } elsif(/maxlength:(.*)/){
+        $maxlength=$1;
+    }
+}
+
+my( %approved, @unapproved, @approved, @list );
+my $htmlcode_id = getId(getNode('cachedlistapproved','htmlcode'));
+
+my $cachekey = join ':',
+    getId($NODE), $type, $linktype, $length, $showunapproved,
+    $VARS-&gt;{unapprovedcontent}, $showall;
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare_cached( join ' ',
+    &quot;select updateinterval,&quot;,
+    &quot;unix_timestamp(lastupdate),&quot;,
+    &quot;cachedata&quot;,
+    &quot;from   cachedinfo&quot;,
+    &quot;where  code_id  = ?&quot;,
+    &quot;and    cachekey = ?&quot;,
+    &quot;order by lastupdate desc limit 1&quot;,
+);
+
+$csr-&gt;execute($htmlcode_id,$cachekey);
+my $RESULT = $csr-&gt;fetchrow_hashref;
+$csr-&gt;finish;
+if(! $RESULT or ( time - $RESULT-&gt;{'unix_timestamp(lastupdate)'} ) &gt; $RESULT-&gt;{updateinterval} ) {
+    my $links = selectLinks $NODE;
+    $approved{$_-&gt;{to_node}} = 1
+        for grep $_-&gt;{linktype} == $lt_id, @$links;
+    my $ref = selectNodeWhere( {type_nodetype =&gt; getType($type) }, '', 'createtime desc limit 100');
+    #unix_timestamp(now())&lt;(unix_timestamp createtime+7*24*60*60)&quot;
+
+    for( @$ref[$count..$#$ref] ) {
+        if($approved{$_}){
+            push @approved,   $_;
+            push @list,       $_;
+            last if ++$numshown &gt;= $maxlength;
+        } else {
+            push @unapproved, $_;
+            push @list,      -$_;
+        }
+    }
+    my $cachedata = join ',', @list;
+
+    my $sql = $RESULT
+        ?   join( ' ',
+                &quot;update cachedinfo set&quot;,
+                &quot;lastupdate = now(),&quot;,
+                &quot;cachedata  = '$cachedata'&quot;,
+                &quot;where cachekey = '$cachekey'&quot;,
+                &quot;and code_id = $htmlcode_id&quot;,
+            )
+        :   join( ' ',
+                &quot;insert into cachedinfo&quot;,
+                &quot;( code_id, cachedata, updateinterval, lastupdate, cachekey )&quot;,
+                &quot;values( $htmlcode_id, '$cachedata', $updateinterval, now(),&quot;,
+                &quot;'$cachekey' )&quot;,
+            )
+    ;
+    $DB-&gt;getDatabaseHandle()-&gt;do( $sql );
+} else {
+    @list = split /,/, $RESULT-&gt;{cachedata};
+}
+
+$HTMLVARS{listapproved}{title} = $title;
+my $innerstr;
+$numshown = 0;
+my $canconsider= Everything::isApproved($USER,'CanConsider');
+for( @list ) {
+    $HTMLVARS{embed_node} = selectNode $_;
+    next if $expireTime gt $HTMLVARS{embed_node}{createtime};
+    if($_ &gt; 0 or ($VARS-&gt;{unapprovedcontent}) and $showunapproved or $showall){
+        $numshown++;
+
+        my $node= $HTMLVARS{embed_node};
+        $node-&gt;{replies}= htmlcode( 'formatRepliesInfo','', $node );
+        $node-&gt;{numreplies} = 0 + $node-&gt;{replies}; # temp backward compat
+
+        $innerstr .= containHtml($innercontainer, htmlcode($innerhtmlcode));
+        last if $numshown == $length;
+    }
+    if($canconsider and !$approved{getId($HTMLVARS{embed_node})}){
+        push @unapproved, -$_;
+    }
+}
+
+$HTMLVARS{unapproved} = \@unapproved;
+return '' if ! $numshown;
+return containHtml($outercontainer,$innerstr);
+</code>
+  <nodeupdated>2005-05-04 10:39:38</nodeupdated>
+</node>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="16902" title="Recently Updated Home Nodes" created="2000-06-07 17:07:25" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+   my $is_default_user = getId($USER) == $HTMLVARS{default_user};
+
+   my $since_when = time - 30 * 24*60*60; # default: 30 days
+
+   my $str;
+
+   unless ( $is_default_user ) {
+      $$VARS{lastviewedhomenodes} = $query-&gt;param('pageloadtime')
+         if $query-&gt;param('viewedNewHomeNodes')
+         &amp;&amp; $query-&gt;param('pageloadtime') !~ /\D/;
+            # make sure pageloadtime is numeric
+
+      $$VARS{lastviewedhomenodes} = ''
+         if $query-&gt;param('clearNewHomeNodesFlag');
+
+      $since_when = $$VARS{lastviewedhomenodes} if $$VARS{lastviewedhomenodes};
+
+      $str.=htmlcode('openform');
+      $str.='&lt;INPUT TYPE="hidden" name="node_id" value='.getId($NODE).'&gt;';
+      $str.='&lt;INPUT TYPE="hidden" name="pageloadtime" value="'.time().'"&gt;';
+   }
+
+   $str.='Showing home nodes updated since '.htmlcode('convertEpochSecs',$since_when).'&lt;BR&gt;';
+
+   unless ( $is_default_user ) {
+      $str.=qq(&lt;INPUT TYPE="submit" NAME="clearNewHomeNodesFlag" VALUE="Clear my 'last checked' time"&gt;);
+   }
+
+   # $since_when is always numeric here!
+   my $csr = $DB-&gt;getDatabaseHandle-&gt;prepare(&lt;&lt;SQL);
+select * from user
+where 
+    ((unix_timestamp(lastupdate)) &gt; $since_when) and
+    (nick &lt;&gt; '[NodeReaper]') -- user is not locked for spamming
+order by lastupdate desc
+SQL
+
+   $csr-&gt;execute;
+   $str.='&lt;table&gt;';
+   while(my $N=$csr-&gt;fetchrow_hashref){
+      $str.= '&lt;tr&gt;&lt;td&gt;'
+        . linkNode($N-&gt;{user_id})
+        . '&lt;/td&gt;&lt;td&gt;'
+        . $N-&gt;{lastupdate}
+        . "&lt;/td&gt;&lt;/tr&gt;\n";
+   }
+   $str.='&lt;/table&gt;';
+
+   unless ( $is_default_user ) {
+      $str.='&lt;INPUT TYPE="hidden" NAME="node_id" VALUE='.getId($NODE).'&gt;';
+      $str.='&lt;INPUT TYPE="hidden" NAME="displaytype" VALUE=display&gt;';
+      $str.='&lt;INPUT TYPE="submit" NAME="viewedNewHomeNodes" VALUE="I\'ve checked all of these"&gt;';
+      $str.='&lt;/FORM&gt;';
+   }
+
+   $str
+%]
+</field>
+</data>
+</node>

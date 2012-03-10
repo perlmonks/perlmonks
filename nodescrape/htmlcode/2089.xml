@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="2089" title="showmostrecent" created="2000-01-13 17:11:47" updated="2005-07-30 15:59:22">
+<type id="4">
+htmlcode</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="code">
+my ($type,$length,$descon,$showauthor)=@_;
+$length||=10;
+my $start=$query-&gt;param('startat');
+$start||=0;
+my $str;
+$str.="&lt;H3&gt;$type&lt;/H3&gt;" if $descon;
+my $type=getId(getType($type));
+my $N;
+
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare("SELECT * FROM node WHERE type_nodetype=$type ORDER BY createtime DESC limit $start, $length");
+$csr-&gt;execute or return "SHIT";
+$str.="&lt;UL&gt;";
+my $numfound=0;
+while($N = $csr-&gt;fetchrow_hashref){
+   $numfound++;
+   $str.="&lt;li&gt;".linkNode($N);
+   $str.=" by ".linkNode($$N{author_user}) if $showauthor;
+}
+$str."&lt;/UL&gt;";
+$str.="&lt;BR&gt;&lt;BR&gt;";
+$str.="&lt;CENTER&gt;";
+$str.="&lt;A HREF=".urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',startat=&gt;$start-$length})."&gt;&amp;lt;--Previous $length&lt;/A&gt;" if($start);
+$str.="&amp;nbsp;&amp;nbsp;&lt;".($start+1)."-".($start+$numfound)."&gt;&amp;nbsp;&amp;nbsp;";
+$str.="&lt;A HREF=".urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',startat=&gt;$start+$length})."&gt;Next $length--&amp;gt;&lt;/A&gt;" if($numfound==$length);
+$str.="&lt;/CENTER&gt;";
+$str;</field>
+</data>
+</node>

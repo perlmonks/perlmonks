@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="531137" title="readPmModule" created="2006-02-18 06:47:09" updated="2006-02-18 01:47:09">
+<type id="4">
+htmlcode</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="code">
+my( $title, $hv, $av )= @_;
+$title ||= $NODE;
+$title= $title-&gt;{title}   if  ref $title;
+$hv-&gt;{suffix}= '';
+if(  $title =~ s#(?&lt;=[.]pm)([^/]+)$##  ) {
+    $hv-&gt;{suffix}= $1;
+}
+$hv-&gt;{path}= $INC{$title};
+
+if(  ! $hv-&gt;{path}  &amp;&amp;  $title =~ m#^/#  ) {
+    my @match= grep $_ =~ m#\Q$title\E$#, keys %INC;
+    my $cnt= @match;
+    if(  1 != $cnt  ) {
+        $hv-&gt;{error}=
+            qq[Strange, but I don't use the "&lt;tt&gt;]
+          . $q-&gt;escapeHTML($title)
+          . qq[&lt;/tt&gt;" module ($cnt times).  ]
+          . qq[See [module version report].$/];
+        return '';
+    }
+    $hv-&gt;{path}= $INC{ $match[0] };
+}
+if(  ! $hv-&gt;{path}  ) {
+    if(  $title !~ /\w[.]pm$/  ) {
+        $hv-&gt;{error}=
+            qq[Strange, invalid module name, "&lt;tt&gt;]
+          . $q-&gt;escapeHTML($title)
+          . qq[&lt;/tt&gt;", in pmmodule node title.$/];
+        return '';
+    }
+    $hv-&gt;{required}= 1;
+    eval { require $title; };
+}
+$hv-&gt;{path}= $INC{$title};
+$!= 0;
+if(     ! $hv-&gt;{path}
+    or  ! open( PMMOD, "&lt; $hv-&gt;{path}$hv-&gt;{suffix}" )
+) {
+    $hv-&gt;{error}=
+        qq[Strange, but I can't find the "&lt;tt&gt;]
+      . $q-&gt;escapeHTML( $title . $hv-&gt;{suffix} )
+      . qq[&lt;/tt&gt;" module ($!).$/];
+    return '';
+}
+if(  $av  ) {
+    @$av= &lt;PMMOD&gt;;
+    close PMMOD;
+    return 1;
+}
+my $text= do { local($/); &lt;PMMOD&gt; };
+close PMMOD;
+return $text;
+</field>
+</data>
+</node>

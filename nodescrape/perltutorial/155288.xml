@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="155288" title="The Dynamic Duo --or-- Holy Getopt::Long, Pod::UsageMan!" created="2002-03-29 12:31:55" updated="2005-08-15 10:00:29">
+<type id="956">
+perltutorial</type>
+<author id="14909">
+ybiC</author>
+<data>
+<field name="doctext">
+&lt;!-- The Dynamic Duo --or-- Holy Getopt::Long, Pod::UsageMan! --&gt;
+
+
+&lt;i&gt;&lt;h1&gt;"There's seldom an excuse to have an undocumented Perl script."&lt;/h1&gt;&lt;/i&gt;
+&lt;i&gt;&lt;h2&gt;"WWJD? &amp;nbsp; &amp;nbsp; JWRTFM."&lt;/h2&gt;&lt;/i&gt;
+&lt;h3&gt;So say Jeffreys Copeland and Haemer, and I humbly concur.&lt;/h3&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+  In [http://swexpert.com/C9/SE.C9.DEC.01.pdf|one of their very last columns] from the now-defunct [http://swexpert.com/|Server/Workstation Expert] magazine &lt;font size="-1"&gt;&lt;i&gt;(formerly SunExpert)&lt;/i&gt;&lt;/font&gt;, the Jeffreys extolled the virtues of providing &lt;b&gt;user-documentation&lt;/b&gt; in your camel-code with a particular pair of Perl modules: &lt;b&gt;Getopt::Long&lt;/b&gt; and &lt;b&gt;Pod::Usage&lt;/b&gt;:
+  &lt;ol&gt;
+    &lt;li&gt;&lt;i&gt;(necessary modules are) included in the standard Perl distribution&lt;/i&gt;
+    &lt;li&gt;&lt;i&gt;they keep the docs in the same file as the program&lt;/i&gt;
+    &lt;li&gt;&lt;i&gt;program messages are extracted from the documentsion itself&lt;/i&gt;
+    &lt;li&gt;&lt;i&gt;argument parsing is relatively short&lt;/i&gt;
+  &lt;/ol&gt;
+&lt;/p&gt;
+&lt;br /&gt;
+
+
+&lt;p&gt;
+  To put that in my own words&lt;b&gt;:&lt;/b&gt;
+  &lt;ol&gt;
+    &lt;li&gt;&lt;i&gt;you don't have to convince a clue-free-PHB or snarling-SysAdmin&lt;b&gt;*&lt;/b&gt; to let you install Yet Another Module&lt;/i&gt;
+    &lt;li&gt;&lt;i&gt;you don't have to maintain separate (easy-to-fall-out-of-sync) doc files&lt;/i&gt;
+    &lt;li&gt;&lt;i&gt;you don't have to maintain internal (easy-to-fall-out-of-sync) &amp;Usage() subroutines&lt;/i&gt;
+    &lt;li&gt;&lt;i&gt;Perl makes it easy and fun&lt;/i&gt;
+  &lt;/ol&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+  The Jeffreys went so far as to helpify and manatize a &lt;tt&gt;helloworld.pl&lt;/tt&gt; script. &amp;nbsp; However, in the interest of avoiding plaguarism lawsuits, I took this oportunity to make a still-small yet ever-so-slightly-more-useful program to fetch current condition reports from Weather Underground&lt;b&gt;**&lt;/b&gt;. &amp;nbsp; By doculating it with these swell modules, I hope to show One Way To Do It.
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+Before we look at some code, here's a summary of what we'll do with These Fine Modules.
+&lt;ul&gt;
+  &lt;li&gt;use &lt;tt&gt;Getopt::Long&lt;/tt&gt; to set up &lt;tt&gt;--help&lt;/tt&gt; and &lt;tt&gt;--man&lt;/tt&gt; arguments.
+  &lt;li&gt;use &lt;tt&gt;Getopt::Long&lt;/tt&gt; to setup other program arguments &lt;i&gt;(completely separate from Pod::Usage)&lt;/i&gt;:
+  &lt;ul&gt;
+    &lt;li&gt;&lt;tt&gt;wunderg.pl --debug=1&lt;/tt&gt;
+    &lt;li&gt;&lt;tt&gt;wunderg.pl --versions&lt;/tt&gt;
+  &lt;/ul&gt;
+  &lt;li&gt;call the &lt;tt&gt;pod2usage()&lt;/tt&gt; function to generate the associated messages.
+  &lt;ul&gt;
+    &lt;li&gt;The &lt;tt&gt;--help&lt;/tt&gt; message is always extracted from pod sections titled USAGE, ARGUMENTS, and OPTIONS &lt;i&gt;(case-sensitive)&lt;/i&gt;.
+    &lt;li&gt;The &lt;tt&gt;--man&lt;/tt&gt; message is always the pod in it's entirety.
+  &lt;/ul&gt;
+&lt;/ul&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;br /&gt;Code, discussion, runs, and sundry comments follow.
+&lt;br /&gt; &amp;nbsp; &amp;nbsp; cheers,
+&lt;br /&gt; &amp;nbsp; &amp;nbsp; [ybiC]
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;b&gt;*&lt;/b&gt;&lt;sub&gt;No offense intended to monks of this ilk; I'm a recovering server-guy myself&lt;/sub&gt;
+&lt;br /&gt;
+&lt;b&gt;**&lt;/b&gt;&lt;sub&gt;thanks to [merlyn] for [id://154954|mentioning] the [cpan://Weather::Underground] module&lt;/sub&gt;
+&lt;br /&gt;
+&lt;b&gt;***&lt;/b&gt;&lt;sub&gt;thanks to someFineMonk, I forget who, who pointed me to this keen pair o'doc-jones modules a year or so ago&lt;/sub&gt;
+&lt;br /&gt;
+&lt;b&gt;****&lt;/b&gt;&lt;sub&gt;I'm sure gonna miss [http://swexpert.com/C1/|Mr Protocol] &amp;nbsp; 8^(&lt;/sub&gt;
+&lt;br /&gt;
+&lt;b&gt;*****&lt;/b&gt;&lt;sub&gt;kudos to [grinder] for [id://88222], which I didn't spot until *after* posting this &amp;nbsp; 8^P&lt;/sub&gt;
+&lt;br /&gt;
+&lt;b&gt;Update: &lt;/b&gt;&lt;br /&gt;
+&lt;sub&gt; Thanks to brothers [gellyfish], [belg4mit], and [danger] for code fixes &amp;nbsp;
+and to brothers [impossiblerobot], [Corion], [wmono], and [podmaster] for posting+editing improvements &amp;nbsp; 8^)&lt;/sub&gt;
+&lt;/p&gt;
+
+&lt;br /&gt;
+&lt;br /&gt;
+&lt;!-- readmore --&gt;
+
+&lt;h2&gt;RELEVANT CODE, and DISCUSSION:&lt;/h2&gt;
+&lt;hr /&gt;
+
+&lt;br /&gt;
+&lt;p&gt;
+The Getopt::Long and Pod::Usage modules have *great* pod. &lt;i&gt;&lt;sup&gt;(hint, hint)&lt;/sup&gt;&lt;/i&gt; &amp;nbsp; So rather than regurgitate that, let's walk through relevant chunks of our example program. &amp;nbsp; Starting from the top:
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+Of course, you have to tell Perl to load the needed modules &amp;nbsp;&lt;i&gt;(you do use &lt;tt&gt;warnings&lt;/tt&gt; and &lt;tt&gt;strict&lt;/tt&gt;, don't you??)&lt;/i&gt;:
+&lt;b&gt;&lt;pre&gt;#!/usr/bin/perl -w
+use strict;                  # avoid d'oh! bugs
+use Getopt::Long;            # support options+arguments
+use Pod::Usage;              # avoid redundant &amp;Usage()
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+Since these scalar names start with "$opt_", we know that they're Getopt::Long-facilitated commandline option . &amp;nbsp; I happen to want a default value of 0 for &lt;tt&gt;debug&lt;/tt&gt;, as it's used to set the verbosity level of Weather::Underground output. &amp;nbsp; The other three are declared as lexicals here, for use in just a bit.
+&lt;b&gt;&lt;pre&gt;my $opt_debug   = 0;
+my ($opt_help, $opt_man, $opt_versions);
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+As the comment says, this Getopt::Long function allocates options and arguments for the program. &amp;nbsp; The first (alpha) part of the hash keys are the long form of the command-line switches. &amp;nbsp; The second &lt;tt&gt;(=1|!)&lt;/tt&gt; part of the keys are argument specifiers. &amp;nbsp; Our example program uses two of the seven available argument specifiers. &amp;nbsp; "&lt;tt&gt;=i&lt;/tt&gt;" requires an integer argument to assign as the variable's value, and "&lt;tt&gt;!&lt;/tt&gt;" takes no argument, but does 'def' the variable. &amp;nbsp; You can &lt;tt&gt;perldoc Getopt::Long&lt;/tt&gt; to see what the other 5 arg specs are.
+&lt;b&gt;&lt;pre&gt;GetOptions(
+  'debug=i'   =&gt; \$opt_debug,
+  'help!'     =&gt; \$opt_help,
+  'man!'      =&gt; \$opt_man,
+  'versions!' =&gt; \$opt_versions,
+) or...
+&lt;/pre&gt;&lt;/b&gt;
+The hash values indicate the name of the variable, like our friend &lt;tt&gt;$opt_debug&lt;/tt&gt; above.&lt;br /&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+So far, we've been dealing with Getopt::Long, but &lt;tt&gt;pod2usage&lt;/tt&gt; is obviously a Pod::Usage function. &amp;nbsp; If the &lt;tt&gt;Getoptions()&lt;/tt&gt; call above fails, we have Pod::Usage print the program's pod USAGE, OPTIONS, and ARGUMENTS (as spec'd by verbose level one), then end the program run. &amp;nbsp; Much friendlier than some cryptic &lt;tt&gt;or die $!;&lt;/tt&gt; message, eh?
+&lt;b&gt;&lt;pre&gt;...or pod2usage(-verbose =&gt; 1) &amp;&amp; exit;
+&lt;/pre&gt;&lt;/b&gt;
+&lt;tt&gt;pod2usage()&lt;/tt&gt; also supports specifying error message, exit value, and output filehandle. &amp;nbsp;  This program might benefit in places from a &lt;tt&gt;pod2usage()&lt;/tt&gt; error message, but I'll leave that as an exercise for the reader. &amp;nbsp; Hint: &lt;tt&gt;perldoc Pod::Usage&lt;/tt&gt; &amp;nbsp; 8^)&lt;br /&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+In the same vein, we print the 'help' messages if an invalid value was entered for &lt;tt&gt;--debug&lt;/tt&gt;, or if you purposely called &lt;tt&gt;--help&lt;/tt&gt;:
+&lt;b&gt;&lt;pre&gt;pod2usage(-verbose =&gt; 1) &amp;&amp; exit if ($opt_debug !~ /^&amp;#091;01&amp;#093;$/);
+pod2usage(-verbose =&gt; 1) &amp;&amp; exit if defined $opt_help;
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+Likewise, print the 'man' messages if the program was called with &lt;tt&gt;--man&lt;/tt&gt;:
+&lt;b&gt;&lt;pre&gt;pod2usage(-verbose =&gt; 2) &amp;&amp; exit if defined $opt_man;
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+The body of the program falls here, but since it does the Weather::Underground fetch stuff, we'll ignore it for now.
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+And finally, if the program is called with &lt;tt&gt;--versions&lt;/tt&gt;, this block runs and prints a mess of version number info:
+&lt;b&gt;&lt;pre&gt;END{
+  if(defined $opt_versions){
+    print
+      "\nModules, Perl, OS, Program info:\n",
+      "  Weather::Underground  $Weather::Underground::VERSION\n",
+      "  Pod::Usage            $Pod::Usage::VERSION\n",
+      "  Getopt::Long          $Getopt::Long::VERSION\n",
+      "  strict                $strict::VERSION\n",
+      "  Perl                  $]\n",
+      "  OS                    $^O\n",
+      "  wunderg.pl            $wunderg_VER\n",
+      "  $0\n",
+      "  $site\n",
+      "\n\n";
+  }
+}
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;h2&gt;RUN the PROGRAM, WILLYA?!&lt;/h2&gt;
+&lt;hr /&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+So, when we call our program like so &lt;tt&gt;wunderg.pl --help&lt;/tt&gt; we get this message on screen:
+&lt;b&gt;&lt;pre&gt;Usage:
+     wunderg.pl Paris,France Omaha,NE 'London, United Kingdom'
+
+Arguments:
+     Place
+     --help      print Options and Arguments instead of fetching weather data
+     --man       print complete man page instead of fetching weather data
+
+     Place can be individual name:
+       City
+       State
+       Country
+
+     Place can be combinations like:
+       City,State
+       City,Country
+
+     Note that if Place contains any spaces it must be surrounded with single
+      or double quotes:
+       'London,United Kingdom'
+       'San Jose,CA'
+       'Omaha, Nebraska'
+
+Options:
+     --versions   print Modules, Perl, OS, Program info
+     --debug 0    don't print debugging information (default)
+     --debug 1    print debugging information
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;strike&gt;And &lt;tt&gt;wunderg.pl --man&lt;/tt&gt; results in:&lt;/strike&gt;&lt;br /&gt;
+Nah, let's skip that, it's too long. &amp;nbsp; If you want to see it, go to The Full Monty below and find the pod.
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;tt&gt;wunderg.pl paris,france 'london, united kingdom'&lt;/tt&gt; actually *does* something, thanks to the fine folks at wunderground.com and Weather::Underground:
+&lt;b&gt;&lt;pre&gt;Sat Mar 30 12:34:53 2002
+http://www.wunderground.com/members/signup.php
+
+paris,france
+  conditions = Unknown
+  humidity = 34
+  fahrenheit = 59
+
+london,united kingdom
+  conditions = Partly Cloudy
+  humidity = 48
+  fahrenheit = 58
+&lt;/pre&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+And &lt;tt&gt;wunderg.pl --debug 'new york, new york'&lt;/tt&gt; has W::U to tell us more details of the fetch:&lt;br /&gt;
+&lt;b&gt;&lt;tt&gt;Sat Mar 30 12:37:04 2002&lt;br /&gt;
+http://www.wunderground.com/members/signup.php&lt;br /&gt;
+&lt;br /&gt;
+Weather::Underground DEBUG NOTE: Creating a new Weather::Underground object&lt;br /&gt;
+Weather::Underground DEBUG NOTE: Getting weather info for new york, new york&lt;br /&gt;
+Weather::Underground DEBUG NOTE: Retrieving url http://www.wunderground.com/cgi-bin/findweather/getForecast?query=new york, new york&lt;br /&gt;
+Weather::Underground DEBUG NOTE: SINGLE-LOCATION PARSED 1: new york, new york: Scattered Clouds: 70 * F . 46% humity&lt;br /&gt;
+Weather::Underground DEBUG NOTE: Temperature in Fahrenheit. Converting accordingly&lt;br /&gt;
+new york, new york&lt;br /&gt;
+ &amp;nbsp; conditions = Scattered Clouds&lt;br /&gt;
+ &amp;nbsp; humidity = 46&lt;br /&gt;
+ &amp;nbsp; fahrenheit = 70
+&lt;/tt&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;br /&gt;
+&lt;h2&gt;SUNDRY COMMENTS:&lt;/h2&gt;
+&lt;hr /&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;h3&gt; * on Getopt::Long * &lt;/h3&gt;
+Options can be called in either longform:&lt;br /&gt;
+&lt;b&gt;&lt;tt&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl --versions Minot,ND&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl --debug=1 Minot,ND&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl --help&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl --man&lt;br /&gt;
+&lt;/tt&gt;&lt;/b&gt;
+&lt;br /&gt;
+
+Or shortform:&lt;br /&gt;
+&lt;b&gt;&lt;tt&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl -v Minot,ND&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl -d 1 Minot,ND&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl -h&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; wunderg.pl -m&lt;br /&gt;
+&lt;/tt&gt;&lt;/b&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;h3&gt; * on Pod::Usage * &lt;/h3&gt;
+&lt;tt&gt;podusage()&lt;/tt&gt; called with only a 0 or 1 as argument is shortform verbose level:&lt;br /&gt;
+&lt;b&gt;&lt;tt&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; pod2usage(1); &lt;br /&gt;
+&lt;/tt&gt;&lt;/b&gt;
+&lt;br /&gt;
+
+&lt;tt&gt;podusage()&lt;/tt&gt; called with only a quoted text string as argument is shortform for error message:&lt;br /&gt;
+&lt;b&gt;&lt;tt&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; pod2usage("Hrm..."); &lt;br /&gt;
+&lt;/tt&gt;&lt;/b&gt;
+&lt;br /&gt;
+
+Arguments can be combined, but only in longform:&lt;br /&gt;
+&lt;b&gt;&lt;tt&gt;
+ &amp;nbsp; &amp;nbsp; &amp;nbsp; pod2usage({-verbose=&gt;1, -message=&gt;"Hrm...",}); &lt;br /&gt;
+&lt;/tt&gt;&lt;/b&gt;
+&lt;br /&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;p&gt;
+&lt;/p&gt;
+
+
+&lt;br /&gt;
+&lt;h2&gt;THE FULL MONTY:&lt;/h2&gt;
+This is the only place where I've used &amp;lt;code&amp;gt; tags, so that you can use the d/l button below to fetch this program.
+&lt;hr /&gt;
+
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+# wunderg.pl
+# pod at tail
+
+
+use strict;                  # avoid d'oh! bugs
+use Getopt::Long;            # support options+arguments
+use Pod::Usage;              # avoid redundant &amp;Usage()
+use Weather::Underground;    # fetch weather from www.wunderground.com
+
+
+my $wunderg_VER = '0.02.05';
+my $site        = 'http://www.wunderground.com/members/signup.php';
+my $opt_debug   = 0;
+my ($opt_help, $opt_man, $opt_versions);
+
+
+GetOptions(
+  'debug=i'   =&gt; \$opt_debug,
+  'help!'     =&gt; \$opt_help,
+  'man!'      =&gt; \$opt_man,
+  'versions!' =&gt; \$opt_versions,
+) or pod2usage(-verbose =&gt; 1) &amp;&amp; exit;
+
+pod2usage(-verbose =&gt; 1) &amp;&amp; exit if ($opt_debug !~ /^[01]$/);
+pod2usage(-verbose =&gt; 1) &amp;&amp; exit if defined $opt_help;
+pod2usage(-verbose =&gt; 2) &amp;&amp; exit if defined $opt_man;
+# Check this last to avoid parsing options as Places,
+#   and so don't override $opt_man verbose level
+my @places  = @ARGV;
+pod2usage(-verbose =&gt; 1) &amp;&amp; exit unless @places;
+
+
+print "\n", my $time = localtime, "\n$site\n\n";
+
+for (@places){
+  my $weather = Weather::Underground -&gt;new(
+    place =&gt; $_,
+    debug =&gt; $opt_debug,
+  ) or die "Error creating object:\n$@\n";
+
+my $arrayref = $weather-&gt;getweather()
+    or die "Error fetching:\n$@\n";
+
+  for(@$arrayref){
+    print "$_-&gt;{place}\n" if exists($_-&gt;{place});
+    while (my ($key, $value) = each %{$_}) {
+      print "  $key = $value\n"
+        unless ($key eq 'celsius' or $key eq 'place');
+        # celcius matches misspelling in W::U
+        # fixed in W::U v2.02
+    }
+  }
+  print "\n";
+}
+
+
+BEGIN{
+  # allow to run from cron:
+  # but doesn't work 8^(
+  $ENV{HTTP_PROXY} = 'http://proxy:port/'; 
+}
+
+
+END{
+  if(defined $opt_versions){
+    print
+      "\nModules, Perl, OS, Program info:\n",
+      "  Weather::Underground  $Weather::Underground::VERSION\n",
+      "  Pod::Usage            $Pod::Usage::VERSION\n",
+      "  Getopt::Long          $Getopt::Long::VERSION\n",
+      "  strict                $strict::VERSION\n",
+      "  Perl                  $]\n",
+      "  OS                    $^O\n",
+      "  wunderg.pl            $wunderg_VER\n",
+      "  $0\n",
+      "  $site\n",
+      "\n\n";
+  }
+}
+
+
+=head1 NAME
+
+ wunderg.pl
+
+=head1 SYNOPSIS
+
+ wunderg.pl Paris,France Omaha,NE 'London, United Kingdom'
+
+=head1 DESCRIPTION
+
+ Fetch and print weather conditions for one or more cities.
+
+ Weather::Underground appears to read http_proxy environment variable,
+ so wunderg.pl works behind a proxy (non-auth proxy, at least).
+
+ Switches that don't define a value can be done in long or short form.
+ eg:
+   wunderg.pl --man
+   wunderg.pl -m
+
+=head1 ARGUMENTS
+
+ Place
+ --help      print Options and Arguments instead of fetching weather data
+ --man       print complete man page instead of fetching weather data
+
+ Place can be individual name:
+   City
+   State
+   Country
+
+ Place can be combinations like:
+   City,State
+   City,Country
+
+ Note that if Place contains any spaces it must be surrounded with single
+  or double quotes:
+   'London,United Kingdom'
+   'San Jose,CA'
+   'Omaha, Nebraska'
+
+=head1 OPTIONS
+
+ --versions   print Modules, Perl, OS, Program info
+ --debug 0    don't print debugging information (default)
+ --debug 1    print debugging information
+
+=head1 AUTHOR
+
+ybiC
+
+=head1 CREDITS
+
+ Core loop derived directly from Weather::Underground pod.
+ Thanks to merlyn for pointing out this cool weather module,
+   gellyfish for tip to use regex match for valid $opt_debug values,
+   belg4mit for cleaner syntax for printing "Place" key,
+   danger for tip+fix for 5.6.1 warning on 'unless defined(places)'
+ Oh yeah, and to some guy named vroom.
+
+ You don't have to subscribe to www.wunderground.com to fetch their data.
+ But it's only $5USD/year, so why not?
+
+=head1 TESTED
+
+ Weather::Underground  2.01
+ Pod::Usage            1.14
+ Getopt::Long          2.2602
+ Perl    5.00503
+ Debian  2.2r5
+
+=head1 BUGS
+
+None that I know of.
+
+=head1 TODO
+
+   Test from cron
+   Test on Cygwin
+   Test on ActivePerl
+   Make it run from cron when behind proxy
+   Use printf() to line up weather output in columns
+   Print modules... info on error
+   
+
+=head1 UPDATES
+
+ 2002-03-29   17:30 CST
+   Replace 'unless defined(@places)' with 'unless(@places)'
+    to avoid warning on 5.6.1
+   Perlish idiom instead of looping through hash twice
+   Post to PerlMonks
+
+ 2002-03-29   12:05 CST
+   Initial working code
+
+=cut
+
+&lt;/code&gt;
+
+</field>
+</data>
+</node>

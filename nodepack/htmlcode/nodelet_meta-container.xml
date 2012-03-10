@@ -1,0 +1,64 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>40</node_id>
+  <author_user>114</author_user>
+  <title>nodelet meta-container</title>
+  <createtime>1999-10-04 18:34:59</createtime>
+  <code>return &quot;&lt;!-- you have nodelets turned off --&gt;&quot;
+    if  $VARS-&gt;{nodelets_off};
+
+my @nodelets;
+@nodelets= split ',', $VARS-&gt;{nodelets}
+    if  exists $VARS-&gt;{nodelets};
+if(  getId($NODE) == $HTMLVARS{default_node}  ||  $VARS-&gt;{fpeqnonfp}  ) {
+    @nodelets= split ',', $VARS-&gt;{fpnodelets}
+        if  exists $VARS-&gt;{fpnodelets};
+}
+
+if(  ! @nodelets  &amp;&amp;  $VARS-&gt;{nodelet_group}  ) {
+    my( $NODELETGROUP )= $DB-&gt;getNodeById( $VARS-&gt;{nodelet_group} );
+    @nodelets= @{ $NODELETGROUP-&gt;{group} }
+        if  $NODELETGROUP-&gt;{type}{title} eq 'nodeletgroup';
+}
+if(  ! @nodelets  ) {
+    my( $DEFAULT )= $DB-&gt;getNodeById( $HTMLVARS{default_nodeletgroup} );
+    @nodelets= @{ $DEFAULT-&gt;{group} };
+}
+return &quot;&lt;!-- no nodelets! --&gt;&quot;
+    if  ! @nodelets;
+
+my( $hasApp, $hasStat, $hasEd, $hasXp, $hasLogin )= map {
+    0 &lt;= index( &quot; @nodelets &quot;, &quot; $_ &quot; )
+} my( $approve, $status, $editors, $xp, $login )= map {
+    getId( getNode($_,'nodelet') )
+}   'Approval Nodelet', 'Node Status', 'Editors Nodelet',
+    'XP Nodelet', 'Log In';
+# $VARS-&gt;{approvalnodelet} is a defunct setting:
+unshift @nodelets, $approve
+    if  $VARS-&gt;{approvalnodelet}  &amp;&amp;  ! $hasApp;
+unshift @nodelets, $status
+    if  ! $hasApp  &amp;&amp;  ! $hasStat;
+# $VARS-&gt;{editorsnodelet} is a defunct setting:
+unshift @nodelets, $editors
+    if  $VARS-&gt;{editorsnodelet}  &amp;&amp;  ! $hasEd;
+unshift @nodelets, $xp
+    if  ! $hasXp  &amp;&amp;  getId($USER) != $HTMLVARS{guest_user};
+unshift @nodelets, $login
+    if  ! $hasLogin  &amp;&amp;  getId($USER) == $HTMLVARS{guest_user};
+
+my( %seen, $nlts );
+for my $node (  @nodelets  ) {
+    next
+        if  $node !~ /\d/
+        ||  $seen{$node}++;
+    $nlts .= insertNodelet( $DB-&gt;getNodeById($node) );
+}
+
+my $elem= $VARS-&gt;{'nodelets_as_div'} ? 'div' : 'table';
+return join &quot;\n&quot;,
+    &quot;&lt;$elem class='nodelet_container' id='nodelet_container'&gt;&quot;,
+    $nlts,
+    &quot;&lt;/$elem&gt;&quot;,
+'';</code>
+  <nodeupdated>2005-07-19 18:34:01</nodeupdated>
+</node>

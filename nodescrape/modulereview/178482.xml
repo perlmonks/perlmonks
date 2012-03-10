@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="178482" title="Apache::Htpasswd" created="2002-07-01 03:05:39" updated="2005-08-01 05:47:20">
+<type id="31663">
+modulereview</type>
+<author id="56270">
+greenFox</author>
+<data>
+<field name="doctext">
+&lt;p&gt;
+Apache's .htpasswd files consist of user/password pairs, one pair per line, eg: &lt;br&gt;
+&lt;code&gt;username1:unixcryptpassword
+username2:unixcryptpassword
+&lt;/code&gt;&lt;br&gt;
+
+The [cpan://Apache::Htpasswd|Apache::Htpasswd] module provides the methods you will need to manage user accounts within .htpasswd (or other password files with the same format)- add and remove users, set &amp; reset passwords.  The module provides only an object orientated interface.  For a more complete user management solution you may want to look at [cpan://HTTPD::UserAdmin|HTTPD::UserAdmin] but for customised user management and integration with your site Apache::Htpasswd is a great tool.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;strong&gt;Drawbacks:&lt;/strong&gt;There is no way to list all the users in a passwd file.  There is  no method to find out if a specific user has an account.  The fetchInfo() method can be bent to this  purpose, but it returns "0" for an invalid account, otherwsise any info that is  stored for that user or undef, to test for a user I wrapped it in a sub like this-
+&lt;/p&gt;
+&lt;p&gt;
+&lt;code&gt;
+sub is_user {
+        my $user = shift || return;
+        my $info = $htpasswd-&gt;fetchInfo($user);
+        return 0 if ($info eq '0');
+        return 1;
+}
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;strong&gt;Sample code&lt;/strong&gt;
+&lt;READMORE&gt;
+Here is a sample CGI script to allow a user to change their own password.  It requires the user to know their own password first.  This script should be run from within a .htaccess protected directory!  It uses the $ENV{REMOTE_USER} variable which can be manipulated by an "attacker" however they would still then need to know the existing password for any user they specify.
+&lt;/p&gt;
+&lt;code&gt;
+#!/usr/bin/perl -wT
+#
+#
+
+BEGIN {
+# make the environment safe
+  delete @ENV{qw(IFS CDPATH ENV BASH_ENV)};
+  $ENV{PATH} = "";
+}
+
+use strict;
+use CGI;
+use CGI::Carp qw(fatalsToBrowser);
+use Apache::Htpasswd;
+my $cgi = new CGI;
+$|++;
+
+my %settings = (title    =&gt; "htpasswd change page",
+                dir      =&gt; "/home/user/public_html/cgi-bin",
+                htpasswd =&gt; ".htpasswd",
+                fields   =&gt; [ "old_passwd", "new_passwd", "new_passwd2" ],
+               );
+$settings{user} = $ENV{REMOTE_USER};
+
+my $htpasswd = new Apache::Htpasswd("$settings{dir}/$settings{htpasswd}");
+
+print_page_headers($settings{title});
+process_form();
+print_form();
+
+exit;
+
+sub process_form {
+
+  return unless ( $cgi-&gt;param('change') );
+
+  my %data;
+  for my $field ($cgi-&gt;param()){
+    if ( scalar grep /^\Q$field\E$/, @{$settings{fields}} ){
+      # its a field we know about
+      my $tmp = substr($cgi-&gt;param($field), 0, 50);
+      $tmp = lc($tmp) if ( $field eq "change_user_name" );
+      $data{$field} = $tmp || '';
+    }
+  }
+
+  if ( !$data{old_passwd} or !$data{new_passwd} or !$data{new_passwd2} ){
+    print $cgi-&gt;p("You must fill out all fields!");
+    return;
+  }
+
+  if ( ! $htpasswd-&gt;htCheckPassword($settings{user}, $data{old_passwd}) ){
+    print $cgi-&gt;p("Old password incorrect or invalid user name");
+    return;
+  }
+ 
+  if ( $data{new_passwd} eq $data{old_passwd} ){
+    print $cgi-&gt;p("New password must be different to old password!");
+    return;
+  }
+ 
+  if ( $data{new_passwd} ne $data{new_passwd2} ){
+    print $cgi-&gt;p("New passwords don't match!");
+    return;
+  }
+ 
+  if ( $data{new_passwd} !~ /^\S{6,8}$/ or $data{new_passwd} !~ /[^a-zA-Z]+/ ){
+    print $cgi-&gt;p("New password must be 6-8 chars and contain at least one number or punctuation character");
+    return;
+  }
+ 
+  $htpasswd-&gt;htpasswd($settings{user}, $data{new_passwd}, $data{old_passwd});
+  if ( my $error = $htpasswd-&gt;error() ){
+    print $cgi-&gt;p("There was en error: [$error]");
+  }
+  else {
+    print $cgi-&gt;p("Password for $settings{user} was succesfully changed");
+  }
+}
+
+sub print_page_headers {
+  my $title = shift || "Page without a title";
+  print $cgi-&gt;header();
+  print $cgi-&gt;start_html($title);
+  print $cgi-&gt;h2($title);
+  print $cgi-&gt;hr();
+  return;
+}
+
+sub print_form {
+ 
+  for (@{$settings{fields}} ){
+    $cgi-&gt;delete($_);
+  } 
+ 
+  print $cgi-&gt;start_form();
+  print $cgi-&gt;b("Password Change for $settings{user}");
+  print $cgi-&gt;table({-border=&gt;0},
+  $cgi-&gt;Tr(
+  $cgi-&gt;td("Enter your ", $cgi-&gt;strong("old"), " password"),
+  $cgi-&gt;td($cgi-&gt;password_field( -name      =&gt; 'old_passwd',
+                                 -value     =&gt; '',
+                                 -size      =&gt; 10,
+                                 -maxlength =&gt; 8))),
+  $cgi-&gt;Tr($cgi-&gt;td("Enter your ", $cgi-&gt;strong("new"), " password"),
+  $cgi-&gt;td($cgi-&gt;password_field( -name      =&gt; 'new_passwd',
+                                 -value     =&gt; '',
+                                 -size      =&gt; 10,
+                                 -maxlength =&gt; 10))),
+  $cgi-&gt;Tr($cgi-&gt;td("Re-Enter your new password"),
+  $cgi-&gt;td($cgi-&gt;password_field( -name      =&gt; 'new_passwd2',
+                                 -value     =&gt; '',
+                                 -size      =&gt; 10,
+                                 -maxlength =&gt; 10)),
+  $cgi-&gt;td($cgi-&gt;submit( -name  =&gt; 'change',
+                         -value =&gt; 'Change Password'))),
+  );
+  print $cgi-&gt;end_form(), $cgi-&gt;hr();
+  print $cgi-&gt;end_html();
+  print "\n";
+}
+
+&lt;/code&gt;
+
+&lt;p&gt;
+To prohibit downloading of your .htpasswd &amp; associated files your .htaccess should look something like this:&lt;br&gt;
+&lt;code&gt;
+AuthType Basic
+AuthName "Authorisation Required"
+AuthUserFile /path/to/.htpasswd
+
+&lt;files ~ "^\.ht"&gt;
+	Order allow,deny
+	Deny from all
+&lt;/files&gt;
+
+&lt;Limit GET POST&gt;
+	require user username
+&lt;/Limit&gt;
+&lt;/code&gt;
+&lt;/p&gt;
+</field>
+<field name="itemdescription">
+A module to manage an apache .httpasswd or other Unix crypt-style password file.</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

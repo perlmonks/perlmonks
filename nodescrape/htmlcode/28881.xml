@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="28881" title="considerhandler" created="2000-02-10 17:42:06" updated="2005-08-05 05:52:50">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+use Everything::Experience;
+
+
+my ( $title, $nodesperpage, @options ) = @_;
+
+#*********************************************************************
+# set options based on @_
+
+$HTMLVARS{listapproved}{title} = $title;
+$nodesperpage ||= 10;
+
+my ( $showall, $navbaron, $showunapproved ) = ( 0, 0, 0 );
+my $innercontainer = 'consider container';
+my $innerhtmlcode = 'considertextgenerator';
+my $outercontainer;
+
+{
+    # Not sure why $type is used.  It doesn't appear to get set to
+    # anything besides ' ', and the listapproved settings doesn't
+    # contain 'outerContainerForType_ ' (with a space on the end) so
+    # I think 'defaultOuterContainer' will always be used.
+    # $type is used only in $outercontainer
+    my $type = ' ';
+
+    my $LAS = getVars( getNode( 'listapproved settings', 'setting' ) );
+    $outercontainer = $LAS-&gt;{ 'outerContainerForType_' . $type } ||
+                      $LAS-&gt;{defaultOuterContainer};
+
+    foreach my $opt ( @options ){
+        if( lc($opt) eq 'navbaron' ){
+            $navbaron = 1;
+        }
+        elsif(lc($opt) eq 'showunapproved'){
+            $showunapproved = 1;
+        }
+        elsif(lc($opt) eq 'showall'){
+            $showall = 1;
+        }
+        elsif( $opt =~ m/linkto\|(.*)\|(.*)/ ){
+            $HTMLVARS{listapproved}{linkto_node_id} =
+                getId( getNode( $1,$2 ) );
+        }
+        elsif( $opt =~ m/outerContainerOverride:(.*)/ ){
+            $outercontainer = $LAS-&gt;{ $1 };
+        }
+        elsif( $opt =~ m/innerContainerOverride:(.*)/ ){
+            $innercontainer = $LAS-&gt;{ $1 };
+        }
+        elsif( $opt =~ m/innerHtmlcodeOverride:(.*)/ ){
+            $innerhtmlcode = $-&gt;LAS{ $1 };
+        }
+    }
+}
+
+#*********************************************************************
+# query for considered nodes, return if none
+
+my @considered_nodes;
+
+{
+    my $csr = $DB-&gt;sqlSelectMany( 'considernodes_id', 
+                                  'considernodes', '', 
+                                  'order by considertime desc');
+
+    while( my $Q = $csr-&gt;fetchrow_hashref ){
+        push( @considered_nodes, $Q-&gt;{considernodes_id} );
+    }
+
+    return containHtml( $outercontainer, 
+                        "&lt;p&gt;&lt;i&gt;There are no nodes to consider at this time.&lt;/i&gt;&lt;/p&gt;" ) 
+           unless @considered_nodes;
+}
+
+my $tot_considered_nodes = scalar @considered_nodes;
+
+#*********************************************************************
+# Grab up to the next $nodesperpage nodes from @considered_nodes
+
+# $startnode and the 'next' parameter are 0-based (to index @considered_nodes)
+my $startnode = $query-&gt;param( 'next' ) || 0;
+
+my $canconsider = Everything::isApproved( $USER, 'CanConsider' );
+my ( %approved, @unapproved );
+my $innerstr = '';
+
+for( my $i = $startnode, my $numshown = 0;
+     $i &lt; $tot_considered_nodes and $numshown &lt; $nodesperpage; $i++ ){
+
+    $HTMLVARS{embed_node} = selectNode( $considered_nodes[$i] );
+
+    my $reason = $DB-&gt;sqlSelect( 'description', 'considernodes',
+                                 'considernodes_id=' . $considered_nodes[$i] );
+    $reason = htmlcode( 'parselinksinchatter', '', $reason );
+
+    my $embed_node_id = getId( $HTMLVARS{embed_node} );
+
+    # Where is $approved{$embed_node_id} set? Delete if superfluous
+    if( $approved{$embed_node_id} or $showall or
+        ($VARS-&gt;{unapprovedcontent} and $showunapproved) ){
+
+        my $csr = $DB-&gt;getDatabaseHandle
+                     -&gt;prepare_cached( 'select * from repliesinfo where parent=?' );
+        $csr-&gt;execute( $embed_node_id );
+        my $Q = $csr-&gt;fetchrow_hashref;
+        $csr-&gt;finish;
+
+        my $typeofreplies = $VARS-&gt;{repliesdisplay} || 'directreplies';
+        $HTMLVARS{embed_node}{numreplies} = $Q-&gt;{$typeofreplies} || 0;
+        $HTMLVARS{embed_node}{reason} = $reason;
+
+        my $html = containHtml( $innercontainer, 
+                                htmlcode($innerhtmlcode) );
+        $innerstr = join( '', $innerstr, $html );
+
+        $numshown++;
+    } 
+
+    if( $canconsider and !$approved{$embed_node_id} ){
+        push( @unapproved, $HTMLVARS{embed_node} );
+    }
+}
+
+$HTMLVARS{unapproved} = \@unapproved;
+
+#*********************************************************************
+# Create and return the HTML
+# Note: $startnode and $prev_page_startnode are 0-based, but
+# $max_node_this_page and $tot_considered_nodes are 1-based.
+
+my $navbarhtml = '';
+
+if( $navbaron ){
+    $navbarhtml .= '&lt;table width="100%" class="highlight"'
+                 . ' border=0 cellpadding=2 cellspacing=0&gt;&lt;tr&gt;';
+
+    {
+        my $prev_page_startnode = $startnode - $nodesperpage;     
+        $prev_page_startnode = $prev_page_startnode &lt; 0 
+                             ? 0 
+                             : $prev_page_startnode;
+        my $prev_url = $startnode &gt; 0 
+                     ? urlGen( { node_id =&gt; getId( $NODE ), 
+                                 next =&gt; $prev_page_startnode } ) 
+                     : '';
+        my $td = $startnode &gt; 0 
+               ? "&lt;a href=$prev_url&gt;&lt;--Previous&amp;nbsp;entries&lt;/a&gt;" 
+               : '&amp;nbsp;';
+
+        $navbarhtml .= "&lt;td align=left width=100&gt;$td&lt;/td&gt;";
+    }
+
+    my $max_node_this_page = $startnode + $nodesperpage;
+
+    {
+        my $top_range = $max_node_this_page &lt; $tot_considered_nodes ?
+                        $max_node_this_page : $tot_considered_nodes;
+        my $bottom_range = $startnode + 1;
+        my $td = "($bottom_range-$top_range) of $tot_considered_nodes considered nodes shown";
+
+        $navbarhtml .= "&lt;td align=center&gt;$td&lt;/td&gt;";
+    }
+
+    {
+        my $next_url = $max_node_this_page &lt; $tot_considered_nodes ?
+                       urlGen( { node_id =&gt; getId( $NODE ), 
+                                 next =&gt; $max_node_this_page } ) : '';
+        my $td = $max_node_this_page &lt; $tot_considered_nodes 
+               ? "&lt;a href=$next_url&gt;Next&amp;nbsp;entries--&gt;&lt;/a&gt;" 
+               : '&amp;nbsp;';
+
+        $navbarhtml .= "&lt;td align=right width=100&gt;$td&lt;/td&gt;";
+    }
+
+    $navbarhtml .= '&lt;/tr&gt;&lt;/table&gt;&lt;/center&gt;';
+}
+
+return join( '', containHtml( $outercontainer, $innerstr ), $navbarhtml );
+</field>
+</data>
+</node>

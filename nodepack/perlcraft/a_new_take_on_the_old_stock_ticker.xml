@@ -1,0 +1,181 @@
+<node>
+  <doctext>#!/usr/bin/perl
+
+=head1 NAME
+
+ticker - A stock monitoring client written for Peep: The Network
+Auralizer.
+
+Peep takes virtual events and turns them into unobtrusive sounds like
+birds chirping, rain falling, crickets doing whatever crickets do,
+etc.  It is frequently used for network and systems monitoring because it
+is well suited for that task, but I recently added an API
+to Net::Peep that allows customized clients to be built with very
+little code.
+
+Since there are some stocks I follow I decided to make my first custom
+client a stock ticker.  Thanks to Finance::Quote, it took me about a
+half-hour to write :-) A rooster crow or doorbell chime tells me that
+something is happening with my stocks.  And at the end of the day, it
+e-mails me a report on any questionable activity.
+
+Though it is heavily commented, the code itself is quite short.
+
+=head1 USAGE
+
+  ./ticker --help
+
+  ./ticker --noautodiscovery --server=localhost --port=2001 --nodaemon
+
+If you have any problems, try turning on debugging output with
+something like --debug=9.
+
+=head1 CONFIGURATION
+
+To use this client, include a section like the following in peep.conf:
+
+  client ticker
+    class home
+    port 1999
+    config
+      # Stock symbol  Stock exchange    Event             Max      Min  
+      RHAT            nasdaq            red-hat           4.0      3.6
+      SUNW            nasdaq            sun-microsystems  9.0      8.0
+    end config
+    notification
+      notification-hosts localhost
+      notification-recipients bogus.user@bogusdomain.com
+      notification-level warn
+    end notification
+  end client ticker
+
+and another section in the events block with something like
+
+  events
+  #Event Type      |          Path to Sound File           | # of sounds to load
+  ...
+  red-hat            /usr/local/share/peep/sounds/misc/events/rooster.*        1
+  sun-microsystems   /usr/local/share/peep/sounds/misc/events/doorbell.*       1
+  end events
+
+=head1 AUTHOR
+
+Collin Starkweather &lt;collin.starkweather@colorado.edu&gt; Copyright (C) 2001
+
+=head1 SEE ALSO 
+
+perl(1), peepd(1), Net::Peep, Net::Peep::Client, Net::Peep::BC,
+Net::Peep::Notifier, Net::Peep::Notification, Finance::Quote
+
+http://peep.sourceforge.net
+
+=cut
+
+# Always use strict :-)
+use strict;
+use Net::Peep::BC;
+use Net::Peep::Log;
+use Net::Peep::Client;
+use Net::Peep::Notifier;
+use Net::Peep::Notification;
+use Finance::Quote;
+use vars qw{ %config $logger $client $quoter $conf };
+
+# The Net::Peep::Log object will allow us to print out some things in
+# a nicely formatted way so we can tell ourselves what we're doing ...
+$logger = new Net::Peep::Log;
+
+# Instantiate a Peep client object.  The client object handles most of
+# the dirty work for us so we don't have to worry about things such as
+# forking in daemon mode or parsing the command-line options or the
+# Peep configuration file.
+$client = new Net::Peep::Client;
+$quoter = new Finance::Quote;
+
+# First we have to give the client a name
+$client-&gt;name('ticker');
+
+# Now we initialize the client.  If the initialization returns a false
+# value, we display documentation for the script and exit.
+$client-&gt;initialize() || $client-&gt;pods();
+
+# Now we assign a parser that will parse the 'ticker' section of the
+# Peep configuration file
+$client-&gt;parser( \&amp;parse );
+
+# Now we tell the client to get the information from the configuration
+# file.  It returns a  Net::Peep::Conf, the Peep configuration object,
+# which contains information from the configuration file.
+$conf = $client-&gt;configure();
+
+# Register a callback which will be executed every 60 seconds.  The
+# callback is simply a function which checks the price of the stock
+# and peeps every time it exceeds the maximum or minimum price that
+# has been set.
+$client-&gt;callback( \&amp;loop );
+
+# Start looping.  The callback will be executed every 60 seconds ...
+$client-&gt;MainLoop(60);
+
+sub parse {
+
+    # Parse the config section for the ticker client in the Peep
+    # configuration file
+
+    # We'll use a regular expression to extract the ticker information
+    # and stuff it into a data structure (the global variable %config)
+
+    # This subroutine will be used to parse lines from peep.conf such
+    # as the following and store the information in %config:
+    #   RHAT            nasdaq            red-hat           4.0      3.6
+    #   SUNW            nasdaq            sun-microsystems  9.0      8.0
+    for my $line (@_) {
+	if ($line =~ /^\s*([A-Z]+)\s+(\w+)\s+([\w\-]+)\s+([\d\.]+)\s+([\d\.]+)/) {
+	    my ($symbol,$exchange,$event,$max,$min) = ($1,$2,$3,$4,$5,$6);
+	    $config{$symbol} = { event=&gt;$event, exchange=&gt;$exchange, max=&gt;$max, min=&gt;$min };
+	}
+    }
+
+} # end sub parse
+
+sub loop {
+
+    for my $key (sort keys %config) {
+	$logger-&gt;log(&quot;Checking the price of [$key] ...&quot;);
+	# Fetch some information about the stock including the price
+	my %results = $quoter-&gt;fetch($config{$key}-&gt;{'exchange'},$key);
+	my $price = $results{$key,'price'};
+	$logger-&gt;log(&quot;\tThe price of [$key] is [$price].&quot;);
+	if ($price &gt; $config{$key}-&gt;{'max'} or $price &lt; $config{$key}-&gt;{'min'}) {
+	    $logger-&gt;log(&quot;\tThe price is out of bounds!  Sending notification ....&quot;);
+	    # The price is out of bounds!  We'll start peeping ...
+	    my $broadcast = Net::Peep::BC-&gt;new('ticker',$conf);
+	    $broadcast-&gt;send('ticker',
+			     type=&gt;0, 
+			     sound=&gt;$config{$key}-&gt;{'event'},
+			     location=&gt;128, 
+			     priority=&gt;0, 
+			     volume=&gt;255);
+	    # In case we're away from our desk, we'll also send out an
+	    # e-mail notification.  Don't want to miss the action!
+	    my $notifier = new Net::Peep::Notifier;
+	    my $notification = new Net::Peep::Notification;
+	    $notification-&gt;client('ticker');
+	    $notification-&gt;status('crit');
+	    $notification-&gt;datetime(time());
+	    $notification-&gt;message(&quot;The price of $key is $price!&quot;);
+	    $notifier-&gt;notify($notification);
+	}
+    }
+
+} # end sub loop
+
+__END__
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>116670</node_id>
+  <author_user>65299</author_user>
+  <title>A new take on the old stock ticker</title>
+  <createtime>2001-10-04 10:35:32</createtime>
+  <nodeupdated>2005-07-28 06:50:25</nodeupdated>
+</node>

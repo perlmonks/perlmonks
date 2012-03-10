@@ -1,0 +1,71 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>edithistory</displaytype>
+  <page>[%
+
+  my $rowid= $q-&gt;param(&quot;rowid&quot;);
+
+  return &quot;Tough cookies!&quot;
+    if !$DB-&gt;canReadNode( $USER, $NODE) 
+    or ($NODE-&gt;{type}{title} eq 'wiki' 
+    and !htmlcode('hasWikiPermission','read',$NODE));
+
+  if( $rowid ) {
+    return htmlcode( 'edithistory display page','', $rowid );
+  }
+
+  my @history;
+  my $limit= 0+$q-&gt;param('limit');
+  my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare_cached('
+      SELECT rowid, editor_user, fieldname, edittime
+        FROM edithistory
+       WHERE edithistory_id = ?
+         AND starttext != endtext
+    ORDER BY rowid DESC
+  ' . ( $limit ? &quot;limit $limit&quot; : &quot;&quot; ) );
+
+  $sth-&gt;execute( getId($NODE) );
+
+  while (  my $edit = $sth-&gt;fetchrow_hashref()  ) {
+    push @history, $edit;
+  }
+
+  return $q-&gt;p('This node has not been edited yet.')
+    unless @history;
+
+  my @limit=$limit ? (limit=&gt;$limit) : ();
+
+  return $q-&gt;br() . $q-&gt;br() . $q-&gt;p(
+    ($limit ? &quot;Most Recent $limit &quot; : &quot;&quot;)
+    . 'Edits to node, sorted by time (ascending).'
+  ) . $q-&gt;table(
+    { width =&gt; '100%' },
+    $q-&gt;Tr(
+      map {
+        $q-&gt;th( { align =&gt; 'left' }, $_ )
+      } qw( EditNum Editor Field Time )
+    ),
+    map {
+      $q-&gt;Tr(
+        $q-&gt;td( linkNode(
+          $NODE, $_-&gt;{rowid}, {
+            displaytype=&gt;'edithistory', rowid=&gt;$_-&gt;{rowid}, @limit
+          }
+        ) ),
+        $q-&gt;td( linkNode($_-&gt;{editor_user}) ),
+        $q-&gt;td( $_-&gt;{fieldname} ),
+        $q-&gt;td( htmlcode(
+          'parseTimeInString','', $_-&gt;{edittime}, '', '', 'short'
+        ) ),
+      )
+    } @history
+  );
+%]
+
+</page>
+  <author_user>929</author_user>
+  <createtime>2003-01-08 11:39:04</createtime>
+  <node_id>225294</node_id>
+  <title>node edithistory page</title>
+  <nodeupdated>2005-06-23 13:56:07</nodeupdated>
+</node>

@@ -1,0 +1,55 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+# In my day job, we use PHP and I wanted to find all 
+# the variables in a source tree that were used only
+# once, so I whipped this out.
+
+use strict;
+use File::Find;
+
+find( \&amp;handler, &quot;.&quot; );
+
+my %byfile;
+my %all;
+
+my @listers = keys %byfile;
+
+# Comment this if you want all vars, not just those used once
+@listers = grep { $all{$_} &lt;= 1 } @listers;
+
+for my $var ( sort @listers ) {
+    print &quot;$var\n&quot;;
+    my $files = $byfile{$var};
+    for my $file ( sort keys %$files ) {
+        printf( &quot;  %5d %s\n&quot;, $files-&gt;{$file}, $file );
+    } # for file
+} # for var
+
+sub handler {
+    if ( -d ) {
+        $File::Find::prune = 1 if /^(CVS|pl)$/;
+        return;
+    }
+
+    return unless /\.(html?|php|inc)$/;
+
+    open( IN, $_ ) or die &quot;Can't open $_: $!&quot;;
+    while (&lt;IN&gt;) {
+        s[//.+][]; # ignore comments (kinda)
+        while ( /(\$[a-z_][a-z0-9_]*)/g ) {
+            my $var = $1;
+            ++$byfile{$var}{$File::Find::name};
+            ++$all{$var};
+        } # while grep
+    } # while &lt;IN&gt;
+    close IN;
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>100767</node_id>
+  <author_user>72812</author_user>
+  <title>PHP variable cross-reference</title>
+  <createtime>2001-07-30 02:43:09</createtime>
+  <nodeupdated>2005-07-21 01:27:51</nodeupdated>
+</node>

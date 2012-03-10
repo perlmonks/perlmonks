@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="165898" title="Dijkstra-Algorithm" created="2002-05-11 12:41:06" updated="2005-07-21 01:31:26">
+<type id="121">
+perlcraft</type>
+<author id="159186">
+grexman</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl 
+
+# Hello All!
+# This is my first real perl code, all I coded before, were # the examples out of the Llama-Book! (-;
+# So PLEASE give me some hint (-;
+
+# This little program uses the Dijkstra-Algorith to find the # shortest route through a given graph.
+# The graph has to be orientated and weighted(damn, I am not # native so this are maybe are the wrong expressions.
+
+# The program in the current state needs the Graph in a 
+# Input file for which the user is asked. 
+# At the moment the nodes of the graph should be 
+# alphabetically sorted with s as the initial point, a
+# and z the goal!
+
+# A sample Graph-file is provided below...
+
+use strict;
+
+my (
+    $s, $v, $vstar, $graphfile,
+    @route, @S, @V, @sortnachdist,
+    %distance, %previous
+    );
+
+# (V are all Nodes, S the ones where a shortest route to is 
+# already found, the program finishes when z is in S)
+
+sub bowlength
+# This sub goes through the graph-file and searches if there # is a connection between the two points. 
+# If there isn't any, a large number is used, to prevent the # program from using this route!
+{
+    my($s,$v)=@_;
+    seek(GRAPH,0,0);
+    while(&lt;GRAPH&gt;)
+    {	
+	return $1 if (/$s:(\d):$v/); 	
+    }
+    return 99999;
+}
+
+
+
+sub includes
+# This is something I am absolutely unsure about!
+# Isn't there any way in Perl to find out if an Array #includes a certain element?? (as default, i mean)
+{
+    my($a,@b)=@_;
+    foreach (@b)
+    {
+	return 1 if $_ eq $a;
+    }
+}
+
+sub V_without_S
+# For the noed which have to be examined
+{
+    my @c;   
+    foreach (@V)
+    {
+	push(@c, $_) unless &amp;includes($_,@S);
+    }
+    return (@c);
+}
+
+
+$s="s";
+$distance{$s}=0;
+push(@S,"s");
+
+print "Graph-File:";
+chomp($graphfile=&lt;STDIN&gt;);
+
+open GRAPH, "&lt; $graphfile" 
+    or die "Could not open graph-description: $!"; 
+
+seek(GRAPH,0,0);
+while(&lt;GRAPH&gt;)
+{	
+    push(@V, $1) if ((/(\w+):\d+:\w+/)&amp;&amp;((&amp;includes($1,@V)-1)));
+    push(@V, $1) if ((/\w+:\d+:(\w+)/)&amp;&amp;((&amp;includes($1,@V)-1)));
+}
+
+# So, this is juste the Dijkstra Algorithm itself!
+# I took a Algorithmic-Description out of a book!
+# (Das Geheimnis des kürzesten Weges)
+# (its german, and exept the Dijkstra-Algorith-Description 
+# absolutely boring!!-we HAD to read it)
+
+# Maybe some short lines about the Dijkstra Algorithm..
+# It finds the shortest way trough a given graph, by 
+# examining local nodes, and going to the node
+# which has the lowest value. It is not bound to one route, # and will jump between different routes
+# (depending on the graph) until it reaches the goal. 
+# But when he reaches it, it is sure that it has the lowest # value! Too prevent loosing the knowledge about 
+# the other routes, we need the %previous hash... 
+# I hope this helps you understanding better what it does!
+  
+
+foreach $v (grep {$_ ne $s} (@V))
+{
+    $distance{$v} = &amp;bowlength($s,$v);
+    $previous{$v}=$s;
+}
+
+while($S[-1] ne "z")
+{
+    @sortnachdist = sort({$distance{$a}&lt;=&gt;$distance{$b}} (&amp;V_without_S)); 
+    $vstar = shift @sortnachdist;
+    push(@S,$vstar);
+    foreach $v (&amp;V_without_S)
+    {
+	if ($distance{$vstar} + &amp;bowlength($vstar,$v) &lt; $distance{$v})
+	{
+	    $distance{$v}=$distance{$vstar}+&amp;bowlength($vstar,$v);
+	    $previous{$v}=$vstar;
+	}
+    }    
+}
+
+push(@route, "z");
+$_="z";
+until ($_ eq "s")
+{
+    $_=$previous{$_};
+    push(@route,$_);
+}
+print "The shortest route is:\n";
+print join " -&gt; ", reverse @route;
+print "\nAnd its length is $distance{z}.\n";
+
+# And now a sample graph!
+# If you would draw it, you would make the s point.
+# Then a line with value 3 to a and one with value 5 to b
+# From a a line with value 1 to b .... and so on!
+# If you find a graph where the algorithm(or more likely my # code) fails please contact me!
+# Oh yes, you should copy this line sinto a plain text-file # and remove the #'s (-;
+
+#s:3:a
+#s:5:b
+#a:1:b
+#a:10:c
+#a:11:d
+#b:3:a
+#b:2:c
+#b:3:d
+#c:2:d
+#c:7:e
+#c:12:f
+#d:15:a
+#d:7:b
+#d:2:f
+#e:11:d
+#e:2:z
+#f:3:e
+#f:2:z</field>
+</data>
+</node>

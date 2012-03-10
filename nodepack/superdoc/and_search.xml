@@ -1,0 +1,33 @@
+<node>
+  <doctext>[{openform}]
+Your search words: &lt;input type=&quot;textfield&quot; name=&quot;searchwords&quot;&gt;&lt;BR&gt;
+Root nodes only: &lt;input type=&quot;checkbox&quot; name=&quot;rootonly&quot;&gt;
+[{closeform}]
+[%
+my $searchstr=$query-&gt;param('searchwords');
+return unless $searchstr;
+my @words=split(/\s+/,$searchstr);
+@words=sort{length $b &lt;=&gt; length $a} @words;
+my $wherestr;
+my $note_id=getId(getType(&quot;note&quot;));
+my $rootonly=$query-&gt;param('rootonly');
+foreach(@words){
+    $_=&quot;doctext like \&quot;\%$_\%\&quot;&quot;;
+}
+$wherestr=join ' and ',@words;
+my $csr;
+$csr=$DB-&gt;sqlSelectMany(&quot;document_id&quot;,&quot;document&quot;,$wherestr) unless $rootonly;
+$csr=$DB-&gt;sqlSelectMany(&quot;document_id&quot;,&quot;document,node&quot;,&quot;type_nodetype!=$note_id and document_id=note_id and &quot;.$wherestr) if $rootonly;
+my $str;
+while(my $N=$csr-&gt;fetchrow_hashref){
+   $str.=&quot;\n&quot;.linkNode($$N{document_id}).&quot;&lt;BR&gt;&quot;;
+}
+$str;
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>29017</node_id>
+  <author_user>485628</author_user>
+  <title>and search</title>
+  <createtime>2000-08-22 14:49:21</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

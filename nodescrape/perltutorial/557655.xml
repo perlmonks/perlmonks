@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="557655" title="Spanish translation of pack/unpack tutorial" created="2006-06-26 16:29:09" updated="2006-06-26 12:29:09">
+<type id="956">
+perltutorial</type>
+<author id="489671">
+Hue-Bond</author>
+<data>
+<field name="doctext">
+&lt;p&gt;I've asked [Pedagogues] what was the procedure to get a translated tutorial into its natural [Tutorials|section]. I was told that it's OK to post it here, so the following discussion would get archived. That's a great idea.&lt;/p&gt;
+&lt;p&gt;I translated three tutorials into spanish in some spare time I had last week. This is one of them ([id://224666|original], by [id://217641]), one that I found very valuable when I read it. I've incorporated most of the suggestions that the original tutorial received in that thread.&lt;/p&gt;
+&lt;p&gt;I'm posting the other two within a few days.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Tutorial de pack/unpack&lt;/h2&gt;
+&lt;p&gt;Una conversación reciente en el chatterbox me dio la idea para escribir esto. Un programador novato estaba intentando codificar algo con &lt;tt&gt;pack&lt;/tt&gt; y &lt;tt&gt;unpack&lt;/tt&gt; pero tenía problemas a la hora de controlar su funcionamento exacto. Yo nunca he tenido problema con estas funciones pero tengo conocimientos de hardware y estoy muy familiarizado con programación en ensamblador y C. Los que llevan poco tiempo programando seguramente no saben nada de estas cosas a tan bajo nivel y podrían no entender cómo los ordenadores almacenan los datos. Conocer un poco esta materia puede hacer de &lt;tt&gt;pack&lt;/tt&gt; y &lt;tt&gt;unpack&lt;/tt&gt; algo más fácil de entender.&lt;/p&gt;
+&lt;readmore&gt;
+&lt;h2&gt;Por qué se necesitan &lt;tt&gt;pack&lt;/tt&gt; y &lt;tt&gt;unpack&lt;/tt&gt;&lt;/h2&gt;
+&lt;p&gt;Perl puede manejar cadenas, enteros y números en coma flotante. De vez en cuando un programador tendrá que intercambiar datos con programas escritos en otros lenguajes. Estos otros lenguajes tienen un conjunto mucho más amplio de tipos de datos. Tienen enteros de distintos tamaños, o pueden ser capaces de manejar solamente cadenas de longitud fija (&lt;i&gt;¿se puede mencionar COBOL?&lt;/i&gt;). Otras veces, puede surgir la necesidad de intercambiar datos binarios con otras máquinas a través de una red. Estas máquinas pueden tener distintos tamaños de &lt;i&gt;palabra&lt;/i&gt; o almacenar los valores de otras formas (una palabra es un conjunto de bits que el ordenador maneja todos juntos). Se hace necesaria alguna manera de convertir nuestros datos a un formato que estos otros programas y máquinas entiendan. También necesitamos poder interpretar las respuestas que nos llegan de vuelta.&lt;/p&gt;
+&lt;p&gt;Las funciones &lt;tt&gt;pack&lt;/tt&gt; y &lt;tt&gt;unpack&lt;/tt&gt; nos permiten leer y escribir buffers de datos de acuerdo con una plantilla. Esta plantilla nos permite indicar cosas específicas como el orden de los bytes o el tamaño de la palabra, o también usar los valores por defecto. Esto nos da mucha flexibilidad cuando nos comunicamos con programas externos.&lt;/p&gt;
+
+&lt;p&gt;Para entender cómo funciona todo esto, es conveniente saber cómo hacen los ordenadores para almacenar los distintos tipos de información.&lt;/p&gt;
+
+&lt;h2&gt;Formatos enteros&lt;/h2&gt;
+&lt;p&gt;La memoria de un ordenador se puede ver como si fuera una colección enorme de bytes. Un byte contiene ocho bits (esto es &lt;i&gt;casi&lt;/i&gt; universal) y puede representar valores sin signo entre 0 y 255, o valores con signo entre -128 y 127. No se puede hacer mucho con este rango tan pequeño de valores, por lo que los &lt;i&gt;registros&lt;/i&gt; de los ordenadores modernos (un registro es
+una pequeña parte de memoria, con la que el procesador trabaja directamente) son más grandes que un byte. La mayoría de procesadores modernos usan registros de 32 bits (es decir, 4 bytes) y hay algunos con registros de 64 bits. Un registro de 32 bits puede almacenar números sin signo entre 0 y 4294967295 o números con signo entre -2147483648 y 2147483647.&lt;/p&gt;
+
+&lt;p&gt;Al almacenar en memoria valores con un tamaño mayor de 8 bits, éstos se dividen en segmentos de 8 bits y se almacenan en posiciones consecutivas de la memoria. Algunos procesadores almacenan el segmento que contiene los bits de mayor &lt;i&gt;peso&lt;/i&gt; en la posición de memoria más baja, y los demás segmentos van a las posiciones siguientes (por ejemplo, en el número 1234, la cifra 1 tiene mayor peso que las demás, porque significa 1000). Eso se llama "big-endian". Otros procesadores almacenan primero el segmento que contiene los bits de menos peso, y los demás segmentos van en posiciones superiores. Esto se llama "little-endian".&lt;/p&gt;
+
+&lt;p&gt;Lo veremos mejor gráficamente. Supongamos que un registro contiene el número 0x12345678 y lo vamos a almacenar en la memoria. Así es como aparecería:&lt;/p&gt;
+
+&lt;table border="1"&gt;
+&lt;tbody&gt;&lt;tr&gt;&lt;th&gt;Dirección&lt;/th&gt;&lt;th&gt;Máquina&lt;br&gt;Big-Endian&lt;/th&gt;&lt;th&gt;Máquina&lt;br&gt;Little-Endian&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;0&lt;/td&gt;&lt;td&gt;0x12&lt;/td&gt;&lt;td&gt;0x78&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;1&lt;/td&gt;&lt;td&gt;0x34&lt;/td&gt;&lt;td&gt;0x56&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;2&lt;/td&gt;&lt;td&gt;0x56&lt;/td&gt;&lt;td&gt;0x34&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;3&lt;/td&gt;&lt;td&gt;0x78&lt;/td&gt;&lt;td&gt;0x12&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;&lt;/table&gt;
+
+&lt;p&gt;Si miramos &lt;tt&gt;perldoc -f pack&lt;/tt&gt; o consultamos la función &lt;tt&gt;pack&lt;/tt&gt; en [href://isbn.nu/0596000278|Programming Perl], veremos una tabla que lista todos los caracteres que pueden ir en la plantilla, junto con una descripción del tipo de dato que significan. Esa tabla lista varios formatos de números enteros de distintos tamaños, con distintos órdenes, y con signo o sin él:&lt;/p&gt;
+
+&lt;table border="1"&gt;
+&lt;tbody&gt;&lt;tr&gt;&lt;th&gt;Formato&lt;/th&gt;&lt;th&gt;Descripción&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;c,C&lt;/td&gt;&lt;td&gt;Un valor de tipo &lt;tt&gt;char&lt;/tt&gt; con signo o sin él (entero de 8 bits).&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;s,S&lt;/td&gt;&lt;td&gt;Un valor de tipo &lt;tt&gt;short&lt;/tt&gt; con signo o sin él, siempre de 16 bits.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;l,L&lt;/td&gt;&lt;td&gt;Un valor de tipo &lt;tt&gt;long&lt;/tt&gt;, siempre de 32 bits.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;q,Q&lt;/td&gt;&lt;td&gt;Un valor de tipo &lt;tt&gt;quad&lt;/tt&gt; (entero de 64 bits).&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;i,I&lt;/td&gt;&lt;td&gt;Un valor entero con signo o sin él, en el formato nativo de la máquina actual.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;n,N&lt;/td&gt;&lt;td&gt;Un valor de 16 ó 32 bits con orden "de red" (big-endian).&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;v,V&lt;/td&gt;&lt;td&gt;Un valor de 16 ó 32 bits con orden "VAX" (little-endian).&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;&lt;/table&gt;
+
+&lt;p&gt;Los formatos &lt;tt&gt;s&lt;/tt&gt;, &lt;tt&gt;l&lt;/tt&gt; y &lt;tt&gt;q&lt;/tt&gt; empaquetan valores de 16, 32 y 64 bits en el orden nativo de la máquina en la que se ejecute la función &lt;tt&gt;pack&lt;/tt&gt;. El formato &lt;tt&gt;i&lt;/tt&gt; empaqueta un valor con un tamaño de palabra igual al de la máquina actual. Los formatos &lt;tt&gt;n&lt;/tt&gt; y &lt;tt&gt;v&lt;/tt&gt; nos permiten especificar el tamaño y orden de almacenamiento de los bytes, y se usan para intercambiar información con otros ordenadores.&lt;/p&gt;
+
+&lt;h2&gt;Formatos de caracteres&lt;/h2&gt;
+
+&lt;p&gt;Las cadenas de texto se almacenan como colecciones de caracteres. Tradicionalmente, cada carácter se codificaba usando un solo byte, con un sistema de codificación como ASCII o EBCDIC. Nuevos sistemas de codificación como UTF-8 usan codificaciones de, o bien una longitud fija de varios bytes, o bien secuencias de bytes de varias longitudes para representar cada carácter.&lt;/p&gt;
+
+&lt;p&gt;La función &lt;tt&gt;pack&lt;/tt&gt; de Perl acepta en la plantilla los siguientes caracteres para especificar cadenas de texto:&lt;/p&gt;
+
+&lt;table border="1"&gt;
+&lt;tbody&gt;&lt;tr&gt;&lt;th&gt;Formato&lt;/th&gt;&lt;th&gt;Descripción&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a,A&lt;/td&gt;&lt;td&gt;Una cadena rellena con caracteres nulos/espacios.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;b,B&lt;/td&gt;&lt;td&gt;Una cadena de bits (binaria) con órdenes de bits ascendiente o descendiente.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;h,H&lt;/td&gt;&lt;td&gt;Una cadena hexadecimal, con el &lt;i&gt;nybble&lt;/i&gt; alto o bajo primero.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Z&lt;/td&gt;&lt;td&gt;Una cadena terminada con un carácter nulo.&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;&lt;/table&gt;
+&lt;small&gt;Un nybble son 4 bits. Un byte se representa en hexadecimal con dos dígitos de 4 bits
+cada uno, es decir, con dos nybbles.&lt;/small&gt;
+
+&lt;p&gt;Las cadenas se almacenan en posiciones de memoria sucesivas, con el primer carácter de la cadena en la posición más baja de la memoria.&lt;/p&gt;
+
+&lt;h2&gt;La función &lt;tt&gt;pack&lt;/tt&gt; de Perl&lt;/h2&gt;
+
+&lt;p&gt;La función &lt;tt&gt;pack&lt;/tt&gt; acepta una plantilla y una lista de valores. Devuelve un escalar que contiene los valores empaquetados de acuerdo con los formatos especificados en la plantilla. Esto nos permite escribir datos en un formato que luego podrá ser leído por otro programa escrito en C o en otro lenguaje, o pasar datos a un sistema remoto a través de una red.&lt;/p&gt;
+
+&lt;p&gt;La plantilla contiene una serie de letras de las tablas que hay más arriba. Cada letra va seguida, opcionalmente, de un número que indica cuántas veces se ha de repetir este valor (para números) o el tamaño (para cadenas). Un '*' en un formato entero le dice a &lt;tt&gt;pack&lt;/tt&gt; que debe usar este formato para el resto de los valores de la lista. Un '*' en un formato de cadena le dice a &lt;tt&gt;pack&lt;/tt&gt; que use el tamaño de la cadena.&lt;/p&gt;
+
+&lt;p&gt;Probemos un ejemplo. Supongamos que estamos recogiendo información de un formulario web y enviándoselo a un backend que está escrito en C, para que lo procese. El formulario le permite a un monje solicitar material de oficina. El backend necesita que la información esté en este formato:&lt;/p&gt;
+
+&lt;code&gt;    struct SupplyRequest {
+        time_t request_time;    // hola de solicitud
+        int employee_id;        // empleado que la realiza
+        char item[32];          // material solicitado
+        short quantity;         // cantidad
+        short urgent;           // ¿es urgente?
+    };&lt;/code&gt;
+
+&lt;p&gt;Tras comprobar los archivos de cabecera de nuestro sistema, vemos que &lt;tt&gt;time_t&lt;/tt&gt; es de tipo &lt;tt&gt;long&lt;/tt&gt;. Para crear un registro adecuado para el backend, podemos usar lo siguiente:&lt;/p&gt;
+
+&lt;code&gt;    $rec = pack( "l i Z32 s2", time, $emp_id, $item, $quan, $urgent);&lt;/code&gt;
+
+&lt;p&gt;Esta plantilla dice "Un &lt;tt&gt;long&lt;/tt&gt;, un &lt;tt&gt;int&lt;/tt&gt;, una cadena de 32 caracteres terminada en un nulo, y dos &lt;tt&gt;short&lt;/tt&gt;s".&lt;/p&gt;
+
+&lt;p&gt;Si el monje número 217641 (anda! si soy yo!) (N del T.: evidentemente, ese no soy *yo*) hace una solicitud urgente de  dos cajas de clips ("boxes of paperclips") el día 1 de Enero de 2003 a la 1:00 de la tarde EST, $rec tendría el siguiente contenido (la primera línea es decimal, la segunda va en hex, la tercera son caracteres si tiene sentido). Un carácter pipa indica los límites entre dos campos:&lt;/p&gt;
+
+&lt;code&gt;   Desplz.   Contenido (las direcciones de memoria aumentan hacia la derecha)
+         0   160  44  19  62| 41  82   3   0| 98 111 120 101 115  32 111 102
+              A0  2C  13  3E| 29  52  03  00| 62  6f  78  65  73  20  6f  66
+                                            |  b   o   x   e   s       o   f
+        16    32 112  97 112 101 114  99 108 105 112 115   0   0   0   0   0
+              20  70  61  70  65  72  63  6c  69  70  73  00  00  00  00  00
+                   p   a   p   e   r   c   l   i   p   s
+        32     0   0   0   0   0   0   0   0|  2   0|  1   0
+              00  00  00  00  00  00  00  00| 02  00| 01  00&lt;/code&gt;
+
+&lt;p&gt;Veamos de dónde sale todo esto. El primer elemento de la plantilla es una &lt;tt&gt;l&lt;/tt&gt;, que empaqueta un &lt;tt&gt;long&lt;/tt&gt;. Un &lt;tt&gt;long&lt;/tt&gt; son 32 bits, o 4 bytes. El valor que ha sido almacenado viene de la función &lt;tt&gt;time&lt;/tt&gt;. El valor almacenado en realidad es 1041444000, o 0x3e132ca0 en hexadecimal. ¿Ves cómo concuerda con el principio del buffer? Mi sistema tiene un procesador Intel Pentium, que es little-endian.&lt;/p&gt;
+
+&lt;p&gt;El segundo elemento de la plantilla es una &lt;tt&gt;i&lt;/tt&gt;. Esto quiere un entero del mismo tamaño que un &lt;tt&gt;int&lt;/tt&gt; en la máquina actual. El Pentium es un procesador de 32 bits, por lo que de nuevo empaquetamos el valor en 4 bytes. El número de monje es 217641, 0x00035229.&lt;/p&gt;
+
+&lt;p&gt;El tercer elemento de la plantilla es &lt;tt&gt;Z32&lt;/tt&gt;. Esto especifica un campo de 32 caracteres terminados con un nulo. Se puede apreciar la cadena "boxes of paperclips" almacenada a continuación en el buffer, seguida de ceros (caracteres nulos) hasta que se ha llegado al límite de 32 bytes.&lt;/p&gt;
+
+&lt;p&gt;El último elemento es &lt;tt&gt;s2&lt;/tt&gt;. Esto significa dos &lt;tt&gt;short&lt;/tt&gt;s, que son enteros de 16 bits, lo cual consume dos valores de la lista que se la ha pasado a &lt;tt&gt;pack&lt;/tt&gt;. 16 bits se almacenan en 2 bytes. El primer valor tiene la cantidad 2 y el segundo vale 1, indicando urgencia. Estos dos valores ocupan los últimos 4 bytes del buffer.&lt;/p&gt;
+
+&lt;h2&gt;La función &lt;tt&gt;unpack&lt;/tt&gt; de Perl&lt;/h2&gt;
+
+&lt;p&gt;Sin que lo supiéramos cuando programamos lo anterior, alguien ha portado el backend de C a Perl. Pero como nosotros ya habíamos escrito la parte web de la aplicación, pensaron que podríamos seguir usando el mismo formato de datos. Por tanto, han tenido que usar &lt;tt&gt;unpack&lt;/tt&gt; para leer los datos que nosotros les enviamos.&lt;/p&gt;
+
+&lt;p&gt;&lt;tt&gt;unpack&lt;/tt&gt; es lo contrario de &lt;tt&gt;pack&lt;/tt&gt;. &lt;tt&gt;pack&lt;/tt&gt; coge una plantilla y una lista de valores, y devuelve un escalar. &lt;tt&gt;unpack&lt;/tt&gt; coge una plantilla y un escalar, y devuelve una lista.&lt;/p&gt;
+
+&lt;p&gt;En teoría, si le damos a &lt;tt&gt;unpack&lt;/tt&gt; la misma plantilla y el mismo escalar producido por &lt;tt&gt;pack&lt;/tt&gt;, deberíamos obtener de vuelta la lista de valores que le pasamos a &lt;tt&gt;pack&lt;/tt&gt;. Digo en teoría porque si el desempaquetado se hace en una  máquina con un orden de bytes distinto (big-endian en oposición a little-endian) o con un tamaño distinto de palabra (16, 32, 64 bits), &lt;tt&gt;unpack&lt;/tt&gt; podría interpretar los datos de forma distinta a como lo ha hecho &lt;tt&gt;pack&lt;/tt&gt;. Los formatos que hemos utilizado especificaban el orden de bytes de la máquina actual e &lt;tt&gt;i&lt;/tt&gt; puede significar tamaños diferentes en máquinas diferentes por lo que podríamos tener problemas. Pero en nuestro simple caso, vamos a asumir que el backend se ejecuta en la misma máquina que el interface web.&lt;/p&gt;
+
+&lt;p&gt;Para desempaquetar los datos, el backend ejecutaría una orden como esta:&lt;/p&gt;
+
+&lt;code&gt;    ($order_time, $monk, $itemname, $quantity, $urgent) =
+        unpack( "l i Z32 s2", $rec );&lt;/code&gt;
+
+&lt;p&gt;Nótese que la plantilla es idéntica a la que usamos antes al empaquetar, y que &lt;tt&gt;pack&lt;/tt&gt; nos devuelve la misma información en el mismo orden.&lt;/p&gt;
+
+&lt;h2&gt;Formatos enteros&lt;br&gt;&lt;font size="-1"&gt;a.k.a. ¿por qué tantos tipos?&lt;/font&gt;&lt;/h2&gt;
+
+&lt;p&gt;Puedes estar preguntándote por qué hay tantas formas distintas de escribir el mismo tipo de datos. &lt;tt&gt;i&lt;/tt&gt;, &lt;tt&gt;l&lt;/tt&gt;, &lt;tt&gt;N&lt;/tt&gt; y &lt;tt&gt;V&lt;/tt&gt; se pueden usar para escribir un entero de 32 bits a un buffer. ¿Por qué usar uno en concreto? Bueno, eso depende de con quién estemos intentando intercambiar información.&lt;/p&gt;
+
+&lt;p&gt;Si sólo vamos a intercambiar información con otros programas dentro del mismo ordenador, podemos usar &lt;tt&gt;i&lt;/tt&gt;, &lt;tt&gt;l&lt;/tt&gt;, &lt;tt&gt;s&lt;/tt&gt; y &lt;tt&gt;q&lt;/tt&gt; y sus equivalentes sin signo (en mayúsculas). Ya que tanto el programa que lee como el que escribe están en la misma máquina, podemos usar los formatos nativos sin problema.&lt;/p&gt;
+
+&lt;p&gt;Si estamos escribiendo un programa para leer archivos cuya distribución depende de la arquitectura, es mejor usar los formatos &lt;tt&gt;n&lt;/tt&gt;, &lt;tt&gt;N&lt;/tt&gt;, &lt;tt&gt;v&lt;/tt&gt; y &lt;tt&gt;V&lt;/tt&gt;. De esta forma, siempre sabremos que estamos interpretando la información correctamente sin importar en qué arquitectura se ejecuta nuestro programa. Por ejemplo, el formato de archivos de sonido "wav" está definido para Windows sobre un procesador Intel, que es little-endian. Si quisiéramos leer el encabezado de un archivo wav, deberíamos usar &lt;tt&gt;v&lt;/tt&gt; y &lt;tt&gt;V&lt;/tt&gt; para leer valores de 16 y 32 bits respectivamente.&lt;/p&gt;
+
+&lt;p&gt;Se dice que los formatos &lt;tt&gt;n&lt;/tt&gt; y &lt;tt&gt;N&lt;/tt&gt; tienen orden "de red" por una razón: ese es el orden especificado para las comunicaciones TCP/IP. Al hacer ciertos tipos de programación de red, es necesario usar estos formatos.&lt;/p&gt;
+
+&lt;h2&gt;Formatos de cadenas&lt;/h2&gt;
+
+&lt;p&gt;Elegir entre los distintos formatos de cadenas es un poco distinto. Normalmente usaremos &lt;tt&gt;a&lt;/tt&gt;, &lt;tt&gt;A&lt;/tt&gt; o &lt;tt&gt;Z&lt;/tt&gt; dependiendo del lenguaje en que esté hecho el otro programa. Si el otro programa está en C o C++, probablemente queramos usar &lt;tt&gt;a&lt;/tt&gt; o &lt;tt&gt;Z&lt;/tt&gt;. &lt;tt&gt;A&lt;/tt&gt; sería una buena opción para comunicarse con programas en COBOL o Fortran.&lt;/p&gt;
+
+&lt;h3&gt;Los formatos &lt;tt&gt;a&lt;/tt&gt;, &lt;tt&gt;A&lt;/tt&gt; y &lt;tt&gt;Z&lt;/tt&gt;&lt;/h3&gt;
+
+&lt;p&gt;Al empaquetar, los formatos &lt;tt&gt;a&lt;/tt&gt; y &lt;tt&gt;Z&lt;/tt&gt; rellenarán el espacio sobrante con caracteres nulos (sólo cuando especifiquemos un tamaño). &lt;tt&gt;A&lt;/tt&gt; rellena lo sobrante con espacios. Al desempaquetar, &lt;tt&gt;A&lt;/tt&gt; elimina el espacio y los caracteres nulos que haya al final, &lt;tt&gt;Z&lt;/tt&gt; quita todo lo que vaya después del primer carácter nulo y &lt;tt&gt;a&lt;/tt&gt; devuelve el campo entero tal cual.&lt;/p&gt;
+
+&lt;h4&gt;Ejemplos&lt;/h4&gt;
+
+&lt;code&gt;    pack  ('a8',"hello")       produce "hello\0\0\0"
+    pack  ('Z8',"hello")       produce "hello\0\0\0"
+    pack  ('A8',"hello")       produce "hello   "   
+    unpack('a8',"hello\0\0\0") produce "hello\0\0\0"
+    unpack('Z8',"hello\0\0\0") produce "hello"
+    unpack('A8',"hello   ")    produce "hello"
+    unpack('A8',"hello\0\0\0") produce "hello"&lt;/code&gt;
+
+&lt;h3&gt;Los formatos &lt;tt&gt;b&lt;/tt&gt; y &lt;tt&gt;B&lt;/tt&gt;&lt;/h3&gt;
+
+&lt;p&gt;Los formatos &lt;tt&gt;b&lt;/tt&gt; y &lt;tt&gt;B&lt;/tt&gt; convierten cadenas que consisten de caracteres &lt;tt&gt;0&lt;/tt&gt; y &lt;tt&gt;1&lt;/tt&gt; en bytes, y desempaquetan bytes en cadenas de ceros y unos. Al empaquetar, Perl trata los caracteres con valor par como si fueran un cero, y los caracteres de valor impar como si fueran un uno. La diferencia entre &lt;tt&gt;b&lt;/tt&gt; y &lt;tt&gt;B&lt;/tt&gt; es el orden en que se convierten los bits dentro de cada byte. Con &lt;tt&gt;b&lt;/tt&gt; los bits se espeficican en orden ascendente (primero el de menos peso); con &lt;tt&gt;B&lt;/tt&gt; es al revés. El tamaño representa el número de bits a empaquetar.&lt;/p&gt;
+
+&lt;h4&gt;Ejemplos&lt;/h4&gt;
+
+&lt;code&gt;    ord(pack('b8','00100110')) produce 100 (4 + 32 + 64)
+    ord(pack('B8','00100110')) produce 38 (32 + 4 + 2)&lt;/code&gt;
+
+&lt;h3&gt;Los formatos &lt;tt&gt;h&lt;/tt&gt; y &lt;tt&gt;H&lt;/tt&gt;&lt;/h3&gt;
+
+&lt;p&gt;Los formatos &lt;tt&gt;h&lt;/tt&gt; y &lt;tt&gt;H&lt;/tt&gt; empaquetan cadenas que contienen dígitos hexadecimales. &lt;tt&gt;h&lt;/tt&gt; coge primero el nybble de menos peso, &lt;tt&gt;H&lt;/tt&gt; toma primero el mayor. El tamaño indica el número de nybbles a empaquetar.&lt;/p&gt;
+
+&lt;h4&gt;Ejemplos&lt;/h4&gt;
+
+&lt;p&gt;Cada uno de estos ejemplos devuelve un escalar de dos bytes:&lt;/p&gt;
+
+&lt;code&gt;    pack('h4','1234') produce 0x21,0x43 
+    pack('H4','1234') produce 0x12,0x34&lt;/code&gt;
+
+&lt;h2&gt;Información adicional&lt;/h2&gt;
+
+&lt;p&gt;Perl 5.8 incluye [perldoc://perlpacktut|su propio tutorial] de &lt;tt&gt;pack&lt;/tt&gt; y &lt;tt&gt;unpack&lt;/tt&gt;. Es un poco más profundo que este pero algunas de las cosas de las que habla pueden ser específicas de Perl 5.8. Los usuarios de Perl 5.6 deben comprobar su propia documentación si las cosas no funcionan tal como está decrito en ese tutorial.&lt;/p&gt;
+
+&lt;p&gt;Existen más caracteres que se pueden usar en las plantillas, de los que no se habla aquí. También hay formas adicionales de leer y escribir campos ASCII de tamaño fijo, así como trucos con los que se puede jugar con &lt;tt&gt;pack&lt;/tt&gt; y &lt;tt&gt;unpack&lt;/tt&gt;. Prueba &lt;tt&gt;perldoc -f pack&lt;/tt&gt; o consulta [href://isbn.nu/0596000278|Programming Perl]. Y sobre todo, no temas experimentar (&lt;i&gt;excepto con programas de verdad&lt;/i&gt;). Usa la función &lt;tt&gt;DumpString&lt;/tt&gt; de aquí abajo para examinar los buffers devueltos por &lt;tt&gt;pack&lt;/tt&gt; hasta que entiendas cómo manipula los datos.&lt;/p&gt;
+
+&lt;h2&gt;Referencias&lt;/h2&gt;
+
+&lt;p&gt;[href://isbn.nu/0596000278|Programming Perl], Tercera Edición, Larry Wall, Tom Christiansen, y Jon Orwant, © 2000, 1996, 1991 O'Reilly &amp; Associates, Inc. ISBN 0-596-00027-8.&lt;/p&gt;
+
+&lt;p&gt;Gracias a [bart] por [id://223619|la referencia] al tutorial de &lt;tt&gt;pack&lt;/tt&gt;/&lt;tt&gt;unpack&lt;/tt&gt; de Perl 5.8.&lt;/p&gt;
+
+&lt;p&gt;Gracias a [Zaxo] y [jeffa] por revisar este documento y compartir sus propios esfuerzos para crear un tutorial.&lt;/p&gt;
+
+&lt;p&gt;Gracias a [sulfericacid] y [PodMaster] por inspirar esto en el CB.&lt;/p&gt;
+
+&lt;h2&gt;Ejemplo&lt;/h2&gt;
+
+&lt;p&gt;El siguiente programa contiene los ejemplos de este documento:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+
+# muestra el contenido de una cadena como bytes decimales y hexadecimales, y como caracteres
+sub DumpString {
+    my @a = unpack('C*',$_[0]);
+    my $o = 0;
+    while (@a) {
+        my @b = splice @a,0,16;
+        my @d = map sprintf("%03d",$_), @b;
+        my @x = map sprintf("%02x",$_), @b;
+        my $c = substr($_[0],$o,16);
+        $c =~ s/[[:^print:]]/ /g;
+        printf "%6d %s\n",$o,join(' ',@d);
+        print " "x8,join('  ',@x),"\n";
+        print " "x9,join('   ',split(//,$c)),"\n";
+        $o += 16;
+    }
+}
+
+# efectuamos la solicitud
+my $t = time;
+my $emp_id = 217641;
+my $item = "boxes of paperclips";
+my $quan = 2;
+my $urgent = 1; 
+my $rec = pack( "l i a32 s2", $t, $emp_id, $item, $quan, $urgent);
+DumpString($rec);
+
+# procesamos la solicitud
+my ($order_time, $monk, $itemname, $quantity, $ignore) =
+       unpack( "l i a32 s2", $rec );
+print "Order time: ",scalar localtime($order_time),"\n";
+print "Placed by monk #$monk for $quantity $itemname\n";
+
+# formatos de cadena
+$rec = pack('a8',"hello");               # debería producir 'hello\0\0\0'
+DumpString($rec);
+$rec = pack('Z8',"hello");               # debería producir 'hello\0\0\0'
+DumpString($rec);
+$rec = pack('A8',"hello");               # debería producir 'hello   '
+DumpString($rec);
+($rec) = unpack('a8',"hello\0\0\0");     # debería producir 'hello\0\0\0'
+DumpString($rec);
+($rec) = unpack('Z8',"hello\0\0\0");     # debería producir 'hello'
+DumpString($rec);
+($rec) = unpack('A8',"hello   ");        # debería producir 'hello'
+DumpString($rec);
+($rec) = unpack('A8',"hello\0\0\0");     # debería producir 'hello'
+DumpString($rec);
+
+# formatos de bits
+$rec = pack('b8',"00100110");            # debería producir 0x64 (100)
+DumpString($rec);
+$rec = pack('B8',"00100110");            # debería producir 0x26 (38)
+DumpString($rec);
+
+# formatos en hexadecimal
+$rec = pack('h4',"1234");                # debería producir 0x21,0x43
+DumpString($rec);
+$rec = pack('H4',"1234");                # debería producir 0x12,0x34
+DumpString($rec);&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;Update&lt;/b&gt;: Translated comments in the last Perl example. Thanks to [id://123291] for pointing it out. More fixes by [id://510280]&lt;/p&gt;
+
+&lt;div class="pmsig"&gt;&lt;div class="pmsig-489671"&gt;
+&lt;p&gt;-- &lt;br /&gt;
+David Serrano&lt;/p&gt;
+&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;small&gt;Moved from [Perl Monks Discussion] to [Tutorials] by [planetscape] &lt;readmore title="view votes"&gt;( keep:0 edit:6 reap:0 )&lt;/readmore&gt; &lt;/small&gt;&lt;/p&gt;
+</field>
+</data>
+</node>

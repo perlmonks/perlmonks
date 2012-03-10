@@ -1,0 +1,103 @@
+<node>
+  <doctext>Just thought i would share this... i created it after
+finding not finding anything with this functionality
+(a while ago).  It was made for my personal needs 
+initially, and was doctored up a few weeks later to
+be somewhat customizable.  Its about a year old.
+
+I have a cronjob that runs it every day:
+0 1 * * * /home/conteb/cvs/snapshot.pl phynd /var/www/snapshots /var/cvs &gt;&gt; /var/www/snapshots/snapshots.log 2&gt;&amp;1
+
+Sample can be found at http://www.phynd.net/snapshots/
+
+#!/usr/bin/perl
+#
+# Create nightly cvs snapshots of project in a 
+# repository, only saving the snapshot if the module 
+# has changed.
+# 
+# TODO: Error checking is by no means complete.
+#
+use Date::Manip;
+
+use strict;
+use warnings;
+
+sub printHelp; # print basic help screen
+
+my $tempdir = '/tmp/';
+my $maxdayspast = 90; # will only check 90 days in the past before recording.
+
+# Can take 1 - 3 args - project name and dir to put resulting snapshot
+my $project = shift(@ARGV) or printHelp;
+my $dest = shift(@ARGV) or printHelp;
+my $server = shift(@ARGV) or printHelp;
+
+
+# test $tempdir, $dest for access and writabilty
+die &quot;Error: No access to /tmp or /tmp not a dir\n&quot;
+    unless (-w $tempdir &amp;&amp; -d $tempdir);
+die &quot;Error: No access to $dest, $dest not a dir, or $dest doen't exist\n&quot;
+    unless (-d $dest &amp;&amp; -w $dest);
+
+
+# First checkout the needed cvs directory
+chdir $tempdir;
+if (defined $server) {
+    (`cvs -d $server co -P $project 2&gt;&amp;1`=~/cannot find module/) and 
+	die &quot;Error: Invalid project specified - could not find module\n&quot;;
+}
+
+# get todays date and adjust acordingly...
+my $date=$1 if &amp;ParseDate('today')=~/(\d{8})/;
+
+# create tarball
+`tar czf $dest/$project-$date.tar.gz $project`;
+
+# Now, find the last tarball
+my $prev=1;
+my $filename;
+do {
+    &amp;DateCalc($date, &quot;-&quot;.$prev.&quot; days&quot;)=~/(\d{8})/;
+    $filename=$dest.'/'.$project.&quot;-&quot;.$1.&quot;.tar.gz&quot;;
+    $prev++;
+} while ((!(-e $filename))&amp;&amp;($prev &lt; $maxdayspast));
+
+# for some reason, compressed tarballs of identical trees checked out
+# at different times create slightly different sized tarballs (on my 
+# machine, anyway, using reiserfs).  I'm not about to step out of my 
+# league and try to explain it - but it means we have to untar the package
+# and run a diff on the two trees to see if there is a difference.
+if ($prev == $maxdayspast) {
+    print &quot;Did not find any snapshots within $maxdayspast days, recording new...&quot;; }
+else {
+    `mv $project $project.new`;
+    `tar xzvf $filename `;
+    if (`diff -Naur $project $project.new`) {
+	print &quot;Changes detected, recording snapshot...&quot;;
+    }
+    else {
+	`rm $dest/$project-$date.tar.gz`; # dont save if nothing changed
+    }
+    `rm -r $project.new`;
+}
+
+# remove project directories
+`rm -r $project`;
+print &quot;Done ($date)\n&quot;;
+exit;
+
+sub printHelp {
+    print &quot;Usage: snapshot.pl project destination_dir server\n&quot;;
+    print &quot;  project           name of project to check out of cvs\n&quot;;
+    print &quot;  destination_dir   where to put the snapshot\n&quot;;
+    print &quot;  server            server to connect to.  used as cvs -d server...\n&quot;;
+    exit;
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>221444</node_id>
+  <author_user>156559</author_user>
+  <title>Creating Neat CVS snapshots...</title>
+  <createtime>2002-12-20 09:48:49</createtime>
+  <nodeupdated>2005-06-19 10:06:51</nodeupdated>
+</node>

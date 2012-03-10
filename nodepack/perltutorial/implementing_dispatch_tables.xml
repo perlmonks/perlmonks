@@ -1,0 +1,94 @@
+<node>
+  <doctext>A dispatch table is just a mapping from strings to actions.
+If you find yourself lamenting the lack of a C-style switch/case statement
+in Perl, &lt;em&gt;and&lt;/em&gt; you find yourself grumbling that the equivalent
+series of if statements is a linear search, you probably want a
+dispatch table. 
+In Perl, the hash is a natural way to implement this.
+&lt;p&gt;
+There is an [http://search.cpan.org/~pardus/Zoidberg-0.95/lib/Zoidberg/DispatchTable.pm|implementation in CPAN], but I don't think it's what we're
+looking for. It's certainly not straightforward, and dispatch tables 
+are easy enough to roll your own.
+
+&lt;h3&gt;The trivial case&lt;/h3&gt;
+
+A basic dispatch table might look like this:
+&lt;code&gt;
+my %disp_table = ( something =&gt; \&amp;do_something );
+&lt;/code&gt;
+You put a string in, you get a code ref out. Then, presumably, you execute
+the code ref:
+&lt;code&gt;
+$disp_table{'something'}-&gt;();
+&lt;/code&gt;
+What could be simpler?
+
+&lt;h3&gt;Defaulting&lt;/h3&gt;
+
+That's great if what you're looking for is in the table, but if it's
+not, you're going to get an error for trying to use an empty string as
+a subroutine ref, because the hash value came up &lt;code&gt;undef&lt;/code&gt;. So
+you need to have an alternative:
+&lt;code&gt;
+($disp_table{'not there'} || sub {})-&gt;();
+&lt;/code&gt;
+Now if the hash lookup returns nothing, you fall back on a subroutine
+that doesn't do anything. Of course, you could use a default that did
+something if you wanted to.
+
+&lt;h3&gt;Fall-through (chaining)&lt;/h3&gt;
+
+What if you've got a bunch of things that map to the same action? You could
+duplicate your code for each of them:
+&lt;code&gt;
+    one   =&gt; sub { print &quot;Number!\n&quot; },
+    two   =&gt; sub { print &quot;Number!\n&quot; },
+    three =&gt; sub { print &quot;Number!\n&quot; },
+&lt;/code&gt;
+which should then raise a red flag that you need to abstract it out
+into its own subroutine. And if 'one' is supposed to do something
+before falling through, you can embed that sub call in its custom action:
+&lt;code&gt;
+    one   =&gt; sub { print &quot;The loneliest &quot;; number() },
+    two   =&gt; \&amp;number,
+    three =&gt; \&amp;number,
+&lt;/code&gt;
+By chaining calls this way, you can make things &quot;fall through&quot; to whatever you want them to. They are not limited by what comes next (which is good, because in
+a hash, what comes next is unpredictable).
+
+&lt;h3&gt;Matching patterns and ranges&lt;/h3&gt;
+
+Up until a few minutes ago, I would have said that using a dispatch table
+precludes pattern matching. I would have been wrong. Super Search on dispatch
+table came up with [429761|an ingenious post by grinder] that shows how to
+do just that, using
+[http://search.cpan.org/~dland/Regexp-Assemble-0.15/Assemble.pm|Regexp::Assemble]. In a sense, the pattern match is still searching all the alternatives,
+albeit in an optimized way. However, the circumstances in which a dispatch
+table is most advantageous &amp;mdash; where you have a very large number of
+alternatives &amp;mdash; are where a regex is likely to bog down.
+&lt;p&gt;
+Ranges offer a similar challenge. Of course, neither patterns nor ranges are
+handled by C's switch statement. Modula handles ranges, but it sacrifices fall-through (and may only work on numbers and single characters). You can't have everything. If you can't enumerate all the cases you want to cover, you
+don't want a dispatch table. Functions that check all the alternatives
+in order (such as my [444780|smatch]) can offer a great deal of flexibility.
+
+&lt;h3&gt;Having Perl build the table&lt;/h3&gt;
+
+The only really tricky bit about having a subroutine that translates a
+list of arguments resembling a C switch statement into a dispatch table
+is in implementing fall-through. A program doesn't have the luxury of
+creating new named subroutines, so there's a bit of bookkeeping
+to handle there.
+&lt;p&gt;
+I have implemented a function that does the translation for all the
+features described above (except patterns and ranges, for the reasons cited)
+in the Snippet [id://456132].
+&lt;p&gt;
+Update: I have written a module, [http://search.cpan.org/~rjohnson/Case-0.0.2/Case.pm|Case], that implements dispatch tables (as well as a more complex smart-matching construct).</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>456530</node_id>
+  <author_user>300037</author_user>
+  <title>Implementing Dispatch Tables</title>
+  <createtime>2005-05-12 15:27:03</createtime>
+  <nodeupdated>2005-08-15 11:35:27</nodeupdated>
+</node>

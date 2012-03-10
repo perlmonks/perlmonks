@@ -1,0 +1,125 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>637848</node_id>
+  <author_user>518801</author_user>
+  <title>getcachedapproved</title>
+  <createtime>2007-09-08 12:38:10</createtime>
+  <code>use Everything::Experience;
+
+my ($type,$frontpage,$title,$length,@options)=@_;
+my ($showunapproved) = grep (/showunapproved/, @options);
+my ($navbar)         = grep (/navbar/, @options);
+my ($force_refresh)  = 0; #$query-&gt;param(&quot;corion_forces_a_refresh&quot;);
+my $count            = $query-&gt;param(&quot;next&quot;) || 0; # make parameter
+if( $count &gt; 100 ) { $count= 100 };
+$length            ||= 10;
+my $nodetype         = getNode( $type, 'nodetype')-&gt;{node_id};
+my $settings         = getVars(getNode('listapproved settings','setting'));
+my $daysBeforeExpire = $frontpage ? $settings-&gt;{daysOnFrontPage} || 7 : 300;
+my $updateinterval   = $settings-&gt;{updateInterval} || 180;
+
+my $htmlcode_id=getId(getNode('cachedlistapproved','htmlcode'));
+my $cachekey = join(':', 
+                    getId($NODE),
+                    $type,
+                    $length,
+                    $count,
+                    $showunapproved,
+                    $navbar );
+printLog(&quot;getcachedapproved: @_&quot;);
+my (%approved,%unapproved);
+
+my $sql = &lt;&lt;&quot;SQL&quot;;
+SELECT 
+  cachedata
+FROM
+  cachedinfo
+WHERE
+  code_id = ? AND
+  cachekey = ? AND
+  (unix_timestamp(now()) - unix_timestamp(lastupdate) &lt; updateinterval)
+SQL
+printLog(&quot;getcachedapproved SQL: &gt;&gt;$sql&lt;&lt;&quot;);
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare_cached($sql) or printLog(&quot;getcachedapproved: $DBI::errstr\n&quot;);
+
+$csr-&gt;execute($htmlcode_id, $cachekey) or printLog(&quot;getcachedapproved: $DBI::errstr ($htmlcode_id $cachekey)\n&quot;);
+my $cacheinfo = $csr-&gt;fetchrow_hashref();
+$csr-&gt;finish;
+
+if(!$cacheinfo or $force_refresh)
+{
+    printLog &quot;Refreshing approved cache&quot;;
+    my $sql = &lt;&lt; &quot;SQL&quot;;
+    select 
+        n.node_id, st.status, h.section_id
+    from
+        node n 
+        left join approvalstatus as st on st.approved_id = n.node_id
+        left join approvalhistory as h on n.node_id = h.approves_id and
+                                     h.whenapproves = st.whenapproved
+    where 
+        n.type_nodetype = ? and
+        n.createtime &gt; from_unixtime(unix_timestamp(now()) - 86400 * $daysBeforeExpire)
+    order by 
+        n.createtime desc
+    limit 
+        $count, 100
+SQL
+
+    my $sth = $DB-&gt;getDatabaseHandle()-&gt;prepare_cached($sql) or printLog(&quot;getcachedapproved: $DBI::errstr ($sql)\n&quot;);
+    $sth-&gt;execute($nodetype) or printLog(&quot;getcachedapproved: $DBI::errstr\n ($sql, $nodetype, $daysBeforeExpire)&quot;);
+
+    my $nodes = $sth-&gt;fetchall_arrayref({});
+    #use Data::Dumper;
+    #printLog Dumper $nodes;
+    my $numshown = 0;
+    foreach my $row (@$nodes)
+    {
+        last if(!$row);
+        if($row-&gt;{status} eq 'fp' and $frontpage)
+        {
+            $numshown++;
+            $approved{$row-&gt;{node_id}} = 1;
+        } 
+        elsif ($row-&gt;{status} and !$frontpage) 
+        {
+            $numshown++;
+            $approved{$row-&gt;{node_id}} = 1;
+        } 
+        elsif(!$row-&gt;{status})
+        {
+            $unapproved{$row-&gt;{node_id}} = 1;
+        }
+        last if($numshown == $length);
+    }
+    $sth-&gt;finish();
+    $cacheinfo = {
+        cachedata =&gt; join(',', keys %approved, map { -$_ } keys %unapproved),
+    };
+    
+    my $sqlupdatecache = &lt;&lt; &quot;SQL&quot;;
+REPLACE INTO 
+  cachedinfo
+(code_id, cachedata, updateinterval, lastupdate, cachekey)
+VALUES
+  (?, ?, ?, now(), ?)
+SQL
+
+    my $sthupdatecache = $DB-&gt;getDatabaseHandle()-&gt;prepare_cached($sqlupdatecache);
+    $sthupdatecache-&gt;execute($htmlcode_id, 
+                             $cacheinfo-&gt;{cachedata},
+                             $updateinterval,
+                             $cachekey 
+                             );
+
+    #if (!%approved) {
+    #    printLog(&quot;Nothing to show&quot;);
+    #};
+    #return '' if(!%approved);
+};
+
+#printLog &quot;Cachedata: &quot; . $cacheinfo-&gt;{cachedata};
+return $cacheinfo-&gt;{cachedata};
+</code>
+  <nodeupdated>2007-09-08 08:38:10</nodeupdated>
+</node>

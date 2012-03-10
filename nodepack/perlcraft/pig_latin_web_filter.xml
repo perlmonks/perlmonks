@@ -1,0 +1,199 @@
+<node>
+  <doctext>#!/usr/bin/perl -wT
+
+# The Pig-Latinizer: A CGI Program for Surfing the Web in Pig Latin
+# by David Glick [davisagli], 6/20/2001
+
+# This is my first CGI program, so comments/improvements are very welcome!
+
+#               - can't translate anything created in javascripts
+#     Main      - forms on translated pages will at best not lead to
+#  limitations:   another translated page, and at worst will not work
+#               - doesn't translate text in pictures :)
+
+# always!
+use strict;
+use warnings;
+
+use CGI qw/:standard/;  # standard CGI.pm
+use HTML::Parser();     # for parsing HTML
+use HTML::Entities;     # for decoding HTML character entities
+require HTML::Element;  # for manipulating HTML
+require LWP::Simple;    # for retrieving document to translate
+use URI;                # for resolving relative URI's into absolute ones
+use URI::Escape;        # for decoding URI character escapes
+
+# initialize variables
+my $base = 0;           # does file already contain &lt;BASE HREF=...&gt; tag?
+my $pig = '';           # result of translation
+my $error = '';         # to hold any error messages
+
+# main code block:
+
+# retrieve URI of file to translate, and taint-check it
+my $t_uri = param('page') || '';
+my ($uri) = ($t_uri =~ /^(http:\/\/.+)$/);
+
+# if we have a url that looks valid...
+if ( defined $uri ) {
+
+  # retrieve content-type of this file
+  my ($content_type) = LWP::Simple::head( $uri );
+  $content_type ||= 'text/html';
+
+  # if it's an HTML doc...
+  if ($content_type =~ /text\/html/) {
+
+    # decode URI escapes and retrieve the file
+    $uri = uri_unescape( $uri );
+    my $html = LWP::Simple::get($uri) or ($error .= p(&quot;Error retrieving
+         file $uri&quot; . br . &quot;Please check your spelling or try another
+         website.&quot;) and sendform());
+
+    print header;
+
+    # start the parser -- which basically calls &amp;pigify for each plain-text
+    # block and &amp;tag for each opening HTML tag, adding the result of
+    # everything to $result
+
+    HTML::Parser-&gt;new( api_version =&gt; 3,
+      default_h =&gt; [sub { $pig .= shift }, 'text'],
+      text_h=&gt;[sub{$pig.=(shift()?shift():pigify(shift))},'is_cdata, text'],
+      start_h =&gt; [sub {$pig .= tag(@_) }, 'tagname, attr, text']
+      )-&gt;parse($html);
+
+    # add base tag if needed -- this tells the browser where relative URLs
+    # in the doc are relative to
+    $pig = &quot;&lt;base href=\&quot;$uri\&quot;&gt;$pig&quot; unless $base;
+
+    print $pig;
+
+  # if it wasn't in HTML format, redirect the browser to access the file
+  # directly instead of through this script (this prevents the script from
+  # downloading large images/files only to forward them to the user) :
+
+  } else {
+    print redirect( -uri  =&gt;  $uri );
+  }
+
+  # end program so we don't print out the form
+  exit 0
+}
+
+# the following only runs if a valid URL was not supplied:
+
+$error .= p('You must enter a valid URL beginning with http://')
+  if param('notfirst');
+sendform();
+
+# (end of main code block)
+
+sub sendform
+# prints out a form where the user can enter a URL to translate
+# (including any error messages)
+{
+  # format the error message in red
+  $error = font( {color =&gt; '#FF0000'}, $error) if $error;
+
+  #print out the form
+  print header,
+        start_html( -title =&gt; 'The Pig-Latinizer: Surf the Web in Pig Latin' ),
+        h1( 'The Pig-Latinizer: Surf the Web in Pig Latin' ),
+        $error,
+        start_form( -method   =&gt; 'get' ),
+        textfield( -name      =&gt; 'page',
+                   -default   =&gt; 'http://',
+                   -size      =&gt; 50 ),
+        submit( -value =&gt; &quot;Pigify&quot; ),
+        hidden( -name  =&gt; 'notfirst',   # this field is so we can suppress
+                -value =&gt; '1' ),        # errors on the first run
+        end_form,
+        end_html;
+
+  # end the script
+  exit 0;
+}
+
+sub tag
+# (called by the parser for each opening HTML tag)
+# Points links to pigified version of pages, and handles some translation.
+{
+  my ($name, $attr, $code) = @_;
+  my $tag = 0;
+
+  # check if this is a &lt;base href=...&gt; tag (if so, we won't supply one later)
+  if ($name eq 'base' and exists $attr-&gt;{href}) {
+    $base = 1;
+    return $code;
+  }
+
+  # create an HTML element object from this tag
+  $tag = HTML::Element-&gt;new($name,%{$attr});
+
+  # point links (in a and area tags) to pigified pages
+  if ($name eq 'a' or $name eq 'area' and exists $attr-&gt;{href}) {
+    $tag-&gt;attr('href', url . &quot;?page=&quot; . URI-&gt;new_abs($tag-&gt;attr('href'),$uri));
+  }
+
+  # point to pigified versions of frames
+  if ($name eq 'frame' and exists $attr-&gt;{src}) {
+    $tag-&gt;attr('src', url . &quot;?page=&quot; . URI-&gt;new_abs($tag-&gt;attr('src'),$uri));
+  }
+
+  # translate alt attributes
+  if (exists $attr-&gt;{alt}) {
+    $tag-&gt;attr('alt', pigify($tag-&gt;attr('alt')));
+  }
+
+  # translate value attributes
+  if (exists $attr-&gt;{value}) {
+    $tag-&gt;attr('value', pigify($tag-&gt;attr('value')));
+  }
+
+  # return the new HTML for this opening tag
+  $tag-&gt;starttag;
+}
+
+sub pigify
+# translates an entire phrase into pig latin
+{
+  my ($text) = @_;
+  $text = decode_entities($text);
+
+  # I love this regexp :)  or rather, the fact that I finally
+  # managed to successfully create it...
+
+  $text =~ s/(?:^|(?&lt;=[^a-z])) # start match either at beginning of string
+                               # or following a non-letter
+
+     ((?:qu           # then match either 'qu'
+     |y(?=[aeiou])    # or y used as consonant at start of word
+     |[^\W\daeiouy]+  # or series of consonants
+     |(?=y[^aeiou])   # or nothing preceding y used as vowel (i.e. yttrium)
+     |(?=[aeiou])))   # or nothing preceding a vowel
+                      # (this is all captured into $1)
+
+     ([a-z']*)        # then capture a series of letters and ' into $2
+     (?:(?=[^a-z])|$) # and end match prior to non-letter or end of string
+
+      # replace, adding 'ay' if started with consonant or 'way' if
+      # started with vowel ($1 eq '' if it started with a vowel)
+      /fixcaps($2.($1||'w').'ay',&quot;$1$2&quot;)/egisx;
+
+  $text = encode_entities($text);
+}
+
+sub fixcaps
+# called by &amp;pigify to convert translated word to correct case,
+# based on the original untranslated word
+{
+  my ($word, $orig) = @_;
+  $word=($orig=~/[A-Z]/?($orig=~/^[A-Z']+$/?uc$word:ucfirst lc$word):lc$word);
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>90179</node_id>
+  <author_user>79000</author_user>
+  <title>Pig Latin Web Filter</title>
+  <createtime>2001-06-20 20:35:55</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

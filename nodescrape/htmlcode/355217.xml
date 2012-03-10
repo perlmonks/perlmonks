@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="355217" title="simple_cachedlistapproved" created="2004-05-21 04:55:23" updated="2005-01-17 22:05:13">
+<type id="4">
+htmlcode</type>
+<author id="3607">
+Petruchio</author>
+<data>
+<field name="code">
+use lib $HTMLVARS{uselib};
+use Everything::Experience;
+
+my( $type, $linktype, $title, $length )= @_;
+my( $showall, $showunapproved, $tempkey );
+
+$linktype = 'frontpage linktype';
+my $lt_id = getId( getNode( $linktype, 'linktype' ) );
+
+my $updateinterval   = 180;
+my $daysBeforeExpire = 7;
+my $expireTime = $DB-&gt;sqlSelect("from_unixtime(unix_timestamp(now())-86400*$daysBeforeExpire)");
+my $SETTING = getNode('listapproved settings','setting');
+my $LAS = getVars $SETTING;
+
+my $outercontainer = $LAS-&gt;{defaultOuterContainer};
+my $innercontainer = $LAS-&gt;{defaultInnerContainer};
+my $innerhtmlcode  = $LAS-&gt;{defaultInnerHtmlcode};
+
+$innercontainer = 'css embed node with vote container';
+$outercontainer = 'css listapproved default outer container';
+
+my $start = my $count = $q-&gt;param('next') || 0;
+my $maxlength = $length ||= 10;
+my $max = $count + $length;
+my $numshown = 0;
+
+my( %approved, @unapproved, @approved, @list );
+my $htmlcode_id = getId(getNode('simple_cachedlistapproved','htmlcode'));
+
+my $cachekey = join ':',
+    getId($NODE), $type, $linktype, $length, $showunapproved,
+    $VARS-&gt;{unapprovedcontent}, $showall;
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare_cached( join ' ',
+    "select updateinterval,",
+    "unix_timestamp(lastupdate),",
+    "cachedata",
+    "from   cachedinfo",
+    "where  code_id  = ?",
+    "and    cachekey = ?",
+    "order by lastupdate desc limit 1",
+);
+
+$csr-&gt;execute($htmlcode_id,$cachekey);
+my $RESULT = $csr-&gt;fetchrow_hashref;
+$csr-&gt;finish;
+if(! $RESULT or ( time - $RESULT-&gt;{'unix_timestamp(lastupdate)'} ) &gt; $RESULT-&gt;{updateinterval} ) {
+    my $links = selectLinks $NODE;
+    $approved{$_-&gt;{to_node}} = 1
+        for grep $_-&gt;{linktype} == $lt_id, @$links;
+    my $ref = selectNodeWhere( {type_nodetype =&gt; getType($type) }, '', 'createtime desc limit 100');
+    for( @$ref[$count..$#$ref] ) {
+        if($approved{$_}){
+            push @approved,   $_;
+            push @list,       $_;
+            last if ++$numshown &gt;= $maxlength;
+        } else {
+            push @unapproved, $_;
+            push @list,      -$_;
+        }
+    }
+    my $cachedata = join ',', @list;
+
+    my $sql = $RESULT
+        ?   join( ' ',
+                "update cachedinfo set",
+                "lastupdate = now(),",
+                "cachedata  = '$cachedata'",
+                "where cachekey = '$cachekey'",
+                "and code_id = $htmlcode_id",
+            )
+        :   join( ' ',
+                "insert into cachedinfo",
+                "( code_id, cachedata, updateinterval, lastupdate, cachekey )",
+                "values( $htmlcode_id, '$cachedata', $updateinterval, now(),",
+                "'$cachekey' )",
+            )
+    ;
+    $DB-&gt;getDatabaseHandle()-&gt;do( $sql );
+} else {
+    @list = split /,/, $RESULT-&gt;{cachedata};
+}
+
+$HTMLVARS{listapproved}{title} = $title;
+my $innerstr;
+$numshown = 0;
+my $canconsider= Everything::isApproved($USER,'CanConsider');
+for( @list ) {
+    $HTMLVARS{embed_node} = selectNode $_;
+    next if $expireTime gt $HTMLVARS{embed_node}{createtime};
+    if($_ &gt; 0 or ($VARS-&gt;{unapprovedcontent}) and $showunapproved or $showall){
+        $numshown++;
+
+        my $node= $HTMLVARS{embed_node};
+        $node-&gt;{replies}= htmlcode( 'formatRepliesInfo','', $node );
+        $node-&gt;{numreplies} = 0 + $node-&gt;{replies}; # temp backward compat
+
+        $innerstr .= containHtml($innercontainer, htmlcode($innerhtmlcode));
+        last if $numshown == $length;
+    }
+    next if $approved{ getId( $HTMLVARS{embed_node} ) };
+    push @unapproved, -$_ if $canconsider;
+}
+
+$HTMLVARS{unapproved} = \@unapproved;
+return '' if ! $numshown;
+return containHtml($outercontainer,$innerstr);
+</field>
+</data>
+</node>

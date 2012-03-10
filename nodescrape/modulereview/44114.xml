@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="44114" title="DBD::RAM" created="2000-11-30 11:37:01" updated="2005-08-08 04:20:22">
+<type id="31663">
+modulereview</type>
+<author id="9346">
+mirod</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;Description&lt;/h3&gt;
+&lt;p&gt;&lt;a href="http://theoryx5.uwinnipeg.ca/CPAN/data/DBD-RAM/RAM.html"&gt;DBD::RAM&lt;/a&gt;
+   is Jeff Zucker's driver for the &lt;a href="http://theoryx5.uwinnipeg.ca/CPAN/data/DBI/DBI.html"&gt;DBI&lt;/a&gt;
+   that allows you to &lt;tt&gt;import&lt;/tt&gt; files in memory and treat them as relational tables,
+   with SQL queries.&lt;br /&gt;
+   Several tables can be created this way and SQL joins can be simulated
+   through loops.&lt;br /&gt;
+   Changes to the data can be reflected to the original file (if the table is
+   created using the &lt;tt&gt;catalog&lt;/tt&gt; function) or the table can
+   be &lt;tt&gt;export&lt;/tt&gt;-ed to one of the formats supported by DBD::RAM.&lt;/p&gt;
+&lt;p&gt;DBD::RAM can process the following formats:&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;CSV (Comma Separated Values),
+        &lt;/li&gt;
+    &lt;li&gt;Fixed-width records, using &lt;tt&gt;pack&lt;/tt&gt; to define the format,
+    &lt;li&gt;Perl structures (arrays of arrayrefs or hasrefs) so you can create
+        the data in the Perl script and then use it as a relational table,&lt;/li&gt;
+    &lt;li&gt;XML,&lt;/li&gt;
+    &lt;li&gt;User-defined, which allows the user to define a subroutine that will
+        parse the input and return an array with the various fields,&lt;/li&gt;
+    &lt;li&gt;Other DBI data bases, so you can load a table in memory, close the
+        connection and then process the data,&lt;/li&gt;
+    &lt;li&gt;MP3 headers from a group of directories.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;The data in all formats can be input either locally, from strings,
+        files or pipes, or remotely through 
+        &lt;a href="http://theoryx5.uwinnipeg.ca/CPAN/data/libwww-perl/LWP.html"&gt;LWP&lt;/a&gt;&lt;/p&gt;
+
+
+&lt;h3&gt;Why use DBD::RAM&lt;/h3&gt;
+
+&lt;ul&gt;&lt;li&gt;you are dealing with existing data, which format you have no control over, but
+        you still want to access it through the DBI interface, using SQL,&lt;/li&gt;
+    &lt;li&gt;you want to use SQL without installing a relational DB,&lt;/li&gt;
+    &lt;li&gt;you want to prototype an application without a DB but think
+        that you might add one down the line,&lt;/li&gt;
+    &lt;li&gt;you want to convert data from a DBD::RAM supported format to an
+        other,&lt;/li&gt;
+    &lt;li&gt;you want to use an XML file as a table (exporting it back might
+        not work for you though)&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Why NOT use DBD::RAM&lt;/h3&gt;
+&lt;p&gt;You will not use DBD::RAM essentially if you need a real data base.&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;you process huge amounts of data,&lt;/li&gt;
+    &lt;li&gt;the data is already in an existing DB.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Example&lt;/h3&gt;
+&lt;p&gt;The obligatory XML example:&lt;/p&gt;
+&lt;code&gt;
+# connect to the DB
+my $dbh= DBI-&gt;connect( "DBI:RAM:" , {RaiseError =&gt; 1} );
+
+# create the table
+$dbh-&gt;func(
+        { table_name  =&gt; 'projects',
+          data_type   =&gt; 'XML',
+          record_tag  =&gt; 'projects project',
+          col_names   =&gt; 'pid,name,description',
+          file_source =&gt; 'project.xml',
+        }, 'import');
+
+# prepare the SQL statement
+my $sth= $dbh-&gt;prepare( "SELECT * FROM projects");
+# execute the statement
+$sth-&gt;execute();
+
+# output the result of the query
+while( my $hashref= $sth-&gt;fetchrow_hashref())
+  { foreach my $field ( keys %$hashref)
+      { print "$field: $hashref-&gt;{$field}\t"; }
+    print "\n";
+  }
+
+# export the table back as XML
+$dbh-&gt;func(
+        { data_type   =&gt; 'XML',
+          data_target =&gt; "new_projects.xml",
+          data_source =&gt; "select * from projects",
+          record_tag  =&gt; 'projects project',
+          col_names   =&gt; 'pid,name,description',
+        }, 'export' );
+&lt;/code&gt;
+&lt;p&gt;Note on XML import: make sure you include the whole hierarchy
+   of tags in the &lt;tt&gt;record_tag&lt;/tt&gt; argument, from the document
+   root to the record tag itself.&lt;/p&gt;
+
+
+
+&lt;h3&gt;Personal Notes&lt;/h3&gt;
+
+&lt;p&gt;I really like DBD::RAM. It allows treating lots of structured data as
+   a relational table, including XML (mostly for extracting data from an
+   XML file though). It also allows quick prototyping without having to
+   go through the pain of yet-another-mysql install.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;The good&lt;/b&gt;&lt;br /&gt; DBD::RAM is really flexible. For example in the CSV format the field and record separators 
+   can actually be redefined so it's more like ASV (Anything Separated Values).
+   For most formats field definitions can also be extracted from the first line of the file
+   instead of being hard coded in the script.&lt;br /&gt;
+   The XML import allows you a good deal of customizing the data you want to
+   extract from the XML file, including having records inherit attributes from
+   their parents. Encoding conversions, and especially latin-1 output are
+   also handled.&lt;br /&gt;
+   The documentation is pretty good: it is comprehensive and includes lots of
+   examples that can be cut-n-paste'd.&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;The not-so-good&lt;/b&gt;&lt;br /&gt;
+   The initial debugging of an application can be quite a pain though, as error
+   messages on &lt;tt&gt;import&lt;/tt&gt; are no too helpful, they tell you that something
+   is wrong but not quite where the exact error is.&lt;br /&gt;
+   Some XML data is difficult to extract (for example if several parent tags 
+   have attributes with the same name you can't fold them properly) but this
+   can be fixed by a simple pre-processing of the data.&lt;br /&gt;
+   The syntax of the XML option is slightly confusing (space separated list
+   of tags for the  &lt;tt&gt;record_tag&lt;/tt&gt; argument, but comma (no space) for 
+   the &lt;tt&gt;col_names&lt;/tt&gt; argument. &lt;br /&gt;
+   This should improve with &lt;a href="#note"&gt;future versions&lt;/a&gt; of the module.
+&lt;/p&gt;
+
+&lt;h3&gt;Related Modules&lt;/h3&gt;
+
+&lt;p&gt;For XML processing you might want to have a look at 
+   &lt;a href="http://theoryx5.uwinnipeg.ca/CPAN/data/xml-rax/RAX/RAX.html"&gt;XML::RAX&lt;/a&gt;
+   or at [DBIx::XML_RDB] (to export XML from a RDB).&lt;/p&gt;
+
+&lt;h3&gt;&lt;a name="note"&gt;The future&lt;/a&gt;&lt;/h3&gt; 
+&lt;p&gt;DBD::RAM should be replaced by AnyData and DBD::AnyData any time now, see
+   this &lt;a href="http://www.mail-archive.com/dbi-dev%40isc.org/msg00436.html"&gt;
+   note&lt;/a&gt; for the planned architecture.&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Update&lt;/b&gt;: after the author reviewing the... review I
+   have fixed a couple of (embarassing) mistakes: DBD::RAM does
+   file locking (through &lt;tt&gt;flock&lt;/tt&gt;), but it does not do
+   &lt;tt&gt;join&lt;/tt&gt;. I have fixed the review accordingly (plus 
+   a couple of other points Jeff mentioned.)&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Update (2)&lt;/b&gt;: [cpan://AnyData] and [cpan://DBD::AnyData] are out and officially replace DBD::RAM.&lt;/p&gt;
+</field>
+<field name="itemdescription">
+A DBI driver for files and data structures 
+</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

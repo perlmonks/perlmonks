@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="55767" title="HTML::Mason module review" created="2001-02-01 17:24:49" updated="2005-08-08 15:10:22">
+<type id="31663">
+modulereview</type>
+<author id="22772">
+TheoPetersen</author>
+<data>
+<field name="doctext">
+In honor of Mason's 1.0 release I thought I'd submit a quick review.&lt;p&gt;
+This is one of my favorite Perl modules, and my tool of choice for creating Web pages.
+Mason is developed by &lt;a href="mailto:swartz@pobox.com"&gt;Jonathan Swartz&lt;/a&gt;
+and a large number of other contributors.  It was created originally for CMP Media,
+publishers of TechWeb.com and a wide variety of other sites; 
+since then it has been put in use at a number of high-profile sites
+such as Salon.com and AvantGo.com, not to mention hordes of lower traffic places.&lt;p&gt;
+&lt;h2&gt;Embedding Perl in HTML&lt;/h2&gt;
+Anyone who's perused the HTML:: namespace on CPAN knows that there are a number of tools
+to choose from in putting Perl into Web pages.  Among that list of choices, Mason is
+unique, just like all the rest :).&lt;p&gt;
+Mason is first and foremost a Perl embedding tool; that is, it inserts Perl code
+directly into pages, to be interpretted on the fly as documents are served.
+This distinguishes it from the "template" camp of tools that separate documents
+and code; I won't get into the argument over which is better, but if you work on both document content and
+code together, you'll probably prefer an embedding tool.  Other choices in this camp
+include HTML::EmbPerl and Apache::ASP.
+&lt;p&gt;
+Mason adds a few new tags to tell its interpretter where to find Perl code.
+To evaluate a single line of Perl, preface it with a % at the beginning of the line:
+&lt;code&gt;
+% my $date = localtime();
+&lt;/code&gt;
+To interpolate a Perl variable or expression into other text, surround it with the &amp;lt;% % &amp;gt; tag:
+&lt;code&gt;
+Today's date is &lt;% $date %&gt;
+&lt;/code&gt;
+% lines can also be used to create conditional sections, or to build text using loops.  To borrow two examples from the docs:
+&lt;code&gt;
+% my $ua = $r-&gt;header_in('User-Agent');
+% if ($ua =~ /msie/i) {
+     Welcome, Internet Explorer users
+% } elsif ($ua =~ /mozilla/i) {
+     Welcome, Netscape users
+% }
+&lt;/code&gt;&lt;p&gt;&lt;code&gt;
+% foreach $item (@list) {
+  &lt;li&gt;&lt;% $item %&gt;
+% }
+&lt;/code&gt;
+Longer pieces of code can be set off using &amp;lt;%perl&amp;gt; sections, where
+all statements up to the ending &amp;lt;/%perl&amp;gt; are interpretted as code.
+&lt;h2&gt;Component architecture&lt;/h2&gt;
+Mason's code embedding is nice, but the module really shines when used to build documents from pieces.&lt;p&gt;
+In Mason, sections of pages are components.  A top-level component corresponds to a
+document, and can contain all the content and Perl code directly.  More likely
+though, the top-level refers to other components via the component call tag, &amp;lt;&amp;amp; &amp;amp;&amp;gt;.
+For example, suppose we have a page layout consisting of a header component, a navigation bar,
+a footer and what ever text the page contains.  A top-level for that design would look like this:
+&lt;code&gt;
+&lt;&amp; header &amp;&gt;
+&lt;&amp; nav-bar &amp;&gt;
+Here is the content of this page.
+&lt;&amp; footer &amp;&gt;
+&lt;/code&gt;
+&lt;h2&gt;Passing arguments to components&lt;/h2&gt;
+But wait, there's more!  The top-level component automatically receives any CGI parameters
+passed along with the request as arguments; it can also pass parameters along to any invoked
+component, which can in turn pass info along to any components they use.
+&lt;p&gt;
+To invoke a component with arguments, pass them along inside the tags:
+&lt;code&gt;
+&lt;&amp; header, date=&gt;$date, section=&gt;'News' &amp;&gt;
+&lt;/code&gt;
+To receive those values, the component needs an &amp;lt;%args&amp;gt; section:
+&lt;code&gt;
+&lt;%args&gt;
+$date
+$section=&gt;'Updates'
+&lt;/%args&gt;
+&lt;/code&gt;
+In this example, the date argument is required to have a value when the component
+is invoked; the section argument has a default value, and can be omitted.
+&lt;h2&gt;Autohandlers and dhandlers&lt;/h2&gt;
+Mason provides two mechanisms for additional standardization.&lt;p&gt;Autohandlers are components
+that run before the top-level component; they can be used to provide a standard
+set of header/footer components or enforce other site rules.  Mason checks the top-level
+component's directory (and all of its parents) for an autohandler and runs it before
+the code in the top-level itself.
+&lt;p&gt;
+dhandlers take the place of a component that doesn't exist.  This is most commonly used
+to replace top-level components requested by a generated URL; if Mason doesn't find
+the requested component, it checks the directory (and its parents) for a dhandler and
+runs that instead.  The dhandler can look at the request URL and figure out what
+to do, such as retrieving the actual requested document from a database.
+&lt;h2&gt;Caching&lt;/h2&gt;
+Behind the scenes, Mason translates a component into a Perl function and calls it; 
+text in the component becomes literal values stored in the function, while the embedded code
+moves into the function more or less as-is.  Mason caches the translated code
+in a separate directory for better run-time performance.  As requests occur and components
+are called, Mason checks the modification times of its cache and the actual component file;
+if nothing has changed, it just uses the cache.&lt;p&gt;
+Used in conjunction with mod_perl, this provides excellent performance, but those
+stat calls for checking times still add up.  You can improve Mason's speed by telling it
+to check only a single file (the reload file) for updates, and then store the paths to changed
+components in that file as you modify them.
+&lt;h2&gt;And more...&lt;/h2&gt;
+Mason has far too many features to do justice in a short review.  A quick list of things
+to look for in the documentation:
+&lt;ul&gt;
+&lt;li&gt;Filters that allow you to work on the output of a component; these can be used
+to apply further rules or changes once a document has been generated.
+&lt;li&gt;Support for previewing, profiling and debugging components.
+&lt;li&gt;Component methods and attributes that make a rich object-oriented system.
+&lt;li&gt;Though it's a separate product, the Mason Content Manager provides graphical
+file management and a staging/production system that is aware of components
+and works with the reload file mechanism mentioned above.
+&lt;/ul&gt;
+Take a look at the &lt;a href="http://masonhq.com"&gt;Mason Headquarters&lt;/a&gt; for more information.
+&lt;p&gt;&lt;small&gt;2001-03-04 Edit by [Corion] : Changed PRE tags to CODE tags.&lt;/small&gt;&lt;/p&gt;
+
+&lt;!-- Appended "module review" to title (turnstep) --&gt;
+</field>
+<field name="itemdescription">
+Embed Perl code in Web pages with component architecture</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

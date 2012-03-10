@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="116767" title="Simple HTTP in under 100 lines" created="2001-10-04 17:09:09" updated="2005-08-13 23:00:09">
+<type id="121">
+perlcraft</type>
+<author id="5348">
+Corion</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -wT
+use strict;
+use IO::File;
+use Cwd;
+use HTTP::Daemon;
+use HTTP::Status;
+
+$| = 1;
+
+# We are quite explicit about where we listen
+my $d = new HTTP::Daemon
+                    Reuse =&gt; 1,
+                    LocalAddr =&gt; '192.168.1.100',
+                    LocalPort =&gt; 8889;
+
+my $nofork = $^O =~ /Win32/i; # For easy testing under Win32
+
+$SIG{__WARN__} = sub { warn __stamp(shift) };
+$SIG{__DIE__} = sub { die __stamp(shift) };
+$SIG{CHLD} = 'IGNORE';
+
+warn "Please contact me at: &lt;URL:" . $d-&gt;url . "&gt;\n";
+
+$ENV{PATH} = '/bin:/usr/bin'; # Set our path to something secure
+my $root = $ARGV[0] || cwd;
+$root = $1 if $root =~ /^(.*)$/; # untaint document root
+$root .= "/" unless $root =~ m!/$!;
+
+# This sub Copyright (c) 1996,97,98,99,2000,01 by Randal L. Schwartz
+sub __stamp {
+  my ($message) = @_;
+  my $stamp = sprintf "[$$] [%02d@%02d:%02d:%02d] ", (localtime)[3,2,1,0];
+  $message =~ s/^/$stamp/gm;
+  $message;
+}
+
+sub handleConnection {
+  local $SIG{PIPE} = 'IGNORE';
+  my ($connection) = @_;
+  while (my $r = $connection-&gt;get_request()) {
+    warn $r-&gt;as_string; # Yes, that's verbose.
+
+    my $url = $r-&gt;url-&gt;path;
+    $url = "/$url" unless $url =~ m!^/!; # Remove all suspicious paths
+    $url =~ s!/.?.(?=/|$)!/!g;
+    $url =~ tr!\x00-\x1F!!d;
+
+    my $response = new HTTP::Response( 404,undef,undef,"404 - Not found." );
+    if (-d "$root$url") {
+      $url = "$url/" unless $url =~ m!/$!;
+      opendir DIR, "$root$url";
+      $response-&gt;code(200);
+      $response-&gt;content(
+            "&lt;html&gt;&lt;head&gt;&lt;title&gt;$url&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;$url&lt;/h1&gt;&lt;tt&gt;"
+            . join( "&lt;br&gt;",
+                map { my ($cmt,$link) = ((-s "$root$url$_")." bytes",$_);
+                      -d _ and $cmt = "directory";
+                      $link =~ s/([ '"?%&amp;:])/{'%'.unpack("H2",$1)}/eg;
+                      "&lt;A href='$url$link'&gt;$_&lt;/A&gt; $cmt"
+                    } sort grep { /^[^.]/ } readdir DIR )
+            . "&lt;/tt&gt;&lt;/body&gt;&lt;/html&gt;" );
+      closedir DIR;
+    } else {
+      my $file = new IO::File "&lt; $root$url";
+      if (defined $file) {
+        $response-&gt;code( 200 );
+        binmode $file;
+        my $size = -s $file;
+
+        my ($startrange, $endrange) = (0,$size-1);
+        if (defined $r-&gt;header("Range")
+            and $r-&gt;header("Range") =~ /bytes\s*=\s*(\d+)-(\d+)?/) {
+          $response-&gt;code( 206 );
+          ($startrange,$endrange) = ($1,$2 || $endrange);
+        };
+        $file-&gt;seek($startrange,0);
+
+        $response-&gt;header(Content_Length =&gt; $endrange-$startrange);
+        $response-&gt;header(Content_Range =&gt; "bytes $startrange-$endrange/$size");
+        $response-&gt;content( sub {
+          sysread($file, my ($buf), 16*1024); # No error checking ???
+          return $buf;
+        });
+      };
+    };
+    warn "Response :",$response-&gt;code;
+    $connection-&gt;send_response($response);
+  };
+  warn "Handled connection (closed, " . $connection-&gt;reason . ")";
+  $connection-&gt;close;
+};
+
+while (my $connection = $d-&gt;accept) {
+  # Really condensed fork/nofork handler code
+  next unless $nofork || ! fork();
+  warn "Forked child" unless $nofork;
+  handleConnection( $connection );
+  die "Child quit." unless $nofork;
+}
+</field>
+</data>
+</node>

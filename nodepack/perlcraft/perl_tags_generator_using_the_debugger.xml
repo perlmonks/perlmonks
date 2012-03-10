@@ -1,0 +1,155 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+# Perl tags generator that uses the debugger hooks
+# Ned Konz &lt;ned@bike-nomad.com&gt;
+# $Revision: 1.7 $
+# TODO
+# * figure out a way to avoid running BEGIN blocks
+
+use strict;
+use File::Find;
+use Getopt::Std;
+
+sub usage
+{
+	print &lt;&lt;EOF;
+usage: $0 [-R] [-f outfile] [-a] [-L listfile] [file [...]]
+-R           recurse into dirs
+-f outfile   specify output file (default=tags)
+-a           append to output file
+-L listfile  get filenames/options from listfile
+-h           get this help message
+-v           list filenames to stderr
+EOF
+	exit(shift());
+}
+
+# process cmdline options
+my %opts;
+getopts('Rf:aL:hv', \%opts) || usage(1);
+usage(0) if defined($opts{'h'});
+my $outfile = defined($opts{'f'}) ? $opts{'f'} : 'tags';
+if (defined($opts{'L'}))
+{
+	open(LFILE, $opts{'L'});
+	map { chomp ; unshift(@ARGV, $_) } &lt;LFILE&gt;;
+	close(LFILE);
+}
+
+# now filenames are in @ARGV
+push(@ARGV, '.') if ($#ARGV &lt; 0);
+
+my @files;
+my $top;
+my $nDirs;
+
+sub wanted {
+	-f _ &amp;&amp; /^.*\.p[lm]\z/si &amp;&amp; push(@files, $File::Find::name);
+	$File::Find::prune = !defined($opts{'R'}) &amp;&amp; $nDirs &gt; 1;
+	-d _ &amp;&amp; $nDirs++;
+}
+
+# process directories
+foreach $top (@ARGV)
+{
+	$nDirs = 0;
+	File::Find::find({wanted =&gt; \&amp;wanted}, $top);
+}
+
+# Load debugger into environment var $PERL5DB
+{
+	local $/ = undef;
+	my $debugger = &lt;DATA&gt;;
+	$debugger =~ s/\s*#.*$//gm;	# get around bugs in PERL5 debugger code
+	$debugger =~ s/\s+/ /gms;
+	$ENV{PERL5DB} = $debugger;
+}
+
+# Clear outfile if not appending
+if (!defined($opts{'a'}))
+{
+	open(OUTFILE,&quot;&gt;$outfile&quot;) or die &quot;can't open $outfile for write: $!\n&quot;;
+	close(OUTFILE);
+}
+
+# pass output file name in env var
+$ENV{PLTAGS_OUTFILE} = &quot;&gt;&gt;$outfile&quot;;
+
+# Spawn Perl for each file
+foreach my $fileName (map { $_ =~ s{^\./}{}; $_ } @files)
+{
+	print STDERR &quot;$fileName\n&quot; if $opts{'v'};
+	system(&quot;$^X -d $fileName&quot;);
+}
+
+# Perl-only sort -u
+open(OUTFILE, $outfile) or die &quot;can't open $outfile for read: $!\n&quot;;
+my @lines = &lt;OUTFILE&gt;;
+close(OUTFILE);
+@lines = sort @lines;
+open(OUTFILE, &quot;&gt;$outfile&quot;) or die &quot;can't open $outfile for write: $!\n&quot;;
+my $lastLine = '';
+print OUTFILE grep { $_ ne $lastLine and $lastLine = $_ } @lines;
+close(OUTFILE);
+
+# End of main program; debugger text follows
+
+__DATA__
+
+# remove those annoying error messages
+BEGIN { close STDOUT; close STDERR }
+
+sub DB::DB
+{
+	sub DB::keySort
+	{
+		my ($aPackage, $aTag) = $a =~ m{(.*)::(\w+)};
+		my ($bPackage, $bTag) = $b =~ m{(.*)::(\w+)};
+		$aPackage cmp $bPackage
+		or $aTag eq 'BEGIN' ? -1 : 0
+		or $bTag eq 'BEGIN' ? 1 : 0
+		or $aTag cmp $bTag;
+	}
+
+	open(PLTAGS_OUTFILE, $ENV{PLTAGS_OUTFILE});
+
+	# from perldebguts:
+	# A hash &quot;%DB::sub&quot; is maintained, whose keys are subroutine names and
+	# whose values have the form &quot;filename:startline-endline&quot;.  &quot;filename&quot; has
+	# the form &quot;(eval 34)&quot; for subroutines defined inside &quot;eval&quot;s, or
+	# &quot;(re_eval 19)&quot; for those within regex code assertions.
+
+	foreach my $key (sort DB::keySort keys(%DB::sub))
+	{
+		my ($fileName, $lineNumber) = $DB::sub{$key} =~ m{(.+):(\d+)-\d+};
+		my ($package, $tag) = $key =~ m{(.*)::(\w+)};
+		next if $package eq 'DB' || $tag =~ /^__ANON__/ || $fileName =~ '^\(\D+\d+\)$';
+		my $lines = \@{'main::_&lt;' . $fileName};
+		my $line = $$lines[$lineNumber];
+		# back up to a recognizable line
+		while ($lineNumber &gt; 1
+			and (($tag eq 'BEGIN' and $line !~ m{\bpackage\s+} )
+			or ($tag ne 'main' and $tag ne 'BEGIN' and $line !~ m{\b$tag\b} )))
+		{
+				$lineNumber--;
+				$line = $$lines[$lineNumber];
+				redo if !$line; # pod lines are undef'd
+		}
+		chomp($line);
+		$line =~ s{[\/^\$]}{\\$&amp;}g;
+		$key =~ s/^main:://;	# hide main package name
+		$key =~ s/(?:::)?BEGIN$//;
+		next if ! $key;
+		print PLTAGS_OUTFILE &quot;$key\t$fileName\t/^$line\$/\n&quot;;
+	}
+	exit;
+}
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>83204</node_id>
+  <author_user>83012</author_user>
+  <title>Perl tags generator using the Debugger</title>
+  <createtime>2001-05-25 01:27:27</createtime>
+  <nodeupdated>2005-07-22 14:10:45</nodeupdated>
+</node>

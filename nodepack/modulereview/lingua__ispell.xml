@@ -1,0 +1,129 @@
+<node>
+  <doctext>&lt;p&gt;
+(module written by John Porter)
+&lt;p&gt;
+This module simply encapsulates the Unix utility &lt;b&gt;ispell&lt;/b&gt;,
+a text file spell checker that was first written by
+Ralph E. Gorin in 1971.
+&lt;p&gt;.
+&lt;h2&gt;The Good&lt;/h2&gt;
+The great thing about Lingua::Ispell is the ability to
+incorporate a fully functional spell checker into an 
+application, great for finding spelling suggestions 
+on any CGI search engine. You can specify a dictionary 
+file for the module to use, on my system it defaulted 
+to /usr/dict/words. You can also add words to the dictionary 
+file and save it, all via the module's functions. 
+&lt;p&gt; To use Lingua::Ispell, you simply &lt;b&gt;use&lt;/b&gt; the module, 
+and pass the text you wish to spell checker to the &lt;b&gt;spellcheck&lt;/b&gt; 
+function. This function will break the text up into words 
+and return a list of hashes containing at least two keys, 
+&lt;b&gt;term&lt;/b&gt; and &lt;b&gt;type&lt;/b&gt;. &lt;b&gt;Term&lt;/b&gt; is the word being 
+checked and &lt;b&gt;type&lt;/b&gt; is one of six types the module uses 
+to identify different possibilities. Out of these six types, 
+I found only 2 of them to be usefull: &lt;b&gt;miss&lt;/b&gt; and 
+&lt;b&gt;none&lt;/b&gt;. If the type is &lt;b&gt;none&lt;/b&gt;, then the term is
+not found in the dictionary file and no corrections 
+were found. If the type is 
+&lt;b&gt;miss&lt;/b&gt;, then an additional array that contains spelling 
+corrections for that term is made available, named
+&lt;b&gt;misses&lt;/b&gt;.
+&lt;p&gt;Example from the perldoc:
+&lt;code&gt;
+use Lingua::Ispell qw(spellcheck);
+
+for my $r ( spellcheck( &quot;ys we ave no banans&quot; ) ) {
+	
+   if ( $r-&gt;{'type'} eq 'miss' ) {
+      print &quot;'$r-&gt;{'term'}' was not found in the dictionary;\n&quot;;
+      print &quot;Near misses: @{$r-&gt;{'misses'}}\n&quot;;
+   }
+   elsif ( $r-&gt;{'type'} eq 'none' ) {
+      print &quot;No match for term '$r-&gt;{'term'}'\n&quot;;
+   }
+}
+&lt;/code&gt;
+&lt;h2&gt;The Bad&lt;/h2&gt;
+You have to specify where the ispell executable is located - 
+not really bad, but it does affect the portability of you 
+application - so keep this in mind when you have to move 
+your app to another computer.
+&lt;code&gt;
+$Lingua::Ispell::path = '/usr/bin/ispell';
+&lt;/code&gt;
+As a matter of fact, you will find that the above example 
+probably will not work on your box without this line. 
+&lt;h2&gt;The Not So Ugly Code&lt;/h2&gt;
+Here is an example of Lingua::Ispell in action - a CGI form that 
+allows the user to enter some text for spell checking. Remember 
+to specify the location of ispell on your box. 
+&lt;code&gt;
+#!/usr/bin/perl
+
+use strict;
+$|++;
+
+use Lingua::Ispell qw(:all);
+use CGI qw(standard);
+
+# override the default path - Your Mileage May Vary
+$Lingua::Ispell::path = '/usr/bin/ispell';
+
+my $cgi = new CGI;
+print $cgi-&gt;header;
+
+if (my $query = $cgi-&gt;param('query')) {
+   &amp;print_form;
+   &amp;print_corrections($query);
+}
+else {
+   &amp;print_form;
+}
+
+#thanks to Randall for this slick dereferencing trick
+sub print_form {
+
+   print &lt;&lt;_FORM_;
+&lt;H1 align=center&gt;Spell Checker&lt;/H1&gt;
+&lt;HR align=center&gt;
+@{[$cgi-&gt;startform('POST',$cgi-&gt;script_name)]}
+&lt;P&gt;
+Enter Text To Spell Check:
+@{[$cgi-&gt;textfield('query')]}
+@{[$cgi-&gt;submit('Go')]}
+@{[$cgi-&gt;endform]}
+&lt;P&gt;
+&lt;HR&gt;
+_FORM_
+}
+
+sub print_corrections($) {
+
+   my $query = shift;
+   print &quot;Results for &lt;i&gt;'$query'&lt;/i&gt; :&lt;p&gt;&quot;;
+
+   for my $result (spellcheck($query)) {
+
+      my $term = &quot;&lt;font color=red&gt;$result-&gt;{'term'}&lt;/font&gt;&quot;;
+
+      if ($result-&gt;{'type'} eq 'miss') {
+         print &quot;'$term' was not found in the dictionary,&lt;br&gt;\n&quot;;
+         print &quot;&lt;u&gt;Near misses&lt;/u&gt;: &quot;;
+         print join(',', @{$result-&gt;{'misses'}}), &quot;&lt;p&gt;\n&quot;;
+      }
+      elsif ($result-&gt;{'type'} eq 'none') {
+         print &quot;No match for term '$term'.&lt;p&gt;\n&quot;;
+      }
+   }
+}
+&lt;/code&gt;</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>18800</author_user>
+  <createtime>2000-09-13 04:22:11</createtime>
+  <itemdescription>Plug ispell easily into an application</itemdescription>
+  <identifier></identifier>
+  <node_id>32245</node_id>
+  <usercomment>Lightweight CPAN module for spell checking</usercomment>
+  <title>Lingua::Ispell</title>
+  <nodeupdated>2005-08-12 12:51:07</nodeupdated>
+</node>

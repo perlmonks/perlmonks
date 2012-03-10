@@ -1,0 +1,147 @@
+<node>
+  <doctext>#
+# First of a three part post of modules that implement
+# an extension of Perl's built-in alarm functionality.
+#
+# See [Alarm::Queued] and [Alarm::Concurrent]
+# for the other two parts.
+#
+# Props to [tye] for explaining what I needed to know
+# to get this to work.
+#
+package Alarm::_TieSIG;
+
+=head1 NAME
+
+Alarm::_TieSIG - Module handling tying of %SIG for alarm extensions.
+
+=head1 DESCRIPTION
+
+This is an internal utility module for use with the Alarm::*
+alarm extensions, that handles tying of the Perl built-in
+variable C&lt;%SIG&gt;.  This is deep magic and you use this module
+at your own risk.
+
+To use this class, simply C&lt;use&gt; it and then call the
+C&lt;Alarm::_TieSIG::tiesig()&gt; function.  This replaces C&lt;%SIG&gt; with a dummy tied hash.
+
+Whenever the new C&lt;%SIG&gt; is accessed, this class checks to see
+if the requested key is ALRM.  If so, it calls C&lt;sethandler()&gt;
+for STORE's, and C&lt;gethandler()&gt; for FETCHes.  You must provide
+both of these methods in your package.
+
+All other operations are passed on to the original, magic C&lt;%SIG&gt;.
+
+Note: Do I&lt;not&gt; call C&lt;tiesig()&gt; more than once.  Doing so
+produces a warning and no other effects.
+
+=head1 EXAMPLE
+
+The following code will disable, with warnings, attempts to
+set SIGALRM handlers in your program (although it's not
+impossible to get past if someone really wanted to):
+
+  use Alarm::_TieSIG;
+  Alarm::_TieSIG::tiesig();
+
+  sub sethandler {
+    warn &quot;\$SIG{ALRM} has been disabled.\n&quot;;
+  }
+
+  sub gethandler {
+    warn &quot;\$SIG{ALRM} has been disabled.\n&quot;;
+  }
+
+=head1 DISCLAIMER
+
+This module is not guaranteed to work.  In fact, it will probably
+break at the most inconvient time.  If this module breaks your
+program, destroys your computer, ruins your life, or otherwise
+makes you unhappy, do I&lt;not&gt; complain (especially not to me).
+It's your own fault.
+
+=head1 AUTHOR
+
+Written by Cory Johns (c) 2001.
+
+=cut
+
+use strict;
+use Carp;
+
+use vars qw($realSig);
+
+sub tiesig {
+  if($realSig) {
+    carp &quot;Attempt to re-tie %SIG&quot;;
+    return;
+  }
+
+  $realSig = \%SIG;  # Save old %SIG.
+  *SIG = {};         # Replace %SIG with a dummy.
+
+  my $userPkg = caller;
+  return tie %SIG, __PACKAGE__, $userPkg, @_;
+}
+
+sub _setAlrm {
+  $realSig-&gt;{ALRM} = shift;
+}
+
+sub TIEHASH {
+  return bless {'userPkg'=&gt;$_[1]}, shift;
+}
+
+sub STORE {
+  my ($self, $key, $value) = @_;
+
+  if($key eq 'ALRM') {
+    no strict 'refs';
+    &amp;{&quot;$self-&gt;{userPkg}::sethandler&quot;}($value);
+  } else {
+    $realSig-&gt;{$key} = $value;
+  }
+}
+
+sub FETCH {
+  my ($self, $key) = @_;
+
+  if($key eq 'ALRM') {
+    no strict 'refs';
+    &amp;{&quot;$self-&gt;{userPkg}::gethandler&quot;}();
+  } else {
+    return $realSig-&gt;{$key};
+  }
+}
+
+sub EXISTS {
+  return exists $realSig-&gt;{$_[1]};
+}
+
+sub DELETE {
+  return delete $realSig-&gt;{$_[1]};
+}
+
+sub CLEAR {
+  return %$realSig = ();
+}
+
+sub FIRSTKEY {
+  return each %$realSig;
+}
+
+sub NEXTKEY {
+  return each %$realSig;
+}
+
+sub DESTROY {
+}
+
+1;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>77781</node_id>
+  <author_user>51515</author_user>
+  <title>Alarm::_TieSIG</title>
+  <createtime>2001-05-03 21:20:40</createtime>
+  <nodeupdated>2005-08-13 06:37:39</nodeupdated>
+</node>

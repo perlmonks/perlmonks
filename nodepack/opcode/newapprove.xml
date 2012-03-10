@@ -1,0 +1,141 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>21189</node_id>
+  <author_user>114</author_user>
+  <title>newapprove</title>
+  <createtime>2000-03-09 19:57:10</createtime>
+  <code>use Everything::Experience;
+
+return   if  ! Everything::isApproved( $USER, 'CanConsider' );
+
+#!# To be dropped:
+my $fplinktype= getId(
+   getNode( 'frontpage linktype', 'linktype' )
+);
+my $fpid= getId($HTMLVARS{default_node});
+my $lt_id= $q-&gt;param(&quot;linktype&quot;);
+my $sectid= $q-&gt;param('sectionid');
+$sectid  ||= $q-&gt;param('node_id');
+
+my $isEd= do {
+   my $ED= getNode('editors','usergroup');
+   Everything::isApproved($USER,$ED);
+};
+
+$HTMLVARS{approve_msgs}= [];
+
+my $origtype= $q-&gt;param('origtype');
+my $moveid= $q-&gt;param('node_id');
+
+my %result= (
+   ok_unok =&gt; 1,
+   fp_unok =&gt; 1, fp_ok =&gt; 1,
+   unok_ok =&gt; 1, unok_fp =&gt; 1,
+   # Ending status not same as $op:
+   unfp_fp =&gt; 'ok', move_unok =&gt; 'from',
+   # Special error cases:
+   unfp_ok =&gt; 'only', move_ok =&gt; 'nomv', move_fp =&gt; 'nomv',
+);
+my %error= (
+   0    =&gt; &quot;it was already %s%u&quot;,
+   only =&gt; &quot;it was already only %s&quot;,
+   nomv =&gt; &quot;it was %s%u&quot;,
+);
+
+my $SETTING= getVars( getNode('approval nodelet settings','setting') );
+my %types;
+{
+   my @types= split /,/, $SETTING-&gt;{types};
+   @types{@types}= (1) x @types;
+}
+my $newTable= $SETTING-&gt;{newtable}; # || 'approved'; #!#
+if(  ! $newTable  ) {
+   push @{$HTMLVARS{approve_msgs}},
+      &quot;Approvals temporarily disabled.&quot;;
+   return;
+}
+
+my( $op, $error, $user, $status );
+foreach my $nodeid (  $q-&gt;param()  ) {
+   $error= $user= $status= '';
+   next   if  ! $nodeid  ||  $nodeid =~ /\D/;
+   $op= join ',', $q-&gt;param($nodeid);
+   next   if  'noop' eq $op;
+   local( $GNODE )= getNodeById($nodeid);
+   if(  $op =~ /,/  ) {
+      $error= &quot;only one operation at-a-time per node&quot;;
+   } elsif(  $op =~ /^un/  &amp;&amp;  ! $isEd  ) {
+      $error= &quot;only [editors] may do that&quot;;
+   } elsif(  $GNODE-&gt;{author_user} == $USER-&gt;{user_id} &amp;&amp; $op ne 'move'  ) {
+      $error= &quot;you can't moderate your own nodes&quot;;
+   } elsif(  !$origtype  ) {
+      $error= &quot;origtype not specified??&quot;;
+   } elsif(  $origtype != $GNODE-&gt;{type}-&gt;{title}  ) {
+      $error= &quot;it was moved by another user&quot;;
+   } elsif(  ! $types{$origtype}  ) {
+      $error= &quot;this type of node cannot be moderated&quot;;
+   }
+   next   if  $error;
+# DEBUG printLog(&quot;newapprove: Got here with author: $GNODE-&gt;{author_user}, and user: $USER-&gt;{user_id}, op=$op\n&quot;);
+   $status= htmlcode( 'isapproved','', $nodeid, \$user );
+   my $result= $result{ $op . &quot;_&quot; . $status } || 0;
+   $error= $error{$result};
+   if(  'move' eq $op  ) {
+      $op= $result;
+      my $movetotype= $q-&gt;param('movetotype');
+      if(  ! $movetotype  ) {
+         $error= &quot;no movetotype given??&quot;;
+      } else {
+         my( $oldsect, $newsect );
+         $error= htmlcode( 'move2sect','', $movetotype, \$sectid, \$oldsect, \$newsect, $isEd )
+            or  push @{$HTMLVARS{approve_msgs}},
+                  &quot;'moved &quot; . linkNode($nodeid) .&quot; from $oldsect to $newsect&quot;;
+      }
+   }
+   next   if  $error;
+   $result= $op   if  &quot;1&quot; eq $result;
+   $DB-&gt;sqlInsert( 'approvalhistory', {
+      approves_id    =&gt; $nodeid,
+      user_approves  =&gt; getId($USER),
+      action         =&gt; $op,
+      section_id        =&gt; $sectid,
+   } );
+   next   if  'from' eq $op;
+
+   ## $DB-&gt;sqlReplace(
+   my $sth= $DB-&gt;getDatabaseHandle-&gt;prepare(
+     &quot;REPLACE INTO $newTable (
+         approved_id,
+         user_approved,
+         status )
+      VALUES ( ?, ?, ? )&quot;
+   );
+   $sth-&gt;execute( $nodeid, getId($USER), $result );
+
+   ## To be dropped:
+   if(  $op eq &quot;fp&quot;  ) {
+      updateLinks( $nodeid, $fpid, $fplinktype );
+      updateLinks( $nodeid, $sectid, $lt_id );
+   } elsif(  $op eq 'ok'  ) {
+      updateLinks( $nodeid, $sectid, $lt_id );
+   } elsif (  $op eq 'unfp'  ) {
+      htmlcode( 'removelinks','', $nodeid, $fplinktype );
+   } elsif (  $op eq 'unok'  ) {
+      htmlcode( 'removelinks','', $nodeid, $lt_id, $fplinktype );
+   } elsif (  $op eq &quot;delete&quot;  &amp;&amp;  isGod($USER)  &amp;&amp;  $sectid == 6345  ) {
+      nukeNode( $nodeid, $USER );
+   }
+
+} continue {
+   if(  $error  ) {
+      $error =~ s#%s#'$status'#;
+      $error =~ s#%u#&quot;ed by &quot; . linkNode($user)#e   if  $user;
+      $error =~ s#%u#ed#   if  'unok' ne $status;
+      $error =~ s#%u##;
+      push @{$HTMLVARS{approve_msgs}},
+         &quot;Can't '$op' &quot; . linkNode($nodeid) . &quot;; $error&quot;;
+   }
+}
+</code>
+  <nodeupdated>2005-06-06 10:30:33</nodeupdated>
+</node>

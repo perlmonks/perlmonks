@@ -1,0 +1,160 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+CGI::Fast - 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; Interface for Fast 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+CGI::Fast is a subclass of the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object created by CGI.pm. It is specialized to work well with the Open Market FastCGI standard, which greatly speeds up 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts by turning them into persistently running server processes. Scripts that perform time-consuming initialization processes, such as loading large modules or opening persistent database connections, will see large performance improvements.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;OTHER_PIECES_OF_THE_PUZZLE&quot;&gt;OTHER PIECES OF THE PUZZLE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+In order to use CGI::Fast you'll need a FastCGI-enabled Web server. Open Market's server is FastCGI-savvy. There are also freely redistributable FastCGI modules for 
+&lt;FONT SIZE=-1&gt;NCSA&lt;/FONT&gt; httpd 1.5 and Apache. FastCGI-enabling modules for Microsoft Internet Information Server and Netscape Communications Server have been announced.
+
+&lt;P&gt;
+In addition, you'll need a version of the Perl interpreter that has been linked with the FastCGI 
+&lt;FONT SIZE=-1&gt;I/O&lt;/FONT&gt; library. Precompiled binaries are available for several platforms, including 
+&lt;FONT SIZE=-1&gt;DEC&lt;/FONT&gt; Alpha, 
+&lt;FONT SIZE=-1&gt;HP-UX&lt;/FONT&gt; and SPARC/Solaris, or you can rebuild Perl from source with patches provided in the FastCGI developer's kit. The FastCGI Perl interpreter can be used in place of your normal Perl without ill consequences.
+
+&lt;P&gt;
+You can find FastCGI modules for Apache and 
+&lt;FONT SIZE=-1&gt;NCSA&lt;/FONT&gt; httpd, precompiled Perl interpreters, and the FastCGI developer's kit all at 
+&lt;FONT SIZE=-1&gt;URL:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;  &lt;A HREF=&quot;http://www.fastcgi.com/&quot;&gt;http://www.fastcgi.com/&lt;/A&gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;WRITING_FASTCGI_PERL_SCRIPTS&quot;&gt;WRITING FASTCGI PERL SCRIPTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+FastCGI scripts are persistent: one or more copies of the script are
+started up when the server initializes, and stay around until the server
+exits or they die a natural death. After performing whatever one-time
+initialization it needs, the script enters a loop waiting for incoming
+connections, processing the request, and waiting some more.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; typical FastCGI script will look like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/local/bin/perl    # must be a FastCGI version of perl!
+    use CGI::Fast;
+    &amp;amp;do_some_initialization();
+    while ($q = new CGI::Fast) {
+        &amp;amp;process_request($q);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Each time there's a new request, CGI::Fast returns a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object to your loop. The rest of the time your script waits in the call to 
+&lt;CODE&gt;new().&lt;/CODE&gt; When the server requests that your script be terminated, 
+&lt;CODE&gt;new()&lt;/CODE&gt; will return undef. You can of course exit earlier if you choose. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; new version of the script will be respawned to take its place (this may be necessary in order to avoid Perl memory leaks in long-running scripts).
+
+&lt;P&gt;
+CGI.pm's default 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object mode also works. Just modify the loop this
+way:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (new CGI::Fast) {
+        &amp;amp;process_request;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Calls to 
+&lt;CODE&gt;header(),&lt;/CODE&gt; 
+&lt;CODE&gt;start_form(),&lt;/CODE&gt; etc. will all operate on the current request.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;INSTALLING_FASTCGI_SCRIPTS&quot;&gt;INSTALLING FASTCGI SCRIPTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+See the FastCGI developer's kit documentation for full details. On the
+Apache server, the following line must be added to srm.conf:
+
+&lt;P&gt;
+&lt;PRE&gt;    AddType application/x-httpd-fcgi .fcgi
+&lt;/PRE&gt;
+&lt;P&gt;
+FastCGI scripts must end in the extension .fcgi. For each script you
+install, you must add something like the following to srm.conf:
+
+&lt;P&gt;
+&lt;PRE&gt;   AppClass /usr/etc/httpd/fcgi-bin/file_upload.fcgi -processes 2
+&lt;/PRE&gt;
+&lt;P&gt;
+This instructs Apache to launch two copies of file_upload.fcgi at startup
+time.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;USING_FASTCGI_SCRIPTS_AS_CGI_SCR&quot;&gt;USING FASTCGI SCRIPTS AS CGI SCRIPTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Any script that works correctly as a FastCGI script will also work correctly when installed as a vanilla 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script. However it will not see any performance benefit.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;CAVEATS&quot;&gt;CAVEATS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; haven't tested this very much.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR_INFORMATION&quot;&gt;AUTHOR INFORMATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+be used and modified freely, but 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; do request that this copyright notice remain
+attached to the file. You may modify this module as you wish, but if you
+redistribute a modified version, please attach a note listing the
+modifications you have made.
+
+&lt;P&gt;
+Address bug reports and comments to: &lt;A
+HREF=&quot;mailto:lstein@genome.wi.mit.edu&quot;&gt;lstein@genome.wi.mit.edu&lt;/A&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;BUGS&quot;&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This section intentionally left blank.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:CGI::Carp|Carp], [perlman:lib:CGI|CGI]
+ 
+=cut
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:50:50</createtime>
+  <node_id>1170</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    use CGI::Fast qw(:standard);
+    $COUNTER = 0;
+    while (new CGI::Fast) {
+        print header;
+        print start_html(&amp;quot;Fast CGI Rocks&amp;quot;);
+        print
+            h1(&amp;quot;Fast CGI Rocks&amp;quot;),
+            &amp;quot;Invocation num</synopsis>
+  <title>perlman:CGI::Fast</title>
+  <nodeupdated>2005-08-12 23:32:40</nodeupdated>
+</node>

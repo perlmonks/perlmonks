@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="182588" title="chatuserarg" created="2002-07-17 17:12:58" updated="2004-10-21 11:21:22">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+   my( $cmd, $text, $groups )= @_;
+   my $type = $groups ? "user or group" : "user";
+   my $reason = "does not exist";
+   my( $user, $U, $rest );
+   if(  $text =~ m#^\[id://(\d+)\](?:\s+(.*?))?\s*$#si  ) {
+      ( $type, $user, $rest ) = ( "node ID", $1, $2 );
+      $U = getNode( $user );
+      if(  ! $U  ) {
+         ;
+      } elsif(  $groups  &amp;&amp;  "usergroup" eq $U-&gt;{type}{title}  ) {
+         return( $U, $rest, 1 );
+      } elsif(  "user" eq $U-&gt;{type}{title}  ) {
+         return( $U, $rest );
+      } else {
+         $reason = "is not a user";
+      }
+   } elsif(  $text =~ m#^(\[)([^\]]+)\](?:\s+(.*?))?\s*$#s
+         ||  $text =~ m#^()(\S+)(?:\s+(.*?))?\s*$#s  ) {
+      my $bracket = $1;
+      ( $user, $rest ) = ( $2, $3 );
+      $HTMLVARS{testmessage} .=
+         "chatuserarg: user($user) rest($rest)\n";
+
+      $U = getNode( $user, "user" );
+      $HTMLVARS{testmessage} .=
+         "chatuserarg: user U($U)\n";
+      $U ||= getNode( $user, 'usergroup' )
+         if  $groups;
+      if(  ! $U  &amp;&amp;  ! $bracket
+       &amp;&amp;  ( my $u = $user ) =~ s/_/ /g  ) {
+         $U = getNode( $u, "user" );
+         $U ||= getNode( $u, 'usergroup' )
+            if  $groups;
+      }
+      return( $U, $rest, "usergroup" eq $U-&gt;{type}{title} )
+         if  $U;
+   } else {
+      # Malformed command:
+      return( "", undef );
+   }
+
+   $DB-&gt;sqlInsert( "message", {
+      msgtext =&gt; qq[You entered "/$cmd ]
+         . $query-&gt;escapeHTML($text) . qq[", but $type ]
+         . $query-&gt;escapeHTML($user) . qq[ $reason!],
+      author_user =&gt; getId( getNode('root','user') ),
+      for_user =&gt; getId($USER),
+   } );
+   $query-&gt;param( "sentmessage",
+      qq[&lt;i&gt;/$cmd failed (see ]
+        . linkNodeTitle("Message Inbox") . qq[).&lt;/i&gt;]
+   );
+   return "";</field>
+</data>
+</node>

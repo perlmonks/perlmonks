@@ -1,0 +1,229 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>30755</node_id>
+  <author_user>929</author_user>
+  <title>showchatter</title>
+  <createtime>2000-09-01 17:07:28</createtime>
+  <code>my( $timeout, $limit, $split, $reverse )= @_;
+$timeout ||= 500;
+$limit   ||= 10;
+
+my $ignore_list = $VARS-&gt;{ignoredusers};
+$ignore_list =~ s/\|//g;
+$ignore_list =~ s/,$//;
+my $not_ignored = $ignore_list
+    ? &quot; and updateinterval not in ($ignore_list) &quot;
+    : '';
+my $skip;
+if ( $VARS-&gt;{chatter_filter} ) {
+   $skip=join &quot;|&quot;, map { quotemeta($_) }
+         split /\s*,\s*/, $VARS-&gt;{chatter_filter};
+   $skip=qr/(?:$skip)/i;
+}
+
+
+my $current = &quot;DATE_FORMAT(FROM_UNIXTIME(UNIX_TIMESTAMP(now())-$timeout), '%Y-%m-%d %H:%i:%s')  &lt; lastupdate&quot;;
+
+my $code_id = $HTMLVARS{public_chatter_cache_code_id};
+
+my $csr = $DB-&gt;sqlSelectMany(
+    &quot;*,&quot;.
+    &quot;UNIX_TIMESTAMP(now())-UNIX_TIMESTAMP(lastupdate) as secsago,&quot;.
+    &quot;DATE_FORMAT(lastupdate,'%Y-%m-%d %T') as date&quot;,
+    'cachedinfo',
+    &quot;code_id = $code_id and $current $not_ignored&quot;,
+    &quot;order by cachekey desc limit $limit&quot;,
+);
+
+
+return qq(&lt;i class=&quot;cb_quiet&quot;&gt;and mysqld suddenly died...&lt;/i&gt;&lt;br /&gt;\n)
+    unless  $csr;
+
+my @msgs;
+unshift @msgs, $_   while  $_ = $csr-&gt;fetchrow_hashref();
+
+if(  ! @msgs  ) {
+    # Get random 0&lt;=value&lt;1 from only &quot;this 6-second time window&quot;:
+    require Digest::MD5;
+    require Everything::VoteSecret; # Prevent prediction
+    # Multiplying by 107 changes more digits, which seems to help:
+    my $rand= $Everything::VoteSecret::secret . 107*int(time()/6);
+    $rand= Digest::MD5::md5_hex( $rand );
+    my $x= 0xFFFFFFFF + 1;
+    $rand= (
+                hex( substr $rand, 4, 8 ) / $x
+            +   hex( substr $rand, 13, 8 )
+        ) / $x;
+
+    # To get $x= rand(10), paste the following:
+    $x= 10*$rand;  $rand= $x - int($x);
+
+    return qq(&lt;i class=&quot;cb_quiet&quot;&gt;and all is quiet...&lt;/i&gt;&lt;br /&gt;\n)
+        if  1 &lt;= $x;    # 90% of the time.
+    $x= 10*$rand;  $rand= $x - int($x);
+    if(  1 &lt;= $x  ) {   # 90% of the 10%
+        my @quiet= (
+            'and the monastery is silent',
+            'and the rats come out to play',
+            'and the monks are mute',
+            'and the questions are moot',
+            'and not a whisper to be heard',
+            'and the grasshoppers chirp',
+            'and the leaves swirl about',
+            'and a soft breeze sighs',
+            'and the voices are still',
+            'and the sunlight beams',
+            'and a moth chases the moon',
+            'and the pool shimmers',
+            'and the daffodils sway',
+            'and nobody stirs',
+            'and all is calm',
+            'and snow settles gently',
+            'and the fog begins to lift',
+            'and John Coltrane plays',
+            'Ook. Ook!',
+            'and the fire pops',
+            'and a log crumbles through the grate',
+            'and dust plays in a shaft of sunlight',
+            'and the radiator hisses contentedly',
+            'and a kettle whistles',
+            'and cookies bake in the oven',
+            'and monks are getting baked in the sun',
+            'and the monks are chillaxin\'',
+            'and one hand claps',
+            'and the universe expands',
+            'and the shadows deepen',
+            '&lt;tt&gt;and !@monks&lt;/tt&gt;',
+            'What\'s the matter? &lt;a href=&quot;?node=NodeReaper&quot;&gt;Cat&lt;/a&gt; got your tongue?',
+        );
+        $x= @quiet*$rand;  $rand= $x - int($x);
+        if (htmlcode('parseTimeInString', '', ('')x3, '%m-%d') eq '05-01' and not $VARS-&gt;{nosenseofhumor}) {
+            return qq(&lt;i class=&quot;cb_quiet&quot;&gt;&lt;font color=\&quot;red\&quot;&gt;$quiet[ $x ]...&lt;/font&gt;&lt;/i&gt;&lt;br /&gt;\n)
+        }
+        else {
+            return qq(&lt;i class=&quot;cb_quiet&quot;&gt;$quiet[ $x ]...&lt;/i&gt;&lt;br /&gt;\n)
+        }
+    }
+    $x= 4*$rand;  $rand= $x - int($x);
+    my @borgisms= (
+        'sharpens his wit',
+        'stumbles on his way to the attic',
+        'patrols the perimeter',
+        'preheats the oven before tossing in a TV dinner',
+        'silently materializes above an unsuspecting visitor',
+        'patches his monknet',
+        'waits for the new pizza guy, again',
+        'practices exenteration where nobody will notice',
+        'lights some incense and reads Tool and Die',
+        'gets another author to use Module::Build',
+        'polishes bones to Britney',
+        'serves mincemeat tarts with the cider',
+        'takes a ball from the brass monkey',
+        'files his shovel',
+        'writes the same droll phrase again',
+        'adds to his collection',
+        'duct tapes the vents to muffle the moaning',
+        'power washes the cellar floor',
+        'suddenly falls through the false ceiling',
+        'tries to shade his eye-sockets with his hands',
+        'gets the Vote Fairy drunk',
+        'releases the hounds',
+        'practices with his stiletto',
+        'emits an eerie hum',
+        'adjusts the cross hairs',
+        'selects a flavor of Kool-Aid',
+        q(says &quot;Shhhh! Be vewy vewy quiet, I'm hunting wumpus&quot;),
+        'wonders through a maze of twisty little sayings, all different',
+        'slips on a banana skin',
+        &quot;settles into the armchair by the fire.&quot;
+          . &quot; You weren't using it were you?&quot;,
+        'stokes the furnace',
+        '. o O ( Did I forget to leave the gas on? )',
+        'shuffles a deck of punched cards',
+        &quot;edits tomorrow's obituaries&quot;,
+        &quot;hides the Vote Fairy's wand&quot;,
+        'snacks on some Soylent Green',
+        'does the &lt;a href=&quot;http://en.wikipedia.org/wiki/Danse_macabre&quot;&gt;'
+            . 'danse macabre&lt;/a&gt;',
+        'recites &lt;a href=&quot;http://en.wikipedia.org/wiki/The_Raven&quot;&gt;'
+            . 'The Raven&lt;/a&gt; over the P.A. again',
+        'updates his toe tag collection database',
+        'cracks his knuckles - loudly',
+        'drums his fingers on the chair arm',
+        'sorts his collection of toe tags, '
+            . ( 'alphabetically',
+                'chronologically',
+                'by blood type',
+                'by difficulty' )[$x],
+        'cleans and fillets',
+        'eats a grue',
+        'buffs his metatarsals',
+        'listens to &lt;a href=&quot;http://en.wikipedia.org/wiki/Dies_Irae&quot;&gt;'
+            . 'Dies Irae&lt;/a&gt;',
+        'reads the &lt;a href=&quot;http://en.wikipedia.org/wiki/Necronomicon&quot;&gt;'
+            . 'Necronomicon&lt;/a&gt;',
+    );
+    $x= @borgisms*$rand;  $rand= $x - int($x);
+    if (htmlcode('parseTimeInString', '', ('')x3, '%m-%d') eq '05-01' and not $VARS-&gt;{nosenseofhumor}) {
+        return sprintf qq(&lt;i class=&quot;cb_quiet borgism&quot;&gt;&lt;font color=&quot;red&quot;&gt;%s %s&lt;/font&gt;&lt;/i&gt;&lt;br /&gt;\n),
+            linkNodeTitle('NodeReaper'),
+            $borgisms[$x];
+    }
+    else {
+        return sprintf qq(&lt;i class=&quot;cb_quiet borgism&quot;&gt;%s %s&lt;/i&gt;&lt;br /&gt;\n),
+            linkNodeTitle('NodeReaper'),
+            $borgisms[$x];
+    }
+}
+
+my $html= qq[&lt;table class=&quot;cb_table&quot; border=&quot;0&quot; width=&quot;100%&quot;]
+        . qq[ cellspacing=&quot;0&quot; cellpadding=&quot;2&quot;&gt;\n];
+my $odd = 1;
+my $secsago;
+my @html;
+my $offset = 1;
+my $when = 'before next';
+if( $reverse ){
+    @msgs = reverse @msgs;
+    $when = 'after prev';
+    $offset = -1;
+}
+
+for my $i ( 0 .. $#msgs ) {
+    my $msg=$msgs[$i];
+    next if $skip &amp;&amp; $msg-&gt;{cachedata}=~/$skip/;
+
+    my $ds = ($i+$offset &gt;=0 &amp;&amp; $i+$offset&lt;=$#msgs)
+             ? $msg-&gt;{secsago} - $msgs[$i+$offset]{secsago}
+             : $msg-&gt;{secsago};
+    my ( $min, $sec )=  $msg-&gt;{date} =~ /(..):(..)$/;
+    $ds += 60*60   if  $ds &lt; 0;
+    my $dm= int( $ds / 60 );
+    $ds %= 60;
+
+    my $title = sprintf 'Posted :%02d:%02d (%d:%02d %s)',
+        $min, $sec,
+        $dm, $ds,
+        $i == $#msgs ? 'ago' : $when
+      if $dm||$ds;
+
+   # Extra whitespace here causes some browsers to mis-wrap
+   # when it happens at the end of a line.
+
+   my ($msg_type,$text)=split /\t/,$msg-&gt;{cachedata},3;
+
+
+   $text=~s/%%titletext%%/$title/;
+   $text=htmlcode('convert_links_to_html','',$text);
+   $text=htmlcode('split_html','',$text) if $split;
+   push @html,sprintf '&lt;tr class=&quot;%s&quot;&gt;&lt;td class=&quot;%s&quot;&gt;%s&lt;/td&gt;&lt;/tr&gt;',
+            $msg_type,( $odd ? &quot;odd-row&quot; : &quot;even-row&quot; ),$text;
+
+   $odd= ! $odd;
+}
+#@html=reverse @html if $reverse;
+return join &quot;\n&quot;,$html,@html,&quot;&lt;/table&gt;\n&quot;;
+
+</code>
+  <nodeupdated>2005-08-11 02:22:59</nodeupdated>
+</node>

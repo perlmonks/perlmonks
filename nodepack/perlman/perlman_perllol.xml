@@ -1,0 +1,385 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlLoL - Manipulating Lists of Lists in Perl
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Declaration_and_Access_of_Lists_&quot;&gt;Declaration and Access of Lists of Lists&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The simplest thing to build is a list of lists (sometimes called an array
+of arrays). It's reasonably easy to understand, and almost everything that
+applies here will also be applicable later on with the fancier data
+structures.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; list of lists, or an array of an array if you would,
+is just a regular old array &lt;CODE&gt;@LoL&lt;/CODE&gt; that you can get at with two
+subscripts, like &lt;CODE&gt;$LoL&amp;#091;3&amp;#093;&amp;#091;2&amp;#093;&lt;/CODE&gt;. Here's a declaration of the array:
+
+&lt;P&gt;
+&lt;PRE&gt;    # assign to our array a list of list references
+    @LoL = (
+           &amp;#091; &amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot; &amp;#093;,
+           &amp;#091; &amp;quot;george&amp;quot;, &amp;quot;jane&amp;quot;, &amp;quot;elroy&amp;quot; &amp;#093;,
+           &amp;#091; &amp;quot;homer&amp;quot;, &amp;quot;marge&amp;quot;, &amp;quot;bart&amp;quot; &amp;#093;,
+    );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $LoL&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;;
+  bart
+&lt;/PRE&gt;
+&lt;P&gt;
+Now you should be very careful that the outer bracket type is a round one,
+that is, a parenthesis. That's because you're assigning to an @list, so you
+need parentheses. If you wanted there &lt;EM&gt;not&lt;/EM&gt; to be an @LoL, but rather just a reference to it, you could do something
+more like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    # assign a reference to list of list references
+    $ref_to_LoL = &amp;#091;
+        &amp;#091; &amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot;, &amp;quot;pebbles&amp;quot;, &amp;quot;bambam&amp;quot;, &amp;quot;dino&amp;quot;, &amp;#093;,
+        &amp;#091; &amp;quot;homer&amp;quot;, &amp;quot;bart&amp;quot;, &amp;quot;marge&amp;quot;, &amp;quot;maggie&amp;quot;, &amp;#093;,
+        &amp;#091; &amp;quot;george&amp;quot;, &amp;quot;jane&amp;quot;, &amp;quot;alroy&amp;quot;, &amp;quot;judy&amp;quot;, &amp;#093;,
+    &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $ref_to_LoL-&amp;gt;&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice that the outer bracket type has changed, and so our access syntax has also changed. That's because unlike 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; in perl you can't freely interchange arrays and references thereto. &lt;CODE&gt;$ref_to_LoL&lt;/CODE&gt; is a reference to an array, whereas &lt;CODE&gt;@LoL&lt;/CODE&gt; is an array proper. Likewise,
+ &lt;CODE&gt;$LoL&amp;#091;2&amp;#093;&lt;/CODE&gt; is not an array, but an array ref. So how come you can write these:
+
+&lt;P&gt;
+&lt;PRE&gt;    $LoL&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;
+    $ref_to_LoL-&amp;gt;&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+instead of having to write these:
+
+&lt;P&gt;
+&lt;PRE&gt;    $LoL&amp;#091;2&amp;#093;-&amp;gt;&amp;#091;2&amp;#093;
+    $ref_to_LoL-&amp;gt;&amp;#091;2&amp;#093;-&amp;gt;&amp;#091;2&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+Well, that's because the rule is that on adjacent brackets only (whether
+square or curly), you are free to omit the pointer dereferencing arrow. But
+you cannot do so for the very first one if it's a scalar containing a
+reference, which means that &lt;CODE&gt;$ref_to_LoL&lt;/CODE&gt; always needs it.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Growing_Your_Own&quot;&gt;Growing Your Own&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+That's all well and good for declaration of a fixed data structure, but
+what if you wanted to add new elements on the fly, or build it up entirely
+from scratch?
+
+&lt;P&gt;
+First, let's look at reading it in from a file. This is something like
+adding a row at a time. We'll assume that there's a flat file in which each
+line is a row and each word an element. If you're trying to develop an
+&lt;CODE&gt;@LoL&lt;/CODE&gt; list containing all these, here's the right way to do
+that:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        @tmp = split;
+        push @LoL, &amp;#091; @tmp &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+You might also have loaded that from a function:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 1 .. 10 ) {
+        $LoL&amp;#091;$i&amp;#093; = &amp;#091; somefunc($i) &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Or you might have had a temporary variable sitting around with the list in
+it.
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 1 .. 10 ) {
+        @tmp = somefunc($i);
+        $LoL&amp;#091;$i&amp;#093; = &amp;#091; @tmp &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+It's very important that you make sure to use the &lt;CODE&gt;&amp;#091;&amp;#093;&lt;/CODE&gt; list reference constructor. That's because this will be very wrong:
+
+&lt;P&gt;
+&lt;PRE&gt;    $LoL&amp;#091;$i&amp;#093; = @tmp;
+&lt;/PRE&gt;
+&lt;P&gt;
+You see, assigning a named list like that to a scalar just counts the
+number of elements in @tmp, which probably isn't what you want.
+
+&lt;P&gt;
+If you are running under &lt;CODE&gt;use strict&lt;/CODE&gt;, you'll have to add some declarations to make it happy:
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+    my(@LoL, @tmp);
+    while (&amp;lt;&amp;gt;) {
+        @tmp = split;
+        push @LoL, &amp;#091; @tmp &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Of course, you don't need the temporary array to have a name at all:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        push @LoL, &amp;#091; split &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+You also don't have to use 
+&lt;CODE&gt;push().&lt;/CODE&gt; You could just make a
+direct assignment if you knew where you wanted to put it:
+
+&lt;P&gt;
+&lt;PRE&gt;    my (@LoL, $i, $line);
+    for $i ( 0 .. 10 ) {
+        $line = &amp;lt;&amp;gt;;
+        $LoL&amp;#091;$i&amp;#093; = &amp;#091; split ' ', $line &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+or even just
+
+&lt;P&gt;
+&lt;PRE&gt;    my (@LoL, $i);
+    for $i ( 0 .. 10 ) {
+        $LoL&amp;#091;$i&amp;#093; = &amp;#091; split ' ', &amp;lt;&amp;gt; &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+You should in general be leery of using potential list functions in a
+scalar context without explicitly stating such. This would be clearer to
+the casual reader:
+
+&lt;P&gt;
+&lt;PRE&gt;    my (@LoL, $i);
+    for $i ( 0 .. 10 ) {
+        $LoL&amp;#091;$i&amp;#093; = &amp;#091; split ' ', scalar(&amp;lt;&amp;gt;) &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you wanted to have a &lt;CODE&gt;$ref_to_LoL&lt;/CODE&gt; variable as a reference to
+an array, you'd have to do something like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        push @$ref_to_LoL, &amp;#091; split &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Now you can add new rows. What about adding new columns? If you're dealing
+with just matrices, it's often easiest to use simple assignment:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $x (1 .. 10) {
+        for $y (1 .. 10) {
+            $LoL&amp;#091;$x&amp;#093;&amp;#091;$y&amp;#093; = func($x, $y);
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    for $x ( 3, 7, 9 ) {
+        $LoL&amp;#091;$x&amp;#093;&amp;#091;20&amp;#093; += func2($x);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+It doesn't matter whether those elements are already there or not: it'll
+gladly create them for you, setting intervening elements to [perlfunc:undef|undef] as need be.
+
+&lt;P&gt;
+If you wanted just to append to a row, you'd have to do something a bit
+funnier looking:
+
+&lt;P&gt;
+&lt;PRE&gt;    # add new columns to an existing row
+    push @{ $LoL&amp;#091;0&amp;#093; }, &amp;quot;wilma&amp;quot;, &amp;quot;betty&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice that 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; &lt;EM&gt;couldn't&lt;/EM&gt; say just:
+
+&lt;P&gt;
+&lt;PRE&gt;    push $LoL&amp;#091;0&amp;#093;, &amp;quot;wilma&amp;quot;, &amp;quot;betty&amp;quot;;  # WRONG!
+&lt;/PRE&gt;
+&lt;P&gt;
+In fact, that wouldn't even compile. How come? Because the argument to 
+&lt;CODE&gt;push()&lt;/CODE&gt; must be a real array,
+not just a reference to such.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Access_and_Printing&quot;&gt;Access and Printing&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Now it's time to print your data structure out. How are you going to do
+that? Well, if you want only one of the elements, it's trivial:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $LoL&amp;#091;0&amp;#093;&amp;#091;0&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you want to print the whole thing, though, you can't say
+
+&lt;P&gt;
+&lt;PRE&gt;    print @LoL;         # WRONG
+&lt;/PRE&gt;
+&lt;P&gt;
+because you'll get just references listed, and perl will never automatically dereference things for you. Instead, you have to roll yourself a loop or two. This prints the whole structure, using the shell-style 
+&lt;CODE&gt;for()&lt;/CODE&gt; construct to loop across the outer set of subscripts.
+
+&lt;P&gt;
+&lt;PRE&gt;    for $aref ( @LoL ) {
+        print &amp;quot;\t &amp;#091; @$aref &amp;#093;,\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you wanted to keep track of subscripts, you might do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 0 .. $#LoL ) {
+        print &amp;quot;\t elt $i is &amp;#091; @{$LoL&amp;#091;$i&amp;#093;} &amp;#093;,\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+or maybe even this. Notice the inner loop.
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 0 .. $#LoL ) {
+        for $j ( 0 .. $#{$LoL&amp;#091;$i&amp;#093;} ) {
+            print &amp;quot;elt $i $j is $LoL&amp;#091;$i&amp;#093;&amp;#091;$j&amp;#093;\n&amp;quot;;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+As you can see, it's getting a bit complicated. That's why sometimes is
+easier to take a temporary on your way through:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 0 .. $#LoL ) {
+        $aref = $LoL&amp;#091;$i&amp;#093;;
+        for $j ( 0 .. $#{$aref} ) {
+            print &amp;quot;elt $i $j is $LoL&amp;#091;$i&amp;#093;&amp;#091;$j&amp;#093;\n&amp;quot;;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Hmm... that's still a bit ugly. How about this:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 0 .. $#LoL ) {
+        $aref = $LoL&amp;#091;$i&amp;#093;;
+        $n = @$aref - 1;
+        for $j ( 0 .. $n ) {
+            print &amp;quot;elt $i $j is $LoL&amp;#091;$i&amp;#093;&amp;#091;$j&amp;#093;\n&amp;quot;;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Slices&quot;&gt;Slices&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+If you want to get at a slice (part of a row) in a multidimensional array,
+you're going to have to do some fancy subscripting. That's because while we
+have a nice synonym for single elements via the pointer arrow for
+dereferencing, no such convenience exists for slices. (Remember, of course,
+that you can always write a loop to do a slice operation.)
+
+&lt;P&gt;
+Here's how to do one operation using a loop. We'll assume an
+&lt;CODE&gt;@LoL&lt;/CODE&gt; variable as before.
+
+&lt;P&gt;
+&lt;PRE&gt;    @part = ();
+    $x = 4;
+    for ($y = 7; $y &amp;lt; 13; $y++) {
+        push @part, $LoL&amp;#091;$x&amp;#093;&amp;#091;$y&amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+That same loop could be replaced with a slice operation:
+
+&lt;P&gt;
+&lt;PRE&gt;    @part = @{ $LoL&amp;#091;4&amp;#093; } &amp;#091; 7..12 &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+but as you might well imagine, this is pretty rough on the reader.
+
+&lt;P&gt;
+Ah, but what if you wanted a &lt;EM&gt;two-dimensional slice&lt;/EM&gt;, such as having &lt;CODE&gt;$x&lt;/CODE&gt; run from 4..8 and &lt;A
+HREF=&quot;perlop.html#item__y&quot;&gt;$y&lt;/A&gt; run from 7 to
+12? Hmm... here's the simple way:
+
+&lt;P&gt;
+&lt;PRE&gt;    @newLoL = ();
+    for ($startx = $x = 4; $x &amp;lt;= 8; $x++) {
+        for ($starty = $y = 7; $y &amp;lt;= 12; $y++) {
+            $newLoL&amp;#091;$x - $startx&amp;#093;&amp;#091;$y - $starty&amp;#093; = $LoL&amp;#091;$x&amp;#093;&amp;#091;$y&amp;#093;;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+We can reduce some of the looping through slices
+
+&lt;P&gt;
+&lt;PRE&gt;    for ($x = 4; $x &amp;lt;= 8; $x++) {
+        push @newLoL, &amp;#091; @{ $LoL&amp;#091;$x&amp;#093; } &amp;#091; 7..12 &amp;#093; &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you were into Schwartzian Transforms, you would probably have selected
+map for that
+
+&lt;P&gt;
+&lt;PRE&gt;    @newLoL = map { &amp;#091; @{ $LoL&amp;#091;$_&amp;#093; } &amp;#091; 7..12 &amp;#093; &amp;#093; } 4 .. 8;
+&lt;/PRE&gt;
+&lt;P&gt;
+Although if your manager accused of seeking job security (or rapid insecurity) through inscrutable code, it would be hard to argue. :-) If 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; were you, I'd put that in a function:
+
+&lt;P&gt;
+&lt;PRE&gt;    @newLoL = splice_2D( \@LoL, 4 =&amp;gt; 8, 7 =&amp;gt; 12 );
+    sub splice_2D {
+        my $lrr = shift;        # ref to list of list refs!
+        my ($x_lo, $x_hi,
+            $y_lo, $y_hi) = @_;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        return map {
+            &amp;#091; @{ $lrr-&amp;gt;&amp;#091;$_&amp;#093; } &amp;#091; $y_lo .. $y_hi &amp;#093; &amp;#093;
+        } $x_lo .. $x_hi;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;perldata(1),&lt;/CODE&gt; 
+&lt;CODE&gt;perlref(1),&lt;/CODE&gt; 
+&lt;CODE&gt;perldsc(1)&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>386</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perllol</title>
+  <createtime>1999-08-25 02:22:59</createtime>
+  <nodeupdated>2005-08-14 14:21:13</nodeupdated>
+</node>

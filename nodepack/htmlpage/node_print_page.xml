@@ -1,0 +1,76 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>print</displaytype>
+  <page>&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;
+      [%
+        if ( my $custom = $VARS-&gt;{titledef} ) {
+          my %sub = (
+                      T =&gt; $q-&gt;escapeHTML( $NODE-&gt;{title} ),
+                  N =&gt; $NODE-&gt;{node_id},
+                  D =&gt; $NODE-&gt;{createtime},
+                  S =&gt; $NODE-&gt;{type}{title},
+                );
+
+         $custom =~ s/\%$_/$sub{$_}/g for keys %sub;
+         $custom =~ s/&lt;/&amp;lt;/gs;
+         $custom =~ s/&gt;/&amp;gt;/gs;
+
+          return $custom;
+        } else {
+          return $NODE-&gt;{title}
+        }
+      %]
+    &lt;/title&gt;
+  &lt;/head&gt;
+  &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;[%
+    $VARS-&gt;{printcss} || urlGen({ node =&gt; 'print displaytype stylesheet' }, -1)
+  %]&quot; /&gt;
+  &lt;body&gt;
+    &lt;div id=&quot;header&quot;&gt;
+      &lt;div class=&quot;title&quot;&gt;
+        [% $q-&gt;escapeHTML( $NODE-&gt;{title} ) %]
+      &lt;/div&gt;
+      &lt;div class=&quot;subtitle&quot;&gt;
+        by &lt;span id=&quot;author&quot;&gt;[%
+          $q-&gt;escapeHTML( (
+            getNodeById($NODE-&gt;{author_user}) || { title =&gt; 'unknown' }
+          )-&gt;{title} )
+        %]&lt;/span&gt; on &lt;span id=&quot;created&quot;&gt;[%
+          htmlcode('parsetime', 'createtime')
+        %]&lt;/span&gt;[%
+          $q-&gt;param('replies') ? '' : ' ('
+          . linkNode( $NODE, &quot;replies&quot;, {replies=&gt;1,displaytype=&gt;'print'} )
+          . ')'
+        %]
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div id=&quot;url&quot;&gt;
+        [%
+          'http://' . $ENV{HTTP_HOST} . urlGen({ node_id =&gt; getId($NODE) }, -1)
+        %]
+    &lt;/div&gt;
+
+    &lt;div id=&quot;content&quot;&gt;
+      [%
+        # Quick hack so dark themes don't mess up
+        # the display.
+        {
+          local( $VARS-&gt;{preferred_theme} )= $HTMLVARS{default_theme};
+          getTheme();
+        }
+        my $d = getPage($NODE, 'display');
+        my $page = parseCode($d-&gt;{page}, $NODE);
+        getTheme();
+        return $page;
+      %]
+    &lt;/div&gt;
+  &lt;/body&gt;
+&lt;/html&gt;</page>
+  <author_user>929</author_user>
+  <createtime>2002-07-11 02:34:15</createtime>
+  <node_id>180958</node_id>
+  <title>node print page</title>
+  <nodeupdated>2004-09-21 15:00:50</nodeupdated>
+</node>

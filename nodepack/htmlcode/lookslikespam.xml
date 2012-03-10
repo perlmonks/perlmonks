@@ -1,0 +1,131 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>611863</node_id>
+  <author_user>142755</author_user>
+  <title>looksLikeSpam</title>
+  <createtime>2007-04-24 18:11:22</createtime>
+  <code>my( $TYPE, $title )= @_;
+
+my $reject= sub {
+    my( $reason, $match, $param, $text )= @_;
+    my $escTitle=   substr( $title, 0, 120 );
+    my $escText=    substr( $text || '', 0, 120 );
+    s/ ([^ -Z^-~]) / &quot;\\x&quot; . unpack &quot;H*&quot;, $1 /gex
+        for  $escTitle, $escText;
+    Everything::printLog( join &quot;, &quot;,
+        &quot;Block spam? $reason&quot;,
+        $ENV{REMOTE_ADDR},
+        $match ? &quot;&lt;$match&gt;&quot; : (),
+        &quot;type=$TYPE-&gt;{title}&quot;,
+        &quot;[$escTitle]&quot; . length($title),
+        $param ? &quot;$param=[$escText]&quot; . length($text) : (),
+    );
+    return $reason;
+};
+
+my $level=
+        getId($USER) == $HTMLVARS{guest_user}   ?   -2
+    :   $USER-&gt;{experience} &lt; 0                 ?   -1
+    :   $USER-&gt;{experience} == 0                ?   0
+                                                :   getLevel( $USER );
+
+if(  -2 != $level  ) {
+    my( $nodes, $min, $max )= $DB-&gt;getDatabaseHandle()-&gt;selectrow_array(
+        join ' ',
+        &quot;select count(*), min(reputation), max(reputation) from (&quot;,
+            &quot;select reputation from node&quot;,
+            &quot;where author_user = $USER-&gt;{user_id}&quot;,
+            &quot;and type_nodetype not in ( 15, 182711 )&quot;,  # user, scratchpad
+            &quot;order by node_id desc limit 5&quot;,
+        &quot;) as q&quot;,
+    );
+    if(     0 == $nodes
+        ||  0 == $min  &amp;&amp;  0 == $max
+    ) {
+        $level= 0;
+    } elsif(  $min &lt; 0  &amp;&amp;  $max &lt;= 0  ) {
+        $level= -1
+    } elsif(  1 &lt; $nodes  &amp;&amp;  0 &lt;= $min  &amp;&amp;  0 &lt; $max  ) {
+        $level++;
+    }
+    return ''
+        if  4 &lt; $level;
+}
+
+if(  $level &lt; 3  ) {
+    return $reject-&gt;( &quot;Level&lt;3 $TYPE-&gt;{title}&quot; )
+        if  &quot;snippet&quot; eq $TYPE-&gt;{title}
+        ||  &quot;sourcecode&quot; eq $TYPE-&gt;{title};
+    return $reject-&gt;( &quot;Level&lt;3 title containing link&quot;, $1 )
+        if  $title =~ m-(\bhttps?://\w+\.\w+\S*)-i;
+    return $reject-&gt;( &quot;Level&lt;3 note w/ 'Re:' prefix replaced&quot; )
+        if  &quot;note&quot; eq $TYPE-&gt;{title}
+        &amp;&amp;  $title !~ /^Re(\^\d+)?:/;
+    return $reject-&gt;( &quot;Level&lt;3 single-word title&quot; )
+        if  'user' ne $TYPE-&gt;{title}
+        &amp;&amp;  $title !~ /\S\s+\S/;
+}
+
+my $drugs = join '|', qw&lt;
+    boniva cialis cipro diazepam lozol phentermine
+    soma tramadol ultram valium viagra xanax
+&gt;;
+my $bad_phrase = qr/buy \S+ on.?line|^buy /;
+if(     $title =~ /\b($drugs)\b/i
+    ||  $title =~ /\b(Your site .*liked me)\b/i
+    ||  $title =~ /\b($bad_phrase)\b/i
+) {
+    return $reject-&gt;( &quot;Bad words in title&quot;, $1 );
+}
+
+for my $p (  $q-&gt;param()  ) {
+    for my $v (  $q-&gt;param($p)  ) {
+        my $reason;
+        local $_= $q-&gt;unescapeHTML( $v );
+
+        return $reject-&gt;( &quot;Fixed string&quot;, $1, $p, $v )
+            if  m{(Comment on&lt;\*1\*&gt;http://[\w.]+/\?&lt;\*2\*&gt;node_id=3333)}
+            ||  m{(shenzhenelectronic|plzzshop|http://qr.net/|http://50.gd/|http://nirl.eu/|nike,jordan,prada|\bAir\s*jordan\b|\bUGG\s*BOOT\b)}i;
+
+        my $links= 0;
+        my $allowed= getVars( getNode( 'non-spam URL hosts', 'setting' ) );
+        my $url;
+        while(
+            m{
+                (?: \[\s*
+                |   href (?: \s*=\s*['&quot;]? | \s*\]\s* )
+                )
+                https?://
+                ( [-\w]+ \. [-\w]+ [^\s/'&quot;&lt;&gt;\[\]|]+ )
+            }gix
+        ) {
+            my $part= $1;
+            my $ok= 0;
+            while(  $part  ) {
+                $ok ||= $allowed-&gt;{$part}
+                    and last;
+                $part =~ s{[^.]+[.]}{}
+                    or  last;
+            }
+            next
+                if  $ok;
+            $links++;
+            $url= $1;
+        }
+        return $reject-&gt;( &quot;$links links&quot;, $url, $p, $_ )
+            if  0 &lt; $links  &amp;&amp;  $level &lt; $links;
+
+        #return $reject-&gt;( &quot;Spammy title attrib&quot;, $1, $p, $_ )
+        #    if  $check=~ /(title=&quot;evden eve nakliyat&quot;)/;
+
+        return $reject-&gt;( &quot;Selling stuff&quot;, $1, $p, $_ )
+            if  m&lt;
+                    ( \bbuy\s+(?:$drugs)\b
+                    | \bbuy\s+.{0,30}(?:on.?line\b) )
+                &gt;ix;
+    }
+}
+return 0;
+</code>
+  <nodeupdated>2007-04-24 14:11:22</nodeupdated>
+</node>

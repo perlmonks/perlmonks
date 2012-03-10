@@ -1,0 +1,299 @@
+<node>
+  <doctext>Continued from [id://291673]...
+&lt;hr /&gt;
+
+&lt;p&gt;[belg4mit], 2003-03-06&lt;br/ &gt;
+If a [gods|god] is looking for somehting to do (since they seem to be the only
+ones capable of playing with the linking code), I recently noticed that
+[http://localhost] shows the protocol for HTTP but ignores it for
+[ftp://localhost] FTP. Just a minor nit ;-)
+&lt;/p&gt;
+
+&lt;p&gt;[grinder], 2003-03-04 22:52 UTC&lt;br /&gt;
+before I forget, this may just be an artifact of the post-crash db rebuild, but [id://240428] appears to be orphaned right now.&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;p&gt;[VSarkiss], 2003-02-23&lt;br /&gt;
+Wow, I must have been seriously confused: it's obvious they don't predate [setantae] when I look at it now.  Thanks, [tye].&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-23&lt;br /&gt;
+The [qr//], [qx//], [m//] notes belonging to [setantae] don't predate him, [VSarkiss].  Some of the links work.  I'll fix the rest.
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-02-23&lt;br /&gt;
+First off, bugfix: [id://237919] should fix the [Node Query XML Generator] for cases where the author has been deleted.  For example, [id://521].  Currently, we end up with a missing attribute value, so everything gets shifted.  See &lt;a href=&quot;http://perlmonks.org/?node=node+query+xml+generator;nodes=521&quot;&gt;this example&lt;/a&gt;.  Bug report by [pfaut], thanks.  There also seems to be a SQL injection bug here, which I didn't fix, becuase I'm not sure of how to fix it.  Consider authors who'se name contains SQL syntax.  Also, while you're at it, think of if there's other places this happens -- quite likely, it isn't uncommon.&lt;/p&gt;
+&lt;p&gt;Thanks for the test report, [JayBonci].  And you're right about the non-attomicicy.  I don't know what I was thinking -- I'm rather over-huberific lately.&lt;/p&gt;
+&lt;/p&gt;
+&lt;p&gt;[JayBonci], 2003-02-23&lt;br /&gt;
+[theorbtwo], a couple of things. I looked at Cache::Cache for nodecaches a while ago (About 6 months), and it was performance inhibitive to use. Simply writing and reading from a sizable cache (100 items or so) was far too difficult (speed wise) to use.  Also, with multiple web servers, there's no way to tell whether your cache is in sync without still using the version table.  Having the cache in-process is wasteful, but at least it's quicker than IPC.  If anyone can get it to work, great. Let me know.
+&lt;Br&gt;&lt;br&gt;
+Secondly node inserts are not atomic.  To insert a node via a new opcode, the pageload works like:&lt;br&gt;
+load up libraries =&amp;gt; log in the user =&amp;gt; Do three or four inserts =&amp;gt; Render the page =&amp;gt; save your $VARS
+&lt;br /&gt;
+Using $VARS as a mutex is a weak mechanism. VARS show up late in the page load cycle, and there are numerous race conditions associated with them.  They are unreliable, especially in &quot;I clicked twice&quot; situations.  
+&lt;br /&gt;
+Deleting stuff inside of maintenances is a good idea, because it backs up UI interfacing (for client purposes) with code. Now maintenances are a little bit of a pain to debug, but with a little testing, it allows you to have a hard deletion mechanism built into the creation path.
+&lt;/p&gt;
+&lt;p&gt;[VSarkiss], 2003-02-22&lt;br /&gt;
+I just realized there are a series of [note] nodes with titles like [qr//], [qx//], [m//], that all now belong to [setantae].  He obviously didn't author them because they pre-date his ID. I'm guessing user 1568 got purged and re-used?  Also, the links in those pages don't work.  Cleaning up the ownership and contents would be nice: they look like an easy way to search for those operators if you don't know to look in [perlop].  I wouldn't mind doing it, but I guess you need to be part of the [Site Documentation Clan] or one of the [editors]?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2003-02-22&lt;br /&gt;
+Sorry about that, I don't know how I missed it.  Seemed like a good idea.  Shrug.&lt;/p&gt;
+&lt;p&gt;BTW, has anybody thought about using [cpan://Cache::Cache], and more specificly, [cpan://Cache::SizeAwareFileCache.pm] to make [Everything/NodeCache.pm] cross-process?  We'd want to combine the two, of course, not simply replace [everyting/nodecache.pm], since we need the version-checking.  I think we can replace [everything/nodequeue.pm] with a wrapper around [cpan://Cache::Cache], or use it directly in [everything/nodecache.pm].&lt;/p&gt;
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-20&lt;br /&gt;
+Did you read the [id://235887] thread, [theorbtwo]?  Soft hyphens don't even work for the Monk who made the original request.
+&lt;/p&gt;&lt;p&gt;
+Yes, we need to be allowed to reply to reaped nodes.  It would be very nice to warn people when they start replying to reaped or even &quot;considered as a duplicate&quot; node.  It would also be very nice to have [submit] do &lt;b&gt;looser&lt;/b&gt; testing for duplicates than it already does and offer to update a near-duplicate when it is found.  (The details of that get really tricky and it isn't a priority for me right now.)
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-02-20&lt;br /&gt;
+[JayBonci], you might want to have a gander at [id://218371].  Also, a node maintaince isn't the right place to kill nodes.  I'd put the check for replies to reaped nodes in [offer your comment], so it will happen before the user starts writing their comment.  OTOH, I can see replying to a reaped node as useful, if you want to argue that it should not have been reaped.  I don't see it being an actual problem that people reply to reaped nodes.  Have you seen it in pratice?&lt;/p&gt;
+&lt;p&gt;Also, creating a new node /is/ atomic (it's a table insertation), though it may take a while for the node to show up.  I think having a uservar that's the title, time, and nodeid for the last post you made is a good idea.  Then we can check if they just made a post with that title, and point them at it, suggesting they edit (if possible) or reply to it (if not), if they try to post somthing with the same title within a certian timeout.&lt;/p&gt;
+&lt;p&gt;While I'm here, [id://235894] does CB nodelet keeping-from-being-to-wide with soft-hyphens, rather then spaces, as requested in [id://235887].  &lt;/p&gt;
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-20&lt;br /&gt;
+See [tye&amp;nbsp;|tye&amp;amp;nbsp;] for what I've done along those lines.  Feel free to finish that work.  Note that I decided not to support &lt;code&gt;[tye#anchor]&lt;/code&gt; for the sake of backward compatibility.
+&lt;/p&gt;
+&lt;p&gt;[boo_radley], 2003-02-20&lt;br /&gt;
+I'm interested in creating a patch for [linkhandler] that would allow for named anchors in id tags. This would probably be in the form &amp;#91;0123456#anchorname&amp;#93; . Comments?
+&lt;/p&gt;
+&lt;p&gt;[JayBonci], 2003-02-17&lt;br /&gt;
+On the topic of duplicate posts on the frontpage, I think I have a solution that will work well.  There is a race condition that happens because node generation and insertion is typically non-atomic and non-trivial. Hitting the button twice jittery, or to thwart a slow connection will send two requests, no matter how well you md5sum, or text compare stuff.  My proposed solution to this problem is better clean up tools.
+&lt;br /&gt;
+I'd suggest a mergedupe opcode for editors and gods to be able to merge these duplicated writeups.
+&lt;br /&gt;
+Algorithm:
+&lt;ul&gt;
+&lt;li&gt;Select all same-section nodes of the same type and title.
+&lt;li&gt;Choose the longer or (if neither) later of the two.
+&lt;li&gt;Reparent all of the comments from the dupe to the keeper.
+&lt;li&gt;Reap the bad writeup
+&lt;/ul&gt;
+Alternatively, you could auto-run this code if someone runs a consideration with /(dupe|duplicate)/i in it.  ar0n thinks that this is prone to abuse, but I think it can be done in such a way that makes it simple.
+&lt;br /&gt;
+Also we should consider removing the ability to comment on anything owned by [NodeReaper].  It'd be a check inside of a node maintenance.
+&lt;/p&gt;
+&lt;p&gt;[demerphq], 2003-02-17&lt;br /&gt;
+Just the kind of feedback I wanted! Brilliant! You mention htmlcode's deficiencies in terms of return value. I also noticed this as a problem, and my solution was to pass in a reference to an array as a parameter. Then the called sub can populate that reference and we get list context (if-ykwim) more or less as a side effect.&lt;/p&gt;
+&lt;p&gt;
+The reason I wanted the checksum (yada) in the message table was to allow a single insert to be sufficient for a dupe check. But I can see your point. Its been a long night for me, so ill refrain from more comments until a later hour. :-)
+&lt;/p&gt;
+
+&lt;p&gt;[tye], 2003-02-16&lt;br /&gt;
+The checksum should only be in the chatter cache table since we have no need to check for &lt;b&gt;old&lt;/b&gt; duplicate messages so the current [message] [dbtable] should be fine (not that I'm opposed to changing it for good reason).  I wouldn't have a &quot;window&quot; for the chatter duplicates; that is optimizing too far.  A &quot;select ... where sum=? and datesub( now(), ? minutes ) &lt; timestamp limit 1&quot; is insubstantially more DB load and preserves reasonable behavior.
+&lt;/p&gt;&lt;p&gt;
+If I were doing this I'd be trying to use a more general table.  I created [datacache] because we didn't have a cache table with a unique index; which is part of why the caching in the chatterbox xml ticker is so ugly.  Switching that code to use [datacache] would be an improvement but instead I ended up working toward populating the cache when messages are sent.
+&lt;/p&gt;&lt;p&gt;
+The main reason my plans (along the same lines as much of your plans) didn't get any further was that I wanted to break the code up into nice modular pieces but [htmlcode] only returning a single string that contained an HTMLized server error for failure was very inconvenient.  So I wanted a way to call an [htmlcode] node where I get a list returned and error information was handled out-of-band.  I started updating [Everything/HTML.pm] to handle that but didn't finish before real life problems had to take priority.
+&lt;/p&gt;&lt;p&gt;
+But another reason that I didn't get back to this work was that the more I think about it, the less I'm convinced that this will be &lt;b&gt;that big&lt;/b&gt; of win for site performance.  I can clearly see (in the SQL &quot;top&quot; display) the queries of the chatter xml ticker taking too long because they use the index in a way that MySQL doesn't optimize.  I never see the queries for the chatterbox so I'm not sure pulling pre-rendered (in XML or HTML) chatter from a small database table will be significantly less DB load than the current pulling of unrendered chatter from the large [message] [dbtable].  It would certainly reduce DB load &lt;b&gt;some&lt;/b&gt; and web server load even more.
+&lt;/p&gt;&lt;p&gt;
+I think the big win will be one cache per web server that is updated when a message is sent.  So be sure to keep any work you do open to such an optimization.
+&lt;/p&gt;
+&lt;p&gt;[demerphq], 2003-02-16 daytime this time&lt;br /&gt;
+Ive been reviewing the code even more, looking at the [chatterbox xml ticker], as well as [showchatter] and a few other things like [insertmessage]. In the later I see some work towards something similar to what I propose below.  I also see a lot of code duplication and query duplication.  I believe that the entire chatter system can be revamped to be a lot more efficient in terms of both run time and db load.  For instance every message submitted results in at least one query. Every messegae rendered generates multiple querys. I have been working on a proposal to resolve a lot of this.&lt;/p&gt;
+&lt;p&gt;
+The essence of my proposal is to replace the message table with two new tables. The first table would be a straight extension of the old message table to allow us to utilize the DB's optimizer to reduce queries. The second would be a cached representation of the messages. [showchatter] and [chatterbox xml ticker] would never look at the &lt;i&gt;real&lt;/i&gt; message table, but rather only at the cache.  A cron would run on some time schedule as to remove entries from the chache when they get too old.
+&lt;/p&gt;
+&lt;p&gt;
+The new message table would have at least two extra fields added. &lt;i&gt;checksum&lt;/i&gt; and &lt;i&gt;timewindow&lt;/i&gt;, both integers. checksum would be a simple integer checksum of the message contents, and timewindow would be an integer of the value (int($time/$timeout) * $timeout). ($timeout might be, something like 30 minutes, and yes I do realize that this would allow a singe pair of duplicates (per user) one second apart so long as they were on either side of the window. I suppose this could be problem. (We need never see a triplicate though.) If it was felt important enough we could return to the present query before insert approach.) A unique index would be enforced on  (author_user, checksum, timewindow).  This would have the result that a single insert would allow us to prevent dupes in the recent chat. Using integers for the three fields (instead of using the message text) would provide for more optimized index searches (fwict).
+Assuming the insert succeded the message would be rendered into both xml and html which would be placed in the message_cache.
+&lt;/p&gt;
+&lt;p&gt;
+[showchatter] and [chatterbox xml ticker] would read only from the cached table. Since the table would have stale messages deleted on a regular basis it wouldnt grow large, thus enabling the indexes on it to stay small and easily searchable.&lt;/p&gt;
+&lt;p&gt;
+A single set of routines for rendering a message into XML and HTML and well as requesting the most recent messages would provide a single interface into this functionality, reducing code duplication, but more importantly allowing for a single body of code to be optimized further if that was needed.
+&lt;/p&gt;
+&lt;p&gt;Im happy to work towards something like this assuming that there is buy in from the powers that be. So far im working on the create table statements and the API (for lack of a better term.) Id be willing to pursue this further, including as much of the coding as possible so long as I know that it isnt a complete non starter from the POV of the [god]s.&lt;/p&gt;
+&lt;p&gt;
+It would be really nice to have a better place to post stuff like this. For instance once i've finished my proposed code changes Id like to put them all in one place so that people can review them before posting them as patches. Where should I do this? Can we create a proper section for [pmdev] so that people can post larger items in an easier way than through the wiki?&lt;br&gt;
+regards [demerphq]
+&lt;/p&gt;
+&lt;p&gt;[demerphq], 2003-02-16 sometime late&lt;br /&gt;
+Regarding caching. As far as I can tell currently every request to show chatter causes potentially a large number of cache and db interactions. Node retrieval has different issues associated with it, but chat rendering seems to me to have an unnecessarily high overhead.  Consider that normal chat is only supposed to stay around for a while. So if link rendering were to cause it to change the effect would be temporary.&lt;/p&gt; 
+&lt;p&gt;I think that the message table should have an additional field added to store the rendered msg. Only public chatter would be so cached. Chatter with the for_user flag wouldnt be cached. Even in the unlikely case that someone changes a nodes title inbetween when two httpd's write to the db (overwriting each other), the effect would be temporary (as long as the chatter box time out), and later references within the chatter would be rendered properly. A flag could cause the node to be rendered fresh for debugging or special purposes.
+&lt;/p&gt;
+&lt;p&gt;Pros: Lets say we run the message query once a second and we avergage 8 msgs. showchatter calls parselinksinchatter and linkNode. Both of which do further node queries. The caching and synchronisation system itself does a query per query at minimum from what I can tell. So lets say we have to do 4 queries per msg. (lets not also forget about the http requests of people running chatprograms that need to do node lookups that way.) That makes 32 queries. Im betting at busy times there are many more requests than 1a second. Maybe 10 or 20 or more? So thats around 650 queries just to render then cb every time. So we can cut the number queries and cache requests down signifigantly just by storing the rendered text.&lt;br&gt;
+By caching the chatter text we can easily serve rendered links to the chatter clients. This means they can be simpler, and we can avoid them requesting node information over a slow connection in order to complete the rendering. We could even provide both the rendered and unrendered text over the ticker at minimal extra cost.&lt;br&gt;
+&lt;/p&gt;
+&lt;p&gt;
+Cons: Potentially two users can see the same chat rendered differently for a short period of time. The possibilty comes from bypasing the node versioning system in the normal cache. What could happen is that two httpd could request the messages, and see a new one. The first one could render it and write it, the conditions could change causing the second one to render it differently. It would overwrite the cache. The next rendering request would return the latest write and then they would all be in synch again. Personally i dont see this as a real issue, but it is there.&lt;/br&gt;
+Possibly the cache would be too expensive in terms of DB space? I dont see why, but its possible.&lt;/br&gt;
+Probably something else...
+&lt;/p&gt;
+&lt;p&gt;
+Anyway, thats an idea how to save some DB load with from what I can tell would be fairly minimal effort. Hope its at least good food for thought. Even if I am completely wrong about the way the caching and versioning system works showchatter has a huge CPU overhead that is from what I can tell totally wasteful. Thats gotta be worth improving. :-)
+&lt;/p&gt;
+&lt;p&gt;[demerphq], 2003-02-15 9:17pm GMT+1&lt;br /&gt;
+Posted three patches to [linkhandler]: [id://235607] A generalized special case handler, [id://235606] same, but with lots of documentation as to the idea, and [id://235603] which simply special cases &lt;code&gt;[pad://]&lt;/code&gt; alone.  If the general one is used then the link handlers setting 'X:pad://' needs to be set to ' $AUTHOR ? &quot;pad://$AUTHOR-&gt;{title}&quot; : &quot;pad://&quot; '. Hope that all make sense, and that they are workable solutions.
+&lt;p&gt;
+
+&lt;p&gt;[demerphq], 2003-02-15 8:00pm (ish) GMT+1&lt;br /&gt;
+Updated the patches to [showchatter] and [parselinksinchatter] as you requested in the chatterbox. Ive commented out a version of the tag ender that groks endless tags and oesnt try to balance them. Since there aren't any meaningful legal endless tags the uncommented out code should be fine afaict. Now to patch [linkhandler]
+&lt;p&gt;
+
+&lt;p&gt;[demerphq], 2003-02-15 6:16pm GMT+1&lt;br /&gt;
+The new links are cool. They are generated by [linkhandler] I guess? I should patch that as well?&lt;br /&gt;
+As for changing the patch, do you mean that [showchatter] should set $AUTHOR to be the result of getNodeById($author, 'light') before calling [parselinksinchatter] instead of passing it as a param? If so then ill do it, otherwise I dont think I follow you.
+&lt;/p&gt;
+
+&lt;p&gt;[tye], 2003-02-15&lt;br /&gt;
+That is what $AUTHOR is for.  That way &lt;code&gt;[pad://]&lt;/code&gt; means &lt;code&gt;[pad://$AUTHOR-&gt;{title}|my pad]&lt;/code&gt; (if $AUTHOR is set), which means in chatter or nodes.  Please edit the patch to set $AUTHOR instead.  Also note that handleLinks() is going away.  See [tye&amp;nbsp;|tye&amp;amp;nbsp;] for what will be used as soon as a few remaining details get taken care of.
+&lt;/p&gt;
+
+&lt;p&gt;[demerphq], 2/15/2003 4:00PM gmt+1&lt;br /&gt;
+Im trying to make a patch so that &lt;code&gt;[pad://]&lt;/code&gt; in the chatter gets treated as &lt;code&gt;[pad://author|pad]&lt;/code&gt;. It didnt seem to be easy to make handleLinks know who wrote the text it was handling so I thought i would do it by having [showchatter] call [parselinksinchatter] with an extra parameter, the author id. Then a slight modification there would handle it as a special case. Is this a viable approach and idea? Ive posted patches that hopefully do this.
+&lt;/p&gt;
+
+&lt;p&gt;[demerphq], 2/15/2003 2:08PM gmt+1&lt;br /&gt;
+I posted a [id://235556|patch] to add missing end tags to chatter text. I posted it twice for foolish reasons that Id like to forget. :-) Its simplicity depends on the fact that things it should ignore no longer look like tags due to htmlScreen being called first, and that the browser should ignore any ordering weirdness of the end tags. Afaict it should prevent &lt;code&gt;&lt;i&gt;&lt;/code&gt; and the like from bleeding through the chatter. (like I seem to have a habit of doing).
+&lt;/p&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-02-14&lt;br /&gt;
+[Corion] /msg'ed [pmdev] concerning the [id://31304].  I checked it out and do not see the behavior that he describes.  I should note that the title of the page contains &quot;search.cpan.org, &quot;.  I /msg'ed him back and archived the message.&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Updated 3 seconds later:&lt;/b&gt; I feel totally stupid now.  The links do in fact show what he said.  The first time, I had typed in a search parameter and it worked fine.  Replied to him again that I'm starting work on it.&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Updated:&lt;/b&gt; Okay, the problem lies in the rdf file we parse.
+For example:&lt;br /&gt;
+&lt;code&gt;&lt;link&gt;
+http://search.cpan.org, search.cpan.org/author/XERN/WWW-ContentRetrieval-0.083
+&lt;/link&gt;&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Patch completed:&lt;/b&gt; [id://235260].  &lt;b&gt;Thank you!&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Updated much, much later:&lt;/b&gt; I filled out the feedback form at [http://search.cpan.org/feedback] informing them of the issue.  Perhaps they did it for a reason?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-02-13&lt;br /&gt;
+Can some[gods|god] update [link handlers]? ESR has moved, the &lt;tt&gt;jargon&lt;/tt&gt; prefix should read &lt;code&gt;
+return( $label, &quot;http://www.google.com/search?as_q=$escaped&quot;, &quot;&amp;as_sitesearch=www.catb.org&amp;btnG=pm&quot; );
+&lt;/code&gt;
+Thanks.&lt;br /&gt;
+&lt;b&gt;Update:&lt;/b&gt; wait, that doesn't actually work. It appears you can't currently google against catb.org. I didn't find any &lt;tt&gt;robots.txt&lt;/tt&gt; on the domain though, so it should work soon-ish.
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-13&lt;br /&gt;
+The only explanation I see is that the line &lt;code&gt;return if @{ $r || [] }[0] eq $op;&lt;/code&gt; in [approve] would thwart future attempts to approve a node after (somehow) updateLinks() failed (probably due to DB server overload) while the following sqlInsert() succeeded.  I think how this has been &quot;fixed&quot; each time it has happened is by someone deciding to FP the node when it was the OK that half-failed.  Another work-around would be to hand-craft an &quot;unapprove&quot; request so that the next approval attempt would succeed.
+&lt;/p&gt;&lt;p&gt;
+[ar0n] is supposed to be getting rid of [links] so I'm not inclined to spend time on fixing this problem.
+&lt;/p&gt;
+&lt;p&gt;[Petruchio] Thu Feb 13 13:54:51 UTC 2003&lt;/p&gt;
+&lt;p&gt;
+ I have changed some minor aspects of nodelets generally... in particular, the classes
+ of some of the table-related tags.  I have not touched the approval nodelet any time
+ recently.  While I won't say it's impossible, it's hard for me to see a way in which
+ I might have broken this.
+&lt;/p&gt;
+&lt;p&gt;[crazyinsomniac] Thu Feb 13 13:24:45 2003 GMT&lt;br /&gt;
+Nobody could approve [id://234940].  A monk moved it to that section, but did not approve it, and later [broquaint] found out nobody could approve it, and believe me, a lot of us tried.
+&lt;p&gt;
+What's up? [broquaint] suggested policy change by [tye], but there were no announcments, did [Petruchio] &lt;i&gt;improve&lt;/i&gt; it in his recent css updates?
+Anyone have any insight? 
+Here is the form as it appeared, I haven't looked at the approval nodelet in a long time, so i've no idea what's supposed to be there.
+&lt;CODE&gt;
+    &lt;tbody class = &quot;nodelet&quot; id = &quot;Approval_Nodelet&quot;&gt;                                      
+      &lt;tr&gt;
+        &lt;th class=&quot;nodehead&quot;&gt;
+          Approval Nodelet
+        &lt;/th&gt;                                                                  
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td class=&quot;nodebody&quot;&gt;
+
+
+    &lt;form method=&quot;post&quot; action=&quot;/index.pl&quot; enctype=&quot;application/x-www-form-urlencoded&quot;&gt;
+&lt;input type=&quot;hidden&quot; name=&quot;node_id&quot; value=&quot;234940&quot;&gt;
+    &lt;input type=&quot;hidden&quot; name=&quot;linktype&quot;  value=&quot;1037&quot; /&gt;
+    &lt;input type=&quot;hidden&quot; name=&quot;sectionid&quot; value=&quot;1040&quot; /&gt;
+    &lt;input type=&quot;hidden&quot; name=&quot;op&quot; value=&quot;approve&quot; /&gt;
+    Move to: &lt;select name=&quot;movetotype&quot;&gt;
+&lt;option  value=&quot;perlquestion&quot;&gt;Seekers of Perl Wisdom&lt;/option&gt;
+&lt;option  value=&quot;perlmeditation&quot;&gt;Perl Meditation&lt;/option&gt;
+&lt;option selected value=&quot;monkdiscuss&quot;&gt;Perl Monks Discussion&lt;/option&gt;
+&lt;option  value=&quot;perlcraft&quot;&gt;Perl Craft&lt;/option&gt;
+&lt;option  value=&quot;obfuscated&quot;&gt;Obfuscated Code&lt;/option&gt;
+&lt;option  value=&quot;poem&quot;&gt;Perl Poetry&lt;/option&gt;
+&lt;option  value=&quot;CUFP&quot;&gt;Cool Uses For Perl&lt;/option&gt;
+&lt;option  value=&quot;perlnews&quot;&gt;Perl News&lt;/option&gt;
+&lt;/select&gt;
+&lt;br /&gt;
+
+    
+      &lt;input type=&quot;checkbox&quot; name=&quot;234940&quot; value=&quot;ok&quot; /&gt;&amp;nbsp;Approve
+      &lt;input type=&quot;checkbox&quot; name=&quot;234940&quot; value=&quot;fp&quot; /&gt;&amp;nbsp;FrontPage&lt;br /&gt;
+    
+      Consider node:
+      &lt;input type=&quot;checkbox&quot; name=&quot;considerit&quot; value=&quot;yes&quot;&gt;&lt;input type=&quot;text&quot; name=&quot;considerreason&quot;  size=20 maxlength=128 /&gt;
+    
+    &lt;input type=&quot;submit&quot; name=&quot;sexisgood&quot; value=&quot;moderate&quot; /&gt;
+    &lt;a HREF=&quot;/index.pl?node_id=17645&quot;&gt;help&lt;/a&gt;
+  &lt;/form&gt;
+  
+        &lt;/td&gt;
+      &lt;/tr&gt;
+
+&lt;/CODE&gt;
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;
+ [Petruchio] Thu Feb 13 13:40:36 UTC 2003
+&lt;/p&gt;
+&lt;p&gt;
+ The point wasn't made clear enough, I think.  There is a need to support some kind of
+ monk authentication on the server side which does not involve sharing people's real
+ passwords.  I mentioned something like it [62208|here], but [theorbtwo] requires a
+ bit more than verification of one's identity.  It would be useful if users could set
+ a chat-only password, which allowed public and private chat, but no other privileges
+ on the site.
+&lt;/p&gt;
+&lt;p&gt;[crazyinsomniac] Thu Feb 13 13:24:45 2003 GMT&lt;br /&gt;
+I cannot see why you would post that info here [theorbtwo],
+why did you post it here?
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo] Tue Feb 11 2003 02:42:55 EST&lt;br /&gt;
+I'm now pretty much finished with my CB&lt;-&gt;AIM gateway, perlmonkscb.  You can get to it by IMing perlmonkscb.  It can be used unidirectionaly (to read the CB) by anyone with an AIM account -- just read the chat room.  Since the offical client won't let you join a room you havn't been invited to, IMing the perlmonkscb user will invite you to the chat room.  It can be used in the other direction only by authenticating.  IM &quot;auth user pass&quot; to perlmonkscb, and it with authenticate you.  Therein lies the problem: Doing that IMs me your username and password, quite literaly.  It's never printed, and it's never stored (I only store the cookie, and even that only in memory).  However, the current scheme of things requires that people trust me.  I see no clear way around this problem, but [petruchio] suggested I post here -- for that matter, he even suggested that perlmonks run the server itself.  The code is currently on [pad://theorbtwo|my pad] for your perusal, if your interested.  It's not beutiful; there's some things that should be done better (HTML removal, &amp;#91;]-&gt;links handling, a better CLI for talking to the perlmonkscb user, using our own UA rather then stealing the one out of PerlMonks::Chat, some handling of private messages), but if you see anything else that isn't right with it, not involving changing PM, /msg me please.  I'll probably post about it to [perl monks discussion] shortly... after I email [jcwren] about a perlmonk.org account to run it off of.&lt;hr /&gt;
+&lt;/p&gt;
+&lt;p&gt;[Petruchio] Tue Feb 11 21:20:43 UTC 2003&lt;/p&gt;
+&lt;p&gt;
+ I would encourage you to avoid this as well... after all, why wouldn't you
+ just say this?
+ &lt;/p&gt;
+ &lt;code&gt;
+ my %params = map { $_ =&gt; $q-&gt;param($_) }
+   qw( node_id user orderby showqa showtype );
+&lt;/code&gt;
+&lt;p&gt;
+  Unnecessary temporary variables, like comments, are evil and should be
+  avoided.  ;-)
+&lt;/p&gt;
+&lt;p&gt;
+ (Not addressing the scalar issue here, which is the same in the suggested style)
+&lt;/p&gt;
+&lt;p&gt;
+[crazyinsomniac], Tue Feb 11 02:09:19 2003&lt;br /&gt;
+New patch [id://234295] (one word addition of &lt;b&gt;scalar&lt;/b&gt;, should be applied without hesitation ;d)
+&lt;br &gt;
+I'd like to take this chance to persuade youse to avoid 
+doing stuff like
+&lt;CODE&gt;
+my @params= qw( node_id user orderby showqa showtype ); # start length
+my %params;
+@params{@params}= map { $query-&gt;param($_) } @params;
+&lt;/CODE&gt;
+cause a lot of folk'll forget that param is context sensitive.
+It may be a lot to type, but I always prefer
+&lt;CODE&gt;
+my %params = (
+    node_id    =&gt; $query-&gt;param('node_id'),
+    user       =&gt; $query-&gt;param('user'),
+    orderby    =&gt; $query-&gt;param('orderby'),
+    showqa     =&gt; $query-&gt;param('showqa'),
+    showtype   =&gt; $query-&gt;param('showtype'),
+);
+#printf &quot;    %-10.10s =&gt; \$query-&gt;param('%s'),\n&quot;,$_,$_ for @params;
+&lt;/CODE&gt;
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;[ar0n], 2003-02-11&lt;br /&gt;
+Wiki rotated.
+&lt;/p&gt;
+&lt;p&gt;Continued in [id://234285]&lt;/p&gt;</doctext>
+  <type_nodetype>68046</type_nodetype>
+  <node_id>242483</node_id>
+  <author_user>142755</author_user>
+  <title>pmdev wiki thru 2003-03-06</title>
+  <createtime>2003-03-12 14:28:03</createtime>
+  <nodeupdated>2005-08-02 09:54:11</nodeupdated>
+</node>

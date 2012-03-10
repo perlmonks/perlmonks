@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="7483" title="questinfo" created="2000-04-13 16:46:16" updated="2005-07-21 05:50:53">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my $str;
+my $N;
+my $num=0;
+my $type=getId(getType('quest'));
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare( join ' ',
+   'select * from node,quest',
+   "where type_nodetype=$type and node_id=quest_id",
+   'and now() between starttime and endtime',
+);
+$csr-&gt;execute or return "SHIT";
+
+local* timeleft=sub{ 
+   my ($timestamp)=@_;
+   my $curtime=time;
+   my ($date,$time)=split(/ /,$timestamp);
+   my ($hrs, $min, $sec) = split /:/, $time;
+   my ($yy, $mm, $dd) = split /-/, $date;
+   use Time::Local;
+   my $secsleft=timelocal( $sec, $min, $hrs, $dd, $mm-1, $yy)-$curtime;
+   my $days=int($secsleft/(24*60*60));
+   $secsleft-=(24*60*60)*$days;
+   my $hours=int($secsleft/3600);
+   $secsleft-=3600*$hours;
+   my $min=int($secsleft/60);
+   my $secs=$secsleft%60;
+   my $timeleft;
+   if($days&gt;365){
+      return "Don't worry; you've got plenty of time.";
+   }
+   if($days){
+      $timeleft.="$days";
+      $timeleft.=$days&gt;1? " days remain": " day remains";
+   }
+   elsif($hours){
+      $timeleft.="$hours";
+      $timeleft.=$hours&gt;1? " hours remain": " hour remains";
+   }
+   elsif($min){
+      $timeleft.="$min";
+      $timeleft.=$min&gt;1? " minutes remain": " minute remains";
+   }
+   elsif($secs){
+      $timeleft.="$secs";
+      $timeleft.=$secs&gt;1? " seconds remain": " second remains";
+   }
+   return $timeleft;
+};
+while($N = $csr-&gt;fetchrow_hashref){
+   $str.=" &lt;B&gt;".linkNode($N)."&lt;/B&gt;&amp;nbsp;&amp;nbsp;(".timeleft($$N{endtime})."),";
+   $num++;
+}
+$str =~ s/,$//;
+return if $num==0;
+$str= "&lt;font size='2'&gt;$str&lt;/font&gt;"; # Ugh?
+return "Want Mega XP? Prepare to have your hopes dashed, join in on the: $str"
+   if $num==1;
+return "The following quests are now active: $str"
+   if $num&gt;1;</field>
+</data>
+</node>

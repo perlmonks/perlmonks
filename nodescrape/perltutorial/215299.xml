@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="215299" title="Shipping standalone perl apps on Win32" created="2002-11-22 18:57:55" updated="2005-08-15 11:48:52">
+<type id="956">
+perltutorial</type>
+<author id="186684">
+crenz</author>
+<data>
+<field name="doctext">
+&lt;p&gt;Note-- Not everyone thinks that packing up perl applications into executables is a good idea. I am aware of the drawbacks (and do mention them, see "caveats"), but think there are some cases where it is useful. After fiddling around with &lt;tt&gt;App::Packer&lt;/tt&gt;, I thought I'd share a step-by-step tutorial for those who need it.&lt;/p&gt;
+&lt;h2&gt;Preface&lt;/h2&gt;
+&lt;p&gt;Have you had .EXE-envy? That is, have you ever wished it would be as easy to 
+  ship your perl applications as it is with C/C++ or VisualBasic programs, without 
+  having to make sure perl is installed on the user's computer? If yes, you probably 
+  heard of &lt;a href="http://www.indigostar.com/perl2exe.htm"&gt;perl2exe&lt;/a&gt;. And 
+  probably were discouraged by the steep price tag. Mattia Barbon created a wonderful 
+  set of modules distributed as &lt;tt&gt;App::Packer&lt;/tt&gt; that can do the same thing 
+  for you. For free, and with source included.&lt;/p&gt;
+&lt;p&gt;This tutorial is geared towards not-so-experienced users of perl on Win32 platforms. 
+  Much of it should apply for Linux/Unix as well.&lt;/p&gt;
+&lt;readmore&gt;
+&lt;h2&gt;Caveats&lt;/h2&gt;
+&lt;p&gt;&lt;tt&gt;App::Packer&lt;/tt&gt; is &lt;i&gt;not&lt;/i&gt; a compiler. It merely packs up your script 
+  as well as all the modules needed in a nice bundle. This means:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;Your application will remain an interpreted perl script.&lt;/li&gt;
+  &lt;li&gt;Your source code will still be accessible.&lt;/li&gt;
+  &lt;li&gt;The run-time behaviour will be the same.&lt;/li&gt;
+  &lt;li&gt;The startup time will actually be &lt;i&gt;longer&lt;/i&gt;, because the &amp;quot;bundle&amp;quot; 
+    needs to be unpacked when the application is started.&lt;/li&gt;
+  &lt;li&gt;You will need to ship additional DLL files.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;For some applications, it might be much more practical to create a perl &amp;quot;distribution&amp;quot; 
+  on CD containing ActivePerl or IndigoPerl and the additional modules you are 
+  using, together with your application.&lt;/p&gt;
+&lt;h2&gt;Installing App::Packer&lt;/h2&gt;
+&lt;p&gt;First, do a binary install using ppm:&lt;/p&gt;
+&lt;p&gt;&lt;tt&gt;ppm install http://wwwstud.dsi.unive.it/~mbarbon/p2e/App-Packer.ppd&lt;/tt&gt;&lt;/p&gt;
+&lt;p&gt;Additionally, you need a modified version of &lt;tt&gt;Module::Info&lt;/tt&gt;, available 
+  from &lt;a href="http://wwwstud.dsi.unive.it/%7Embarbon/p2e/"&gt;http://wwwstud.dsi.unive.it/~mbarbon/p2e/&lt;/a&gt;. 
+  Install it using the usual procedure:&lt;/p&gt;
+&lt;p&gt;&lt;tt&gt;perl Makefile.PL&lt;br&gt;
+  nmake&lt;br&gt;
+  nmake install&lt;/tt&gt;&lt;/p&gt;
+&lt;p&gt;If you don't have nmake yet, get it by downloading &lt;a href="http://download.microsoft.com/download/vc15/Patch/1.52/W95/EN-US/Nmake15.exe"&gt;nmake15.exe&lt;/a&gt;. 
+&lt;/p&gt;
+&lt;h2&gt;Creating an executable&lt;/h2&gt;
+&lt;p&gt;There is a script &lt;tt&gt;p2e.pl&lt;/tt&gt; supplied with &lt;tt&gt;App::Packer&lt;/tt&gt;, which 
+  should be inside the directory &lt;tt&gt;perl\site\lib\App&lt;/tt&gt;. You might want to 
+  copy it to another directory for your convenience. The first step to create 
+  an executable is&lt;/p&gt;
+&lt;p&gt;&lt;tt&gt;perl p2e.pl myapp.pl -o myapp.exe&lt;/tt&gt;&lt;/p&gt;
+&lt;p&gt;If your script is using a lot of modules, this might take a while, because 
+&lt;/p&gt;
+&lt;p&gt;&lt;tt&gt;App::Packer&lt;/tt&gt; needs to find out the dependencies between the modules 
+  used, so if your script is using a lot of modules, this might take a while. 
+  This is especially true for large GUI packages like Wx. Future calls of &lt;tt&gt;p2e.pl&lt;/tt&gt; 
+  will be much faster because the information about the modules analyzed is stored 
+  in a cache.&lt;/p&gt;
+&lt;h2&gt;Something's missing... (1)&lt;/h2&gt;
+&lt;p&gt;When starting the newly generated program, you might encounter a Windows error 
+  message about missing library files. This is probably because you are using 
+  a XS module. On Win32, perl stores the binary code in XS modules as DLL files 
+  inside your module paths. Unfortunately, Windows doesn't tell you the exact 
+  name of the DLL. If you have no idea which file is missing, get &lt;a href="http://www.dependencywalker.com/"&gt;Dependency 
+  Walker&lt;/a&gt;. Run it, drag'n'drop your executable on it and select &lt;i&gt;Profile|Start 
+  Profiling&lt;/i&gt; from the menu. After a while, your program will abort and Dependency 
+  Walker displays the name of the DLL that is missing. Go to your perl directory, 
+  search it for that DLL (usually it is somewhere in &lt;tt&gt;perl\site\lib\auto&lt;/tt&gt;) 
+  and copy it over into your executable's directory. If your PATH variable doesn't 
+  include your perl directory, you will also need to copy the perl DLL (usually 
+  called something like &lt;tt&gt;perl\bin\perl56.dll&lt;/tt&gt;).&lt;/p&gt;
+&lt;h2&gt;Something's missing... (2)&lt;/h2&gt;
+&lt;p&gt;Having done that, you might still encounter perl error messages that tell you 
+  that a certain module could not be found. Sometimes modules use other modules 
+  in weird ways that &lt;tt&gt;App::Packer&lt;/tt&gt; doesn't understand. For example, &lt;tt&gt;XML::Parser&lt;/tt&gt; 
+  uses &lt;tt&gt;File::Spec&lt;/tt&gt;. In this case, call p2e.pl as follows:&lt;/p&gt;
+&lt;p&gt;&lt;tt&gt;perl p2e.pl myapp.pl -o myapp.exe --add-module File::Spec&lt;/tt&gt;&lt;/p&gt;
+&lt;p&gt;You can use &lt;tt&gt;--add-module&lt;/tt&gt; several times to add several modules.&lt;/p&gt;
+&lt;h2&gt;Shipping your application&lt;/h2&gt;
+&lt;p&gt;When sharing your application with others, make sure you include all the DLL 
+  files needed. Even if you do not use any other module and your executable runs 
+  &amp;quot;out of the box&amp;quot; on your computer, you will still need to include 
+  the perl DLL as mentined above, or else others will not be able to execute your 
+  application. &lt;/p&gt;
+&lt;h2&gt;The finishing touches&lt;/h2&gt;
+&lt;p&gt;The created executable is a &lt;i&gt;console application&lt;/i&gt;, so you will still see 
+  a console window after you started it. To prevent this, you need to change the 
+  executable type. Download the source code for &lt;a href="http://jenda.krynicky.cz/perl/GUIscripts.html"&gt;exetype.pl&lt;/a&gt;, 
+  then do a&lt;/p&gt;
+&lt;p&gt;&lt;tt&gt;perl exetype.pl myapp.exe WINDOWS&lt;/tt&gt;&lt;/p&gt;
+&lt;p&gt;Voil&amp;agrave;!&lt;/p&gt;
+&lt;h2&gt;Final thoughts&lt;/h2&gt;
+&lt;p&gt;More information about &lt;tt&gt;App::Packer&lt;/tt&gt; can be found on &lt;a href="http://search.cpan.org/search?query=App::Packer"&gt;CPAN&lt;/a&gt;. 
+  If you like it, consider sending Mattia Barbon an e-mail to praise him for his 
+  work. If you have any amendments or corrections for this tutorial, please drop 
+  me a line. Thanks to [Valdez] for telling me about &lt;tt&gt;App::Packer&lt;/tt&gt;.&lt;/p&gt;
+&lt;p&gt;Large apps can take quite a while to start up, e.g. when using Wx, XML::Parser etc. Small apps tend to start very quickly. A "Hello world" can amount to ~15 KB (+ perl DLL) and run faster than you can blink, so don't hesitate to use this approach for small utilities, designed to be run e.g. on Windows startup.
+&lt;p&gt;&lt;font size="-2"&gt;&lt;i&gt;EDIT: added readmore tag, edited final thoughts&lt;/i&gt;&lt;/font&gt;&lt;/p&gt;</field>
+</data>
+</node>

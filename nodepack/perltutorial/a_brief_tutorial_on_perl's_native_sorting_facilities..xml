@@ -1,0 +1,316 @@
+<node>
+  <doctext>&lt;h4&gt;Simple sorting using [sort]&lt;/h4&gt;
+
+&lt;p&gt;The basic method of sorting in Perl is to use the built in [sort] function. 
+
+&lt;ol&gt;&lt;li&gt;&lt;c&gt;my @sortedAlpha = sort @alphaData;&lt;/c&gt;
+&lt;p&gt;This does pretty much exactly what you'd expect. Takes an array(*) of data, orders it ascending (smallest first) according the [ord]inal (ASCII**) values of the characters in the strings:
+&lt;code&gt;
+ print for sort qw[ 12 a123 a122 A123 B123 Ab123 aB123 456 1A23 1a23 ];;
+12          ## ord('1') == 49, ord('2') == 50
+1A23        ##                 ord('A') == 65  so this comes after.
+1a23        ##                 ord('a') == 97                  &quot;
+456         ## ord('4') == 52                                  &quot;
+A123        ## ord('A') == 65, ord('1') == 49                  &quot;
+Ab123       ##                 ord('b') == 98                  &quot;
+B123        ## etc.
+a122
+a123
+aB123
+&lt;/code&gt;
+
+&lt;p&gt;&lt;small&gt;*actually a list, but ignore that for now.&lt;/small&gt;
+&lt;p&gt;&lt;small&gt;**if your data is unicode, then the unicode ordinal values are used.&lt;/small&gt;
+
+&lt;/li&gt;&lt;li&gt;&lt;c&gt;my @reversedSordedAlpha = sort{ $b cmp $a } @alphaData;&lt;/c&gt;
+&lt;p&gt;Here we want the data ordered in descending (largest first) sequence, so we have(*) to use code block to alter the default ordering.
+
+&lt;p&gt;The &lt;c&gt;{ $b cmp $a }&lt;/c&gt; part of that tells [sort] that we wish to perform the ordering ourselves instead of using the default as we did in 1 above (which is equivalent to &lt;c&gt;{ $a cmp $b }&lt;/c&gt;). This says that for each pair of values in the input, Perl passes them to us (as &lt;c&gt;$a&lt;/c&gt; and &lt;c&gt;$b&lt;/c&gt;), and we perform a comparison and return 
+    
+    &lt;ul&gt;&lt;li&gt;-1 if &lt;c&gt;$a&lt;/c&gt; is less than &lt;c&gt;$b&lt;/c&gt;
+    &lt;/li&gt;&lt;li&gt;1 if &lt;c&gt;$a&lt;/c&gt; is greater than &lt;c&gt;$b&lt;/c&gt;
+    &lt;/li&gt;&lt;li&gt;0 if &lt;c&gt;$a&lt;/c&gt; equals &lt;c&gt;$b&lt;/c&gt;
+    &lt;/li&gt;&lt;/ul&gt;
+
+&lt;p&gt;With this information, [sort] can correctly do what it needs to do to reorder the input appropriately.
+
+&lt;p&gt;By using the built-in [doc://perlop|cmp] operator that is specifically designed for comparing strings and producing these values, we achieve the result we are after.
+&lt;p&gt;Supplying the arguments &lt;c&gt;$a&lt;/c&gt; and &lt;c&gt;$b&lt;/c&gt; to the function in reverse order has the effect of reversing the sort.
+
+&lt;p&gt;However, if we use &lt;c&gt;cmp&lt;/c&gt; on numeric data, we do not get the effect we want:
+
+&lt;code&gt;
+print for sort{ $b cmp $a } qw[ 1 10 100 2 20 21 3 300 ];;
+300
+3
+21
+20
+2
+100
+10
+1
+&lt;/code&gt;
+
+&lt;p&gt;For numeric data we need to use the other built-in comparison operator &lt;c&gt;&lt;=&gt;&lt;/c&gt;.
+
+&lt;p&gt;&lt;small&gt;*we can also use [reverse], and that may actually be quicker, but this is a tutorial and this way demonstrates the point I wish to make.&lt;/small&gt;
+&lt;/li&gt;&lt;li&gt;&lt;c&gt;my @reverseSortedNumbers = sort { $b &lt;=&gt; $a } @numbers;&lt;/c&gt;
+
+&lt;p&gt;Using &lt;c&gt;&lt;=&gt;&lt;/c&gt; produces the desired result.
+
+&lt;code&gt;
+print for sort{ $b &lt;=&gt; $a } qw[ 1 10 100 2 20 21 3 300 ];
+300
+100
+21
+20
+10
+3
+2
+1
+&lt;/code&gt;
+
+&lt;p&gt;The difference is that &lt;c&gt;&lt;=&gt;&lt;/c&gt; compares the (binary) numerical value of its arguments, instead of the bytewise string comparisons of the ASCII representation that &lt;c&gt;cmp&lt;/c&gt; does.
+
+&lt;/li&gt;&lt;li&gt;&lt;c&gt;my @sortedNumbers = sort{ $a &lt;=&gt; $b } @numbers;&lt;/c&gt;
+
+&lt;p&gt;And for an ascending numerical sort, we just pass the parameters to &lt;c&gt;&lt;=&gt;&lt;/c&gt; in the 'right' order.
+
+&lt;/li&gt;&lt;/ol&gt;
+
+&lt;p&gt;How [sort] actually works internally doesn't really matter. What does matter is that being built-in to the language, it understands Perl's internals, is always available and about as fast as you are likely to achieve.
+
+&lt;p&gt;So, sorting data is easy, when you want to sort according to the entire value of each element of the array or list. It gets a little more complex when you want to sort the elements by a sub field of each element.
+
+&lt;p&gt;For example, say you have a set of ids (A123 B421 C987 etc.) and you want to order them by just the numeric part, then you need to extract that part before supplying it to the appropriate comparison function:
+
+&lt;code&gt;
+print for sort{ 
+    substr( $a, 1 ) &lt;=&gt; substr( $b, 1 ) 
+} qw[ A473 B659 C123 D222 E001 ];;
+E001
+C123
+D222
+A473
+B659
+&lt;/code&gt;
+
+&lt;p&gt;This works fine, but each element will be passed to the comparison block multiple times, and that means we are extracting the sort field from each element multiple times, which can slow things down. For more complex cases, (eg. data consisting of dates), this could be significant. The purposes of the &quot;advanced sorting&quot; mechanisms is to reduce this slowdown by performing the extraction of the significant data from each input element once only.
+
+&lt;h4&gt;The ST&lt;/h4&gt;
+
+&lt;p&gt;One mechanism, and possibly the simplest to understand, is [merlyn]'s ST (Schwartzian Transform). This works by pre-processing the elements to extract the fields, and packages them into anonymous arrays. The list of anonymous arrays are then sorted according to the extracted field. And finally, the original elements are recovered from the list of sorted anonymous arrays and stored into the sorted array. 
+
+&lt;code&gt;
+## Build an array of anonymous arrays, 
+## each of which contains the sort field and the original element.
+@anons = map{ [ substr( $_, 1 ) , $_ ] } qw[ A473 B659 C123 D222 E001 ];;
+print Dumper \@anons;;
+$VAR1 = [
+    ['473','A473'],['659','B659'],['123','C123'],
+    ['222','D222'],['001','E001']
+];
+
+## Now sort the anonymous arrays
+## by comparing the extracted fields.
+@sortedAnons = sort{ $a-&gt;[ 0 ] &lt;=&gt; $b-&gt;[ 0 ] } @anons;;
+print Dumper \@sortedAnons;;
+$VAR1 = [
+    ['001','E001'],[123,'C123'],[222,'D222'],
+    [473,'A473'],[659,'B659']
+];
+
+## Finally, build the required sorted array 
+## by extracting the original elements discarding the sort fields.
+@sorted = map{ $_-&gt;[ 1 ] } @sortedAnons;;
+print Dumper \@sorted;;
+
+$VAR1 = ['E001','C123','D222','A473','B659'];
+&lt;/code&gt;
+
+&lt;p&gt;This is quite simple to follow and can be coded in a more compact form, by combining the 3 steps into a single statement and doing away with the intermediate arrays:
+
+&lt;code&gt;
+@sorted = map{ 
+    $_-&gt;[1] 
+} sort{ 
+   $a-&gt;[0] &lt;=&gt; $b-&gt;[0] 
+} map{ 
+    [ substr( $_, 1 ), $_ ] 
+} qw[ A473 B659 C123 D222 E001 ];;
+
+print Dumper \@sorted;;
+$VAR1 = ['E001','C123','D222','A473','B659'];
+&lt;/code&gt;
+
+&lt;p&gt;This is identical to the previous example, but more compact. It can also be formatted as a single line, though that will usually mean that it extends beyond the boundary at which PM does its dumb wrapping. It can also be laid out in several different ways to that I've shown, but I find that this makes the three significant steps of the algorithm clearly delineated, by indenting the contents of the code blocks just as you would for any other block of code. Eg. The body of [if] and [while] statements etc. I like this consistency.
+
+&lt;p&gt;The efficiency of the ST comes from only performing the extractions of the field data once. Indexing the anonymous arrays is very efficient and so the sorting and reassembly doesn't costs much extra. It also extends to sorting multiple fields in an obvious way:
+
+&lt;code&gt;
+print for map{ 
+    $_-&gt;[2] 
+} sort{ 
+    $a-&gt;[0] &lt;=&gt; $b-&gt;[0]  
+    || 
+    $a-&gt;[1] cmp $b-&gt;[1] 
+} map{ 
+    [ substr( $_, 1 ), substr( $_, 0, 1 ),  $_ ] 
+} qw[ A473 B437 B659 C659 C123 D123 D222 E222 E001 A001 ];;
+A001
+E001
+C123
+D123
+D222
+E222
+B437
+A473
+B659
+C659
+&lt;/code&gt;
+
+&lt;p&gt;Here we've ordered the data according to the numeric field as before, but this time we've used the alpha field to 'tie-break' values when the numeric values are the same. It's easy to see how this can be further extended to handle as many fields of any type we need. This simple, obvious extension mechanism is the great strength of the ST.
+
+&lt;h5&gt;The caveats&lt;/h5&gt;
+
+&lt;p&gt;The downside of the ST is that for large datasets, the creation and destruction of all the small anonymous arrays can itself prove to be fairly expensive of time and memory.
+
+&lt;p&gt;It's also the case that calling back into Perl code via the [sort] comparison block imposes a significant time cost. (Don't worry about this for the simple cases of &lt;c&gt;sort{ $a &lt;=&gt; } ...&lt;/c&gt; and &lt;c&gt;sort{ $b cmp $a }&lt;/c&gt; shown above, as Perl has optimisations to recognise these simple cases, and it doesn't actually do a callback at all). 
+
+&lt;p&gt;But for more complex sorting, these callbacks are expensive, and if you can avoid them, it will save some considerable time.
+
+&lt;h4&gt;The GRT&lt;/h4&gt;
+
+&lt;p&gt;This is where the (Guttman Rosler Transform) comes in. The basic idea here is that instead of building an anonymous array in the pre-processing stage, we prepend the field data to the front of the string; sort the strings; then strip the bit we stuck on the front back off. 
+
+&lt;p&gt;Going back to the simpler example of a field sort above, we can construct the GRT as follows:
+
+&lt;code&gt;
+print for map{ 
+    ## Chop off the bit we added.
+    substr( $_, 3 ) 
+} sort map{           ## Note: No comparison block callback.
+    ## Extract the field as before, but concatenate it with the original element
+    ## instead of building an anonymous array containing both elements.
+    substr( $_, 1 ) . $_ 
+} qw[ A473 B659 C123 D222 E001 ];;
+
+E001
+C123
+D222
+A473
+B659
+&lt;/code&gt;
+
+&lt;h5&gt;A cheat&lt;/h5&gt;
+
+&lt;p&gt;This is actually something of a cheat of a GRT. It only works because in my carefully constructed example data, the numeric fields all have the same number of digits, with smaller values having leading zeros. Whilst this works fine, and makes the algorithm easy to follow (try adding [print] statements inside the code blocks to follow what is going on), real life data is rarely so accommodating. Whilst you could use [sprintf] to add leading zeros and so make your ascii encoded numeric fields sort correctly using the string comparisons ([cmp]), it turns out that there is a better (faster) way. 
+
+&lt;p&gt;That way is to use [pack] to convert the numeric fields into binary values that will sort correctly using a string comparison function. It is convenient that binary encode integers (NOTE:In 'network' format only. That is 'N'&amp;'n' *NOT* 'V'&amp;'v') will sort correctly using a string comparison function. As will floating point data in IEEE formats (the format used internally by Perl on most but not all systems).
+
+&lt;p&gt;So, using [pack], the previous example becomes:
+
+&lt;code&gt;
+print for map{ 
+    unpack 'x[N] A*', $_ 
+} sort map{ 
+    pack 'N A*', substr( $_, 1 ), $_ 
+} qw[ A473 B659 C123 D222 E001 ];;
+E001
+C123
+D222
+A473
+B659
+&lt;/code&gt;
+
+&lt;p&gt;That may not look so very different from the previous version, but the big advantage is that it will handle &lt;i&gt;any&lt;/i&gt; integer values correctly, whereas with the previous version, you need to know how big the largest numeric field is, so that you can add the correct number of leading zeroes. 
+
+&lt;p&gt;It also trivially extends to handle the two fields example shown above for the ST:
+
+&lt;code&gt;
+print for map{ 
+    unpack 'x[NA1]A*', $_ 
+} sort map{ 
+    pack 'NA1 A*', substr( $_, 1 ), substr( $_, 0, 1 ),  $_ 
+} qw[ A473 B437 B659 C659 C123 D123 D222 E222 E001 A001 ];
+A001
+E001
+C123
+D123
+D222
+E222
+B437
+A473
+B659
+C659
+&lt;/code&gt;
+
+&lt;h4&gt;The pattern&lt;/h4&gt;
+
+&lt;p&gt;Hopefully, the pattern is becoming obvious. Use [pack] with appropriate templates 'N', 'n', 'd' etc. to prepend the sort field data to the strings in the order or precedence. Then use [unpack] and the same template as you used for the sort fields, but wrapped in 'x&amp;#91;...&amp;#93;' to strip the prefix off and recover the original elements.
+
+&lt;h4&gt;A worked example&lt;/h4&gt;
+
+&lt;p&gt;This following is one possible solution to [id://592728]:
+
+&lt;code&gt;
+#! Perl -slw
+use strict;
+my %months = (
+    FY =&gt; 0,
+    Jan =&gt; 1, Feb =&gt; 2, Mar =&gt; 3, Apr =&gt; 4, May =&gt; 5, Jun =&gt; 6,
+    Jul =&gt; 7, Aug =&gt; 8, Sep =&gt; 9, Oct =&gt; 10, Nov =&gt; 11, Dec =&gt; 12,
+);
+
+print for map{
+    unpack 'x[nn]A*', $_
+} sort map {
+    my( $alpha, $num ) = m[^(\S+?)\s*(\d+)$];
+    $num += 2000 if $num &lt;= 49;
+    $num += 1900 if $num &lt;= 99;
+    pack 'nnA*', $num, $months{ $alpha }, $_;
+} &lt;DATA&gt;;
+
+
+__DATA__
+Apr 2006
+FY05
+FY98
+FY04
+Dec 2007
+Jan 1997
+Jan 1998
+Dec 1998
+&lt;/code&gt;
+
+&lt;p&gt;Output:&lt;code&gt;
+C:\test&gt;junk
+Jan 1997
+FY98
+Jan 1998
+Dec 1998
+FY04
+FY05
+Apr 2006
+Dec 2007
+&lt;/code&gt;
+
+&lt;h4&gt;Further reading&lt;/h4&gt;
+
+&lt;ol&gt;&lt;li&gt;[id://9108]
+&lt;/li&gt;&lt;li&gt;[id://145659]
+&lt;/li&gt;&lt;li&gt;[id://447633]
+&lt;/li&gt;&lt;li&gt;[id://287149]
+&lt;/li&gt;&lt;li&gt;[id://441583]
+&lt;/li&gt;&lt;li&gt;[id://441835]
+&lt;/li&gt;&lt;li&gt;[id://128722]
+&lt;/li&gt;&lt;/ol&gt;
+
+&lt;p&gt;Updated with many corrections as suggested by [planetscape], [jdporter], [holli], [blazar], [chromatic] &amp; [shmem]. Many thanks to all, including anyone I forgot to mention.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>599204</node_id>
+  <author_user>171588</author_user>
+  <title>A brief tutorial on Perl's native sorting facilities.</title>
+  <createtime>2007-02-09 08:04:23</createtime>
+  <nodeupdated>2007-02-09 03:04:23</nodeupdated>
+</node>

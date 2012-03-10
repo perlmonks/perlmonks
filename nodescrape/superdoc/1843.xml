@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1843" title="Categorized Questions and Answers" created="2000-01-06 20:26:47" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[{get_sitedoclet}]
+[%
+  my( @TEMP )= getNodeWhere({title=&gt;"Categorized Q&amp;A Sections"});
+  my $TEMP;
+  foreach(  @TEMP  ) {
+    $TEMP= selectNode( $_ );
+  }
+  my $GROUP= $TEMP-&gt;{group};
+  my $str= '';
+  my $size= scalar @$GROUP;
+  my $height= int($size/3);
+  $height++   if  0 != $size%3;
+  $str .= qq[
+    &lt;table class="highlight" width="100%"&gt;];
+  for my $i (  0 .. $height-1 ) {
+    $str .= qq[
+      &lt;tr&gt;];
+    for my $j (  0 .. 2  ){
+      $str .= qq[
+        &lt;td&gt;];
+      if(  $GROUP-&gt;[$i+$height*$j]  ) {
+        my $TEMP= $DB-&gt;getNodeById(
+          $GROUP-&gt;[$i+$height*$j], 'light' );
+        $str .= linkNode($TEMP);
+      } else {
+        $str .= "&amp;nbsp;";
+      }
+      $str .= qq[
+        &lt;/td&gt;];
+    }
+    $str .= qq[
+      &lt;/tr&gt;];
+  }
+  $str .= qq[
+    &lt;/table&gt;];
+
+  return $str;
+  # The MySQL optimizer doesn't do a good job on this next
+  # query so we'll turn off this display (for now).
+
+  my( @RECENT )= getNodeWhere( {},
+    getType("categorized question"),
+    "createtime desc limit 10" );
+  $str .= qq[
+    &lt;p&gt;&lt;/p&gt;];
+  $str .= qq[
+    &lt;table width="85%" border="1" cellspacing="0"&gt;
+      &lt;tr class="highlight"&gt;
+        &lt;th colspan="2"&gt;
+          Most Recently Added Questions
+        &lt;/th&gt;
+      &lt;/tr&gt;];
+
+  foreach(  @RECENT  ) {
+    my $PARENT= selectNode( $_-&gt;{parent_node} );
+    $str .= qq[
+      &lt;tr&gt;
+        &lt;td&gt;] . linkNode($PARENT) . qq[&lt;/td&gt;
+        &lt;td&gt;] . linkNode($_) . qq[&lt;/td&gt;
+      &lt;/tr&gt;];
+  }
+  $str .= qq[
+    &lt;/table&gt;];
+
+### obsolete
+#  $str .= qq[
+#    &lt;br /&gt;Feel like placing questions into categories?
+#    Check out: ] . linkNodeTitle("Uncategorized #Questions") . qq[
+#    &lt;br /&gt;]
+#    if  $DB-&gt;isApproved( $USER,
+#      getNode('QandAEditors','usergroup') );
+
+  return $str;
+%]</field>
+</data>
+</node>

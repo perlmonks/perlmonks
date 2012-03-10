@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="41175" title="Satanizer" created="2000-11-12 09:56:53" updated="2005-08-13 03:31:42">
+<type id="121">
+perlcraft</type>
+<author id="41099">
+kaatunut</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+# Feel need to prove someone's satan's pawn?
+# This script mutilates given name to make the
+# sum of ASCII codes 666 (or any number for that).
+# Currently quite limited in mutilation strength, I ran
+# out of interest.
+
+$debug=0;
+
+@number=(666);
+$verbose=1;
+$quitfirst=0;
+$viewnumber=0;
+$factual=0;
+$listnumber=0;
+
+while (@ARGV) {
+        $t = shift(@ARGV);
+
+        if ($t eq "-help") {
+                print&lt;&lt;END_OF_HELP
+Usage: satanizer.pl [parameters] &lt;name&gt;
+
+"Here is the wisdom. Let him that hath understanding count the number of
+      the beast; for it is the number of a man; and his number is
+                  Six hundred threescore and six"
+
+This program will help you in easily identifying the people who carry
+Shai'tan, the Prince of Lies, in their heart through the number of 666.
+Just supply the name of person to be examined on the command line and
+program will report his true loyalties.
+
+Parameters:
+
+  -number NUM[,NUM...]     Use alternative number(s) instead of 666. You
+                           may also supply multiple numbers, in which
+                           case all of them will be checked.
+  -silent                  Output only matching names, name-per-line, no
+                           useless babble included.
+  -stop                    In case of multiple numbers, stop after first
+                           matching number.
+  -list-number             Under -silent, append the number that matched
+                           after the name in output.
+  -view-number             Report which number the person would match to
+                           without mutilation.
+  -proper                  Speak sensibly.
+  -file FILE               Get the names to be used from FILE, name per
+                           line. Further names on command line will be
+                           ignored.
+                           
+DISCLAIMER: If you are offended by this program, I laugh at you. Please
+send emails condemning me to hell for blashpemy to kaatunut\@iki.fi, I
+will enjoy them.
+
+Send bug reports to kaatunut\@iki.fi.
+END_OF_HELP
+;
+                exit;
+        } elsif ($t eq "-version") {
+                print&lt;&lt;END_OF_TEXT
+Satanize 0.1
+
+(c) 2000, Juhan Aslak Näkkäläjärvi
+
+This program is free software, and is under the GPL license.
+END_OF_TEXT
+        } elsif ($t eq "-number") {
+                @number=split /,/,shift(@ARGV);
+        } elsif ($t eq "-silent") {
+                $verbose=0;
+        } elsif ($t eq "-stop") {
+                $quitfirst=1;
+        } elsif ($t eq "-list-number") {
+                $listnumber=1;
+        } elsif ($t eq "-view-number") {
+                $viewnumber=1;
+        } elsif ($t eq "-proper") {
+                $factual=1;
+        } elsif ($t eq "-file") {
+                $filename=shift(@ARGV);
+                open(FILE,$filename) or die "can't open $filename!";
+                push @name,$_ while (&lt;FILE&gt;);
+                close(FILE);
+                chomp @name;
+        } elsif (substr($t,0,1) eq "-") {
+                print "Unknown parameter \'$t\'.\n";
+        } elsif (!@name) {
+                $name[0]=$t;
+                while (@ARGV) {
+                        $name[0].=" ".shift(@ARGV);
+                }
+        }
+}
+if (!defined $listnumber) {
+        if (!$verbose &amp;&amp; !$quitfirst) {
+                $listnumber=0;
+        } else {
+                $listnumber=1;
+        }
+}
+
+if (!@name) {
+        print "You need to supply a name.\n";
+        exit;
+}
+
+for $j (0 .. $#name) {
+        for $i (0 .. $#number) {
+                my $t;
+
+                $ret=satanize($name[$j],$number[$i],\$mutilation,\$t,0);
+
+                if ($viewnumber) {
+                        print "$name[$j]\'s number is $t\n";
+                        $viewnumber=0;
+                }
+
+                if (!$ret) {
+                        if (satanize($mutilation,$number[$i],0,\$t,1),$t!=$number[$i]) {
+                                die "satanization failure";
+                        }
+                        if ($verbose) {
+                                if ($factual) {
+                                        print "$mutilation matches to $number[$i].\n";
+                                } elsif ($number[$i]==666) {
+                                        print "$mutilation is the Satan's incarnate on earth!\n";
+                                } else {
+                                        print "$mutilation was born to the number $number[$i].\n";
+                                }
+                        } else {
+                                print "$mutilation";
+                                print " - $number[$i]" if $listnumber;
+                                print "\n";
+                        }
+                        last if $quitfirst;
+                } elsif ($verbose) {
+                        if ($ret==1) {
+                                if ($factual) {
+                                        print
+"$name[$j] cannot be made to have asciisum of $number[$i] by any currently ".
+"used mutilation methods. Try changing non-trivial spelling (ie. letters).\n";
+                                } elsif ($number[$i]==666) {
+                                        print
+"$name[$j]\'s waveform seems to indicate that it is a human. It might be a ".
+"guise though, try changing some letters in the name.\n";
+                                } else {
+                                        print
+"$name[$j]\'s waveform does not match to number $number[$i].\n";
+                                }
+                        } elsif ($ret==2) {
+                                if ($factual) {
+                                        print
+"$name[$j] has too few non-whitespaces to reach $number[$i]. Try adding some.\n";
+                                } elsif ($number[$i]==666) {
+                                        print
+"$name[$j] has some satanic breed but it lacks strength.\n";
+                                } else {
+                                        print
+"$name[$j] has shown potential tendencies towards number $number[$i], but it ".
+"has no power to reach that.\n";
+                                }
+                        } elsif ($ret==3) {
+                                if ($factual) {
+                                        print
+"$name[$j] has too many non-whitespaces to reach $number[$i]. Try removing some.\n";
+                                } elsif ($number[$i]==666) {
+                                        print
+"$name[$j] has some satanic breed but it cannot contain its powers.\n";
+                                } else {
+                                        print
+"$name[$j] has shown potential tendencies towards number $number[$i], but it ".
+"cannot contain its powers.\n";
+                                }
+                        } else {
+                                print "ACK! $name[$j] must be Satan Himself, you shouldn't ".
+"see this message ever :(\n";
+                        }
+                }
+        }
+}
+## satanize(name,number,outname,outnumber,short)
+sub satanize {
+        my($name,$number)=@_;
+        my $num=0;
+        my $times=0;
+        my $lcase_num=0,$ucase_num=0,$space_num=0;
+        my($c,$i,@upl,@downl,@spacel);
+
+        for $i (0 .. (length $name)-1) {
+                $c=substr($name,$i,1);
+                $num+=ord $c;
+                if ($c eq " ") {
+                        $space_num++;
+                        push @spacel,$i;
+                } elsif ($c ne uc $c) {
+                        $lcase_num++;
+                        push @downl,$i;
+                } elsif ($c ne lc $c) {
+                        $ucase_num++;
+                        push @upl,$i;
+                }
+        }
+
+        ${$_[3]}=$num if $viewnumber || $_[4];
+        return $num if $_[4];
+
+        if ($num==$number) {
+                ${$_[2]}=$name;
+                return 0;
+        }
+
+        if ((abs($number-$num) % abs(ord('a')-ord('A')))) {
+                print "nondivisible\n" if $debug;
+                return 1;       # not divisible
+        }
+        $times=($number-$num)/abs(ord('a')-ord('A'));
+        if (($times&lt;0 &amp;&amp; (-$times)&gt;($lcase_num+$space_num)) ||
+                ($times&gt;0 &amp;&amp; $times&gt;$ucase_num)) {
+                print "not enough space: $times transformations needed\n" if $debug;
+                return 2 if $times&gt;0;
+                return 3 if $times&lt;0;
+        }
+# capitalizing rule: find existing capitalized points and start adding to them
+# decapitalizing rule: drop capitalized letters randomly
+# spacing rule: remove random spaces after everything is capitalized
+        ${$_[2]}=$name;
+        if ($times&lt;0) { # Capitalize
+                my $p=0;
+                if (!@upl || $upl[0]!=0) {
+                        splice @upl,0,0,-1;
+                }
+                print "capitalize $times times\n" if $debug;
+                while ($times &amp;&amp; @upl) {
+                        do {
+                                $upl[$p]++;
+                                if ($upl[$p]&gt;=(length ${$_[2]})
+                                        || (substr(${$_[2]},$upl[$p],1)
+                                                ne lc substr(${$_[2]},$upl[$p],1))) {
+# kill this pointer (and move to next in row):
+# at the end of string or at ucase character
+                                        print "kill pointer $p at $upl[$p]\n" if $debug;
+                                        splice @upl,$p,1;
+                                        if (@upl) {
+                                                $p=0 if $p &gt; $#upl;
+                                                redo;
+                                        } else {
+                                                print "break\n" if $debug;
+                                                last;
+                                        }
+                                } elsif (substr(${$_[2]},$upl[$p],1)
+                                                eq uc substr(${$_[2]},$upl[$p],1)) {
+# ignore: uppercase or special character-
+# but uppercase was checked above so spec char
+                                        redo;
+                                }
+                        } while (0);
+                        last if not @upl;
+                        substr(${$_[2]},$upl[$p],1)=uc substr(${$_[2]},$upl[$p],1);
+                        print "  =&gt;${$_[2]}\n" if $debug;
+                        $p++;
+                        $p=0 if $p&gt;=@upl;
+                        print "p now: $p\n" if $debug;
+                        $times++;
+                }
+                if ($times) {   # time to remove some spaces!
+                        my @kill_list;
+                        while ($times) {
+                                $p=int rand @spacel;
+                                push @kill_list,$spacel[$p];
+                                splice @spacel,$p,1;
+                                $times++;
+                        }
+                        @kill_list=reverse sort @kill_list;
+                        print "kill ".@kill_list." spaces\n" if $debug;
+                        for $i (0 .. $#kill_list) {
+                                substr(${$_[2]},$kill_list[$i],1)="";
+                        }
+                }
+                return 0;
+        } else {
+                my $p;
+                print "decapitalize $times times\n" if $debug;
+                while ($times) {
+                        $p=int rand @upl;
+                        substr(${$_[2]},$upl[$p],1)=lc substr(${$_[2]},$upl[$p],1);
+                        splice @upl,$p,1;
+                        $times--;
+                }
+                return 0;
+        }
+        print "bug- shouldn't be here\n";
+        return 100;
+}
+</field>
+</data>
+</node>

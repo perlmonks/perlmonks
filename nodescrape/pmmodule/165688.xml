@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="165688" title="Everything/MAIL.pm" created="2002-05-10 12:14:16" updated="2005-08-13 05:26:23">
+<type id="118397">
+pmmodule</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="filetext">
+package Everything::MAIL;
+
+############################################################
+#
+#	Everything::MAIL.pm
+#
+############################################################
+
+use strict;
+use Everything;
+
+
+
+sub BEGIN {
+	use Exporter ();
+	use vars       qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+	@ISA=qw(Exporter);
+	@EXPORT=qw(
+			node2mail
+			mail2node);
+}
+
+# Note: added third parameter to allow override from address when sending mail
+#
+#
+sub node2mail {
+	my ($addr, $node,$fromoverride) = @_;
+	my @addresses = (ref $addr eq "ARRAY") ? @$addr:($addr);
+	my ($user) = $DB-&gt;getNodeWhere({node_id =&gt; $$node{author_user}},
+		$DB-&gt;getType("user"));
+	my $subject = $$node{title};
+	my $body = $$node{doctext};
+	use Mail::Sender;
+
+	my $SETTING = getNode('mail settings', 'setting');
+	my ($mailserver, $from);
+	if ($SETTING) {
+		my $MAILSTUFF = getVars $SETTING;
+		$mailserver = $$MAILSTUFF{mailServer};
+                $from=$fromoverride;
+		$from ||= $$MAILSTUFF{systemMailFrom};
+	} else {
+		$mailserver = "localhost";
+		$from = "root\@localhost";
+	}
+
+
+	my $sender = new Mail::Sender{smtp =&gt; $mailserver, from =&gt; $from};
+	my $error = $sender-&gt;MailMsg({to=&gt;$addr,
+			subject=&gt;$subject,
+			msg =&gt; $body});
+	$sender-&gt;Close();                
+    return $error
+        if  ! ref $error;
+    return 0;
+}
+
+sub mail2node
+{
+	my ($file) = @_;
+	my @filez = (ref $file eq "ARRAY") ? @$file:($file);
+	use Mail::Address;
+	my $line = '';
+	my ($from, $to, $subject, $body);
+	foreach(@filez)
+	{
+		open FILE,"&lt;$_" or die 'suck!\n';
+		until($line =~ /^Subject\: /)
+		{
+			$line=&lt;FILE&gt;;
+			if($line =~ /^From\:/)       
+			{ 
+				my ($addr) = Mail::Address-&gt;parse($line);
+				$from = $addr-&gt;address;
+			}
+			if($line =~ /^To\:/)  
+			{
+				my ($addr) = Mail::Address-&gt;parse($line);
+				$to = $addr-&gt;address;
+			}
+			if($line =~ /^Subject\: (.*?)/)
+			{ print "hya!\n"; $subject = $1; }
+			print "blah: $line" if ($line);
+		}
+		while(&lt;FILE&gt;)
+		{
+			my $body .= $_;
+		}
+		my ($user) = $DB-&gt;getNodeWhere({email=&gt;$to},
+			$DB-&gt;getType("user"));
+		my $node;
+		%$node = { author_user =&gt; getId($user),
+			from_address =&gt; $from,
+			doctext =&gt; $body};
+        $DB-&gt;insertNode($subject, $DB-&gt;getType("mail"), -1, $node);
+	}
+}
+1;
+</field>
+<field name="filerequired">
+1</field>
+<field name="filereaderror">
+</field>
+</data>
+</node>

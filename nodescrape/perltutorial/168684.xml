@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="168684" title="Getting more out of LWP::Simple" created="2002-05-23 03:15:52" updated="2005-08-15 01:45:05">
+<type id="956">
+perltutorial</type>
+<author id="141348">
+Dog and Pony</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;
+Introduction
+&lt;/h3&gt;
+&lt;p&gt;
+I have lately had reason to use [cpan://LWP::Simple] for lots of small tasks, including: downloading a pdf on the command line without wget, since my browser didn't get it right, fetching the [id://145587|Chatterbox XML ticker] and doing lots of other small tasks. None of which would have been quite as easy without LWP::Simple, although there are of course alternatives. But, as I'm sure you have heard, it is recommended to "[http://xp.c2.com/DoTheSimplestThingThatCouldPossiblyWork.html|Do the simplest thing that could possibly work]". Which I feel, in perl programming, is often using the package named XXX::Simple.
+&lt;/p&gt;
+&lt;p&gt;
+While doing this, I've "discovered" a few neat tricks that makes its use even simpler, or more effective, and I'd though I'd also share a few other things that might not be a given (like the HEAD part) for those not so familiar with HTTP and web servers.
+&lt;/p&gt;
+&lt;p&gt;
+I'm sure there is more that I am missing out here, but these things made life easier on me, at least. So here goes:
+&lt;/p&gt;
+
+&lt;readmore&gt;
+
+&lt;h3&gt;
+Read the documentation
+&lt;/h3&gt;
+&lt;p&gt;
+Sounds like a given, but it is easy to neglect - or to think that one remembers everything. [perldoc://lwpcook], [cpan://LWP::Simple], [perldoc://LWP::UserAgent] and [perldoc://LWP] are good places to look. Or just type &lt;b&gt;perldoc name&lt;/b&gt; on your command line - you should have this utility bundled with your perl distribution.
+&lt;/p&gt;
+&lt;p&gt;
+This mini tutorial assumes that you have some basic knowledge of using LWP::Simple.
+&lt;/p&gt;
+&lt;h3&gt;
+Export the UserAgent
+&lt;/h3&gt;
+&lt;p&gt;
+A poorly documented feature of LWP::Simple is that it supports exporting the LWP::UserAgent object it uses to fetch with.
+&lt;/p&gt;
+&lt;p&gt;
+Why would you want to do that? Well, the default timeout for LWP::Simple is the same as for LWP::UserAgent, that is 180 seconds, or three minutes. This might often be way too long. In one real life example of mine, I had a small script going live every minute, fetching something from the web - such a timeout might mean that I have several copies of the script running simultanelously, potentially accessing the same log files or something similar. There are other ways to work around this, of course, with setting alarms, or implement file locking. But it made no sense either way, since if the page didn't respond within 30 seconds, it was probably down anyways.
+&lt;/p&gt;
+&lt;p&gt;
+This code will take care of this problem:
+&lt;code&gt;
+# Note that if you do this, you must explicitly
+# export everything you want to use:
+use LWP::Simple qw($ua get);
+
+$ua-&gt;timeout(30);
+
+my $html = get $webpage || die "Timed out!";
+&lt;/code&gt;
+Another thing you might want to do is change your reported useragent:
+&lt;code&gt;
+$ua-&gt;agent('My agent/1.0');
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;
+If you want to do several requests, of which the first should include a login, or something else stateful which uses cookies, you can even attach a cookiejar to use with LWP::Simple:
+&lt;code&gt;
+use LWP::Simple qw($ua get);
+use HTTP::Cookies;
+
+$ua-&gt;cookie_jar(HTTP::Cookies-&gt;new);
+
+get $webpage . $login_string;
+
+my $logged_in_page = get $webpage . $private_page;
+&lt;/code&gt;
+And, as usual with cookiejars, you can of course specify a file to save the cookies in, between invokations of the script.
+&lt;/p&gt;
+&lt;p&gt;
+As you can see, this opens up some possibilities for extra tweaking. But why not use LWP::UserAgent then, instead? Well, simply because this way is so much simpler if you only need those small extras. The corresponding LWP::UserAgent example for timeout looks like this:
+&lt;code&gt;
+use LWP::UserAgent;
+
+my $ua = LWP::UserAgent-&gt;new;
+
+$ua-&gt;timeout(30);
+
+$request = HTTP::Request-&gt;new('GET', $webpage);
+
+$response = $ua-&gt;request($request);
+
+my $html = $response-&gt;content;
+&lt;/code&gt;
+As you can see, lots more typing. See [perldoc://LWP::UserAgent] for all possibilities you have on this.
+&lt;/p&gt;
+
+&lt;h3&gt;
+Use environment variables to set proxies
+&lt;/h3&gt;
+
+&lt;p&gt;
+Sometimes it is necessary to use a proxy because you are behind a firewall. One can of course use the exported UserAgent to cope with this, by setting &lt;code&gt;$ua-&gt;proxy&lt;/code&gt;.
+&lt;/p&gt;
+&lt;p&gt;
+But upon init, LWP::Simple will also call &lt;code&gt;$ua-&gt;env_proxy&lt;/code&gt; as described at [perldoc://LWP::UserAgent], which means that if you use the same script somewhere else, or several LWP::Simple scripts, it might be easier to simply set your environment variables, like &lt;code&gt;http_proxy&lt;/code&gt; for all http requests. However, if the proxy requires credentials, I don't think that is possible to do via the environment, in which case you must resort to the UserAgent way of doing things. 
+&lt;/p&gt;
+&lt;p&gt;
+This is an easy way to set your proxy, on that machine, for all eternity - without modifying the script. That may, or may not be what you want. :)
+&lt;/p&gt;
+&lt;p&gt;
+The docs on LWP::UserAgent mentions how to set these on *NIX based platforms, I just want to add that on Windows, the command you want is &lt;b&gt;set&lt;/b&gt; - try to type &lt;b&gt;set /?&lt;/b&gt; to get some instructions. Or just set it the GUI way, which should be somewhere below the control panel.
+&lt;/p&gt;
+
+&lt;h3&gt;
+Use LWP::Simple on the command line
+&lt;/h3&gt;
+&lt;p&gt;
+This is well documented in [http://www.perldoc.com/perl5.6.1/lib/lwpcook.html#GET|lwpcook], but it is worth mentioning. *NIX people usually have the excellent [http://www.wget.org/|wget] program to take care of this stuff. It is probably available somewhere for other platforms as well, and it is included in [http://www.cygwin.com/|cygwin] as well (though not by default).
+&lt;/p&gt;
+&lt;p&gt;
+But if you know how to use LWP::Simple on the command line, and you have perl available (you do have perl on all your computers, right?) then you already know how to fetch files and pages &lt;i&gt;on any platform&lt;/i&gt;. This is a very nice tool to have in ones toolbox.
+&lt;/p&gt;
+&lt;p&gt;
+You could even use the chatterbox from the command line, using any of these (depending on if you are more fluent in XML or HTML) to read it:
+&lt;code&gt;
+perl -MLWP::Simple -e "getprint 'http://perlmonks.org?node_id=145587'"
+
+perl -MLWP::Simple -e "getprint 'http://perlmonks.org?node=showchatmessages&amp;displaytype=raw'"
+&lt;/code&gt;
+...and something like this to post your own messages:
+&lt;code&gt;
+perl -MLWP::Simple -e "get 'http://perlmonks.org?op=login&amp;user=Dog and Pony&amp;passwd=doNotUseThisPW&amp;op=message&amp;message=Hi it is me on the command line!'"
+&lt;/code&gt;
+Although, for your sanitys sake, I do not really recommend it... :)
+&lt;/p&gt;
+
+&lt;h3&gt;
+Try using get to post data into forms
+&lt;/h3&gt;
+&lt;p&gt;
+Many forms out there on the web doesn't really need a POST request to accept your data. One good example is the regular search box on the top of the perlmonks pages; it expects the field 'node' to contain some search words. But it doesn't care if it is a GET or POST, even though the form itself uses a POST.
+&lt;/p&gt;
+&lt;p&gt;
+This code works just fine:
+&lt;code&gt;
+my $words = 'LWP::Simple tutorial'
+my $html = get "http://www.perlmonks.org/index.pl?node=$words";
+&lt;/code&gt;
+What it is really about is of course that it is possible to do a check on the server if it is really a post that is coming our way or not. PerlMonks has wisely chosen not to do so, thus making it much simpler for people to use this ability - not to mention that arbitrary linking such as &lt;code&gt;[some words]&lt;/code&gt; uses this to link as best as it can. Very useful for names in the chatterbox for instance.
+&lt;/p&gt;
+&lt;p&gt;
+The way to POST data described in [http://www.perldoc.com/perl5.6.1/lib/lwpcook.html#POST|lwpcook] is not very hard or complex either, but this way still beats it.
+&lt;/p&gt;
+
+&lt;h3&gt;
+Use the HTTP status codes when possible
+&lt;/h3&gt;
+&lt;p&gt;
+LWP::Simple also exports the HTTP::Status constants and procedures, as documented. The author notes that this is a mistake and makes LWP::Simple slower, but while it is there, we should really take advantage of it for the functions that makes it possible.
+&lt;/p&gt;
+&lt;p&gt;
+The functions in LWP::Simple that return a HTTP status code are &lt;code&gt;getprint&lt;/code&gt;, &lt;code&gt;getstore&lt;/code&gt; and &lt;code&gt;mirror&lt;/code&gt;. This is for example the number '200' for a succesful fetch, or '404' for 'Page not found', as documented in [perldoc://HTTP::Status]. We can use these numbers to determine the success or failure of a fetch.
+&lt;/p&gt;
+&lt;p&gt;
+But it is simpler than that, unless we have special needs, as we also get the functions &lt;code&gt;is_success&lt;/code&gt; and &lt;code&gt;is_error&lt;/code&gt; exported, that we can feed these numbers to and get a quick answer to if everything is fine or not:
+&lt;code&gt;
+my $response_code = mirror $webpage, 'webpage.html';
+
+die "Bad response $response_code" unless is_success($response_code);
+&lt;/code&gt;
+Note: If you do the trick with exporting the UserAgent above, you will need to explicitly export these functions too.
+&lt;/p&gt;
+
+&lt;h3&gt;
+Use head to determine if a site is up
+&lt;/h3&gt;
+&lt;p&gt;
+This is somewhat covered in [http://www.perldoc.com/perl5.6.1/lib/lwpcook.html#HEAD|lwpcook], but it doesn't mention that this is much easier on the network traffic and the web server (if that is an issue). So if all you want to do is check if the server is responding, or if the document exists, without actually fetching it - use the function head:
+&lt;code&gt;
+use LWP::Simple;
+
+print "$webpage exists and server is up!\n" if (head($webpage));
+&lt;/code&gt;
+It is also worth noting that pinging the server will not tell you if the web server is up, so this is the way you want to use for this.
+&lt;/p&gt;
+&lt;p&gt;
+Of course, you also get some information in the form of a list from head if you want it. Namely Content-type, document length, last modified time, expiry date and server name, in that order.
+&lt;code&gt;
+my @headers = head $webpage;
+
+print join "\n", @headers;
+&lt;/code&gt;
+Will print this data for the webpage of your choice.
+&lt;/p&gt;
+
+&lt;h3&gt;
+Drawbacks
+&lt;/h3&gt;
+&lt;p&gt;
+Well, none that aren't advertised in the documentation, but there are some things that one may or may not like:
+&lt;ul&gt;
+&lt;li&gt;
+LWP::Simple might seem limited. Well, it is, by design. Of course it would be nice to be able to do POSTS as easy, but I've noticed that I rarely actually need that, and there are still ways to do it when you do need it. LWP::Simple seems to cover most of the basic cases you stumble upon.
+&lt;/li&gt;
+&lt;li&gt;
+LWP::Simple pollutes the name space. Indeed it does, and that tends to be something I don't really like. If I see a subroutine call 'get', how do I know if it is mine or someone elses? This can be a problem when using someone elses code, or your own old. You can "solve" this by document the call with a comment, or by always calling your own subs with a prepending '&amp;amp;'. LWP::simple tends (for me) to show up in small scripts and oneliners, so then it isn't very hard to see what is going on, and it makes things much easier. It also allows you to easily use LWP::Simple on the commandline.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/p&gt;
+&lt;h3&gt;
+Final words
+&lt;/h3&gt;
+&lt;p&gt;
+As you can see, there is lots and lots to gain by using LWP::Simple, and by using it &lt;i&gt;right&lt;/i&gt;. Simple doesn't always have to mean (too) limited. I hope this has been a help in your web programming and/or automation tasks - sometimes, simple is all it takes.
+&lt;/p&gt;
+&lt;p&gt;
+Thanks to [arunhorne] for [id://167886|inspiration] to the proxy part of this tutorial. &lt;b&gt;Update 2004-03-07:&lt;/b&gt; Also thanks to [florg] for finding a typo/bug in the code that has gone unnoticed until now. :)
+&lt;/p&gt;
+&lt;p&gt;
+&lt;small&gt;This is a repost of [id://167861] in [Meditations] upon request by, among  others, [ignatz]. I am very flattered by this.&lt;/small&gt;
+&lt;/p&gt;</field>
+</data>
+</node>

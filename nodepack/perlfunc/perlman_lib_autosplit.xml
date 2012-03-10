@@ -1,0 +1,129 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+AutoSplit - split a package for autoloading
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+This function will split up your program into files that the AutoLoader
+module can handle. It is used by both the standard perl libraries and by
+the MakeMaker utility, to automatically configure libraries for
+autoloading.
+
+&lt;P&gt;
+The &lt;CODE&gt;autosplit&lt;/CODE&gt; interface splits the specified file into a hierarchy rooted at the
+directory &lt;CODE&gt;$dir&lt;/CODE&gt;. It creates directories as needed to reflect class hierarchy, and creates
+the file &lt;EM&gt;autosplit.ix&lt;/EM&gt;. This file acts as both forward declaration of all package routines, and
+as timestamp for the last update of the hierarchy.
+
+&lt;P&gt;
+The remaining three arguments to &lt;CODE&gt;autosplit&lt;/CODE&gt; govern other options to the autosplitter.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__keep&quot;&gt;$keep&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If the third argument, &lt;EM&gt;$keep&lt;/EM&gt;, is false, then any pre-existing &lt;CODE&gt;*.al&lt;/CODE&gt; files in the autoload directory are removed if they are no longer part of
+the module (obsoleted functions). &lt;CODE&gt;$keep&lt;/CODE&gt; defaults to 0.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__check&quot;&gt;$check&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The fourth argument, &lt;EM&gt;$check&lt;/EM&gt;, instructs &lt;CODE&gt;autosplit&lt;/CODE&gt; to check the module currently being split to ensure that it does include a [perlfunc:use|use]
+specification for the AutoLoader module, and skips the module if AutoLoader
+is not detected. &lt;CODE&gt;$check&lt;/CODE&gt; defaults to 1.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__modtime&quot;&gt;$modtime&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Lastly, the &lt;EM&gt;$modtime&lt;/EM&gt; argument specifies that &lt;CODE&gt;autosplit&lt;/CODE&gt; is to check the modification time of the module against that of the &lt;CODE&gt;autosplit.ix&lt;/CODE&gt; file, and only split the module if it is newer. &lt;CODE&gt;$modtime&lt;/CODE&gt;
+defaults to 1.
+
+&lt;/DL&gt;
+&lt;P&gt;
+Typical use of AutoSplit in the perl MakeMaker utility is via the
+command-line with:
+
+&lt;P&gt;
+&lt;PRE&gt; perl -e 'use AutoSplit; autosplit($ARGV&amp;#091;0&amp;#093;, $ARGV&amp;#091;1&amp;#093;, 0, 1, 1)'
+&lt;/PRE&gt;
+&lt;P&gt;
+Defined as a Make macro, it is invoked with file and directory arguments;
+&lt;CODE&gt;autosplit&lt;/CODE&gt; will split the specified file into the specified directory and delete
+obsolete &lt;CODE&gt;.al&lt;/CODE&gt; files, after checking first that the module does use the AutoLoader, and
+ensuring that the module is not already currently split in its current form
+(the modtime test).
+
+&lt;P&gt;
+The &lt;CODE&gt;autosplit_lib_modules&lt;/CODE&gt; form is used in the building of perl. It takes as input a list of files
+(modules) that are assumed to reside in a directory
+&lt;STRONG&gt;lib&lt;/STRONG&gt; relative to the current directory. Each file is sent to the autosplitter
+one at a time, to be split into the directory &lt;STRONG&gt;lib/auto&lt;/STRONG&gt;.
+
+&lt;P&gt;
+In both usages of the autosplitter, only subroutines defined following the
+perl &lt;EM&gt;__END__&lt;/EM&gt; token are split out into separate files. Some routines may be placed prior
+to this marker to force their immediate loading and parsing.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Multiple_packages&quot;&gt;Multiple packages&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+As of version 1.01 of the AutoSplit module it is possible to have multiple
+packages within a single file. Both of the following cases are supported:
+
+&lt;P&gt;
+&lt;PRE&gt;   package NAME;
+   __END__
+   sub AAA { ... }
+   package NAME::option1;
+   sub BBB { ... }
+   package NAME::option2;
+   sub BBB { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   package NAME;
+   __END__
+   sub AAA { ... }
+   sub NAME::option1::BBB { ... }
+   sub NAME::option2::BBB { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DIAGNOSTICS&quot;&gt;DIAGNOSTICS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;CODE&gt;AutoSplit&lt;/CODE&gt; will inform the user if it is necessary to create the top-level directory
+specified in the invocation. It is preferred that the script or
+installation process that invokes &lt;CODE&gt;AutoSplit&lt;/CODE&gt; have created the full directory path ahead of time. This warning may
+indicate that the module is being split into an incorrect path.
+
+&lt;P&gt;
+&lt;CODE&gt;AutoSplit&lt;/CODE&gt; will warn the user of all subroutines whose name causes potential file
+naming conflicts on machines with drastically limited (8 characters or
+less) file name length. Since the subroutine name is used as the file name,
+these warnings can aid in portability to such systems.
+
+&lt;P&gt;
+Warnings are issued and the file skipped if &lt;CODE&gt;AutoSplit&lt;/CODE&gt; cannot locate either the &lt;EM&gt;__END__&lt;/EM&gt; marker or a ``package Name;''-style specification.
+
+&lt;P&gt;
+&lt;CODE&gt;AutoSplit&lt;/CODE&gt; will also emit general diagnostics for inability to create directories or
+files.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:49:22</createtime>
+  <node_id>1095</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt; autosplit($file, $dir, $keep, $check, $modtime);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; autosplit_lib_modules(@modules);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlman:lib:AutoSplit</title>
+  <nodeupdated>2005-08-14 03:15:12</nodeupdated>
+</node>

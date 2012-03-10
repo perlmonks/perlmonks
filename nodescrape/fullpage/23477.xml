@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="23477" title="test userinfo xml" created="2000-06-01 15:14:20" updated="2005-07-27 00:05:54">
+<type id="122">
+fullpage</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="doctext">
+&lt;!-- Please use me for testing fullpage code
+
+my $str;
+use XML::Generator;
+my $XG = new XML::Generator;
+
+
+my $csr = $DB-&gt;sqlSelectMany("*", "message", "for_user=0 and unix_timestamp(now())-unix_timestamp(tstamp) &lt; 500", "order by tstamp");
+
+my $lines;
+my @msgs;
+while (my $MSG = $csr-&gt;fetchrow_hashref) {
+  $lines++;
+  push @msgs, $MSG;
+}
+if ($lines &gt;= 10) {
+  @msgs = splice(@msgs, -10);
+} 
+$str.=$XG-&gt;INFO({site =&gt; $HTMLVARS{site_url}, sitename =&gt; $HTMLVARS{site_name}}, "Rendered by the Chatterbox XML Ticker");
+
+foreach my $MSG (@msgs) {
+  my $FUSER = getNodeById($$MSG{author_user});
+  $str.="\n\t".$XG-&gt;message({author =&gt; $$FUSER{title}, time =&gt; $$MSG{tstamp}}, "\n$$MSG{msgtext}");
+}
+
+
+"\n".$XG-&gt;CHATTER($str."\n");
+
+--&gt;</field>
+</data>
+</node>

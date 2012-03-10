@@ -1,0 +1,130 @@
+<node>
+  <doctext>&lt;p&gt;
+You've read the [http://search.cpan.org/%7Eflora/Catalyst-Runtime-5.80004/lib/Catalyst/DispatchType/Chained.pm|tutorial] but you still can't seem to get a grasp on what exactly to use Chained dispatching for.
+&lt;/p&gt;&lt;p&gt;
+Chained is just another method of method/url dispatching that Catalyst allows you to use. Chained, however, allows you to chain together methods that need to share information across requests....
+&lt;/p&gt;&lt;p&gt;
+Say you want to construct a url that looks something like this: http://www.yourhost.com/item/1/view. Normally, you'd have to go through a bunch of parsing involving &lt;strike&gt;$ENV{'PATH_PART'}&lt;/strike&gt; $ENV{'PATH_INFO}, which is ugly, and hackish. You can do it like this with Chained:
+&lt;/p&gt;&lt;p&gt;
+&lt;c&gt;
+ # step one:
+ # set up a base method to make sure your item exists, and
+ # store your item information in $c-&gt;stash
+
+ sub base : Chained('/') PathPart('item') CaptureArgs(1) {
+
+     my ($self, $c, $itemid) = @_;
+
+     my $item = $c-&gt;model('Item')-&gt;find($itemid);
+
+     if ( $item == undef ) {
+
+         $c-&gt;stash( error_msg =&gt; &quot;This item does not exist&quot; );
+
+         $c-&gt;detach(&quot;nonexistent&quot;);
+
+     } else {
+
+         $c-&gt;stash( item =&gt; $item );
+
+     }
+
+ }
+&lt;/c&gt;
+&lt;/p&gt;
+&lt;p&gt;
+Let's break this method down, and then we'll get to the rest of this chain.
+&lt;/p&gt;&lt;p&gt;&lt;c&gt;
+ sub base : Chained('/') PathPart('item') CaptureArgs(1)
+&lt;/c&gt;&lt;p&gt;
+the Chained('/') attribute sets up the base of the chain.
+&lt;/p&gt;&lt;p&gt;
+PathPart determines the name of the path to capture.
+&lt;/p&gt;&lt;p&gt;
+CaptureArgs tells Chained to capture one argument directly after the path part.
+&lt;/p&gt;&lt;p&gt;
+Now, let's finish the chain so we can have a working URL.
+&lt;/p&gt;&lt;p&gt;&lt;c&gt;
+ ## the next part is to link the end point to the chain
+ ## thisis done by passing the name of the base chain method to Chained for this method
+
+ sub view : Chained('base') PathPart('view') Args(0) {
+
+     my ($self, $c) = @_;
+
+     my $item = $c-&gt;stash-&gt;{item};
+
+     $c-&gt;stash(
+         template =&gt; 'item/view.tt2',
+         item       =&gt; $item,
+     );
+
+ }&lt;/c&gt;
+&lt;/p&gt;
+This method is fairly self explanatory, but just to make sure, we'll go ahead and go over it.
+&lt;/p&gt;&lt;p&gt;
+As in the comments, Chained is passed the name of the base point of the chain, which in this case is 'base'. We determine the path part with PathPart once again, which can be noted that it doesn't have to match the current method's name. The one different attribute is the Args(0) attribute. Args tells Chained that the end of the chain has been reached, thus giving you a usable URL at this point. You can specify arguments to be passed in Args(), and they can be accessed via the @_ variable, like $self and $c.
+&lt;/p&gt;&lt;p&gt;
+To recap, this gives us a url like http://www.yourdomain.com/item/itemid/view. You can expand this for CRUD actions so you can have URLs like the above, as well as something like /item/create. Here is some example code:
+&lt;/p&gt;
+&lt;c&gt;
+ sub blog : Chained('/') PathPart('blog') CaptureArgs(0) {
+
+ }
+
+ sub load_blog : Chained('blog') PathPart('') CaptureArgs(1) {
+     my ($self, $c, $id) = @_;
+
+     my $entry = $c-&gt;model('DB::Blog')-&gt;find($id);
+
+     if ( $entry ) {
+         $c-&gt;stash(entry =&gt; $entry );
+     } else {
+         $c-&gt;stash( error_msg =&gt; &quot;No such blog&quot; );
+         $c-&gt;detach;
+     }
+ }
+
+ sub view : Chained('load_blog') PathPart('view') Args(0) {
+     my ($self, $c) = @_;
+
+ }
+
+ sub create : Chained('blog') PathPart('new') Args(0) FormConfig('blogs/create.yml') {
+     my ($self, $c) = @_;   
+
+     my $form = $c-&gt;stash-&gt;{form};
+
+     if ( $form-&gt;submitted_and_valid ) {
+
+         my $entry = $c-&gt;model('DB::Blogs')-&gt;new_result({ created =&gt; DateTime-&gt;now });
+         $form-&gt;model-&gt;update($entry);
+         $c-&gt;stash(
+             status_msg =&gt; &quot;Post saved&quot;,
+             entry      =&gt; $entry
+          );
+
+     } else {
+
+         $c-&gt;stash( error_msg =&gt; &quot;Your form had errors&quot; );
+         $c-&gt;detach;
+
+     }
+ }
+&lt;/c&gt;
+&lt;p&gt;
+This actually creates a couple different Chained instances, giving us the ability to have urls like /blog/id/view, blog/new, etc.
+&lt;/p&gt;
+&lt;p&gt;
+Next time, using $c-&gt;uri_for_action to create URIs for Chained methods.
+&lt;/p&gt;&lt;!-- Node text goes above. Div tags should contain sig only --&gt;
+&lt;div class=&quot;pmsig&quot;&gt;&lt;div class=&quot;pmsig-203787&quot;&gt;
+&lt;p&gt;mtfnpy&lt;/p&gt;
+&lt;/div&gt;&lt;/div&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>803175</node_id>
+  <author_user>203787</author_user>
+  <title>Catalyst: Using Chained for URL Dispatching and Sane Method Organization</title>
+  <createtime>2009-10-25 16:40:23</createtime>
+  <nodeupdated>2009-10-25 16:40:23</nodeupdated>
+</node>

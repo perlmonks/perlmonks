@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="102368" title="Everything you wanted to know about Module Version Numbers and Checking" created="2001-08-06 00:22:12" updated="2005-08-15 07:44:15">
+<type id="956">
+perltutorial</type>
+<author id="80322">
+John M. Dlugosz</author>
+<data>
+<field name="doctext">
+&lt;H1&gt;History&lt;/H1&gt;
+Those of us who learned pm stuff when Perl 5 came out remember that supplying a numeric argument to the import list will assert that the module is that required version.  The docs used to state that this had hidden potential, of being able to sense and react to the caller's requested version, in case updates are not exactly compatible.&lt;P&gt;
+&lt;H1&gt;Times Change&lt;/H1&gt;
+However, this whole mechanism has changed.  As of Perl 5.6.1, there is support for "v-strings" of the form &lt;code&gt;v5.6.1&lt;/code&gt;.  This raises immediate confusion because comparing &lt;code&gt;v5.6.1&lt;/code&gt; against &lt;code&gt;'5.6.0'&lt;/code&gt; will not work, as the values are in totally different and incompatible formats.  Since the single-argument for of &lt;code&gt;require&lt;/code&gt; and &lt;code&gt;use&lt;/code&gt; to demand a minimum Perl version will take either way, it might come as a surprise that your own code and module versions do not.&lt;P&gt;
+So, when assigning a value to &lt;code&gt;$VERSION&lt;/code&gt;, do you use the old way or the new way?  If there is a choice, the user must know the proper way to formulate numbers when refering to your module's version.&lt;P&gt;
+&lt;H1&gt;The Reality&lt;/H1&gt;
+The way module version checking works has changed.  With Perl 5.6.0, &lt;code&gt;use&lt;/code&gt; and &lt;code&gt;require&lt;/code&gt; can take a version number as the "indirect object".  In 5.6.0 this had to be a numeric literal; in 5.6.1 it can be a v-string.&lt;P&gt;
+&lt;H2&gt;indirect-object VERSION syntax&lt;/H2&gt;
+Instead of including the version number as an argument to import, now you are to write:
+&lt;code&gt;
+# use VersionTest qw/1.2.3 foo bar/;
+# the above is no longer Kosher
+
+use VersionTest v1.2.3 qw/foo bar/;
+# do it this way (no comma).
+&lt;/code&gt;
+The thing between the module name and the list &lt;I&gt;must&lt;/I&gt; be a v-string or numeric literal.  Anything else is rejected by the parser, unlike the normal indirect-object syntax that can be overridden with braces even if it doesn't smell like an indirect object.&lt;P&gt;
+For example, you cannot write:
+&lt;code&gt;
+use VersionTest '1.2.3' qw/foo bar/; #string
+
+my $needed= v2.3.4;
+use VersionTest $needed qw/foo bar/; #not a literal
+&lt;/code&gt;
+
+
+&lt;H2&gt;indirect-object VERSION check semantics&lt;/H2&gt;
+If you use this syntax, Perl calls the module's &lt;code&gt;VERSION&lt;/code&gt; method with that value as the argument.  If you write such a sub, it can do anything you want, presumably do more elaborate version range checks.&lt;P&gt;
+If you don't write a &lt;code&gt;sub VERSION&lt;/code&gt;, then your module inherits one from &lt;code&gt;UNIVERSAL::&lt;/code&gt;, and that does a simple &lt;code&gt;ge&lt;/code&gt; test.&lt;P&gt;
+So, if you expect to use the indirect-object form of version checking, your &lt;code&gt;$VERSION&lt;/code&gt; variable must be a v-string or a floating point value using the three digit convension, explained below.  If you use a literal such as &lt;code&gt;$VERSION= '2.30.4'&lt;/code&gt;, the old way, then the &lt;code&gt;UNIVERSAL::VERSION&lt;/code&gt; function croaks with an error that '2.30.4' is not numeric, pointing to your caller's &lt;code&gt;use&lt;/code&gt; statement.  Not very useful, since the value it mentions isn't found anywhere where the error is reported!&lt;P&gt;
+
+Perl 5.6.0 used numbers for versions with this feature, with floating-point numbers encoding the version with three decimal digits per part.  The idea was that version X.Y.Z would be represented as X+Y/1000 + Z/1000000.  So 2.3.4 is the number 2.003004.  That's why you had Perl version 5.005.&lt;P&gt;
+
+This is important because &lt;code&gt;UNIVERSAL::VERSION&lt;/code&gt; will allow mixing of v-strings with floats by converting the v-string to a float using this convention.&lt;P&gt;
+
+So, if the module defines &lt;code&gt;$VERSION=1.2&lt;/code&gt; and you &lt;code&gt;use Module v1.2&lt;/code&gt; it will compare 1.2 against 1.002, which is not what you meant.  If you reverse that and declare &lt;code&gt;$VERSION=1.2.1&lt;/code&gt; (v is implied if there is more than one dot in a literal) and then &lt;code&gt;use Module 1.1&lt;/code&gt;, you will learn that 1.2.1 is less than 1.1, since the former is converted to 1.002001.  The module will refuse to load since it is not a high enough version!&lt;P&gt;
+The lesson here is that if using numbers, not v-strings, always remember the 3-digit convension.  It is improper to make a module version 1.2 (a floating point literal), unless you really did mean v1.200.  Some modules do this wrong, and will cause this kind of surprise.&lt;P&gt;
+
+
+&lt;H2&gt;version import number&lt;/H2&gt;
+So what of the "old way", of listing a number in the import list?  E.g. 
+&lt;code&gt;
+use VersionTest qw/1.2.3 foo bar/;
+&lt;/code&gt;
+If you are using the normal &lt;code&gt;Exporter::import&lt;/code&gt; function, this will call your module's &lt;code&gt;require_version&lt;/code&gt; method.  If you don't define one, you inherit one from Exporter.  That implementation is surprising:&lt;P&gt;
+It will do a &lt;i&gt;numeric&lt;/I&gt; comparison between your request and &lt;code&gt;$VERSION&lt;/code&gt;.  What's '1.2.3' going to do with a numeric comparison?  It will parse the floating-point value 1.2 and ignore the rest.  Basically, it only looks at the first two parts, and silently ignores everything else!  This is different from the indirect-object version check, which gives a "not numeric" error instead.&lt;P&gt;
+Worse yet, it will see a v-string as a numeric zero. So, if you have a v-string in &lt;code&gt;$VERSION&lt;/code&gt; and you use the import-number form, your version check will always fail but no testing had been done!&lt;P&gt;
+Hmm, an old program uses this technique, and the old module had &lt;code&gt;$VERSION='1.2'&lt;/code&gt;.  The new module has &lt;code&gt;$VERSION=v2.0.1&lt;/code&gt;, and you run your old program.  It will report that you asked for 1.2 but the file contained version 0.0, and it won't load.&lt;P&gt;
+&lt;H1&gt;Where are we now?&lt;/H1&gt;
+Using the supplied functions as inherited from &lt;code&gt;Exporter&lt;/code&gt; and &lt;code&gt;UNIVERSAL&lt;/code&gt;, the old and new forms of module version checking are fundimentally incompatible.&lt;P&gt;
+If you change from old to new when updating a module, and intend it to be backward compatible, it won't be if a user checks the version!  New code, though, is expected to use the new form, isn't it?&lt;P&gt;
+With two incompatible forms, the user would have to know which to use, on a per-module basis.  It's easy to figure out because doing it the wrong way results in a run-time error during the version checking code.&lt;P&gt;
+An easy solution would be to supply a &lt;code&gt;require_version&lt;/code&gt; method that also uses the v-string in &lt;code&gt;$VERSION&lt;/code&gt; but expects a old-style string as an argument.  Do this with something similar to &lt;code&gt;$requested= eval "v$requested"; VERSION($requested);&lt;/code&gt;&lt;P&gt;
+&lt;H2&gt;Survey&lt;/H2&gt;
+Socket.pm defines &lt;code&gt;$VERSION="1.72"&lt;/code&gt;.  Being a string, the indirect-object syntax will be rejected.  For the import-list syntax, it will be taken as a floating point number, and the user needs to understand that it's a single float, not a dotted pair, when comparing them.  The quotes seem like a mistake knowing that the importer compares numbers not dotted strings, but look at what it does: it prevents the new syntax from being used.  That can be a way to keep backward compatibility with old modules.&lt;P&gt;
+Symbol.pm says &lt;code&gt;$VERSION = 1.02&lt;/code&gt;, which does not follow the 3-digit convension.  This will give improper comparisons when using the indirect-object syntax.
+&lt;HR&gt;
+&amp;mdash;EOF&amp;mdash;</field>
+</data>
+</node>

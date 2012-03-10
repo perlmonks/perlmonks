@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="361472" title="handle_scratchpad_edit" created="2004-06-05 07:34:07" updated="2004-10-25 13:47:58">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ($node)=@_;
+
+$node||=$NODE;
+
+return $q-&gt;escapeHTML($node-&gt;{title})
+     . " is not editable by you."
+       unless  (getId($USER) == $node-&gt;{author_user} and 
+                getId($USER) != $HTMLVARS{guest_user})
+         or  isGod($USER);
+
+
+my @lines;
+
+return '' unless getId($USER)==$node-&gt;{author_user}
+              or isGod($USER);
+
+my $tools="";
+my $show_private = htmlcode( 'scratchpad_mode', '', $node, \$tools );
+
+push @lines,$tools,"&lt;hr /&gt;",
+            htmlcode('openform'),
+            $q-&gt;hidden(-name=&gt;'displaytype', -default=&gt;'edit',        -override=&gt;1),
+            $q-&gt;hidden(-name=&gt;'node_id',     -default=&gt; getId($node), -override=&gt;1);
+
+# put an extra submit button up top for convenience
+push @lines, $q-&gt;submit("sexisgood","submit"),'&lt;br /&gt;';
+if ( ! $show_private ) {
+   push @lines,$q-&gt;textarea(-name=&gt;"$node-&gt;{type}{title}_doctext",
+                         -default=&gt;$node-&gt;{doctext},
+                         -rows=&gt;20,
+                         -columns=&gt;60,
+                         -override=&gt;1),'&lt;br /&gt;';
+} else {
+   push @lines,$q-&gt;textarea(-name=&gt;"$node-&gt;{type}{title}_privatetext",
+                         -default=&gt;$node-&gt;{privatetext},
+                         -rows=&gt;20,
+                         -columns=&gt;60,
+                         -override=&gt;1);
+}
+
+push @lines,'&lt;br /&gt;',htmlcode('closeform','','submit'),
+  htmlcode('get_sitedoclet','showhints sitedoclet','general'),
+  '&lt;hr /&gt;',
+  htmlcode('handle_scratchpad_display', '', $node, 'no_tools');
+
+return join "",@lines
+</field>
+</data>
+</node>

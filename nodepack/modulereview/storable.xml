@@ -1,0 +1,106 @@
+<node>
+  <doctext>[cpan://Storable] is one of those modules that I use so much, I forget it's there.
+My &lt;a href=&quot;http://www.graphicartsit.com&quot;&gt;day job&lt;/a&gt; involves an overly
+ambitious application builder.  The designer (one of my co-workers
+or a customer of ours) writes a text definition of an application and
+runs it through our compiler (using [cpan://Parse::RecDescent], which I'd
+review also if it weren't being replaced), which builds the Perl object
+representation of the application and stores it in a repository via [cpan://DB_File].
+&lt;p&gt;When I first started working on the compiler, I wrote my own code
+to store and reconstitute objects in the repository.  As it got more
+complex (and slow) I started to think this had to be a problem someone
+else had already solved.  I went looking for help and discovered
+Storable (and CPAN along the way -- I was just a wee slip of a Perl coder then).
+&lt;p&gt;Storable makes this kind of thing trivial.  If you have coded your
+own solution as I was, don't be surprised if big stretches of perl vanish into a
+few imported function calls.  Here's all the code you need to turn an object into
+a scalar:
+&lt;code&gt;use Storable qw(freeze thaw);
+...
+$buffer = freeze($obj);
+&lt;/code&gt;
+The &lt;code&gt;$buffer&lt;/code&gt; scalar now contains a very compact representation of the object --
+whether it was an array reference, a blessed hash or whatever.  Drop
+that string into your favorite file, tied DBM database or SQL blob and you're done.
+&lt;p&gt;Retrieve that same scalar in some other stretch of code (or another program,
+as long as it has loaded all the necessary modules) and you can have your 
+object back just as easily:
+&lt;code&gt;$newInstance = thaw($buffer);
+&lt;/code&gt;
+If the frozen buffer was a blessed reference, then so is the new instance,
+but not the same reference; Storable can be used to clone complex objects
+and structures this way, and even has convenience functions for that. (But you might
+want to look at [cpan://Clone] instead.
+&lt;p&gt;
+Storable's pod suggests that objects can inherit from it and use freeze and 
+thaw as methods.  I don't do that; instead I store and retrieve objects
+from the aforementioned tied DB_File database like so:
+&lt;code&gt;sub store {
+    my $obj = shift;
+    my $key = $obj-&gt;key;
+    $db{$key} = freeze($obj-&gt;freeze);
+    return $key;
+}
+sub fetchFromDb {
+    my ($key, $noWake) = @_;
+    if (my $buf = $db{$key}) {
+        my $obj = thaw($buf);
+        return $noWake || !$obj ? $obj : $obj-&gt;wake;
+    }
+    return undef;
+}
+&lt;/code&gt;
+(Code that checks if the database was opened for write and so on was omitted
+for cleaner lines and that sexy soft-spoken style.)
+&lt;p&gt;The two functions are in a module that hides the details of the
+database from the rest of the program.  The store function in effect becomes
+a filter that transforms an object into its retrieval key.  If the object
+has attributes that shouldn't be stored (run-time only information, say)
+then it's special-built freeze method gets rid of it and returns $self.
+The fetch function can be used to retrieve the object in its frozen state,
+or (normally) will invoke a wake method to let the instance rebuild
+any run-time state it needs before it faces the world.
+&lt;p&gt;Okay, this is rapidly turning into a review of how I use Storable
+instead of what the module does, so back to the feature list.
+&lt;p&gt;Storable's documentation emphasizes the number of ways it will write
+and retrieve objects from files and other IO entities.  If you use a file
+for each object (and remember that an &quot;object&quot; can be a simple hash or array
+too, no blessings required) then Storable will do all the work including
+opening and closing the files for you:
+&lt;code&gt;store \%table, 'file';
+$hashref = retrieve('file');
+&lt;/code&gt;
+To borrow more examples from the pod, you can use opened file handles too:
+&lt;code&gt;store_fd \@array, \*STDOUT;
+nstore_fd \%table, \*STDOUT;
+$aryref = fd_retrieve(\*SOCKET);
+$hashref = fd_retrieve(\*SOCKET);
+&lt;/code&gt;
+The &quot;n&quot; versions of store and store_fd use network byte ordering for
+binary values, making it reasonably safe to store and retrieve objects
+across architectures.  The retrieval examples show fetching objects from
+an open socket -- Perl-based object servers, anyone?
+&lt;p&gt;While feature-rich, Storable remains fast, much faster than my
+original code.  It is implemented in C with a close eye on Perl internals
+to work swiftly and efficiently.
+&lt;p&gt;Storable has added quite a few features since I started using it;
+for example, you can now add your own hooks to the freeze and thaw code
+to implement what I did above at a lower level.  In those hooks you can
+use special class methods to find out more about what Storable is doing
+and decide how your hook should act.
+&lt;p&gt;Since [cpan://CPAN] now (optionally) uses Storable to store metadata,
+many Perl admins are aware of it, but might not be putting it to use
+in their own code.  Consider this module any time you find yourself 
+writing a loop to store a hash or array to a file.  Storable &quot;scales up&quot;
+to more complex structures seamlessly, so you can use your favorite
+tricks without worrying about how you're going to write and retrieve it later.</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>22772</author_user>
+  <createtime>2001-02-22 16:11:48</createtime>
+  <itemdescription>Persistency for Perl data structures</itemdescription>
+  <identifier></identifier>
+  <node_id>60252</node_id>
+  <usercomment></usercomment>
+  <title>Storable</title>
+  <nodeupdated>2005-08-15 13:09:41</nodeupdated>
+</node>

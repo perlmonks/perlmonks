@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="202925" title="win32 Scan EventLog &amp; Do something &amp; update the code" created="2002-10-04 18:05:26" updated="2005-08-14 12:02:01">
+<type id="121">
+perlcraft</type>
+<author id="174111">
+Discipulus</author>
+<data>
+<field name="doctext">
+#!perl -w
+
+#it scan the EventLog from now to the last time it had run
+#looking for a couple of event qualified by source-IDnum in #the variables $coppia1 and $coppia2
+
+use Win32::EventLog;
+use strict;
+use vars qw();
+
+my $now=time;
+my $lasttime=0;  #this is the value that sub changemyself
+&amp;changemyself(); #will change
+my $coppia1="FTPCtrs  1000";
+my $coppia2="MSMQ  2028";
+my $cond1=undef;
+my $cond2=undef;
+my $periodo=(localtime($lasttime))."\t-\t".(localtime($now))."\n\n\n";
+print $periodo;
+my $num;
+
+my $event = new Win32::EventLog("Application", ".", EVENTLOG_INFORMATION_TYPE, EVENTLOG_ERROR_TYPE, EVENTLOG_WARNING_TYPE);
+
+if(! $event){die "Impossibile aprire i log: $!"}
+
+if(! $event-&gt;GetNumber($num)) {die "Impossibile leggere gli eventi: $!"}
+
+while ($num--) {
+  my $flag = EVENTLOG_BACKWARDS_READ | EVENTLOG_SEQUENTIAL_READ;
+  my $ret;
+  my %hash;
+
+  $ret = $event-&gt;Read($flag, 0, \%hash);
+  if (! $ret) {
+    die "Impossibile leggere: $!";
+  }
+  my $linea= $num."\t".$hash{TimeGenerated}."  ".$hash{Source}."  ".($hash{EventID} &amp; 0xffff)."\n";
+  print $linea;
+  unless($hash{TimeGenerated}&gt;$lasttime){die "scansione completata del periodo $periodo\n"}
+  if ($linea=~/$coppia1/){$cond1=1}
+  if (($linea=~/$coppia2/)and ($cond1=1)){&amp;azione($linea)}
+}
+sub azione
+{
+  $_=shift;
+  print"\n\n\n\n\n\n";
+  die "trovati!!\t$_"
+}
+
+
+sub changemyself{
+ open (COPIA, "&gt;copia");
+ open (PROG, "+&gt;&gt;$0");
+ seek (PROG, 0, 0);
+
+ while (&lt;PROG&gt;)
+ {
+   s/^(my .lasttime\s*=\s*)\d+(\s*;)/$1.$now.$2/e;
+   print COPIA;
+ }
+ close (PROG);
+ close (COPIA);
+
+ open (COPIA, "&lt;copia");
+ open (PROG, "&gt;$0");
+ while (&lt;COPIA&gt;){print PROG}
+ close (PROG);
+ close (COPIA);
+ unlink ("copia");
+}
+
+</field>
+</data>
+</node>

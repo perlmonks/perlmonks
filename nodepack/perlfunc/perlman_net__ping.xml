@@ -1,0 +1,136 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+Net::Ping - check a remote host for reachability
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+This module contains methods to test the reachability of remote hosts on a network. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; ping object is first created with optional parameters, a variable number of hosts may be pinged multiple times and then the connection is closed.
+
+&lt;P&gt;
+You may choose one of three different protocols to use for the ping. With the ``tcp'' protocol the 
+&lt;CODE&gt;ping()&lt;/CODE&gt; method attempts to establish a connection to the remote host's echo port. If the connection is successfully established, the remote host is considered reachable. No data is actually echoed. This protocol does not require any special privileges but has higher overhead than the other two protocols.
+
+&lt;P&gt;
+Specifying the ``udp'' protocol causes the 
+&lt;CODE&gt;ping()&lt;/CODE&gt; method to send a udp
+packet to the remote host's echo port. If the echoed packet is received
+from the remote host and the received packet contains the same data as the
+packet that was sent, the remote host is considered reachable. This
+protocol does not require any special privileges.
+
+&lt;P&gt;
+If the ``icmp'' protocol is specified, the 
+&lt;CODE&gt;ping()&lt;/CODE&gt; method sends an icmp echo message to the remote host, which is what the 
+&lt;FONT SIZE=-1&gt;UNIX&lt;/FONT&gt; ping program does. If the echoed message is received from the remote host and the echoed information is correct, the remote host is considered reachable. Specifying the ``icmp'' protocol requires that the program be run as root or that the program be setuid to root.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Functions&quot;&gt;Functions&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Net&quot;&gt;Net::Ping-&amp;gt;new(&amp;#091;$proto &amp;#091;, $def_timeout &amp;#091;, $bytes&amp;#093;&amp;#093;&amp;#093;);&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Create a new ping object. All of the parameters are optional.
+&lt;CODE&gt;$proto&lt;/CODE&gt; specifies the protocol to use when doing a ping. The
+current choices are ``tcp'', ``udp'' or ``icmp''. The default is ``udp''.
+
+&lt;P&gt;
+If a default timeout ($def_timeout) in seconds is provided, it is used when a timeout is not given to the 
+&lt;CODE&gt;ping()&lt;/CODE&gt; method (below). The timeout must be greater than 0 and the default, if not specified, is 5 seconds.
+
+&lt;P&gt;
+If the number of data bytes ($bytes) is given, that many data bytes are
+included in the ping packet sent to the remote host. The number of data
+bytes is ignored if the protocol is ``tcp''. The minimum (and default)
+number of data bytes is 1 if the protocol is ``udp'' and 0 otherwise. The
+maximum number of data bytes that can be specified is 1024.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__p_ping_host&quot;&gt;$p-&amp;gt;ping($host &amp;#091;, $timeout&amp;#093;);&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ping the remote host and wait for a response. &lt;CODE&gt;$host&lt;/CODE&gt; can be either the hostname or the 
+&lt;FONT SIZE=-1&gt;IP&lt;/FONT&gt; number of the remote host. The optional timeout must be greater than 0 seconds and defaults to whatever was specified when the ping object was created. If the hostname cannot be found or there is a problem with the 
+&lt;FONT SIZE=-1&gt;IP&lt;/FONT&gt; number, undef is returned. Otherwise, 1 is returned if the host is reachable and 0 if it is not. For all practical purposes, undef and 0 and can be treated as the same case.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__p_close_&quot;&gt;$p-&amp;gt;close();&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Close the network connection for this ping object. The network connection
+is also closed by ``undef $p''. The network connection is automatically
+closed if the ping object goes out of scope (e.g. &lt;CODE&gt;$p&lt;/CODE&gt; is local
+to a subroutine and you leave the subroutine).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pingecho&quot;&gt;pingecho($host &amp;#091;, $timeout&amp;#093;);&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+To provide backward compatibility with the previous version of Net::Ping, a 
+&lt;CODE&gt;pingecho()&lt;/CODE&gt; subroutine is available with the same functionality as before. 
+&lt;CODE&gt;pingecho()&lt;/CODE&gt; uses the tcp protocol. The return values and parameters are the same as described for the 
+&lt;CODE&gt;ping()&lt;/CODE&gt; method. This subroutine is obsolete and may be removed in a future version of Net::Ping.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;WARNING&quot;&gt;WARNING&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;pingecho()&lt;/CODE&gt; or a ping object with the tcp protocol use 
+&lt;CODE&gt;alarm()&lt;/CODE&gt; to implement the timeout. So, don't use 
+&lt;CODE&gt;alarm()&lt;/CODE&gt; in your program while you are using 
+&lt;CODE&gt;pingecho()&lt;/CODE&gt; or a ping object with the tcp protocol. The udp and icmp protocols do not use 
+&lt;CODE&gt;alarm()&lt;/CODE&gt; to implement the timeout.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NOTES&quot;&gt;NOTES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+There will be less network overhead (and some efficiency in your program)
+if you specify either the udp or the icmp protocol. The tcp protocol will
+generate 2.5 times or more traffic for each ping than either udp or icmp.
+If many hosts are pinged frequently, you may wish to implement a small wait
+(e.g. 25ms or more) between each ping to avoid flooding your network with
+packets.
+
+&lt;P&gt;
+The icmp protocol requires that the program be run as root or that it be
+setuid to root. The tcp and udp protocols do not require special
+privileges, but not all network devices implement the echo protocol for tcp
+or udp.
+
+&lt;P&gt;
+Local hosts should normally respond to pings within milliseconds. However,
+on a very congested network it may take up to 3 seconds or longer to
+receive an echo packet from the remote host. If the timeout is set too low
+under these conditions, it will appear that the remote host is not
+reachable (which is almost the truth).
+
+&lt;P&gt;
+Reachability doesn't necessarily mean that the remote host is actually
+functioning beyond its ability to echo packets.
+
+&lt;P&gt;
+Because of a lack of anything better, this module uses its own routines to pack and unpack 
+&lt;FONT SIZE=-1&gt;ICMP&lt;/FONT&gt; packets. It would be better for a separate module to be written which understands all of the different kinds of 
+&lt;FONT SIZE=-1&gt;ICMP&lt;/FONT&gt; packets.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:52:51</createtime>
+  <node_id>1229</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    use Net::Ping;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $p = Net::Ping-&amp;gt;new();
+    print &amp;quot;$host is alive.\n&amp;quot; if $p-&amp;gt;ping($host);
+    $p-&amp;gt;close();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $p = Net::Ping-&amp;gt;new(&amp;quot;icmp&amp;quot;);
+    foreach $host (@host_array)
+</synopsis>
+  <title>perlman:Net::Ping</title>
+  <nodeupdated>2005-08-13 01:24:45</nodeupdated>
+</node>

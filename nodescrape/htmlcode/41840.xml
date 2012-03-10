@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="41840" title="addnewnoteform" created="2000-11-15 18:36:48" updated="2005-07-07 15:20:33">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+# [addnewnoteform]
+# Be careful, changes made here should be sync'ed to [addnewform]
+# at least until that node and this one are refactored.
+# A large chunk of this code was refactored into [add_signature].
+
+my( $type, $parent )= @_;
+
+my $title= '';
+my $text= '';
+my $preview= $q-&gt;param('op') eq 'preview';
+if(  $preview  ) {
+    $type ||= $q-&gt;param('preview_type');
+    my $etype= $q-&gt;escapeHTML( $type );
+    return "Invalid preview_type parameter ($etype)"
+        if  $type ne $etype;
+
+    $title= $q-&gt;param('preview_node');
+    $text= $q-&gt;param( 'preview_' . $type . '_doctext' );
+    $parent ||= $q-&gt;param($type.'_parent_node');
+}
+
+$parent ||= getId($NODE);
+if(  $parent !~ /^\d+$/  ) {
+    Everything::printLog( join ",",
+        'Non-numerical parent id',
+        $ENV{REMOTE_ADDR},
+        "'".quotemeta(substr($parent,0,20))."'",
+    );
+    # Invalid parameter means you get no form at all:
+    return '';
+}
+
+my $PARENT= $parent ? getNodeById($parent) : 0;
+
+if(  ! $title  &amp;&amp;  $PARENT  ) {
+    $title= $type eq 'categorized answer'
+        ?   "Answer: $PARENT-&gt;{title}"
+        :   htmlcode( 'add_re_to_title','', $PARENT-&gt;{title} );
+} elsif(  ! $title  ) {
+    $title= "New Node";
+}
+
+my $warning= htmlcode(
+    'add_signature','',
+    \$text,
+);
+
+my $root;
+$root= getNodeById($PARENT-&gt;{root_node})
+    if  $PARENT-&gt;{root_node}
+    &amp;&amp;  $PARENT-&gt;{root_node} ne $parent;
+
+my $html= '';
+if(  $parent  ) {
+    $html .= join '',
+        "&lt;p&gt;&lt;i&gt;In reply to&lt;/i&gt; &lt;b&gt;",
+        linkNode($PARENT),
+        "&lt;/b&gt;\n&lt;i&gt;by&lt;/i&gt; &lt;b&gt;",
+        linkNode( $PARENT-&gt;{author_user} ),
+        "&lt;/b&gt;",
+    "\n";
+    $html .= join( '',
+        "&lt;br/&gt;&lt;i&gt;in thread&lt;/i&gt; &lt;b&gt;",
+        linkNode($root),
+        "&lt;/b&gt;\n&lt;i&gt;by&lt;/i&gt; &lt;b&gt;",
+        linkNode( $root-&gt;{author_user} ),
+        "&lt;/b&gt;",
+    "\n")
+        if  $root;
+    $html .= "&lt;/p&gt;\n";
+}
+
+my $single_word_title=  $preview  &amp;&amp;  $title !~ /\S\s+\S/;
+
+$html .= join "\n",
+    htmlcode('openform'),
+    "&lt;span class='add-title'&gt;Title:&lt;/span&gt;",
+    $q-&gt;textfield( -name =&gt; 'node', -value =&gt; $title, -force =&gt; 1 ),
+    ! $single_word_title ? '' :
+        "&lt;br /&gt;&lt;strong&gt;Title must be more than one word!&lt;/strong&gt;",
+    $warning,
+    "&lt;br /&gt;Use:&amp;nbsp; &lt;tt&gt;&amp;lt;p&amp;gt; text here (a &lt;b&gt;p&lt;/b&gt;aragraph) &amp;lt;/p&amp;gt;&lt;/tt&gt;",
+    "&lt;br /&gt;and:&amp;nbsp; &lt;tt&gt;&amp;lt;code&amp;gt; code here &amp;lt;/code&amp;gt;&lt;/tt&gt;&lt;br /&gt;",
+    "to format your post; it's \"PerlMonks-approved HTML\": &lt;br /&gt;",
+    $q-&gt;textarea( $type."_doctext", $text, 10, 60 ),
+    "&lt;br /&gt;&lt;input type='hidden' name='type' value='$type'&gt;",
+    $q-&gt;hidden( $type.'_parent_node', $parent ),
+    $q-&gt;submit( 'op', 'preview' ),
+'';
+
+if(     (   $preview
+        ||  $VARS-&gt;{previewfirstoff}  )
+    &amp;&amp;  ! $single_word_title
+) {
+    $html .= $q-&gt;submit( 'op', 'create' ) . "\n";
+}
+
+return join "\n",
+    "&lt;div class='editnodetext'&gt;",
+    $html,
+    $q-&gt;end_form(),
+    "&lt;/div&gt;",
+'';
+</field>
+</data>
+</node>

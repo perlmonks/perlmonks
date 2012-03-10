@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="363680" title="handle_node_pin" created="2004-06-12 20:13:35" updated="2005-08-14 04:19:00">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+# [handle_node_pin]
+# this node is responsible for updating or fetching information about
+# nodes and their relationship to nodes on pm.
+#
+# the interface is simple:
+# takes an optional single argument, a hashref which may contain
+#   node_id     =&gt; the node on test involved in the pin
+#                    defaults to $NODE-&gt;{node_id}
+#   pinner_user =&gt; the user who is responsible for the update
+#                    defaults to $USER-&gt;{node_id}
+#   pinned_id   =&gt; the node id of the corresponding node on PM
+#                  no default, presence will cause update/creation of a pin
+#
+# Returns via two mechanisms:
+# via $opts-&gt;{pin} : A hashref of the state of the pin or undef if there is none
+#                    the presence of pinner_user indicates if it is a real
+#                    db pin, or if it is a pseudo pin because the node
+#                    is prefork.
+#     return : either the pinned_id of the pin or pseudo pin or '' for no pin
+#
+
+=for offline
+use strict;
+use warnings;
+my ($NODE,$USER,$DB);
+
+=for creating_table
+CREATE TABLE nodepin2 (
+ node_id     int(11) NOT NULL default '0',
+ pinned_id   int(11) NOT NULL default '0',
+ pinner_user int(11) NOT NULL default '0',
+ PRIMARY KEY (node_id),
+ index idx_pinned (pinned_id),
+ index idx_pinner (pinner_user)
+) TYPE=MyISAM
+
+=cut
+
+
+my ($opts)=@_;
+$opts-&gt;{node_id}||=$NODE-&gt;{node_id};
+$opts-&gt;{user_id}||=$USER-&gt;{node_id};
+
+my $dbh=$DB-&gt;getDatabaseHandle;
+
+my $pin=$dbh-&gt;selectrow_hashref(qq[
+        SELECT node_id,
+               pinned_id,
+               pinner_user
+          FROM nodepin
+         WHERE node_id=?
+    ],{},$opts-&gt;{node_id},
+);
+
+my $DEBUG=0; # $USER-&gt;{title} eq 'de-merphq';
+use Data::Dumper;
+printLog("handle_node_pin(pin,opts):".Dumper($pin,$opts)) if $DEBUG;
+
+my $pinned_id=$opts-&gt;{pinned_id};
+
+if ($pin &amp;&amp; $pinned_id &amp;&amp; $pinned_id!=$pin-&gt;{pinned_id} ) {
+     if ($pinned_id&lt;0) {
+        printLog('handle_node_pin:Delete') if $DEBUG;
+        $dbh-&gt;do(qq[ delete from nodepin where node_id=? ],{},$opts-&gt;{node_id} );
+        $pin=undef;
+     } else {
+        printLog('handle_node_pin:Update') if $DEBUG;
+        my $res=$dbh-&gt;do(qq[
+            update nodepin
+            set pinned_id   = ?,
+                pinner_user = ?
+            where node_id = ?
+         ], {},
+         $pinned_id,
+         $opts-&gt;{user_id},
+         $opts-&gt;{node_id},
+       );
+       $res or printLog("handle_node_pin error($res): $pinned_id, $opts-&gt;{user_id}, $opts-&gt;{node_id}:".$dbh-&gt;errstr);
+       $pin-&gt;{pinned_id} = $pinned_id;
+       $pin-&gt;{pinner_user}=$opts-&gt;{user_id};
+     }
+} elsif ($pinned_id and $pinned_id&gt;0) {
+     printLog('handle_node_pin:Insert') if $DEBUG;
+     $dbh-&gt;do(qq[
+          insert into nodepin (node_id,pinned_id,pinner_user)
+                      values  (?,?,?)
+              ], {},
+       $opts-&gt;{node_id},
+       $pinned_id,
+       $opts-&gt;{user_id},
+     );
+     $pin-&gt;{pinned_id} = $pinned_id;
+     $pin-&gt;{pinner_user}=$opts-&gt;{user_id};
+     $pin-&gt;{node_id} = $opts-&gt;{node_id};
+} elsif ($opts-&gt;{node_id}&lt;323484) {
+     printLog('handle_node_pin:Ancient') if $DEBUG;
+     $pin-&gt;{pinned_id} = $opts-&gt;{node_id};
+     $pin-&gt;{node_id} = $opts-&gt;{node_id};
+}
+$opts-&gt;{pin}=$pin;
+printLog("handle_node_pin return:".Dumper($opts)) if $DEBUG;
+if ($pin) {
+  $pin-&gt;{pre_fork}=$opts-&gt;{node_id}&lt;323484;
+  return $pin-&gt;{pinned_id};
+} else {
+  return ''
+}
+
+</field>
+</data>
+</node>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1887" title="categorized question display page" created="2000-01-08 19:07:57" updated="2005-07-07 12:39:03">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+&lt;font size="2"&gt;
+  Contributed by [% linkNode($$NODE{original_author}) %]
+  on [% htmlcode( 'parseTimeInString','', $NODE-&gt;{createtime}) %]
+&lt;/font&gt;&lt;br /&gt;
+[%
+  $DB-&gt;isApproved( $USER, getNode('QandAEditors','usergroup') )
+    ?  htmlcode('Q&amp;Adelete')
+    :  "";
+%]
+[%
+  my $isEditor= $DB-&gt;isApproved($USER,getNode('QandAEditors','usergroup'));
+  my $nodeid= getId($NODE);
+  my $votestr= '';
+  my $PARENT= selectNode( $NODE-&gt;{parent_node} );
+  my $str= qq[
+    &lt;font size="2"&gt;
+      ] . linkNodeTitle("Categorized Questions and Answers|Q&amp;A") . qq[
+      &amp;nbsp;&amp;gt; ] . linkNode($PARENT) . qq[
+    &lt;/font&gt;
+    &lt;p&gt;
+      ] . htmlcode('votehead') . qq[
+      ] . htmlcode('voteit',$nodeid) . qq[
+      &lt;br /&gt;];
+
+  if ( $isEditor or canDeleteNode($USER,$NODE) ) {
+    $str .= qq[&lt;div class="catqa-commandbox"&gt;];
+
+    $str .= qq[
+      &lt;script language="javascript"&gt;
+        function confirmDelete(){
+          if(  confirm("Delete '$$NODE{title}'?")  ) {
+            parent.location= ]
+              . urlGen({node_id=&gt;getId($NODE),op=&gt;"nuke"}) . qq[;
+          }
+        }
+      &lt;/script&gt;
+      &lt;a href="javascript: confirmDelete();"&gt;Delete this question...&lt;/a&gt; ]
+    if  canDeleteNode($USER,$NODE);
+
+    $str .= qq[ &amp;mdash; &lt;a href=]
+        . urlGen({ node_id=&gt;getId($NODE), op=&gt;'sopwify' })
+        . qq[&gt;SOPWify!&lt;/a&gt; &amp;mdash; Change category: ]
+        . htmlcode('placequestionincategory')
+    if  $isEditor;
+
+    $str .= qq[&lt;/div&gt;];
+  }
+
+  if(  0 &lt; length $$NODE{doctext}  ) {
+    $str .= qq[&lt;div class="catq-description"&gt;&lt;p&gt;&lt;h4&gt;Description:&lt;/h4&gt; ]
+          . htmlcode('parselinks','doctext')
+          . qq[&lt;/p&gt;&lt;/div&gt;];
+  }
+  ## $str .= htmlcode('editinvote');
+
+  if(  $isEditor || canUpdateNode($USER,$NODE)
+  and  getId($USER) != $HTMLVARS{default_user}  ) {
+    $str .= qq[
+      &lt;br /&gt;&lt;br /&gt;&lt;b&gt;Title:&lt;/b&gt;&lt;br /&gt;
+      ] . htmlcode('textfield','title') . qq[
+      &lt;br /&gt;&lt;br /&gt;
+      &lt;b&gt;Further Description:&lt;/b&gt; (try to avoid using... keep it short and in the title)&lt;br /&gt;
+      ] . htmlcode('textarea','doctext') . qq[
+      &lt;br /&gt;
+      ] . $query-&gt;submit("sexisgood","submit");
+  }
+  ####
+  my( @nodes )= getNodeWhere(
+    {parent_node=&gt;getId($NODE)},
+    'categorized answer',
+    'reputation desc'
+  );
+  my @unapproved;
+  if(  @nodes  ) {
+    $str .= qq[&lt;table class="paneled" width="100%"&gt;];
+    foreach my $TEMP (  @nodes  ) {
+      $votestr= htmlcode( 'voteit', getId($TEMP) );
+      $votestr .= htmlcode( 'approveQ&amp;A', getId($TEMP) )
+        if $isEditor;
+      $str .= qq[&lt;tr&gt;&lt;td&gt;]
+           . linkNode($TEMP)
+           . "&lt;br /&gt;"
+           . $q-&gt;span(
+                { class =&gt; 'attribution' },
+                join '',
+                    "contributed by ",
+                    linkNode( $TEMP-&gt;{original_author} ),
+                    $isEditor ? ' on '. htmlcode( 'parseTimeInString','', $TEMP-&gt;{createtime}) : '',
+           );
+
+      $str .= $votestr
+             . qq[ &lt;p&gt;]
+             . htmlcode('parseLinksInString',0,getId($TEMP),$TEMP-&gt;{doctext})
+             . qq[&lt;/td&gt;&lt;/tr&gt;];
+    }
+    $str .= qq[&lt;/table&gt;];
+  }
+  $str .= htmlcode('votefoot') . qq[
+    &lt;p&gt;&lt;/p&gt;
+    ] . htmlcode('addnewanswer') . qq[
+    &lt;br /&gt;] . htmlcode('showhints');
+  return $str;
+%]
+</field>
+<field name="displaytype">
+display</field>
+</data>
+</node>

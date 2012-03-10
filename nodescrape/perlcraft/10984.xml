@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="10984" title="Trace Warnings" created="2000-05-10 16:05:03" updated="2005-08-04 02:59:49">
+<type id="121">
+perlcraft</type>
+<author id="9135">
+Adam</author>
+<data>
+<field name="doctext">
+# I wrote this to find an annoying warning in a large package
+# of functions. Its rather simple, but I found it fairly useful.
+package TraceWarning;
+
+require Exporter;
+
+@ISA = qw(Exporter);
+@EXPORT = qw(TRACE_W);
+
+#######################################################################
+# This code will provide more verbose warning messages.
+#   In addition to displaying the warning messages, it will display
+#   the last non-fatal OS error and the sub-routine call stack.
+##################################################################ADAM#
+
+sub TRACE_W
+{
+    print STDERR "Warning: $_[0]";           # Print the warning.
+    $! and print STDERR "Error:   $!\n";     # If error, print it
+    $! = 0;                                  # and reset.
+    my ($index, @callStack) = (0, ("", "", "", "TRACE STACK ERROR"));
+
+    while (@callStack = caller(++$index))    # Trace the call stack.
+    { 
+        my ($routineName, $fileNameAndLine) = (" $callStack[3]", "");
+        # If the file name is available, append it to the trace mesg.
+            if ($callStack[1] ne "Home")  
+            {
+                $fileNameAndLine = " ($callStack[1]:$callStack[2])";
+            }
+        print STDERR "$index$routineName$fileNameAndLine\n";
+    } 
+}
+
+BEGIN
+{
+    # Insist on warning messages being on.
+    $^W = 1;
+
+    # Catch warnings and display additional information.
+    $SIG{__WARN__} = \&amp;TRACE_W;
+}
+
+__END__
+</field>
+</data>
+</node>

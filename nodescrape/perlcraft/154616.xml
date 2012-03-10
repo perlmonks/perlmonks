@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="154616" title="DbiFunc.pm -- DBI wrapper" created="2002-03-27 03:20:43" updated="2005-08-09 22:14:57">
+<type id="121">
+perlcraft</type>
+<author id="44715">
+graff</author>
+<data>
+<field name="doctext">
+=head1 NAME
+
+DbiFunc.pm -- provides basic DBI/SQL operations
+
+=head1 SYNOPSIS
+
+  use DbiFunc;
+
+  my $db = DbiFunc-&gt;new( "account_name" );
+
+  $cell_scalar = $db-&gt;queryCell( "select ..." );
+               = $db-&gt;queryCell( $qHandle, $param[, $param2...] );
+
+  $row_ary_ref = $db-&gt;queryRow( "select ..." );
+               = $db-&gt;queryRow( $qHandle, $param[, $param2...] );
+
+  $col_ary_ref = $db-&gt;queryColumn( "select ..." );
+               = $db-&gt;queryColumn( $qHandle, $param[, $param2...] );
+
+  $ary_ary_ref = $db-&gt;queryGrid( "select ..." );
+               = $db-&gt;queryGrid( $qHandle, $param[, $param2...] );
+
+  $N_rows_done = $db-&gt;sqlOnce( "update or insert statement" );
+
+  $qHandle = $db-&gt;sqlPrep( "select statement with 1 or more ?" );
+  $xHandle = $db-&gt;sqlPrep( "update/insert statement with 1+ ?" );
+
+  $N_rows_done = $db-&gt;sqlApply( $xHandle, $param[, $param2...] );
+
+  &amp;sqlDone( $anyHandle );
+
+
+=head1 DESCRIPTION
+
+The DbiFunc module is intended to make it easy to manipulate the
+contents of RDBMS tables using perl scripts -- assuming that the perl
+programmer is reasonably skilled at using SQL.
+
+The names of the methods should be self-explanatory, and some examples
+are provided below to clarify proper usage.  The issues that require
+extra care by the programmer are:
+
+- Make sure that an SQL statement string or handle is
+  appropriate to the particular method you pass it to.
+
+- Make sure, when passing an SQL statement handle to
+  sqlApply or a query method, that you pass the correct
+  number of parameters, in the correct order, to fit
+  the statement that defined the handle.
+
+The "sqlOnce" method, in addition to performing "update" and "insert"
+operations, is good for administrative functions as well, such as
+"create table ...", "alter table ...", "drop table ...", etc. -- use
+these with caution!
+
+
+=head1 EXAMPLES
+
+  my $db = DbiFunc-&gt;new( "my_account" );
+
+  # some simple queries:
+
+  my $nrows = $db-&gt;queryCell("select count( key_fld ) from my_table");
+
+  print "my_table has $nrows entries\n";
+
+  my $keyref = $db-&gt;queryColumn("select key_fld from my_table");
+
+  print "list of key_fld entries in my_table:\n";
+  print join( "\n", @$keyref ), "\n";
+
+  my $qry = "select * from my_table where key_fld = \'$$keyref[10]\'";
+  my $rowref = $db-&gt;queryRow( $qry );
+
+  $db-&gt;sqlOnce( "delete from my_table where keyfld = \'$$keyref[10]\'";
+
+  print "Former contents the 11th row in my_table (just deleted):\n";
+  print join( " ", @$rowref ), "\n";
+
+  my $gridref = $db-&gt;queryGrid("select name,date from my_table");
+
+  print "list of (remaining) names and dates from my_table:\n"
+  foreach my $row ( @$gridref )
+  {
+    my ($name,$date) = @$row;
+    print "Name = $name, Date = $date\n";
+  }
+
+  # some parameterized operations:
+
+  my $qry = $db-&gt;sqlPrep("select age from my_table where name = ?");
+  my $upd = $db-&gt;sqlPrep("update my_table set age = ? where name = ?");
+  my $ins = $db-&gt;sqlPrep("insert into my_table (name,age) values (?,?)");
+
+  foreach my $person ( "Barry", "Bill", "Bob" )
+  {
+    $age = $db-&gt;sqlApply( $qry, $person );
+    if ( $age ) 
+    {                               # person's already in my_table
+      $db-&gt;sqlApply( $upd, $age+1, $person );
+    }
+    else
+    {
+      $db-&gt;sqlApply( $ins, $person, 21 ); # "adults only"
+    }
+  }
+
+  $db-&gt;sqlDone( $qry );
+  $db-&gt;sqlDone( $upd );
+  $db-&gt;sqlDone( $ins );
+
+=head1 CAVEAT and discussion
+
+Some details in the following code are specific to Oracle, and no
+attempt has been made by the original author to adapt to other brands
+of RDBMS.  Doing so should be a simple exercise for those who have
+already used DBI in their particular environs.
+
+A nice feature of this DBI-wrapper module is that it allows all your
+site-specific RDBMS environment stuff, including account names and
+passwords, to be written just once -- into this module -- rather than
+being repeated in every perl script that uses a database (so guess how
+much perl code you need to fix the next time you have to change
+passwords or migrate to a new RDBMS release).  Plus, it is nice being
+able to call just one method to execute an SQL statement and get back
+the results.
+
+=head1 AUTHORS
+
+David Graff &lt;graff@ldc.upenn.edu&gt;
+Jonathan Wright &lt;jdwright@ldc.upenn.edu&gt;
+
+=cut
+
+package DbiFunc;
+
+@ISA = qw(DBI::db);
+
+use DBI;
+use Carp;
+use strict;
+
+# Put essential environment stuff here, as required by your RDBMS
+# e.g. for a given (mythical) installation of Oracle:
+
+$ENV{ORACLE_SID} = "MYSID";
+$ENV{ORACLE_BASE} = "/my/oracle/base";
+$ENV{ORACLE_HOME} = "$ENV{ORACLE_BASE}/product/8.1.5";
+$ENV{PATH} .= ":$ENV{ORACLE_HOME}/bin";
+my $ORA_DSN = 'dbi:Oracle:MYSID.whatsadsn_anyway';
+
+1;
+
+sub new {
+    my ($class,$account,$attr) = @_;
+    my %passwd = ( "some_account" =&gt; "some_password",
+                   "other_account" =&gt; "other_password",
+                   );
+    $attr = { PrintError =&gt; 0, RaiseError =&gt; 1 } 
+        unless ref $attr eq 'HASH';
+    my $dbh;
+    if ( exists $passwd{$account} ) {
+        $dbh = DBI-&gt;connect($ORA_DSN,$account,$passwd{$account},$attr) ||
+            croak "Oracle connection failed: $DBI::errstr";
+    } else {
+        croak "\n$account is not a known account\n";
+    }
+    return bless $dbh, 'DbiFunc';
+}
+
+sub DESTROY {
+    my ($dbh) = @_;
+    $dbh-&gt;disconnect if ( defined( $dbh ));
+}
+
+sub queryCell
+{
+    my ($dbh,$sql,@params) = @_;
+    my $rowref;
+    if ( ref( $sql ) =~ /^DBI/ ) {
+        $sql-&gt;execute( @params );
+        $rowref = $sql-&gt;fetchrow_arrayref;
+    } elsif ( $sql !~ /^\s*select / ) {
+        carp "queryCell called without a select statement\n";
+        return undef;
+    } else {
+        my $sth = $dbh-&gt;prepare( $sql );
+        $sth-&gt;execute;
+        $rowref = $sth-&gt;fetchrow_arrayref;
+        $sth-&gt;finish;
+    }
+    return $rowref-&gt;[0];
+}
+
+sub queryRow
+{
+    my ($dbh,$sql,@params) = @_;
+    my $rowref;
+    if ( ref( $sql ) =~ /^DBI/ ) {
+        $sql-&gt;execute( @params );
+        $rowref = $sql-&gt;fetchrow_arrayref;
+    } elsif ( $sql !~ /^\s*select / ) {
+        carp "queryRow called without a select statement\n";
+        return undef;
+    } else {
+        my $sth = $dbh-&gt;prepare( $sql );
+        $sth-&gt;execute;
+        $rowref = $sth-&gt;fetchrow_arrayref;
+        $sth-&gt;finish;
+    }
+    return $rowref;
+}
+
+sub queryColumn
+{
+    my ($dbh,$sql,@params) = @_;
+    my $rowref;
+    if ( ref( $sql ) =~ /^DBI/ ) {
+        $sql-&gt;execute( @params );
+        $rowref = $sql-&gt;fetchall_arrayref;
+    } elsif ( $sql !~ /^\s*select / ) {
+        carp "queryColumn called without a select statement\n";
+        return undef;
+    } else {
+        my $sth = $dbh-&gt;prepare( $sql );
+        $sth-&gt;execute( @params );
+        $rowref = $sth-&gt;fetchall_arrayref;
+        $sth-&gt;finish;
+    }
+    my @col = ();
+    foreach my $r ( @$rowref ) {
+        push( @col, $r-&gt;[0] );
+    }
+    return \@col;
+}
+
+sub queryGrid
+{
+    my ($dbh,$sql,@params) = @_;
+    my $rowref;
+    if ( ref( $sql ) =~ /^DBI/ ) {
+        $sql-&gt;execute( @params );
+        $rowref = $sql-&gt;fetchall_arrayref;
+    } elsif ( $sql !~ /^\s*select / ) {
+        carp "queryGrid called without a select statement\n";
+        return undef;
+    } else {
+        my $sth = $dbh-&gt;prepare( $sql );
+        $sth-&gt;execute;
+        $rowref = $sth-&gt;fetchall_arrayref;
+        $sth-&gt;finish;
+    }
+    return $rowref;
+}
+
+sub sqlOnce
+{
+    my ($dbh,$sql) = @_;
+    my $ret = $dbh-&gt;do( $sql );
+    return $ret;
+}
+
+sub sqlPrep
+{
+    my ($dbh,$sql) = @_;
+    my $this_sth = $dbh-&gt;prepare( $sql );
+    return $this_sth;
+}
+
+sub sqlApply
+{
+    my ($dbh,$this_sth, @params) = @_;
+    my $ret = $this_sth-&gt;execute( @params );
+    return $ret;
+}
+
+sub sqlDone
+{
+    my ($dbh,$this_sth) = @_;
+    $this_sth-&gt;finish;
+}
+
+1;
+
+</field>
+</data>
+</node>

@@ -1,0 +1,132 @@
+<node>
+  <doctext>This is wackyass, a webcam archiving system.  No, it's not
+commented, and no there's no POD.  This was a little 
+project I did at home to archive single frame pics on a 24 
+hour rotation.  
+
+use FileHandle;
+use LWP::Simple;
+
+if ($ARGV[0] eq 'stop')
+{ $kill = 1; }
+if (-e 'pidfile')
+{ $running = 1; }
+if ($kill and $running)
+{
+    $pfh = new FileHandle 'pidfile', O_RDONLY;
+    chomp($pid = $pfh-&gt;getline);
+    chomp($stime = $pfh-&gt;getline);
+    undef $pfh;
+    $skill = kill 9, $pid;
+    $srm = unlink 'pidfile';
+    if ($skill and $srm)
+    {
+	($sec, $min, $hour, $mday, $mon, $year,
+	 $wday, $yday, $isdst) = localtime();
+	$etime = '0' x (2 - length($hour)).$hour.':'.'0' x (2 - length($min)).$min.':'.'0' x (2 - length($sec)).$sec.' '.'0' x (2 - length($mon + 1)).($mon + 1).'/'.'0' x (2 - length($mday)).$mday.'/'.($year + 1900);
+	$lfh = new FileHandle '../log/logfile', O_CREAT|O_APPEND;
+	print $lfh &quot;wackyass:$pid start time: $stime\n&quot;;
+	print $lfh &quot;wackyass:$pid end time: $etime\n&quot;;
+	undef $lfh;
+    }
+    elsif ($skill)
+    { print &quot;\nUnable to remove the pidfile.\n&quot;; }
+    elsif ($srm)
+    { print &quot;\nUnable to kill $pid.\n&quot;; }
+    exit(0);
+}
+elsif ($kill)
+{
+    print &quot;\nWackyass is not currently running.\n&quot;;
+    exit(0);
+}
+elsif ($running)
+{
+    print &quot;\nWackyass is currently running.\n&quot;;
+    exit(0);
+}
+
+($sec, $min, $hour, $mday, $mon, $year,
+ $wday, $yday, $isdst) = localtime();
+$stime = '0' x (2 - length($hour)).$hour.':'.'0' x (2 - length($min)).$min.':'.'0' x (2 - length($sec)).$sec.' '.'0' x (2 - length($mon + 1)).($mon + 1).'/'.'0' x (2 - length($mday)).$mday.'/'.($year + 1900);
+$ppid = $$;
+$pfh = new FileHandle 'pidfile', O_CREAT|O_WRONLY;
+print $pfh &quot;$$\n$stime\n&quot;;
+undef $pfh;
+
+if ($pid = fork)
+{
+    $lmin = -1;
+    $i = 0;
+    for (;;)
+    {
+	($sec, $min, $hour, $mday, $mon, $year,
+	 $wday, $yday, $isdst) = localtime();
+	$ssec = $sec;
+	if ($lmin != $min)
+	{
+	    $i = 0;
+	    $lmin = $min;
+	}
+	if ($sec &gt; 50)
+	{
+	    $i = 0;
+	    $min++;
+	    $lmin = $min;
+	}
+	if ($i &gt; 5)
+	{ $i = 0; }
+	if ($min == 60)
+	{
+	    $min = 0;
+	    $lmin = $min;
+	    $hour++;
+	}
+	if ($hour == 24)
+	{ $hour = 0; }
+	$filename = '/usr/local/apache/sites/wackyass/htdocs/'.'0' x (2 - length($hour)).$hour.'/'.'0' x (2 - length($min)).$min.$i.'.jpg';
+	$ifh = new FileHandle &quot;$filename&quot;, O_CREAT|O_WRONLY;
+	($sec, $min, $hour, $mday, $mon, $year,
+	 $wday, $yday, $isdst) = localtime();
+	if ($sec &lt; $ssec)
+	{ $sec += 60; }
+	$stime = 10 - ($sec - $ssec);
+	sleep $stime;
+	print $ifh get(&quot;http://192.168.0.108:8080&quot;);
+	undef $ifh;
+	$i++;
+    }
+}
+elsif (defined $pid)
+{
+    for (;;)
+    {
+	($sec, $min, $hour, $mday, $mon, $year,
+	 $wday, $yday, $isdst) = localtime();
+	$min++;
+	if ($min == 60)
+	{
+	    $hour++;
+	    if ($hour == 24)
+	    { $hour = 0; }
+	    $min = 0;
+	}
+	for ($i = 0; $i &lt; 6; $i++)
+	{
+	    $filename = '/usr/local/apache/sites/wackyass/htdocs/'.'0' x (2 - length($hour)).$hour.'/'.'0' x (2 - length($min)).$min.$i.'.jpg';
+	    if ((-M $filename) &gt;= 0.5)
+	    { unlink $filename; }
+	}
+	if ($ppid != getppid)
+	{ kill 9, $$; }
+	sleep 60;
+    }
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>37098</node_id>
+  <author_user>8749</author_user>
+  <title>Wackyass</title>
+  <createtime>2000-10-17 04:49:19</createtime>
+  <nodeupdated>2005-07-21 01:21:22</nodeupdated>
+</node>

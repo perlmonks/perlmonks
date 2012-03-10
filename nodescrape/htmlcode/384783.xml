@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="384783" title="displaygroup_as_xml" created="1999-07-06 03:10:24" updated="2005-08-09 07:54:23">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my (@rest_list)=@_;
+my $restrict;
+if (@rest_list) {
+  my ($id,%r);
+  $r{$_}||=++$id for @rest_list;
+  $restrict=\%r;
+}
+
+return "&lt;error&gt;Error creating fling object&lt;/error&gt;"
+  unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle));
+
+$xml-&gt;start('members');
+local *_recurse_groups=sub {
+  my ($NODE,$seen,$via_title,$via_id)=@_;
+  my $members = $NODE-&gt;{group};
+  return "" unless $members;
+
+  for my $node_id (@$members) {
+    next if $seen-&gt;{$node_id}++;
+    my $node=getNodeById($node_id);
+    my $tag='member';
+    my @args=($tag, 
+         node_id=&gt;(ref $node_id ? $node_id-&gt;{node_id} : $node_id),
+         type=&gt;$node-&gt;{type}{title},
+         type_nodetype=&gt;$node-&gt;{type_nodetype},
+         title=&gt;$node-&gt;{title},
+         $via_title ? (via=&gt;$via_title) : (),
+         $via_id ? (via_id=&gt;$via_id) : (),
+         $node-&gt;{group} ? (is_group =&gt; 1) : (),
+    );
+    if ( $node-&gt;{group} &amp;&amp; (!$restrict || $restrict-&gt;{$node-&gt;{type}{title}}) ) {
+        if ($xmlstyle{flat}) {
+            $xml-&gt;element(@args);
+        } else {
+            $xml-&gt;start(@args);
+        }
+        _recurse_groups($node,$seen,$node-&gt;{title},$node-&gt;{node_id});
+        unless ($xmlstyle{flat}) {
+            $xml-&gt;end($tag) 
+        }
+    } else {
+        $xml-&gt;element(@args);
+    }
+  }
+};
+_recurse_groups($NODE);
+$xml-&gt;end('members');
+
+return join '',@data;</field>
+</data>
+</node>

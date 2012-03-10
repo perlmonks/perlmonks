@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="11858" title="E-mail node" created="2000-05-16 14:44:44" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[{openform}]
+&lt;h4&gt;Sorry.  This feature presents a minor security problem
+and has been disabled pending removal of the problem.&lt;/h4&gt;
+[%
+my $str;
+
+$str.="Node id:".$query-&gt;textfield('nodenum',$query-&gt;param('nodenum'))."&lt;br /&gt;";
+$str.="Where to send this".$query-&gt;textfield('email')."&lt;br /&gt;";
+%]
+[%
+return "";
+
+my $str;
+my $SETTING=getNode('E-mail node settings','setting');
+my $ES=getVars $SETTING;
+my %restrictedTypes;
+
+my @restrictedTypes=split(/,/,$$ES{restrictedTypes});
+$restrictedTypes{getId(getType($_))}=1 for @restrictedTypes;
+
+if($query-&gt;param('email') and $query-&gt;param('nodenum')){
+   $str.="Trying to send mail&lt;BR&gt;";
+   my $email=$query-&gt;param('email');
+   my $n=$query-&gt;param('nodenum');
+   getRef $n;
+   return "Sorry you can't send nodes of this nodetype!" if($restrictedTypes{$$n{type_nodetype}});
+   my $title=$$n{title};
+   my $doctext=$$n{doctext};
+   $$n{doctext}=~s/&lt;BR&gt;/\n/ig;
+   $$n{doctext}=~s/&lt;P.*?&gt;/\n/ig;
+   $$n{doctext}=~s/&lt;.*?&gt;/\n/g;
+   $$n{title}="[perlmonks.org] ".$$n{title};
+   if(canCreateNode($USER,$$n{type_nodetype} and $$n{doctext})){
+      use Everything::MAIL;
+      $$n{doctext}.="Go there at &lt;A HREF=\"http://perlmonks.org/index.pl?node_id=$$n{node_id}\"&gt;http://perlmonks.org/index.pl?node_id=$$n{node_id}&lt;/A&gt;\n\n";
+      $$n{doctext}.="-----------------------------------\nSomeone from $ENV{REMOTE_ADDR} requested this be sent to you\n";
+      node2mail($email,$n,$$USER{email}); 
+      $$n{title}=$title;
+      $$n{doctext}=$doctext;    
+   } else {
+      $str.="Sorry Bucko... you shouldn't be trying to send this type of node..\nor this type of node isn't supported for mailing yet\n";
+   }
+}
+$str;
+%]
+&lt;!-- [{closeform}] --&gt;
+&lt;/form&gt;</field>
+</data>
+</node>

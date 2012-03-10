@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="291446" title="Introduction to Parallel::ForkManager" created="2003-09-14 17:37:58" updated="2005-08-15 13:43:39">
+<type id="956">
+perltutorial</type>
+<author id="282692">
+biosysadmin</author>
+<data>
+<field name="doctext">
+	&lt;h2&gt;Introduction to Parallel::ForkManager&lt;/h2&gt;
+
+&lt;h3&gt;Introduction&lt;/h3&gt;
+The goal of this tutorial is to demonstrate how to use Parallel::ForkManager,
+a simple and powerful Perl module available from &lt;a href="http://cpan.org"&gt;
+CPAN&lt;/a&gt;.
+   Parallel::ForkManager is a simple and powerful module that can be used to perform a series of operations in parallel within a single Perl script. It is especially well-suited to performing a number of repetitive operations on a relatively powerful machine, especially when working on a multiprocessor machine. This module uses object-oriented syntax, if that frightens you then
+   should read some of the &lt;a
+   href="http://perlmonks.org/index.pl?node=Tutorials#objorient"&gt;Object
+   Oriented Perl&lt;/a&gt; tutorials.
+&lt;/p&gt;
+
+&lt;h3&gt;Usage&lt;/h3&gt;
+
+   &lt;p&gt;
+   One caveat to using Parallel::ForkManager is that you must instantiate
+   the Parallel::ForkManager object with a number representing the maximum
+   number of processes to fork. Here is an example of the syntax:
+   &lt;/p&gt;
+
+   &lt;code&gt;
+   my $manager = new Parallel::ForkManager( 20 );
+   &lt;/code&gt;
+
+   &lt;p&gt;
+   In many cases, this maximum number of processes to fork will also be the actual number of processes forked by your program. In this case, it is very important to choose this number carefully, as forking a large enough number of processes is enough to bring even the mightiest of machines to it's knees. Also, you can change this number later in your program as needed with the following method:
+   &lt;/p&gt;
+   &lt;code&gt;
+   $manager-&gt;set_max_procs( $newMaximumProcs );
+   &lt;/code&gt;
+
+   &lt;p&gt;
+   After instantiating a Parallel::ForkManager object, you can start forking
+   processes using the start method. It is important to also define the point
+   at which the child processes will finish. This is usually performed within a
+   for or while loop, so the syntax will look like this:
+   &lt;/p&gt;
+
+   &lt;code&gt;
+   foreach my $command (@commands) {
+      $manager-&gt;start and next;
+      system( $command );
+      $manager-&gt;finish;
+   };
+   &lt;/code&gt;
+   &lt;p&gt;
+   The line within the for loop is a common idiom used for
+   Parallel::ForkManager, it starts running the command via a forked process
+   and advances to the next command in the @command array. The start method
+   takes an optional parameter named $process_identifier, which can be used
+   in callbacks (see Callbacks section).
+   &lt;/p&gt;
+   &lt;p&gt;
+   Another useful method in the Parallel::ForkManager class is the 
+   wait_all_children method. It performs a blocking wait on the parent program
+   that waits until all forked processes have finished.
+   &lt;/p&gt;
+
+&lt;h3&gt;Callbacks&lt;/h3&gt;
+   &lt;p&gt;
+   It is possible to define callbacks to child processes, which are blocks of code that are called at various points of the execution of your processes. There are three forms of callbacks:
+
+   &lt;ul&gt;
+   &lt;li&gt;run_on_start  - run when each process is started&lt;/li&gt;
+   &lt;li&gt;run_on_finish - run when each process is finished&lt;/li&gt;
+   &lt;li&gt;run_on_wait   - run when a process needs to wait for startup&lt;/li&gt;
+   &lt;/ul&gt;
+   
+   Callbacks are defined using the run_on_start, run_on_finish, and run_on_wait
+   methods, which take subroutines (or references to subroutines) as arguments.
+   The arguments provided to the subroutine differ depending on which form of
+   callback you are defining.
+   &lt;/p&gt;
+   
+   &lt;p&gt;
+   Here's an example of the run_on_start method:
+   &lt;/p&gt;
+
+   &lt;code&gt;
+   $manager-&gt;run_on_start( 
+      sub {
+         my ($pid,$ident) = @_;
+         print "Starting processes $ident under process id $pid\n";
+      }
+    );
+   &lt;/code&gt;
+
+   &lt;p&gt;
+   The arguments passed to the run_on_start sub are the process id of the 
+   forked process (provided by the operating system), and an identifier for the
+   process that can be defined in the start method of the Parallel::ForkManager
+   process. You should remember this in case that you don't provide an
+   identifier in the call to start, this will make $ident be undefined and 
+   cause the Perl interpreter to complain (if you are &lt;a
+   href="http://perlmonks.org/index.pl?node_id=111088"&gt; using strict and
+   warnings)&lt;/a&gt;.
+   &lt;/p&gt;
+
+   &lt;p&gt;
+   Here's an example of the run_on_finish method:
+   &lt;/p&gt;
+
+   &lt;code&gt;
+   $manager-&gt;run_on_finish( 
+      sub {
+         my ( $pid, $exit_code, $ident, $signal, $core ) = @_;
+         if ( $core ) {
+            print "Process $ident (pid: $pid) core dumped.\n";
+         } else {
+            print "Process $ident (pid: $pid) exited 
+            print "with code $exit_code and signal $signal.\n";
+         }
+      }
+   );
+   &lt;/code&gt; 
+
+   &lt;p&gt;
+   This callback prints useful messages upon completion of the process. One
+   caveat is that $ident must be defined in the start method of each process
+   for this to work, otherwise this code needs to be modified.
+   &lt;/p&gt;
+
+   &lt;p&gt;
+   The run_on_wait subroutine is a bit different. It is called when the 
+   Parallel::ForkManager object needs to wait for something, such as waiting 
+   for startup, starting, and waiting for processes to exit. It takes both a 
+   subroutine (or subroutine reference) and a optional argument $period, which
+   defines the number of seconds to wait before calling the method again.
+   Here's an example of it's usage:
+   &lt;/p&gt;
+
+   &lt;code&gt;
+   $manager-&gt;wait_on_finish( 
+      sub {
+         print "Waiting ... \n";
+      },
+      3
+   );
+   &lt;/code&gt;
+
+   &lt;p&gt;
+   This example prints its message about every 3 seconds. In the notes for
+   the &lt;a
+   href="http://search.cpan.org/author/DLUX/Parallel-ForkManager-0.7.5/ForkManager.pm"&gt;latest version of Parallel::ForkManager&lt;/a&gt;, it says that the exact
+   period of time is not guaranteed and can vary slightly according to system
+   load. If the second argument is not provided, then the subroutine will be
+   called after the appropriate wait during the start and wait_on_children
+   methods.
+
+   &lt;/p&gt;
+
+&lt;h3&gt;Bugs and Limitations&lt;/h3&gt;
+These are straight from the Parallel::ForkManager perldoc, three caveats are
+provided:
+&lt;ul&gt;
+   &lt;li&gt;"Do not use Parallel::ForkManager in an environment, where other child
+   processes can affect the run of the main program, so using this module is
+   not recommended in an environment where fork() / wait() is already
+   used."&lt;/li&gt;
+   &lt;li&gt;"If you want to use more than one copies of the Parallel::ForkManager,
+   then you have to make sure that all children processes are terminated,
+   before you use the second object in the main program."&lt;/li&gt;
+   &lt;li&gt;"You are free to use a new copy of Parallel::ForkManager in the child
+   processes, although I don't think it makes sense."&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Other Resources&lt;/h3&gt;
+One of the most valuable sources of information on this module is the Perldoc
+formatted, documentation is available on systems that have Parallel::ForkManager
+installed and &lt;a
+href="http://search.cpan.org/author/DLUX/Parallel-ForkManager-0.7.5/ForkManager.pm"&gt;from
+CPAN&lt;/a&gt;.
+</field>
+</data>
+</node>

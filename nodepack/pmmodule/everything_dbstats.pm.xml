@@ -1,0 +1,321 @@
+<node>
+  <filetext>package Everything::DbStats;
+use strict;
+
+use Time::HiRes qw( gettimeofday );
+use Time::Local qw( timegm );
+
+require Exporter;
+*import= \&amp;Exporter::import;
+
+use vars qw/ $VERSION @EXPORT_OK /;
+$VERSION= 0.001_00;
+@EXPORT_OK= qw/
+  IntervalUS InitDbStats DbStatsBeginHit RecordDbQueryStats DbStatsEndHit /;
+
+
+### Compile-time constants: ###
+
+sub Min5() { 205 }  # purge 604 (1 quarter) 12*24*30*4 = 34,560 records
+sub Hr1()  { 301 }  # purge 702 (2 year)    24*365*2   = 17,520 records
+sub Day1() { 401 }
+sub Wk1()  { 501 }
+
+my( @abbr4sym, %sym4abbr, @dbId, %sym4dbId );
+BEGIN {
+    %sym4abbr= reverse(
+        Hits     =&gt; 'hits',     # 'peak hits/P'
+        HitUs    =&gt; 'hit ms',   # 'peak hits/P'
+        HitLMs   =&gt; 'hit Lms',
+        Queries  =&gt; 'queries',  # 'peak queries/P'
+        DbUs     =&gt; 'db ms',    # 'peak db ms/P'
+        QryLMs   =&gt; 'query Lms',
+        QryB     =&gt; 'query bytes',  # peaks
+        Recs     =&gt; 'records',      # peaks
+        XHitUs   =&gt; 'max ms/hit',
+        XHitDbUs =&gt; 'max db ms/hit',
+        XHitRecs =&gt; 'max recs/hit',
+        XQryUs   =&gt; 'max ms/query',
+        XQryRecs =&gt; 'max recs/query',
+    );
+    {
+        my $cnt= 1;
+        #for my $sym (  values %sym4abbr  )
+        for my $sym (  @sym4abbr{ keys %sym4abbr }  ) {
+            if(  ! eval &quot;sub $sym() { $cnt }; 1&quot;  ) {
+                die &quot;Stat type abbr const (&quot;,
+                    $sym, &quot;) eval failed ($@).\n&quot;;
+            }
+            $sym= $cnt++;
+        }
+    }
+    @abbr4sym[values %sym4abbr]= keys %sym4abbr;
+}
+
+
+sub IntervalUS
+{
+    my( $a0, $a1, $b0, $b1 )= @_;
+    ( $b0, $b1 )= gettimeofday()   unless  defined($b1);
+    return  $b1 - $a1 + ( $b0 - $a0 )*1_000_000;
+}
+
+
+my $DBH;
+
+
+sub InitDbStats
+{
+    $DBH= shift @_;
+    my $error= '';
+    if(  ! @dbId  ) {
+        my $sth= $DBH-&gt;prepare( &quot;SELECT typecode,statabbr FROM dbstattype&quot; );
+        $sth-&gt;execute();
+        my $rec;
+        while(  $rec= $sth-&gt;fetchrow_hashref()  ) {
+            my $sym= $sym4abbr{ $rec-&gt;{statabbr} };
+            if(  ! defined $sym  ) {
+                $error .= &quot;Unrecognized stat type abbr, (&quot;
+                  . $rec-&gt;{statabbr} . &quot;).\n&quot;;
+            } else {
+                push @dbId, $rec-&gt;{typecode};
+                $sym4dbId{$rec-&gt;{typecode}}= $sym;
+            }
+        }
+        $sth-&gt;finish();
+    }
+    warn $error   if  $error;
+}
+
+
+my @Interval= ( Min5(), Hr1(), Day1(), Wk1() );
+my $ISecs= intervalSeconds($Interval[0]);
+my( $KeepStats, @Stat4sym, @Prev );
+my( $IBegan, $PrevBegan, $INext, $PrevHit );
+my( @HitBegan );
+my( $Recs, $DbUs )= (0) x 2;
+
+
+sub insertStats
+{
+    my( $began, $dur )= @_;
+    return $DBH-&gt;do(
+        &quot;INSERT IGNORE dbstats (began,duration,stattype,value)&quot;
+      . &quot; SELECT $began,$dur,typecode,0.0 FROM dbstattype&quot;
+    );
+}
+
+
+sub writeStats
+{
+    return   if  ! @dbId;
+    my( $dur, $began, @stat4sym )= @_;
+    my $sth= $DBH-&gt;prepare(
+        &quot;UPDATE dbstats SET began=began, value= value + ?&quot;
+      . &quot; WHERE began='$began' AND duration=$dur AND stattype=?&quot;
+    );
+    # $sth-&gt;{RaiseError}= $sth-&gt;{PrintError}= 0;
+    my $res= $sth-&gt;execute( $stat4sym[$sym4dbId{$dbId[0]}], $dbId[0] );
+    if(   $res  &amp;&amp;  0 == $res  ) {
+        my $inserted= insertStats( $began, $dur );
+        $res= $sth-&gt;execute( $stat4sym[$sym4dbId{$dbId[0]}], $dbId[0] );
+    }
+    if(  1 &lt; @dbId  ) {
+        for my $dbId (  @dbId[1..$#dbId]  ) {
+            $res= $sth-&gt;execute(
+                $stat4sym[$sym4dbId{$dbId}],
+                $dbId,
+            )   if  $abbr4sym[$sym4dbId{$dbId}] !~ /\bmax\b/i;
+        }
+        my $sth= $DBH-&gt;prepare(
+            &quot;UPDATE dbstats SET began=began, value= ?&quot;
+          . &quot; WHERE began='$began' AND duration=$dur AND stattype=? AND value &lt; ?&quot;
+        );
+        for my $dbId (  @dbId[1..$#dbId]  ) {
+            $res= $sth-&gt;execute(
+                $stat4sym[$sym4dbId{$dbId}],
+                $dbId,
+                $stat4sym[$sym4dbId{$dbId}],
+            )   if  $abbr4sym[$sym4dbId{$dbId}] =~ /\bmax\b/i;
+        }
+    }
+    # MySQL Version 3.23.56-log
+}
+
+
+sub DbStatsBeginHit
+{
+    @HitBegan= gettimeofday();
+    my $now= $HitBegan[0];
+    if(  !defined($INext)  ||  $now &lt; $INext  ) {
+        writeStats( $Interval[0], $PrevBegan, @Prev )   if  @Prev;
+        ( $PrevBegan, @Prev )= ( $IBegan, @Stat4sym );
+        my @began= intervalBegan( $Interval[0], $now );
+        $PrevHit= ymdhms2gm(@began);
+        $INext= $PrevHit + $ISecs;
+        $IBegan= join '', @began;
+        @Stat4sym= ();
+    }
+    if(  @Prev  &amp;&amp;  rand($ISecs) &lt; $now-$PrevHit  ) {
+        writeStats( $Interval[0], $PrevBegan, @Prev );
+        ( $PrevBegan, @Prev )= ( );
+    }
+}
+
+
+END
+{
+    writeStats( $Interval[0], $PrevBegan, @Prev )   if  @Prev;
+    writeStats( $Interval[0], $IBegan, @Stat4sym )   if  @Stat4sym;
+    ( $IBegan, @Stat4sym, $PrevBegan, @Prev )= ( );
+}
+
+
+sub keepStats
+{
+    $KeepStats= shift( @_ );
+}
+
+
+sub setMax
+{
+    my( $cur, $new )= @_;
+    ## my( $cur, $new, $from, $sql, $qdata )= @_;
+    if(  $cur &lt; $new  ) {
+        $_[0]= $new;
+    }
+}
+
+
+sub RecordDbQueryStats
+{
+    my( $sql, $from, $us, $qbytes, $ops, $recs, $qdata, $dist )= @_;
+    $Stat4sym[Queries()]++;
+    $Stat4sym[QryLMs()] += log( $us/1000 );
+    $DbUs += $us;
+    $Recs += $recs || 1;
+    $Stat4sym[QryB()] += $qbytes;
+    setMax( $Stat4sym[XQryUs()], $us, $from, $sql, $qdata );
+    setMax( $Stat4sym[XQryRecs()], $recs, $from, $sql, $qdata );
+}
+
+
+#2345678 1 2345678 2 2345678 3 2345678 4 2345678 5 2345678 6 2345678 7
+
+sub DbStatsEndHit
+{
+    my $hitUs= IntervalUS( @HitBegan );
+    $Stat4sym[Hits()]++;
+    $Stat4sym[HitUs()] += $hitUs;
+    $Stat4sym[HitLMs()] += log( $hitUs/1000 );
+    $Stat4sym[Recs()] += $Recs;
+    $Stat4sym[DbUs()] += $DbUs;
+    setMax( $Stat4sym[XHitUs()], $hitUs );
+    setMax( $Stat4sym[XHitDbUs()], $DbUs );
+    setMax( $Stat4sym[XHitRecs()], $Recs );
+    $Recs= $DbUs= 0;
+}
+
+
+my @ivSec;
+BEGIN {
+    my $sec= 60;
+    push @ivSec, 1, 0+$sec, 0+( $sec *= 60 ),
+        0+( $sec *= 24 ), 0+( $sec * 7 );
+    ## push @ivSec, $sec * 365/12;
+    ## push @ivSec, $sec * 365;
+}
+
+sub intervalSeconds
+{
+    my( $duration )= @_;
+    my $field= int( $duration/100 ) - 1;
+    my $count= $duration % 100;
+    return $ivSec[$field] * $count;
+}
+
+
+########################################
+# intervalBegan:
+#   $began= intervalBegan( $duration [, $time ] );
+#   @date=  intervalBegan( $duration [, $time ] );
+#
+#   Compute the starting time of an interval (of the specified duration)
+#   that a specific time would fall into.
+#
+#   For $duration:  1xx = xx seconds,  2xx = xx minutes,  3xx= xx hours,
+#   4xx = xx days,  501 = 1 week,  6xx = xx months,  7xx = xx years.
+#
+#   If $time is missing, time() is used.
+#
+#   $began is the epoch time [like time() returns] of the start of the
+#   interval (of $duration) that contains $time.
+#
+#   @date is 0-padded date fields ( $year, $mon, $day, $hour, $min, $sec )
+#   of the starting time of the interval (of $duration) that contains $time.
+#   Note that $year does *not* have 1900 subtracted from it and $mon
+#   does not have 1 subtracted from it.  And since each value is 0-padded
+#   to two digits:
+#       join &quot;&quot;, inervalBegan( ... )
+#   gives you a MySQL TIMESTAMP.  While either of:
+#       sprintf &quot;'%s-%s-%s %s:%s:%s'&quot;, inervalBegan( ... )
+#       sprintf &quot;'%d-%02d-%02d %02d:%02d:%02d'&quot;, inervalBegan( ... )
+#   gives you a MySQL DATETIME.
+#
+########################################
+
+sub intervalBegan
+{
+    my( $duration, $prevTime )= @_;
+    $prevTime ||= time();
+
+    die &quot;Duration ($duration) not bewteen 101 and 750&quot;
+        if  $duration &lt; 101  ||  750 &lt; $duration;
+
+    my @fields= ( gmtime() )[0..3,6,4,5];
+    # sec[0], min[1], hr[2], day[3], wday[4], mon[5], yr[6]
+
+    my $field= int( $duration/100 ) - 1;
+    my $count= $duration % 100;
+    for my $i (  0 .. $field-1  ) {
+        $fields[$i]= 3==$i ? 1 : 0;
+    }
+
+    if(  4 != $field  ) {
+        $fields[$field] -= $fields[$field] % $count;
+    } else {
+        $fields[3] -= $fields[4];
+        die &quot;Durations in weeks must be 1 week not $count weeks&quot;
+            if  1 != $count;
+    }
+    splice( @fields, 4, 1 );    # Drop week day
+
+    return timegm( @fields )
+        if  ! wantarray;
+
+    $fields[-1] += 1900;        # Make year sane
+    $fields[-2]++;              # Make month number sane
+    for my $field (  @fields[0..4]  ) {
+        $field= sprintf &quot;%02d&quot;, $field;
+    }
+    return reverse @fields;
+}
+
+
+sub ymdhms2gm
+{
+    my @fields= @_;
+    $fields[0] -= 1900;
+    $fields[1]--;
+    return timegm( reverse @fields );
+}
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>321667</author_user>
+  <createtime>2005-04-23 16:23:37</createtime>
+  <node_id>450799</node_id>
+  <filerequired></filerequired>
+  <title>Everything/DbStats.pm</title>
+  <nodeupdated>2005-08-13 05:26:14</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

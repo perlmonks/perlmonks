@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="110228" title="Microsoft Project and Perl" created="2001-09-05 06:46:28" updated="2005-08-15 11:46:59">
+<type id="956">
+perltutorial</type>
+<author id="22308">
+dws</author>
+<data>
+<field name="doctext">
+Microsoft Project is a tool that many managers use
+behind closed doors to prepare massive, wall-sized
+works of fiction for the entertainment of corporate
+executives. Closely read, these fictional plans prove convincingly
+that neither gravity nor even the speed of light are obstacles for
+the corporation's mighty horde of otherwise unruly developers.
+&lt;p&gt;
+
+MS Project seems at first to be a closed, cumbersome,
+single-user tool. But lurking beneath that gray, stoic exterior
+there is a COM object model that is accessible to Perl
+via Win32::OLE. Unfortunately, information
+on driving Project from Perl is lacking, and working
+examples are nowhere to be found.
+&lt;p&gt;
+
+
+
+&lt;b&gt;A Quick Tour of the Project Object Model&lt;/b&gt;
+&lt;p&gt;
+Microsoft Project &lt;code&gt;.mpp&lt;/code&gt; files can be accessed through a COM interface,
+in much the same way that one can use Win32::OLE to reach into an
+&lt;code&gt;Excel&lt;/code&gt; spreadsheet.
+&lt;p&gt;
+A &lt;code&gt;Project&lt;/code&gt; object model has,
+among other things, a collection of &lt;code&gt;Resources,&lt;/code&gt;
+and a collection of &lt;code&gt;Tasks.&lt;/code&gt;
+Each &lt;code&gt;Task&lt;/code&gt; also contains a collection of the &lt;code&gt;Resources&lt;/code&gt; that are assigned
+to that &lt;code&gt;Task.&lt;/code&gt;
+(Tasks and Resources are also associated via an &lt;code&gt;Assignment,&lt;/code&gt;
+though &lt;code&gt;Assignment&lt;/code&gt; is a kind of "second class" object, since links to the
+corresponding &lt;code&gt;Task&lt;/code&gt; and &lt;code&gt;Resource&lt;/code&gt; are not directly navigable.
+Read: don't bother going there.)
+&lt;p&gt;
+A &lt;code&gt;Resource&lt;/code&gt; has a &lt;code&gt;Name.&lt;/code&gt; (Isn't it nice to know that you aren't merely a number?)
+A &lt;code&gt;Resource&lt;/code&gt; can also have an &lt;code&gt;EMailAddress,&lt;/code&gt; which can come in very handy when
+doing automated things to plans that involve sending email. 
+&lt;p&gt;
+A &lt;code&gt;Task&lt;/code&gt; has a &lt;code&gt;Start&lt;/code&gt; date/time, a &lt;code&gt;Finish&lt;/code&gt; date/time,
+and a &lt;code&gt;Duration,&lt;/code&gt; which is represented as the number of working seconds between
+the &lt;code&gt;Start&lt;/code&gt; and the &lt;code&gt;Finish&lt;/code&gt; (a &lt;code&gt;Task&lt;/code&gt; can span one or
+more non-working days). A &lt;code&gt;Duration&lt;/code&gt; of 0 means that the task represents a
+"Milestone".
+&lt;code&gt;PercentComplete&lt;/code&gt; is just that; a task that is 100
+&lt;code&gt;PercentComplete&lt;/code&gt; is finished. Each &lt;code&gt;Task&lt;/code&gt; has associated &lt;code&gt;Notes.&lt;/code&gt;
+&lt;p&gt;
+Each &lt;code&gt;Task&lt;/code&gt; has a collection of &lt;code&gt;PredecessorTasks&lt;/code&gt; and a collection of &lt;code&gt;SuccessorTasks,&lt;/code&gt;
+either or both of which can be empty.
+If you need to trace out dependency graphs, you'll use one of both of these collections.
+&lt;p&gt;
+Tasks can be structured hierarchically into an outline.
+If a &lt;code&gt;Task&lt;/code&gt; has a non-empty collection of &lt;code&gt;OutlineChildren,&lt;/code&gt;
+the &lt;code&gt;Task&lt;/code&gt; is a parent in an outline.
+The parent inherits the earliest &lt;code&gt;Start&lt;/code&gt; date from its children, and the latest &lt;code&gt;Finish&lt;/code&gt; date.
+&lt;p&gt;
+&lt;b&gt;About Collections&lt;/b&gt;
+&lt;p&gt;
+Collections 1-based arrays which are implemented using COM's &lt;code&gt;SAFEARRAY,&lt;/code&gt;
+and are not to be confused with Perl arrays.
+&lt;p&gt;
+&lt;b&gt;A Warning About Dates&lt;/b&gt;
+&lt;p&gt;
+Microsoft's documentation on the Project object model claims that the date fields (e.g.,
+&lt;code&gt;Start&lt;/code&gt; and &lt;code&gt;Finish&lt;/code&gt;) are &lt;code&gt;VARIANT&lt;/code&gt;s. As far as I've been able to
+tell, this isn't true. You get a string, and need to manually convert it into a
+&lt;code&gt;VT_DATE VARIANT&lt;/code&gt; if you need to have one. 
+&lt;p&gt;
+&lt;b&gt;Dissecting a Project Plan with Perl&lt;/b&gt;
+&lt;p&gt;
+First, open the project plan and extract the Project object. If you've ever used
+Win32::OLE to open up an &lt;code&gt;Excel&lt;/code&gt; or &lt;code&gt;Word&lt;/code&gt; file, this step
+holds no surprises. To get a specific project plan, you need to reach into the
+&lt;code&gt;Projects&lt;/code&gt; collection to grab the first one.
+
+&lt;code&gt;  use Win32::OLE;
+  use Win32::OLE::Variant;
+  use strict;
+
+  my $app = Win32::OLE-&gt;GetObject("SomeProject.mpp")
+              or die "Couldn't open project";
+
+  my $project = $app-&gt;{Projects}-&gt;Item(1);
+&lt;/code&gt;
+When Project opens a project plan,
+it sets the "current date" for the project. If you open a project during "off hours" or on the
+weekend, the current date will be next valid working date/time. Don't be surprised if this
+ends up being Monday morning at 8am even though your watch says Saturday night at 11pm.
+
+&lt;code&gt;  my $current_date = Variant(VT_DATE,
+                             $project-&gt;{CurrentDate});
+&lt;/code&gt;
+Now let us walk through the Tasks, looking for any that are overdue.
+&lt;code&gt;  my @overdue;
+
+  foreach my $i ( 1 .. $project-&gt;{Tasks}-&gt;Count() ) {
+      my $task = $project-&gt;{Tasks}-&gt;Item($i);
+      my $finish = Variant(VT_DATE, $task-&gt;{Finish});
+      push @overdue, $task if $finish &lt; $current_date
+                           &amp;&amp; $task-&gt;{PercentComplete} &lt; 100;
+  }
+&lt;/code&gt;
+Overdue tasks? Oh my. What do do?
+Let's send an automated nastygram!
+For each resource associated with an overdue tasks, collect all of that resource's overdue tasks.
+&lt;code&gt;  my %overdue;
+
+  foreach my $task ( @overdue ) {
+      foreach my $ri ( $task-&gt;{Resources}-&gt;Count() ) {
+          my $resource = $task-&gt;{Resources}-&gt;Item($ri);
+          push @{$overdue{$resource-&gt;{EMailAddress}}}, $task;
+      }
+  }
+&lt;/code&gt;
+The rest is easy.
+&lt;code&gt;  use Mail::Mailer;
+
+  foreach my $email ( keys %overdue ) {
+      my $mailer = new Mail::Mailer();
+      $mailer-&gt;open(From =&gt; "Nag-o-Matic",
+                    To =&gt; $email,
+                    Subject =&gt; "Overdue tasks");
+      print $mailer
+        "You are associated with the following overdue tasks:\n\n";
+
+      foreach my $task ( @{$overdue{$email}} ) {
+          print $mailer '"', $task-&gt;{Name}, '" was due on ',
+                        $task-&gt;{Finish}, "\n";
+      }
+
+      print "\nPlease send a status update to your Manager.\n";
+      $mailer-&gt;close();
+  }
+&lt;/code&gt;
+&lt;b&gt;Next Steps&lt;/b&gt;
+&lt;p&gt;
+The Project object model is considerably richer. The ActiveState Win32::OLE::Browser web page can provide some detail, or more if you installed the Visual Basic stuff along with Project (thus installing help files for the OLE type libraries).
+&lt;p&gt;
+&lt;b&gt;In Closing&lt;/b&gt;
+&lt;p&gt;
+MS Project need no longer be a source of dull, paper-based wall art.
+With a bit of creative Perl scripting, a project plan can become
+a work of collaborative performance art.
+&lt;p&gt;
+&lt;small&gt;(Spot a typo? /msg me.)
+</field>
+</data>
+</node>

@@ -1,0 +1,575 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>328453</node_id>
+  <author_user>142755</author_user>
+  <title>get_picked_nodes</title>
+  <createtime>2004-02-11 21:52:17</createtime>
+  <code># get_picked_nodes htmlcode (tested with nodelets/other users)
+# -- demerphq
+use strict;
+use warnings;
+require XML::Fling;
+require List::Util;
+require POSIX;
+require Everything::Experience;
+
+my $start_time=time;
+# my ($NODE,$USER,$THEME,$DB,$q);  # for testing under perl -c and without PM
+
+my $DEBUG= isGod($USER);
+
+#---------------------------------------------------------
+# Table used by this code:
+# CREATE TABLE picked_nodes (
+#    pick_id  int(11)    NOT NULL,
+#    pickname char(240)  NOT NULL,
+#    auth_id  int(11)    NOT NULL,
+#    authname char(240)  NOT NULL,
+#    rep      int(11)    NOT NULL,
+#    days     int(3)     NOT NULL,
+#    picktype int(1)     NOT NULL,  /* x0 - Best x1 Selected | 0x - DESC 1x ASC */
+#    seq      int(3)     NOT NULL,
+#    ulastupdate int(11) NOT NULL,
+#    UNIQUE INDEX idx_pick (days,picktype,pick_id),
+#    UNIQUE INDEX uidx_main (days,picktype,seq)
+# ) TYPE=MyISAM PACK_KEYS=1
+#
+# Picktype: 0 = Best Nodes
+#           1 = Selected Best Nodes
+#           2 = Worst Nodes
+#          *3 = Selected Worst Nodes
+#           4 = Users In descending order of XP
+#          *5 = Selected Users In descending order of XP
+#          *6 = Users in Ascending order of XP
+#          *7 = Selected Users In Ascending order of XP
+#
+# Lines marked * are hypothetical as they arent used.
+# NOTE that Picktype + 64  is for temporary creation
+#      that Picktype + 128 is for locking Picktype updates.
+#
+# Picktypes are update by first obtaining a lock (Days/Picktype+128/Seq=0)
+# then by creating the new result set with Days/Picktype+64
+# then by deleting the old set (Days/Picktype)
+# then by updating the (days/picktype+64) to (days/picktype)
+# then by deleting the lock record (days/picktype+128)
+# This SHOULD resolve the race condition in get picked nodes.
+#
+#---------------------------------------------------------
+# Cache refresh occurs when there are no recs within the selected $args{days} or if the
+# data is too old.  This means that if a particular $args{days} isn't currently stored
+# then on first fetch it will be created. A random factor is added to the
+# $cache_time to keep multiple $args{days} types from refreshing simultaneously.
+#---------------------------------------------------------
+# Note: Using XML::Fling for the html as well is just for convenience and for simplicity.
+#     : I agree it does look a bit strange. :-)
+#---------------------------------------------------------
+# Initialization
+
+
+my $dbh=$DB-&gt;getDatabaseHandle();
+my %args=(
+    #default
+    type   =&gt; &quot;Select&quot;, # Select | Best/Worst/NotSelect etc
+    order  =&gt; &quot;DESC&quot;,   # DESC | ASC only
+    days   =&gt; 30,       # 0 = All time, selected only
+    sample =&gt; 500,
+    choose =&gt; 10,
+    max_age=&gt; 24,
+    style  =&gt; 'html',   # xml -&gt; xml, nodelet -&gt; simple html, else full html
+
+    time_text=&gt;undef,
+    title    =&gt;undef,
+    show     =&gt;undef,
+
+    past     =&gt;undef,   # only for when doing the user list.
+
+    cols     =&gt;'NAR',   # html only, chooses columns.
+
+    @_
+);
+
+my $IS_USERS = $args{type} eq 'Users';
+
+my $cache_time;
+my $where_time;
+
+if ($IS_USERS) {
+   $args{past}||=3;
+   $args{sample}=$args{choose};
+   $cache_time = $args{max_age} * 60;
+   $where_time= $args{past} * 60;
+   $args{days}=$args{past};
+   $args{title}=&quot;Users present in the last $args{past} minutes&quot;;
+   $args{cols}='AR';
+} else {
+    #Convert to seconds.
+    $cache_time=($args{max_age}*=3600);
+    $where_time=$args{days};
+    my $order_text = $args{order} eq 'DESC'   ? &quot;Best&quot; : &quot;Worst&quot;;
+
+    return &quot;&lt;h1&gt;error: We don't do $order_text Nodes of All Time anymore!&lt;/h1&gt;&quot;
+       if $args{type} ne 'Select' and !$args{days};
+
+    $args{time_text}=&quot;The Past $args{days} days&quot;
+        unless defined $args{time_text};
+    $args{title}=($args{type} eq 'Select' ? &quot;Selected $order_text&quot; : $order_text).
+                 &quot; Nodes of $args{time_text}&quot;
+                        unless defined $args{title};
+}
+
+my $force_refresh=isGod($USER) &amp;&amp; $q-&gt;param('force_refresh');
+
+$args{show}=$args{choose} unless defined $args{show};
+my $type_mod= ( $args{order} eq 'DESC'  ? 0 : 2 );
+$type_mod+=4 if $IS_USERS;
+my $picktype= ( $args{type} ne 'Select' ? 0 : 1 ) + $type_mod;
+
+my $time=time;
+
+
+# +- 15 minutes float to keep things staggered a bit.
+if ($cache_time&gt;900) {
+    $cache_time+=int(rand(1800)-900)
+} elsif ($cache_time&gt;=60) {
+    my $float=$cache_time/4;
+    $cache_time+=int(rand($float*2)-$float);
+}
+
+my $end_of_the_world=0;
+my $redo_count=0;
+
+ALL: {
+
+my $rows;         # the data we will ultimately print out
+                  # and AoA ref structure which could be
+                  # built in several ways.
+
+my $update=0;      # must update?
+my $last_update=0; # time
+
+
+#---------------------------------------------------------
+# FETCH
+
+FETCH:{
+    my $geth=$dbh-&gt;prepare_cached(&quot;
+        SELECT   pick_id,
+                 pickname,
+                 auth_id,
+                 authname,
+                 rep,
+                 seq,
+                 ulastupdate
+        FROM     picked_nodes
+        WHERE    picktype = ?
+        AND      days     = ?
+        ORDER BY days   ASC,
+                 seq    ASC
+    &quot;);
+    $geth-&gt;execute($picktype,$args{days})
+        or die &quot;Can't execute statement: $DBI::errstr&quot;;
+
+    $rows=$geth-&gt;fetchall_arrayref();
+
+    $last_update=@$rows ? $rows-&gt;[0][-1] : $time;
+
+    if ($force_refresh or !@$rows or $time-$last_update&gt;$cache_time) {
+       # this insert acts a lock. if it succeeds then we are allowed to update
+       # otherwise we should just use whatever we got.
+       $DEBUG &amp;&amp; printLog(&quot;gpn: trying to get lock ($$) &quot;.
+                join (',',$force_refresh,!@$rows,$time-$last_update&gt;$cache_time,
+                     $NODE-&gt;{node_id},$NODE-&gt;{title},$args{days},$picktype+128));
+
+      local $dbh-&gt;{RaiseError};
+      local $dbh-&gt;{PrintError};
+
+       my $res=$dbh-&gt;do(qq[
+           insert into picked_nodes
+                   ( pick_id, pickname, auth_id,  authname,
+                     rep,     days,     picktype, seq,       ulastupdate)
+            values ( ?      , ?       , 113    , 'rootlock',
+                     0,       ?       , ?      , 0         , unix_timestamp(now()))
+       ],{},$NODE-&gt;{node_id},$NODE-&gt;{title},$args{days},$picktype+128);
+       if ($res==1) {
+          $update++;
+          $DEBUG &amp;&amp; printLog(&quot;gpn: got lock! \$res=$res ($$)\n&quot;);
+       } else {
+           my $res=$dbh-&gt;do(qq[
+               update picked_nodes set
+                 ulastupdate=unix_timestamp(now()),
+                 pick_id=?,
+                 pickname=?
+               where days=?
+               and picktype=?
+               and ulastupdate&lt;unix_timestamp(now())-600
+           ],{},$NODE-&gt;{node_id},$NODE-&gt;{title},$args{days},$picktype+128);
+           if ($res) {
+              $DEBUG &amp;&amp; printLog(&quot;gpn: recovered bad lock! \$res=$res ($$)\n&quot;);
+              $update++;
+           } else {
+              $DEBUG &amp;&amp; printLog(&quot;gpn: failed lock! \$res=$res ($$)\n&quot;);
+           }
+       }
+    }
+}
+
+#---------------------------------------------------------
+# Update
+if ( $update ) {
+    @$rows=(); # there might be stuff in here.
+
+    my $seth=$dbh-&gt;prepare_cached(qq[
+        INSERT INTO picked_nodes (
+            pick_id,   pickname, auth_id,  authname,
+            rep,       seq,      days,     picktype,
+            ulastupdate
+        ) VALUES (
+            ?,         ?,        ?,        ?,
+            ?,         ?,        ?,        ?,
+            ?
+        )
+    ]);
+    my $op=$args{order} eq 'DESC' ? '&lt;' : '&gt;=';
+
+    my $delh=$dbh-&gt;prepare_cached(qq[
+       DELETE FROM picked_nodes
+             WHERE days     = ?
+               AND picktype = ?
+    ]);
+    $delh-&gt;execute($args{days},$picktype+64);
+
+    my @WHERE;
+    my $USE_INDEX = &quot;&quot;;
+    if ($args{days}) {
+        push @WHERE, &quot;n.createtime &gt; date_sub(now(), interval ? day)&quot;;
+	# needed in mariadb and presumably mysql 5.1+ to avoid the reputation_node index
+        $USE_INDEX = &quot; use index (node_createtime)&quot;;
+    }
+
+    push @WHERE, &quot;(n.reputation &lt; 0)&quot;
+            if $args{order} eq 'ASC';
+
+    my $WHERE = &quot;&quot;;
+    if (@WHERE) { $WHERE = &quot;WHERE &quot; . join(&quot; AND &quot;, @WHERE) }
+
+    my $limit = ($args{type} eq 'Select' ? $args{sample} : $args{choose});
+
+    my $sel_query=qq[
+       SELECT n.node_id     pick_id,
+              n.title       pickname,
+              a.node_id     auth_id,
+              a.title       authname,
+              n.reputation  rep
+         FROM node n$USE_INDEX
+         INNER JOIN node a on a.node_id=n.author_user
+        $WHERE
+     ORDER BY n.reputation $args{order},
+              n.node_id DESC
+         LIMIT $limit
+    ];
+    if ($IS_USERS) {
+        $sel_query=qq[
+              SELECT node_id    pick_id,
+                     title      pickname,
+                     node_id    auth_id,
+                     title      authname,
+                     experience rep
+                FROM node,
+                     user
+               WHERE node_id = user_id
+                  AND lasttime &gt; date_sub(NOW(), INTERVAL ? SECOND)
+            ORDER BY experience $args{order},
+                     node_id ASC
+              LIMIT  $limit
+        ];
+   }
+
+    my $geth=$dbh-&gt;prepare($sel_query) or die &quot;$sel_query\n $DBI::errstr&quot;;
+    my @args=(
+               ($where_time ? $where_time : ()),
+    );
+    $geth-&gt;execute(@args)
+        or die &quot;Can't execute statement [@args]: \n$sel_query\n$DBI::errstr&quot;;
+    my ($best,$selected)=(0,0);
+    my @pick;
+    $last_update=$time;
+
+    local $seth-&gt;{RaiseError};
+    local $seth-&gt;{PrintError};
+
+    while (my @row=$geth-&gt;fetchrow_array()) {
+
+        # clean the names
+        $row[$_]=$q-&gt;escapeHTML($row[$_])
+            for 1,3;
+
+        if ($args{type} ne 'Select') {
+            unless ($seth-&gt;execute(@row, $best, $args{days},
+                           $picktype+64, $time)) {
+                 if ($end_of_the_world++ &lt;2) {
+                    redo ALL;
+                 } else {
+                    return &quot;&lt;p&gt;Internal problem occurred in get_picked_nodes&quot;
+                       .&quot;&lt;br&gt;&quot;.$seth-&gt;errstr.&quot; &lt;/p&gt;\n&quot; ;
+                 }
+            }
+            push @$rows,\@row;
+            push @row,$best++;
+        } else {
+            push @pick,\@row;
+            push @row,$selected++;
+        }
+
+    }
+    if ( $args{type} eq 'Select') {
+        @pick=List::Util::shuffle(@pick);
+
+        # throw away the rest of the deck
+        splice @pick,$args{choose} if @pick&gt;$args{choose};
+
+        # we can use the initial order returned by the db
+        # because of the seq element
+        @pick=sort { $a-&gt;[-1] &lt;=&gt; $b-&gt;[-1] } @pick;
+
+        # and put it all back, renumbering it as we go
+        foreach my $idx (0.. $#pick )
+        {
+          $pick[$idx][-1]=$idx;
+          unless ($seth-&gt;execute(@{$pick[$idx]},$args{days},
+                         $picktype+64, $time)) {
+             if ($end_of_the_world++ &lt;2) {
+                redo ALL;
+             } else {
+                return &quot;&lt;p&gt;Internal problem occurred in get_picked_nodes&quot;
+                    .&quot;&lt;br&gt;&quot;.$seth-&gt;errstr.&quot; &lt;/p&gt;\n&quot; ;
+             }
+          }
+        }
+        @$rows=@pick
+    }
+    # first delete the old data set
+    $delh-&gt;execute($args{days},$picktype);
+    # then switch the new one over, this should be an atomic action
+    $dbh-&gt;do(qq[update picked_nodes
+                set picktype = ?
+                where days = ?
+                and picktype = ? ],
+             {}, $picktype,$args{days},$picktype+64)
+      or ($DEBUG &amp;&amp; printLog(&quot;gpn: Failed to restore nodes&quot;));
+    # then delete the lock record
+    $delh-&gt;execute($args{days},$picktype+128);
+}
+
+#---------------------------------------------------------
+# Render - from here on in, this is all non-db
+#
+# hypothetically this could be split here, and a pass through
+# parameter in $args{} could direct to the correct rendering code.
+#
+# Do the start
+
+
+# have nodereaper show up once in a while :-)
+if ( $IS_USERS and rand(100)&lt;5) {
+    my $nr=getNodeById($HTMLVARS{NodeReaperID});
+    push @$rows,[$nr-&gt;{node_id},$nr-&gt;{title},
+                $nr-&gt;{node_id},$nr-&gt;{title},
+                $nr-&gt;{experience}
+               ];
+    @$rows=sort { $b-&gt;[4] &lt;=&gt; $a-&gt;[4] } @$rows;
+    @$rows=reverse @$rows if $args{order} eq 'ASC'
+}
+
+splice @$rows,$args{show} if @$rows&gt;$args{show};
+$args{title}=@$rows. &quot; &quot; . $args{title} if $IS_USERS;
+
+
+return &quot;&lt;error&gt;Error creatng fling object&lt;/error&gt;&quot;
+   unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle));
+
+# we use 15 minute chunks to determine when the next refresh is
+my $remains=int(($args{max_age} - ( $time - $last_update))/900)||1;
+my $hours=int($remains/4);
+my $mins=int($remains % 4)*15;
+
+if ($args{style} eq 'xml') {
+
+    unless ($IS_USERS) {
+        $xml-&gt;start('picked',
+              'type'  =&gt; $args{type},
+              'order' =&gt; $args{order},
+              'title' =&gt; $args{title},
+              'days'  =&gt; $args{days},
+              'ulastupdate'   =&gt; $last_update,
+              'lastupdate_gm' =&gt; POSIX::strftime(&quot;%Y%m%d%H%M%S&quot;,
+                                   gmtime($last_update)),
+              'nextrefresh_min' =&gt; $hours * 60 + $mins
+        )
+    }
+
+} elsif ($args{style} eq 'nodelet') {
+
+    push @data,'('.(@$rows ? 0+@$rows : 'None').')&lt;br /&gt;'
+        if $IS_USERS;
+    push @data,'&lt;ul class=&quot;spacey-list&quot;&gt;';
+
+} else {
+
+    $xml-&gt;element('hr')
+        -&gt;element('h4',$args{title})
+        -&gt;start('table',
+                width=&gt;'100%',
+                class =&gt; 'highlight' )
+        -&gt;start('tr')
+        -&gt;element('th','#');
+        $xml-&gt;element('th','Node')   if $args{cols}=~/N/i;
+        $xml-&gt;element('th','Author') if $args{cols}=~/A/i;
+        $xml-&gt;element('th','Rep')    if $args{cols}=~/R/i;
+        $xml-&gt;end('tr');
+
+}
+
+
+
+foreach my $row (@$rows) {
+    my ($pick_id,$pickname,$auth_id,$authname,$rep,$seq)=@$row;
+    $pickname=&quot;&lt;i&gt;*No Title*&lt;/i&gt;&quot;
+            unless length $pickname;
+    if ($args{style} eq 'xml') {
+        unless ($IS_USERS) {
+            $xml-&gt;start('pick', seq =&gt; $seq)
+                    -&gt;element('node', pick_id =&gt; $pick_id, rep=&gt;$rep, $pickname)
+                    -&gt;element('user', user_id =&gt; $auth_id, $authname)
+                -&gt;end('pick')
+        } elsif ($args{xml_ver}) {
+            # unused code branch... rethinking required before use.
+            $xml-&gt;start('user')
+                -&gt;element(user_id=&gt;$pick_id)
+                -&gt;element(user_name=&gt;$pickname)
+                -&gt;end
+        } else {
+            $xml-&gt;element( 'user',
+                user_id     =&gt; $pick_id,
+                username    =&gt; $pickname,
+            );
+        }
+    } else {
+        # we assume that these are all html like....
+        # ie: html or nodelet
+        my ($node_html,$node_title,$auth_html);
+        $node_title=($IS_USERS)
+                    ? $pickname . &quot;'s home node&quot;
+                    : ($args{style} eq 'nodelet')
+                      ? &quot;by $authname&quot;
+                      : $pickname;
+        $node_html=$q-&gt;a(
+                        {
+                            href  =&gt; &quot;?node_id=$pick_id&quot; ,
+                            title =&gt; $node_title,
+                        },
+                        $pickname
+        );
+        my @titles = ( $authname.&quot;'s home node&quot; );
+        my $level = $IS_USERS ? Everything::Experience::getLevel($auth_id) : '';
+        push @titles, &quot;Level $level&quot; if $level;
+        my $groups = !$IS_USERS ? '' : Everything::isGod($pick_id) ? 'gods' :
+          join ', ', grep 
+            Everything::isApproved( $pick_id, getNode( $_, 'usergroup' ) ),
+              'janitors', 'pedagogues', 'pollsters', 'power users',
+               'pmdev', 'SiteDocClan', 'QandAEditors';
+        push @titles, &quot;Member of: $groups&quot; if $groups;
+        $auth_html=$q-&gt;a(
+                        {
+                            href  =&gt; &quot;?node_id=$auth_id&quot; ,
+                            title =&gt; join( '. ', @titles ),
+                        },
+                        $authname
+                );
+
+        my $row_class=$seq % 2 ? 'odd-row' : 'even-row';
+        my $item_class=sprintf 'item-%03d', $seq;
+
+        if ($args{style} eq 'nodelet')  {
+                my $html;
+                if ($IS_USERS) {
+                    $html= &quot;&lt;span class='user-$auth_id'&gt;$auth_html&lt;/span&gt;&quot;;
+                    $html= &quot;&lt;span class='user-level-$level'&gt;$html&lt;/span&gt;&quot;;                    
+                } else {
+                    $html= $node_html
+                }
+                push @data, sprintf(&quot;&lt;li&gt;&lt;span class='%s'&gt;&lt;span class='%s'&gt;%s&lt;/span&gt;&lt;/span&gt;&lt;/li&gt;\n&quot;,
+                      $row_class, $item_class, $html)
+                ;
+        } else {
+            $xml-&gt;start('tr', class=&gt;&quot;$row_class $item_class auth-$auth_id&quot;)
+                -&gt;element('td',$seq+1);
+            if ($args{cols}=~/N/i) {
+                $xml-&gt;start('td');
+                push @data, $node_html;
+                $xml-&gt;end('td');
+            }
+            if ($args{cols}=~/A/i) {
+                $xml-&gt;start('td');
+                push @data,$auth_html;
+                $xml-&gt;end('td');
+            }
+            $xml-&gt;element('td',$rep) if $args{cols}=~/R/i;
+            $xml-&gt;end('tr');
+        }
+    }
+}
+
+if ($args{style} eq 'xml') {
+
+        $xml-&gt;end('picked')
+            unless $IS_USERS;
+
+} elsif ($args{style} eq 'nodelet') {
+
+    $hours++ unless $hours;
+    my $user_time=POSIX::strftime( (!$IS_USERS ? '' : '%Y-' ).
+                      '%m-%d %H:%M GMT' ,  gmtime($last_update) );
+    $hours=&quot;$hours hr&quot;.($hours&gt;1 ? 's' : '');
+    my $time_str=!$hours &amp;&amp; !$mins ? &quot;&lt;b&gt;Current.&lt;/b&gt;&quot; : &quot;Next in ~$hours&quot;;
+
+
+    push @data,'&lt;/ul&gt;';
+    push @data,(!$IS_USERS)
+               ? &quot;&lt;span class='update-time'&gt;&lt;small&gt;From $user_time $time_str&lt;/small&gt;&lt;/span&gt;&quot;
+               : &quot;&lt;span class='update-time'&gt;&lt;small&gt;As of $user_time&lt;/small&gt;&lt;/span&gt;&quot;
+
+
+} else { # HTML table
+
+    $xml-&gt;end('table');
+    my $user_time=htmlcode('parseTimeInString','',
+                POSIX::strftime( &quot;%Y%m%d%H%M%S&quot;, localtime($last_update) )
+             );
+    $hours=&quot;$hours hour&quot;.($hours&gt;1 ? 's' : '')
+      if $hours;
+    $mins=&quot;$mins min&quot;.($mins&gt; 1 ? 's' : '')
+      if $mins;
+    my @timestr=grep { $_ } ($hours, $mins);
+    my $time_str;
+    if (@timestr) {
+        $time_str=&quot;Next refresh in &quot; .
+                   join(&quot; and &quot;,@timestr) .
+                   &quot; &amp;plusmn;15 min&quot;
+    } else {
+        $time_str=&quot;&lt;b&gt;Just refreshed!&lt;/b&gt;&quot;;
+    }
+    push @data,&quot;&lt;span class='update-time'&gt;&lt;small&gt;As of $user_time, $time_str&lt;/small&gt;&lt;/span&gt;&quot;;
+
+}
+if ($args{style} eq 'xml') {
+  htmlcode('log_ticker','',&quot;$args{type}/$args{order}/$args{days}&quot;,
+           &quot;Took &quot;.(time-$start_time).&quot; seconds&quot;,328453)
+    or printLog(&quot;gpn: finished p:$picktype/d:$args{days} in &quot;
+         .(time-$start_time)
+         .&quot; seconds&quot;);
+}
+return join &quot;&quot;,@data;
+} # ALL
+</code>
+  <nodeupdated>2005-08-13 05:56:00</nodeupdated>
+</node>

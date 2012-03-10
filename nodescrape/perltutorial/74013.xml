@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="74013" title="Navigating and Reading Directories" created="2001-04-19 22:00:19" updated="2005-08-15 10:42:36">
+<type id="956">
+perltutorial</type>
+<author id="72304">
+Sherlock</author>
+<data>
+<field name="doctext">
+This is a fairly straightforward tutorial of how to open a directory, read the contents from that directory, and change directories.&lt;BR&gt;
+&lt;BR&gt;
+There are 7 basic functions that can be utilized to navigate through directories: [perlfunc:opendir|opendir], [perlfunc:readdir|readdir], [perlfunc:closedir|closedir], [perlfunc:rewinddir|rewinddir], [perlfunc:telldir|telldir], [perlfunc:seekdir|seekdir], [perlfunc:chdir|chdir]. I'll give you an example of how to use each of these to help get you started.&lt;BR&gt;&lt;HR&gt;
+&lt;STRONG&gt;opendir, readdir, &amp; closedir&lt;/STRONG&gt;
+&lt;BR&gt;&lt;BR&gt;
+Let's start with the following code:&lt;BR&gt;
+&lt;CODE&gt;
+1 : use Cwd;
+2 : 
+3 : my $dir = getcwd;
+4 : 
+5 : opendir (DIR, $dir) or die $!;
+6 : my @dir = readdir DIR;
+7 : 
+8 : foreach my $item (@dir) {
+9 :    print "$item\n";
+10: }
+11:
+12: closedir DIR;
+&lt;/CODE&gt;
+This bit of code simply opens the current working directory (CWD) and then displays the contents of it on the screen (much like the 'dir' command in DOS or 'ls' on UNIX). Let's look at the code a piece at a time.&lt;BR&gt;
+&lt;BR&gt;
+&lt;STRONG&gt;LINE 1:&lt;/STRONG&gt;&lt;BR&gt;
+This line simply gives us access to the getcwd command that will retrieve the current working directory.&lt;BR&gt;
+&lt;BR&gt;
+&lt;STRONG&gt;LINE 3:&lt;/STRONG&gt;&lt;BR&gt;
+This line stores the CWD into the scalar &lt;CODE&gt;$dir&lt;/CODE&gt;.&lt;BR&gt;
+&lt;BR&gt;
+&lt;STRONG&gt;LINE 5: &lt;/STRONG&gt;&lt;BR&gt;
+Open the directory using opendir. The function opendir will return true if it was successful, otherwise, it will return false. If the directory can't be opened (i.e. the directory doesn't exist), the opendir function will return false and the script will terminate.&lt;BR&gt;
+&lt;BR&gt;
+&lt;STRONG&gt;LINE 6: &lt;/STRONG&gt;&lt;BR&gt;
+Use the readdir function to store the contents of the file into &lt;CODE&gt;@dir&lt;/CODE&gt;.&lt;BR&gt;
+&lt;BR&gt;
+&lt;STRONG&gt;LINES 8-10: &lt;/STRONG&gt;&lt;BR&gt;
+Print each directory element onto the screen, one per line.&lt;BR&gt;
+&lt;BR&gt;
+&lt;STRONG&gt;LINE 12: &lt;/STRONG&gt;&lt;BR&gt;
+Finally, close the file using the closedir function.&lt;BR&gt;
+&lt;BR&gt;&lt;HR&gt;
+&lt;STRONG&gt;rewinddir&lt;/STRONG&gt;
+&lt;BR&gt;&lt;BR&gt;
+Now that we've seen how to use opendir, readdir, and closedir, we can look at a couple of the other functions for dealing with directories. First, let's look at rewinddir.&lt;BR&gt;
+&lt;BR&gt;
+This bit of code will fill two arrays, &lt;CODE&gt;@dir&lt;/CODE&gt; and &lt;CODE&gt;@perlFiles&lt;/CODE&gt;. The array &lt;CODE&gt;@dir&lt;/CODE&gt; will be filled with all of the contents of the directory and we'll use grep to filter the contents of the directory and put only Perl files (.pl files) into the array &lt;CODE&gt;@perlFiles&lt;/CODE&gt;. Finally, we'll print just Perl files (as if we typed &lt;CODE&gt;"dir *.pl"&lt;/CODE&gt; in DOS).&lt;BR&gt;
+&lt;CODE&gt;
+1 : use Cwd;
+2 : 
+3 : my $dir = getcwd;
+4 : 
+5 : opendir (DIR, $dir) or die $!;
+6 : my @dir = readdir DIR;
+7 : my @perlFiles = grep /\.pl/, readdir DIR;
+8 : 
+9 : foreach my $item (@perlFiles) {
+10:    print "$item\n";
+11: }
+12:
+13: closedir DIR;
+&lt;/CODE&gt;
+From this bit of code, you won't get &lt;STRONG&gt;&lt;U&gt;any&lt;/U&gt;&lt;/STRONG&gt; output. The reason is that when using the readdir function, the seekpointer (the file/directory currently being pointed to) has moved all the way to the end of the directory. If it hadn't, we wouldn't have all of the contents of our directory in &lt;CODE&gt;@dir&lt;/CODE&gt;. Unfortnately, this leaves &lt;CODE&gt;@perlFiles&lt;/CODE&gt; empty. To fix this, we need to reset the seekpointer to the beginning of the directory by using rewinddir. Add this line between lines 6 and 7:&lt;BR&gt;
+&lt;CODE&gt;
+rewinddir(DIR);
+&lt;/CODE&gt;
+Now, you should get the output of just the Perl files within your directory.&lt;BR&gt;
+&lt;BR&gt;&lt;HR&gt;
+&lt;STRONG&gt;telldir &amp; seekdir&lt;/STRONG&gt;
+&lt;BR&gt;&lt;BR&gt;
+You can also set the seekpointer to any position within the directory (rather than just the beginning) by using telldir and seekdir. The telldir function returns the current seekpointer and the seekdir function will set the seekpointer to a value returned by the telldir function. If this sounds confusing, try this script:&lt;BR&gt;
+&lt;CODE&gt;
+1 : use Cwd;
+2 : 
+3 : my $dir = getcwd;
+4 : my $dirPointer;
+5 : 
+6 : opendir (DIR, $dir) or die $!;
+7 : $dirPointer = telldir (DIR);
+8 : 
+9 : my @dir = readdir DIR;
+10:
+11: seekdir (DIR, $dirPointer);
+12: 
+13: my @perlFiles = grep /\.pl/, readdir DIR;
+14: 
+15: foreach my $item (@perlFiles) {
+16:    print "$item\n";
+17: }
+18:
+19: closedir DIR;
+&lt;/CODE&gt;
+In this script, I'm storing the original seekpointer (that being at the beginning of the directory), using telldir, and then later using seekdir to move the seekpointer to that point. In this case, we've recreated rewinddir. If you execute this script, you should get the exact same output that we got for the previous one.&lt;BR&gt;
+&lt;BR&gt;&lt;HR&gt;
+&lt;STRONG&gt;chdir&lt;/STRONG&gt;
+&lt;BR&gt;&lt;BR&gt;
+The final function for dealing with directories is chdir. This one is pretty simple, pass it an expression and chdir will change the current working directory to that (if possible).&lt;BR&gt;
+&lt;CODE&gt;
+1: use Cwd;
+2:
+3: print getcwd,"\n";
+4: chdir("C:\\");
+5: print getcwd;
+&lt;/CODE&gt;
+This little script will display the CWD and then try to change that CWD to "C:\". You might want to do a check in case it can't find that directory, but this was just a quick example.&lt;BR&gt;
+&lt;BR&gt;&lt;HR&gt;&lt;BR&gt;
+With that, you should be able to navigate through directories pretty easily. For more information, you can take a look at [http://www.perldoc.com/perl5.6/pod/perlfunc.html|The Perl Documentation].&lt;BR&gt;
+&lt;BR&gt;
+Good luck!&lt;BR&gt;
+&lt;BR&gt;
+- Sherlock</field>
+</data>
+</node>

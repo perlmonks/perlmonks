@@ -1,0 +1,977 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="399" title="perlman:perldsc" created="1999-08-25 02:39:37" updated="2005-08-15 01:28:46">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME="NAME"&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perldsc - Perl Data Structures Cookbook
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DESCRIPTION"&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The single feature most sorely lacking in the Perl programming language
+prior to its 5.0 release was complex data structures. Even without direct
+language support, some valiant programmers did manage to emulate them, but
+it was hard work and not for the faint of heart. You could occasionally get
+away with the &lt;CODE&gt;$m{$LoL,$b}&lt;/CODE&gt; notation borrowed from &lt;EM&gt;awk&lt;/EM&gt; in which the keys are actually more like a single concatenated string &lt;CODE&gt;&amp;quot;$LoL$b&amp;quot;&lt;/CODE&gt;, but traversal and sorting were difficult. More desperate programmers even
+hacked Perl's internal symbol table directly, a strategy that proved hard
+to develop and maintain--to put it mildly.
+
+&lt;P&gt;
+The 5.0 release of Perl let us have complex data structures. You may now
+write something like this and all of a sudden, you'd have a array with
+three dimensions!
+
+&lt;P&gt;
+&lt;PRE&gt;    for $x (1 .. 10) {
+        for $y (1 .. 10) {
+            for $z (1 .. 10) {
+                $LoL&amp;#091;$x&amp;#093;&amp;#091;$y&amp;#093;&amp;#091;$z&amp;#093; =
+                    $x ** $y + $z;
+            }
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Alas, however simple this may appear, underneath it's a much more elaborate
+construct than meets the eye!
+
+&lt;P&gt;
+How do you print it out? Why can't you say just &lt;CODE&gt;print @LoL&lt;/CODE&gt;? How do you sort it? How can you pass it to a function or get one of these
+back from a function? Is is an object? Can you save it to disk to read back
+later? How do you access whole rows or columns of that matrix? Do all the
+values have to be numeric?
+
+&lt;P&gt;
+As you see, it's quite easy to become confused. While some small portion of
+the blame for this can be attributed to the reference-based implementation,
+it's really more due to a lack of existing documentation with examples
+designed for the beginner.
+
+&lt;P&gt;
+This document is meant to be a detailed but understandable treatment of the
+many different sorts of data structures you might want to develop. It
+should also serve as a cookbook of examples. That way, when you need to
+create one of these complex data structures, you can just pinch, pilfer, or
+purloin a drop-in example from here.
+
+&lt;P&gt;
+Let's look at each of these possible constructs in detail. There are
+separate sections on each of the following:
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_arrays"&gt;arrays of arrays&lt;/A&gt;&lt;/STRONG&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_hashes"&gt;hashes of arrays&lt;/A&gt;&lt;/STRONG&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_arrays"&gt;arrays of hashes&lt;/A&gt;&lt;/STRONG&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_hashes"&gt;hashes of hashes&lt;/A&gt;&lt;/STRONG&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_more"&gt;more elaborate constructs&lt;/A&gt;&lt;/STRONG&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+But for now, let's look at general issues common to all these types of data
+structures.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="REFERENCES"&gt;REFERENCES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The most important thing to understand about all data structures in Perl --
+including multidimensional arrays--is that even though they might appear
+otherwise, Perl &lt;CODE&gt;@ARRAY&lt;/CODE&gt;s and &lt;CODE&gt;%HASH&lt;/CODE&gt;es are all internally one-dimensional. They can hold only scalar values
+(meaning a string, number, or a reference). They cannot directly contain
+other arrays or hashes, but instead contain &lt;EM&gt;references&lt;/EM&gt; to other arrays or hashes.
+
+&lt;P&gt;
+You can't use a reference to a array or hash in quite the same way that you would a real array or hash. For 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers unused to distinguishing between arrays and pointers to the same, this can be confusing. If so, just think of it as the difference between a structure and a pointer to a structure.
+
+&lt;P&gt;
+You can (and should) read more about references in the 
+&lt;CODE&gt;perlref(1)&lt;/CODE&gt; man page.
+Briefly, references are rather like pointers that know what they point to.
+(Objects are also a kind of reference, but we won't be needing them right
+away--if ever.) This means that when you have something which looks to you
+like an access to a two-or-more-dimensional array and/or hash, what's
+really going on is that the base type is merely a one-dimensional entity
+that contains references to the next level. It's just that you can &lt;EM&gt;use&lt;/EM&gt; it as though it were a two-dimensional one. This is actually the way almost all 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; multidimensional arrays work as well.
+
+&lt;P&gt;
+&lt;PRE&gt;    $list&amp;#091;7&amp;#093;&amp;#091;12&amp;#093;                        # array of arrays
+    $list&amp;#091;7&amp;#093;{string}                    # array of hashes
+    $hash{string}&amp;#091;7&amp;#093;                    # hash of arrays
+    $hash{string}{'another string'}     # hash of hashes
+&lt;/PRE&gt;
+&lt;P&gt;
+Now, because the top level contains only references, if you try to print out your array in with a simple 
+&lt;CODE&gt;print()&lt;/CODE&gt; function, you'll get something that doesn't look very nice, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    @LoL = ( &amp;#091;2, 3&amp;#093;, &amp;#091;4, 5, 7&amp;#093;, &amp;#091;0&amp;#093; );
+    print $LoL&amp;#091;1&amp;#093;&amp;#091;2&amp;#093;;
+  7
+    print @LoL;
+  ARRAY(0x83c38)ARRAY(0x8b194)ARRAY(0x8b1d0)
+&lt;/PRE&gt;
+&lt;P&gt;
+That's because Perl doesn't (ever) implicitly dereference your variables.
+If you want to get at the thing a reference is referring to, then you have
+to do this yourself using either prefix typing indicators, like
+&lt;CODE&gt;${$blah}&lt;/CODE&gt;, &lt;CODE&gt;@{$blah}&lt;/CODE&gt;, &lt;CODE&gt;@{$blah&amp;#091;$i&amp;#093;}&lt;/CODE&gt;, or else postfix pointer arrows, like &lt;CODE&gt;$a-&amp;gt;&amp;#091;3&amp;#093;&lt;/CODE&gt;, &lt;CODE&gt;$h-&amp;gt;{fred}&lt;/CODE&gt;, or even &lt;CODE&gt;$ob-&amp;gt;method()-&amp;gt;&amp;#091;3&amp;#093;&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="COMMON_MISTAKES"&gt;COMMON MISTAKES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The two most common mistakes made in constructing something like an array
+of arrays is either accidentally counting the number of elements or else
+taking a reference to the same memory location repeatedly. Here's the case
+where you just get the count instead of a nested array:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i (1..10) {
+        @list = somefunc($i);
+        $LoL&amp;#091;$i&amp;#093; = @list;       # WRONG!
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+That's just the simple case of assigning a list to a scalar and getting its
+element count. If that's what you really and truly want, then you might do
+well to consider being a tad more explicit about it, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i (1..10) {
+        @list = somefunc($i);
+        $counts&amp;#091;$i&amp;#093; = scalar @list;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's the case of taking a reference to the same memory location again and
+again:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i (1..10) {
+        @list = somefunc($i);
+        $LoL&amp;#091;$i&amp;#093; = \@list;      # WRONG!
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+So, what's the big problem with that? It looks right, doesn't it? After all, 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; just told you that you need an array of references, so by golly, you've made me one!
+
+&lt;P&gt;
+Unfortunately, while this is true, it's still broken. All the references in
+&lt;CODE&gt;@LoL&lt;/CODE&gt; refer to the &lt;EM&gt;very same place&lt;/EM&gt;, and they will therefore all hold whatever was last in @list! It's similar to the problem demonstrated in the following 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; program:
+
+&lt;P&gt;
+&lt;PRE&gt;    #include &amp;lt;pwd.h&amp;gt;
+    main() {
+        struct passwd *getpwnam(), *rp, *dp;
+        rp = getpwnam(&amp;quot;root&amp;quot;);
+        dp = getpwnam(&amp;quot;daemon&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        printf(&amp;quot;daemon name is %s\nroot name is %s\n&amp;quot;,
+                dp-&amp;gt;pw_name, rp-&amp;gt;pw_name);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Which will print
+
+&lt;P&gt;
+&lt;PRE&gt;    daemon name is daemon
+    root name is daemon
+&lt;/PRE&gt;
+&lt;P&gt;
+The problem is that both &lt;CODE&gt;rp&lt;/CODE&gt; and &lt;CODE&gt;dp&lt;/CODE&gt; are pointers to the same location in memory! In 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; you'd have to remember to 
+&lt;CODE&gt;malloc()&lt;/CODE&gt; yourself some new memory. In Perl, you'll want to use the array constructor
+ &lt;CODE&gt;&amp;#091;&amp;#093;&lt;/CODE&gt; or the hash constructor &lt;CODE&gt;{}&lt;/CODE&gt; instead. Here's the right way to do the preceding broken code fragments:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i (1..10) {
+        @list = somefunc($i);
+        $LoL&amp;#091;$i&amp;#093; = &amp;#091; @list &amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The square brackets make a reference to a new array with a &lt;EM&gt;copy&lt;/EM&gt;
+of what's in &lt;CODE&gt;@list&lt;/CODE&gt; at the time of the assignment. This is what
+you want.
+
+&lt;P&gt;
+Note that this will produce something similar, but it's much harder to
+read:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i (1..10) {
+        @list = 0 .. $i;
+        @{$LoL&amp;#091;$i&amp;#093;} = @list;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Is it the same? Well, maybe so--and maybe not. The subtle difference is
+that when you assign something in square brackets, you know for sure it's
+always a brand new reference with a new &lt;EM&gt;copy&lt;/EM&gt; of the data. Something else could be going on in this new case with the &lt;CODE&gt;@{$LoL&amp;#091;$i&amp;#093;}}&lt;/CODE&gt;
+dereference on the left-hand-side of the assignment. It all depends on
+whether &lt;CODE&gt;$LoL&amp;#091;$i&amp;#093;&lt;/CODE&gt; had been undefined to start with, or whether it already contained a
+reference. If you had already populated &lt;CODE&gt;@LoL&lt;/CODE&gt; with references,
+as in
+
+&lt;P&gt;
+&lt;PRE&gt;    $LoL&amp;#091;3&amp;#093; = \@another_list;
+&lt;/PRE&gt;
+&lt;P&gt;
+Then the assignment with the indirection on the left-hand-side would use
+the existing reference that was already there:
+
+&lt;P&gt;
+&lt;PRE&gt;    @{$LoL&amp;#091;3&amp;#093;} = @list;
+&lt;/PRE&gt;
+&lt;P&gt;
+Of course, this &lt;EM&gt;would&lt;/EM&gt; have the ``interesting'' effect of clobbering @another_list. (Have you ever
+noticed how when a programmer says something is ``interesting'', that
+rather than meaning ``intriguing'', they're disturbingly more apt to mean
+that it's ``annoying'', ``difficult'', or both? :-)
+
+&lt;P&gt;
+So just remember always to use the array or hash constructors with &lt;CODE&gt;&amp;#091;&amp;#093;&lt;/CODE&gt;
+or &lt;CODE&gt;{}&lt;/CODE&gt;, and you'll be fine, although it's not always optimally efficient.
+
+&lt;P&gt;
+Surprisingly, the following dangerous-looking construct will actually work
+out fine:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i (1..10) {
+        my @list = somefunc($i);
+        $LoL&amp;#091;$i&amp;#093; = \@list;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+That's because 
+&lt;CODE&gt;my()&lt;/CODE&gt; is more of a run-time
+statement than it is a compile-time declaration &lt;EM&gt;per se&lt;/EM&gt;. This means that the 
+&lt;CODE&gt;my()&lt;/CODE&gt; variable is remade afresh
+each time through the loop. So even though it &lt;EM&gt;looks&lt;/EM&gt; as though you stored the same variable reference each time, you actually did not! This is a subtle distinction that can produce more efficient code at the risk of misleading all but the most experienced of programmers. So 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; usually advise against teaching it to beginners. In fact, except for passing arguments to functions, 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; seldom like to see the gimme-a-reference operator (backslash) used much at all in code. Instead, 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; advise beginners that they (and most of the rest of us) should try to use the much more easily understood constructors
+ &lt;CODE&gt;&amp;#091;&amp;#093;&lt;/CODE&gt; and &lt;CODE&gt;{}&lt;/CODE&gt; instead of relying upon lexical (or dynamic) scoping and hidden
+reference-counting to do the right thing behind the scenes.
+
+&lt;P&gt;
+In summary:
+
+&lt;P&gt;
+&lt;PRE&gt;    $LoL&amp;#091;$i&amp;#093; = &amp;#091; @list &amp;#093;;       # usually best
+    $LoL&amp;#091;$i&amp;#093; = \@list;          # perilous; just how my() was that list?
+    @{ $LoL&amp;#091;$i&amp;#093; } = @list;      # way too tricky for most programmers
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="CAVEAT_ON_PRECEDENCE"&gt;CAVEAT ON PRECEDENCE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Speaking of things like &lt;CODE&gt;@{$LoL&amp;#091;$i&amp;#093;}&lt;/CODE&gt;, the following are actually the same thing:
+
+&lt;P&gt;
+&lt;PRE&gt;    $listref-&amp;gt;&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;    # clear
+    $$listref&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;     # confusing
+&lt;/PRE&gt;
+&lt;P&gt;
+That's because Perl's precedence rules on its five prefix dereferencers
+(which look like someone swearing: &lt;CODE&gt;$ @ * % &amp;amp;&lt;/CODE&gt;) make them bind more tightly than the postfix subscripting brackets or braces! This will no doubt come as a great shock to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmer, who is quite accustomed to using
+ &lt;CODE&gt;*a&amp;#091;i&amp;#093;&lt;/CODE&gt; to mean what's pointed to by the &lt;EM&gt;i'th&lt;/EM&gt;
+element of &lt;CODE&gt;a&lt;/CODE&gt;. That is, they first take the subscript, and only then dereference the thing at that subscript. That's fine in 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; but this isn't 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt;
+
+&lt;P&gt;
+The seemingly equivalent construct in Perl, &lt;CODE&gt;$$listref&amp;#091;$i&amp;#093;&lt;/CODE&gt; first does the deref of &lt;CODE&gt;$listref&lt;/CODE&gt;, making it take &lt;CODE&gt;$listref&lt;/CODE&gt; as a reference to an array, and then
+dereference that, and finally tell you the &lt;EM&gt;i'th&lt;/EM&gt; value of the array pointed to by $LoL. If you wanted the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; notion, you'd have to write &lt;CODE&gt;${$LoL&amp;#091;$i&amp;#093;}&lt;/CODE&gt; to force the &lt;CODE&gt;$LoL&amp;#091;$i&amp;#093;&lt;/CODE&gt; to get evaluated first before the leading &lt;CODE&gt;$&lt;/CODE&gt; dereferencer.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="WHY_YOU_SHOULD_ALWAYS_C_use_stri"&gt;WHY YOU SHOULD ALWAYS &lt;CODE&gt;use strict&lt;/CODE&gt;&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+If this is starting to sound scarier than it's worth, relax. Perl has some
+features to help you avoid its most common pitfalls. The best way to avoid
+getting confused is to start every program like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/bin/perl -w
+    use strict;
+&lt;/PRE&gt;
+&lt;P&gt;
+This way, you'll be forced to declare all your variables with 
+&lt;CODE&gt;my()&lt;/CODE&gt; and also disallow accidental
+``symbolic dereferencing''. Therefore if you'd done this:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $listref = &amp;#091;
+        &amp;#091; &amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot;, &amp;quot;pebbles&amp;quot;, &amp;quot;bambam&amp;quot;, &amp;quot;dino&amp;quot;, &amp;#093;,
+        &amp;#091; &amp;quot;homer&amp;quot;, &amp;quot;bart&amp;quot;, &amp;quot;marge&amp;quot;, &amp;quot;maggie&amp;quot;, &amp;#093;,
+        &amp;#091; &amp;quot;george&amp;quot;, &amp;quot;jane&amp;quot;, &amp;quot;elroy&amp;quot;, &amp;quot;judy&amp;quot;, &amp;#093;,
+    &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $listref&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+The compiler would immediately flag that as an error &lt;EM&gt;at compile time&lt;/EM&gt;, because you were accidentally accessing &lt;CODE&gt;@listref&lt;/CODE&gt;, an undeclared variable, and it would thereby remind you to write instead:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $listref-&amp;gt;&amp;#091;2&amp;#093;&amp;#091;2&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DEBUGGING"&gt;DEBUGGING&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Before version 5.002, the standard Perl debugger didn't do a very nice job
+of printing out complex data structures. With 5.002 or above, the debugger
+includes several new features, including command line editing as well as
+the &lt;CODE&gt;x&lt;/CODE&gt; command to dump out complex data structures. For example, given the
+assignment to &lt;CODE&gt;$LoL&lt;/CODE&gt; above, here's the debugger output:
+
+&lt;P&gt;
+&lt;PRE&gt;    DB&amp;lt;1&amp;gt; x $LoL
+    $LoL = ARRAY(0x13b5a0)
+       0  ARRAY(0x1f0a24)
+          0  'fred'
+          1  'barney'
+          2  'pebbles'
+          3  'bambam'
+          4  'dino'
+       1  ARRAY(0x13b558)
+          0  'homer'
+          1  'bart'
+          2  'marge'
+          3  'maggie'
+       2  ARRAY(0x13b540)
+          0  'george'
+          1  'jane'
+          2  'elroy'
+          3  'judy'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="CODE_EXAMPLES"&gt;CODE EXAMPLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Presented with little comment (these will get their own manpages someday)
+here are short code examples illustrating access of various types of data
+structures.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="LISTS_OF_LISTS"&gt;LISTS OF LISTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Declaration_of_a_LIST_OF_LISTS"&gt;Declaration of a LIST OF LISTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; @LoL = (
+        &amp;#091; &amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot; &amp;#093;,
+        &amp;#091; &amp;quot;george&amp;quot;, &amp;quot;jane&amp;quot;, &amp;quot;elroy&amp;quot; &amp;#093;,
+        &amp;#091; &amp;quot;homer&amp;quot;, &amp;quot;marge&amp;quot;, &amp;quot;bart&amp;quot; &amp;#093;,
+      );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Generation_of_a_LIST_OF_LISTS"&gt;Generation of a LIST OF LISTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file
+ while ( &amp;lt;&amp;gt; ) {
+     push @LoL, &amp;#091; split &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # calling a function
+ for $i ( 1 .. 10 ) {
+     $LoL&amp;#091;$i&amp;#093; = &amp;#091; somefunc($i) &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # using temp vars
+ for $i ( 1 .. 10 ) {
+     @tmp = somefunc($i);
+     $LoL&amp;#091;$i&amp;#093; = &amp;#091; @tmp &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # add to an existing row
+ push @{ $LoL&amp;#091;0&amp;#093; }, &amp;quot;wilma&amp;quot;, &amp;quot;betty&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Access_and_Printing_of_a_LIST_OF"&gt;Access and Printing of a LIST OF LISTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # one element
+ $LoL&amp;#091;0&amp;#093;&amp;#091;0&amp;#093; = &amp;quot;Fred&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # another element
+ $LoL&amp;#091;1&amp;#093;&amp;#091;1&amp;#093; =~ s/(\w)/\u$1/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing with refs
+ for $aref ( @LoL ) {
+     print &amp;quot;\t &amp;#091; @$aref &amp;#093;,\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing with indices
+ for $i ( 0 .. $#LoL ) {
+     print &amp;quot;\t &amp;#091; @{$LoL&amp;#091;$i&amp;#093;} &amp;#093;,\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing one at a time
+ for $i ( 0 .. $#LoL ) {
+     for $j ( 0 .. $#{ $LoL&amp;#091;$i&amp;#093; } ) {
+         print &amp;quot;elt $i $j is $LoL&amp;#091;$i&amp;#093;&amp;#091;$j&amp;#093;\n&amp;quot;;
+     }
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="HASHES_OF_LISTS"&gt;HASHES OF LISTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Declaration_of_a_HASH_OF_LISTS"&gt;Declaration of a HASH OF LISTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; %HoL = (
+        flintstones        =&amp;gt; &amp;#091; &amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot; &amp;#093;,
+        jetsons            =&amp;gt; &amp;#091; &amp;quot;george&amp;quot;, &amp;quot;jane&amp;quot;, &amp;quot;elroy&amp;quot; &amp;#093;,
+        simpsons           =&amp;gt; &amp;#091; &amp;quot;homer&amp;quot;, &amp;quot;marge&amp;quot;, &amp;quot;bart&amp;quot; &amp;#093;,
+      );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Generation_of_a_HASH_OF_LISTS"&gt;Generation of a HASH OF LISTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file
+ # flintstones: fred barney wilma dino
+ while ( &amp;lt;&amp;gt; ) {
+     next unless s/^(.*?):\s*//;
+     $HoL{$1} = &amp;#091; split &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file; more temps
+ # flintstones: fred barney wilma dino
+ while ( $line = &amp;lt;&amp;gt; ) {
+     ($who, $rest) = split /:\s*/, $line, 2;
+     @fields = split ' ', $rest;
+     $HoL{$who} = &amp;#091; @fields &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # calling a function that returns a list
+ for $group ( &amp;quot;simpsons&amp;quot;, &amp;quot;jetsons&amp;quot;, &amp;quot;flintstones&amp;quot; ) {
+     $HoL{$group} = &amp;#091; get_family($group) &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # likewise, but using temps
+ for $group ( &amp;quot;simpsons&amp;quot;, &amp;quot;jetsons&amp;quot;, &amp;quot;flintstones&amp;quot; ) {
+     @members = get_family($group);
+     $HoL{$group} = &amp;#091; @members &amp;#093;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # append new members to an existing family
+ push @{ $HoL{&amp;quot;flintstones&amp;quot;} }, &amp;quot;wilma&amp;quot;, &amp;quot;betty&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Access_and_Printing_of_a_HASH_OF"&gt;Access and Printing of a HASH OF LISTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # one element
+ $HoL{flintstones}&amp;#091;0&amp;#093; = &amp;quot;Fred&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # another element
+ $HoL{simpsons}&amp;#091;1&amp;#093; =~ s/(\w)/\u$1/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing
+ foreach $family ( keys %HoL ) {
+     print &amp;quot;$family: @{ $HoL{$family} }\n&amp;quot;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing with indices
+ foreach $family ( keys %HoL ) {
+     print &amp;quot;family: &amp;quot;;
+     foreach $i ( 0 .. $#{ $HoL{$family} } ) {
+         print &amp;quot; $i = $HoL{$family}&amp;#091;$i&amp;#093;&amp;quot;;
+     }
+     print &amp;quot;\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing sorted by number of members
+ foreach $family ( sort { @{$HoL{$b}} &amp;lt;=&amp;gt; @{$HoL{$a}} } keys %HoL ) {
+     print &amp;quot;$family: @{ $HoL{$family} }\n&amp;quot;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing sorted by number of members and name
+ foreach $family ( sort {
+                            @{$HoL{$b}} &amp;lt;=&amp;gt; @{$HoL{$a}}
+                                        ||
+                                    $a cmp $b
+            } keys %HoL )
+ {
+     print &amp;quot;$family: &amp;quot;, join(&amp;quot;, &amp;quot;, sort @{ $HoL{$family} }), &amp;quot;\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="LISTS_OF_HASHES"&gt;LISTS OF HASHES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Declaration_of_a_LIST_OF_HASHES"&gt;Declaration of a LIST OF HASHES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; @LoH = (
+        {
+            Lead     =&amp;gt; &amp;quot;fred&amp;quot;,
+            Friend   =&amp;gt; &amp;quot;barney&amp;quot;,
+        },
+        {
+            Lead     =&amp;gt; &amp;quot;george&amp;quot;,
+            Wife     =&amp;gt; &amp;quot;jane&amp;quot;,
+            Son      =&amp;gt; &amp;quot;elroy&amp;quot;,
+        },
+        {
+            Lead     =&amp;gt; &amp;quot;homer&amp;quot;,
+            Wife     =&amp;gt; &amp;quot;marge&amp;quot;,
+            Son      =&amp;gt; &amp;quot;bart&amp;quot;,
+        }
+  );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Generation_of_a_LIST_OF_HASHES"&gt;Generation of a LIST OF HASHES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file
+ # format: LEAD=fred FRIEND=barney
+ while ( &amp;lt;&amp;gt; ) {
+     $rec = {};
+     for $field ( split ) {
+         ($key, $value) = split /=/, $field;
+         $rec-&amp;gt;{$key} = $value;
+     }
+     push @LoH, $rec;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file
+ # format: LEAD=fred FRIEND=barney
+ # no temp
+ while ( &amp;lt;&amp;gt; ) {
+     push @LoH, { split /&amp;#091;\s+=&amp;#093;/ };
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # calling a function  that returns a key,value list, like
+ # &amp;quot;lead&amp;quot;,&amp;quot;fred&amp;quot;,&amp;quot;daughter&amp;quot;,&amp;quot;pebbles&amp;quot;
+ while ( %fields = getnextpairset() ) {
+     push @LoH, { %fields };
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # likewise, but using no temp vars
+ while (&amp;lt;&amp;gt;) {
+     push @LoH, { parsepairs($_) };
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # add key/value to an element
+ $LoH&amp;#091;0&amp;#093;{pet} = &amp;quot;dino&amp;quot;;
+ $LoH&amp;#091;2&amp;#093;{pet} = &amp;quot;santa's little helper&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Access_and_Printing_of_a_LIST_OF"&gt;Access and Printing of a LIST OF HASHES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # one element
+ $LoH&amp;#091;0&amp;#093;{lead} = &amp;quot;fred&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # another element
+ $LoH&amp;#091;1&amp;#093;{lead} =~ s/(\w)/\u$1/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing with refs
+ for $href ( @LoH ) {
+     print &amp;quot;{ &amp;quot;;
+     for $role ( keys %$href ) {
+         print &amp;quot;$role=$href-&amp;gt;{$role} &amp;quot;;
+     }
+     print &amp;quot;}\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing with indices
+ for $i ( 0 .. $#LoH ) {
+     print &amp;quot;$i is { &amp;quot;;
+     for $role ( keys %{ $LoH&amp;#091;$i&amp;#093; } ) {
+         print &amp;quot;$role=$LoH&amp;#091;$i&amp;#093;{$role} &amp;quot;;
+     }
+     print &amp;quot;}\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing one at a time
+ for $i ( 0 .. $#LoH ) {
+     for $role ( keys %{ $LoH&amp;#091;$i&amp;#093; } ) {
+         print &amp;quot;elt $i $role is $LoH&amp;#091;$i&amp;#093;{$role}\n&amp;quot;;
+     }
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="HASHES_OF_HASHES"&gt;HASHES OF HASHES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Declaration_of_a_HASH_OF_HASHES"&gt;Declaration of a HASH OF HASHES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; %HoH = (
+        flintstones =&amp;gt; {
+                lead      =&amp;gt; &amp;quot;fred&amp;quot;,
+                pal       =&amp;gt; &amp;quot;barney&amp;quot;,
+        },
+        jetsons     =&amp;gt; {
+                lead      =&amp;gt; &amp;quot;george&amp;quot;,
+                wife      =&amp;gt; &amp;quot;jane&amp;quot;,
+                &amp;quot;his boy&amp;quot; =&amp;gt; &amp;quot;elroy&amp;quot;,
+        },
+        simpsons    =&amp;gt; {
+                lead      =&amp;gt; &amp;quot;homer&amp;quot;,
+                wife      =&amp;gt; &amp;quot;marge&amp;quot;,
+                kid       =&amp;gt; &amp;quot;bart&amp;quot;,
+        },
+ );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Generation_of_a_HASH_OF_HASHES"&gt;Generation of a HASH OF HASHES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file
+ # flintstones: lead=fred pal=barney wife=wilma pet=dino
+ while ( &amp;lt;&amp;gt; ) {
+     next unless s/^(.*?):\s*//;
+     $who = $1;
+     for $field ( split ) {
+         ($key, $value) = split /=/, $field;
+         $HoH{$who}{$key} = $value;
+     }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # reading from file; more temps
+ while ( &amp;lt;&amp;gt; ) {
+     next unless s/^(.*?):\s*//;
+     $who = $1;
+     $rec = {};
+     $HoH{$who} = $rec;
+     for $field ( split ) {
+         ($key, $value) = split /=/, $field;
+         $rec-&amp;gt;{$key} = $value;
+     }
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # calling a function  that returns a key,value hash
+ for $group ( &amp;quot;simpsons&amp;quot;, &amp;quot;jetsons&amp;quot;, &amp;quot;flintstones&amp;quot; ) {
+     $HoH{$group} = { get_family($group) };
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # likewise, but using temps
+ for $group ( &amp;quot;simpsons&amp;quot;, &amp;quot;jetsons&amp;quot;, &amp;quot;flintstones&amp;quot; ) {
+     %members = get_family($group);
+     $HoH{$group} = { %members };
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # append new members to an existing family
+ %new_folks = (
+     wife =&amp;gt; &amp;quot;wilma&amp;quot;,
+     pet  =&amp;gt; &amp;quot;dino&amp;quot;,
+ );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; for $what (keys %new_folks) {
+     $HoH{flintstones}{$what} = $new_folks{$what};
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Access_and_Printing_of_a_HASH_OF"&gt;Access and Printing of a HASH OF HASHES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt; # one element
+ $HoH{flintstones}{wife} = &amp;quot;wilma&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # another element
+ $HoH{simpsons}{lead} =~ s/(\w)/\u$1/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing
+ foreach $family ( keys %HoH ) {
+     print &amp;quot;$family: { &amp;quot;;
+     for $role ( keys %{ $HoH{$family} } ) {
+         print &amp;quot;$role=$HoH{$family}{$role} &amp;quot;;
+     }
+     print &amp;quot;}\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing  somewhat sorted
+ foreach $family ( sort keys %HoH ) {
+     print &amp;quot;$family: { &amp;quot;;
+     for $role ( sort keys %{ $HoH{$family} } ) {
+         print &amp;quot;$role=$HoH{$family}{$role} &amp;quot;;
+     }
+     print &amp;quot;}\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # print the whole thing sorted by number of members
+ foreach $family ( sort { keys %{$HoH{$b}} &amp;lt;=&amp;gt; keys %{$HoH{$a}} } keys %HoH ) {
+     print &amp;quot;$family: { &amp;quot;;
+     for $role ( sort keys %{ $HoH{$family} } ) {
+         print &amp;quot;$role=$HoH{$family}{$role} &amp;quot;;
+     }
+     print &amp;quot;}\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # establish a sort order (rank) for each role
+ $i = 0;
+ for ( qw(lead wife son daughter pal pet) ) { $rank{$_} = ++$i }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # now print the whole thing sorted by number of members
+ foreach $family ( sort { keys %{ $HoH{$b} } &amp;lt;=&amp;gt; keys %{ $HoH{$a} } } keys %HoH ) {
+     print &amp;quot;$family: { &amp;quot;;
+     # and print these according to rank order
+     for $role ( sort { $rank{$a} &amp;lt;=&amp;gt; $rank{$b} }  keys %{ $HoH{$family} } ) {
+         print &amp;quot;$role=$HoH{$family}{$role} &amp;quot;;
+     }
+     print &amp;quot;}\n&amp;quot;;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="MORE_ELABORATE_RECORDS"&gt;MORE ELABORATE RECORDS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Declaration_of_MORE_ELABORATE_RE"&gt;Declaration of MORE ELABORATE RECORDS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Here's a sample showing how to create and use a record whose fields are of
+many different sorts:
+
+&lt;P&gt;
+&lt;PRE&gt;     $rec = {
+         TEXT      =&amp;gt; $string,
+         SEQUENCE  =&amp;gt; &amp;#091; @old_values &amp;#093;,
+         LOOKUP    =&amp;gt; { %some_table },
+         THATCODE  =&amp;gt; \&amp;amp;some_function,
+         THISCODE  =&amp;gt; sub { $_&amp;#091;0&amp;#093; ** $_&amp;#091;1&amp;#093; },
+         HANDLE    =&amp;gt; \*STDOUT,
+     };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $rec-&amp;gt;{TEXT};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $rec-&amp;gt;{LIST}&amp;#091;0&amp;#093;;
+     $last = pop @ { $rec-&amp;gt;{SEQUENCE} };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $rec-&amp;gt;{LOOKUP}{&amp;quot;key&amp;quot;};
+     ($first_k, $first_v) = each %{ $rec-&amp;gt;{LOOKUP} };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $answer = $rec-&amp;gt;{THATCODE}-&amp;gt;($arg);
+     $answer = $rec-&amp;gt;{THISCODE}-&amp;gt;($arg1, $arg2);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # careful of extra block braces on fh ref
+     print { $rec-&amp;gt;{HANDLE} } &amp;quot;a string\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     use FileHandle;
+     $rec-&amp;gt;{HANDLE}-&amp;gt;autoflush(1);
+     $rec-&amp;gt;{HANDLE}-&amp;gt;print(&amp;quot; a string\n&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Declaration_of_a_HASH_OF_COMPLEX"&gt;Declaration of a HASH OF COMPLEX RECORDS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     %TV = (
+        flintstones =&amp;gt; {
+            series   =&amp;gt; &amp;quot;flintstones&amp;quot;,
+            nights   =&amp;gt; &amp;#091; qw(monday thursday friday) &amp;#093;,
+            members  =&amp;gt; &amp;#091;
+                { name =&amp;gt; &amp;quot;fred&amp;quot;,    role =&amp;gt; &amp;quot;lead&amp;quot;, age  =&amp;gt; 36, },
+                { name =&amp;gt; &amp;quot;wilma&amp;quot;,   role =&amp;gt; &amp;quot;wife&amp;quot;, age  =&amp;gt; 31, },
+                { name =&amp;gt; &amp;quot;pebbles&amp;quot;, role =&amp;gt; &amp;quot;kid&amp;quot;,  age  =&amp;gt;  4, },
+            &amp;#093;,
+        },
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        jetsons     =&amp;gt; {
+            series   =&amp;gt; &amp;quot;jetsons&amp;quot;,
+            nights   =&amp;gt; &amp;#091; qw(wednesday saturday) &amp;#093;,
+            members  =&amp;gt; &amp;#091;
+                { name =&amp;gt; &amp;quot;george&amp;quot;,  role =&amp;gt; &amp;quot;lead&amp;quot;, age  =&amp;gt; 41, },
+                { name =&amp;gt; &amp;quot;jane&amp;quot;,    role =&amp;gt; &amp;quot;wife&amp;quot;, age  =&amp;gt; 39, },
+                { name =&amp;gt; &amp;quot;elroy&amp;quot;,   role =&amp;gt; &amp;quot;kid&amp;quot;,  age  =&amp;gt;  9, },
+            &amp;#093;,
+         },
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        simpsons    =&amp;gt; {
+            series   =&amp;gt; &amp;quot;simpsons&amp;quot;,
+            nights   =&amp;gt; &amp;#091; qw(monday) &amp;#093;,
+            members  =&amp;gt; &amp;#091;
+                { name =&amp;gt; &amp;quot;homer&amp;quot;, role =&amp;gt; &amp;quot;lead&amp;quot;, age  =&amp;gt; 34, },
+                { name =&amp;gt; &amp;quot;marge&amp;quot;, role =&amp;gt; &amp;quot;wife&amp;quot;, age =&amp;gt; 37, },
+                { name =&amp;gt; &amp;quot;bart&amp;quot;,  role =&amp;gt; &amp;quot;kid&amp;quot;,  age  =&amp;gt;  11, },
+            &amp;#093;,
+         },
+      );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Generation_of_a_HASH_OF_COMPLEX_"&gt;Generation of a HASH OF COMPLEX RECORDS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # reading from file
+     # this is most easily done by having the file itself be
+     # in the raw data format as shown above.  perl is happy
+     # to parse complex data structures if declared as data, so
+     # sometimes it's easiest to do that
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # here's a piece by piece build up
+     $rec = {};
+     $rec-&amp;gt;{series} = &amp;quot;flintstones&amp;quot;;
+     $rec-&amp;gt;{nights} = &amp;#091; find_days() &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     @members = ();
+     # assume this file in field=value syntax
+     while (&amp;lt;&amp;gt;) {
+         %fields = split /&amp;#091;\s=&amp;#093;+/;
+         push @members, { %fields };
+     }
+     $rec-&amp;gt;{members} = &amp;#091; @members &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # now remember the whole thing
+     $TV{ $rec-&amp;gt;{series} } = $rec;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     ###########################################################
+     # now, you might want to make interesting extra fields that
+     # include pointers back into the same data structure so if
+     # change one piece, it changes everywhere, like for examples
+     # if you wanted a {kids} field that was an array reference
+     # to a list of the kids' records without having duplicate
+     # records and thus update problems.
+     ###########################################################
+     foreach $family (keys %TV) {
+         $rec = $TV{$family}; # temp pointer
+         @kids = ();
+         for $person ( @{ $rec-&amp;gt;{members} } ) {
+             if ($person-&amp;gt;{role} =~ /kid|son|daughter/) {
+                 push @kids, $person;
+             }
+         }
+         # REMEMBER: $rec and $TV{$family} point to same data!!
+         $rec-&amp;gt;{kids} = &amp;#091; @kids &amp;#093;;
+     }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # you copied the list, but the list itself contains pointers
+     # to uncopied objects. this means that if you make bart get
+     # older via
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $TV{simpsons}{kids}&amp;#091;0&amp;#093;{age}++;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # then this would also change in
+     print $TV{simpsons}{members}&amp;#091;2&amp;#093;{age};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # because $TV{simpsons}{kids}&amp;#091;0&amp;#093; and $TV{simpsons}{members}&amp;#091;2&amp;#093;
+     # both point to the same underlying anonymous hash table
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     # print the whole thing
+     foreach $family ( keys %TV ) {
+         print &amp;quot;the $family&amp;quot;;
+         print &amp;quot; is on during @{ $TV{$family}{nights} }\n&amp;quot;;
+         print &amp;quot;its members are:\n&amp;quot;;
+         for $who ( @{ $TV{$family}{members} } ) {
+             print &amp;quot; $who-&amp;gt;{name} ($who-&amp;gt;{role}), age $who-&amp;gt;{age}\n&amp;quot;;
+         }
+         print &amp;quot;it turns out that $TV{$family}{lead} has &amp;quot;;
+         print scalar ( @{ $TV{$family}{kids} } ), &amp;quot; kids named &amp;quot;;
+         print join (&amp;quot;, &amp;quot;, map { $_-&amp;gt;{name} } @{ $TV{$family}{kids} } );
+         print &amp;quot;\n&amp;quot;;
+     }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Database_Ties"&gt;Database Ties&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+You cannot easily tie a multilevel data structure (such as a hash of hashes) to a dbm file. The first problem is that all but 
+&lt;FONT SIZE=-1&gt;GDBM&lt;/FONT&gt; and Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; have size limitations, but beyond that, you also have problems with how references are to be represented on disk. One experimental module that does partially attempt to address this need is the 
+&lt;FONT SIZE=-1&gt;MLDBM&lt;/FONT&gt; module. Check your nearest 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; site as described in
+ [perlman:perlmodlib|the perlmodlib manpage] for source code to 
+&lt;FONT SIZE=-1&gt;MLDBM.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;perlref(1),&lt;/CODE&gt; 
+&lt;CODE&gt;perllol(1),&lt;/CODE&gt; 
+&lt;CODE&gt;perldata(1),&lt;/CODE&gt; 
+&lt;CODE&gt;perlobj(1)&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="AUTHOR"&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Tom Christiansen &amp;lt;&lt;EM&gt;tchrist@perl.com&lt;/EM&gt;&amp;gt;
+
+&lt;P&gt;
+Last update: Wed Oct 23 04:57:50 
+&lt;FONT SIZE=-1&gt;MET&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;DST&lt;/FONT&gt; 1996
+
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

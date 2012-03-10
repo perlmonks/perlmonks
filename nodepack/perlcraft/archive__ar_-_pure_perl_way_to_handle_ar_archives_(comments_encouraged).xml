@@ -1,0 +1,589 @@
+<node>
+  <doctext>package Archive::Ar;
+
+###########################################################
+#	Archive::Ar - Pure perl module to handle ar achives
+#	
+#	Copyright 2003 - Jay Bonci &lt;jaybonci@cpan.org&gt;
+#	Licensed under the same terms as perl itself
+#
+###########################################################
+
+use strict;
+use Exporter;
+use File::Spec;
+use Time::Local;
+
+use vars qw($VERSION @ISA @EXPORT);
+$VERSION = '1.1';
+
+use constant ARMAG =&gt; &quot;!&lt;arch&gt;\n&quot;;
+use constant SARMAG =&gt; length(ARMAG);
+use constant ARFMAG =&gt; &quot;`\n&quot;;
+
+@ISA=qw(Exporter);
+@EXPORT=qw/read read_memory list_files add_files add_data write get_content DEBUG/;
+
+sub new {
+	my ($class, $filenameorhandle, $debug) = @_;
+
+	my $this = {};
+
+	my $obj = bless $this, $class;
+
+	$obj-&gt;{_verbose} = 0;
+	$obj-&gt;_initValues();
+
+
+	if($debug)
+	{
+		$obj-&gt;DEBUG();
+	}
+
+	if($filenameorhandle){
+		unless($obj-&gt;read($filenameorhandle)){
+			$obj-&gt;_dowarn(&quot;new() failed on filename or filehandle read&quot;);
+			return;
+		}		
+	}
+
+	return $obj;
+}
+
+sub read
+{
+	my ($this, $filenameorhandle) = @_;
+
+	my $retval;
+
+	$this-&gt;_initValues();
+
+	if(ref $filenameorhandle eq &quot;GLOB&quot;)
+	{
+		unless($retval = $this-&gt;_readFromFilehandle($filenameorhandle))
+		{
+			$this-&gt;_dowarn(&quot;Read from filehandle failed&quot;);
+			return;
+		}
+	}else
+	{
+		unless($retval = $this-&gt;_readFromFilename($filenameorhandle))
+		{
+			$this-&gt;_dowarn(&quot;Read from filename failed&quot;);
+			return;
+		}
+	}
+
+
+	unless($this-&gt;_parseData())
+	{
+		$this-&gt;_dowarn(&quot;read() failed on data structure analysis. Probable bad file&quot;);
+		return; 
+	}
+
+	
+	return $retval;
+}
+
+sub read_memory
+{
+	my ($this, $data) = @_;
+
+	$this-&gt;_initValues();
+
+	unless($data)
+	{
+		$this-&gt;_dowarn(&quot;read_memory() can't continue because no data was given&quot;);
+		return;
+	}
+
+	$this-&gt;{_filedata} = $data;
+
+	unless($this-&gt;_parseData())
+	{
+		$this-&gt;_dowarn(&quot;read_memory() failed on data structure analysis. Probable bad file&quot;);
+		return;
+	}
+
+	return length($data);
+}
+
+sub list_files
+{
+	my($this) = @_;
+
+	return \@{$this-&gt;{_files}};
+
+}
+
+sub add_files
+{
+	my($this, $filenameorarray, @otherfiles) = @_;
+	
+	my $filelist;
+
+	if(ref $filenameorarray eq &quot;ARRAY&quot;)
+	{
+		$filelist = $filenameorarray;
+	}else
+	{
+		$filelist = [$filenameorarray];
+		if(@otherfiles)
+		{
+			push @$filelist, @otherfiles;
+		}
+	}
+
+	my $filecount = 0;
+
+	foreach my $filename (@$filelist)
+	{
+		my @props = stat($filename);
+		unless(@props)
+		{
+			$this-&gt;_dowarn(&quot;Could not stat() filename. add_files() for this file failed&quot;);
+			next;
+		}
+		my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = @props;  
+		
+		my $header = {
+			&quot;date&quot; =&gt; $mtime,
+			&quot;uid&quot;  =&gt; $uid,
+			&quot;gid&quot;  =&gt; $gid, 
+			&quot;mode&quot; =&gt; $mode,
+			&quot;size&quot; =&gt; $size,
+		};
+
+		local $/ = undef;
+		unless(open HANDLE, $filename)
+		{
+			$this-&gt;_dowarn(&quot;Could not open filename. add_files() for this file failed&quot;);
+			next;
+		}
+		$header-&gt;{data} = &lt;HANDLE&gt;;
+		close HANDLE;
+
+		# fix the filename
+
+		(undef, undef, $filename) = File::Spec-&gt;splitpath($filename);
+		$header-&gt;{name} = $filename;
+
+		$this-&gt;_addFile($header);
+
+		$filecount++;
+	}
+
+	return $filecount;
+}
+
+sub add_data
+{
+	my($this, $filename, $data, $params) = @_;
+	unless ($filename)
+	{
+		$this-&gt;_dowarn(&quot;No filename given; add_data() can't proceed&quot;);
+		return;
+	}
+
+	$params ||= {};
+	$data ||= &quot;&quot;;
+	
+	(undef, undef, $filename) = File::Spec-&gt;splitpath($filename);
+	
+	$params-&gt;{name} = $filename;	
+	$params-&gt;{size} = length($data);
+	$params-&gt;{data} = $data;
+	$params-&gt;{uid} ||= 0;
+	$params-&gt;{gid} ||= 0;
+	$params-&gt;{date} ||= timelocal(localtime());
+	$params-&gt;{mode} ||= &quot;100644&quot;;
+	
+	unless($this-&gt;_addFile($params))
+	{
+		$this-&gt;_dowarn(&quot;add_data failed due to a failure in _addFile&quot;);
+		return;
+	}
+
+	return $params-&gt;{size}; 	
+}
+
+sub write
+{
+	my($this, $filename) = @_;
+
+	my $outstr;
+
+	$outstr= ARMAG;
+	foreach(@{$this-&gt;{_files}})
+	{
+		my $content = $this-&gt;get_content($_);
+		unless($content)
+		{
+			$this-&gt;_dowarn(&quot;Internal Error. $_ file in _files list but no filedata&quot;);
+			next;
+		}
+		
+
+		# For whatever reason, the uids and gids get stripped
+		# if they are zero. We'll blank them here to emulate that
+
+		$content-&gt;{uid} ||= &quot;&quot;;
+		$content-&gt;{gid} ||= &quot;&quot;;
+
+		$outstr.= pack(&quot;A16A12A6A6A8A10&quot;, @$content{qw/name date uid gid mode size/});
+		$outstr.= ARFMAG;
+		$outstr.= $content-&gt;{data};
+	}
+
+	return $outstr unless $filename;
+
+	unless(open HANDLE, &quot;&gt;$filename&quot;)
+	{
+		$this-&gt;_dowarn(&quot;Can't open filename $filename&quot;);
+		return;
+	}
+	print HANDLE $outstr;
+	close HANDLE;
+	return length($outstr);
+}
+
+sub get_content
+{
+	my ($this, $filename) = @_;
+
+	unless($filename)
+	{
+		$this-&gt;_dowarn(&quot;get_content can't continue without a filename&quot;);
+		return;
+	}
+
+	unless(exists($this-&gt;{_filehash}-&gt;{$filename}))
+	{
+		$this-&gt;_dowarn(&quot;get_content failed because there is not a file named $filename&quot;);
+		return;
+	}
+
+	return $this-&gt;{_filehash}-&gt;{$filename};
+}
+
+sub DEBUG
+{
+	my($this, $verbose) = @_;
+	$verbose = 1 unless(defined($verbose) and int($verbose) == 0);
+	$this-&gt;{_verbose} = $verbose;
+	return;
+
+}
+
+sub _parseData
+{
+	my($this) = @_;
+
+	unless($this-&gt;{_filedata})
+	{
+		$this-&gt;_dowarn(&quot;Cannot parse this archive. It appears to be blank&quot;);
+		return;
+	}
+
+	my $scratchdata = $this-&gt;{_filedata};
+
+	unless(substr($scratchdata, 0, SARMAG, &quot;&quot;) eq ARMAG)
+	{
+		$this-&gt;_dowarn(&quot;Bad magic header token. Either this file is not an ar archive, or it is damaged. If you are sure of the file integrity, Archive::Ar may not support this type of ar archive currently. Please report this as a bug&quot;);
+		return &quot;&quot;;
+	}
+
+	while($scratchdata =~ /\S/)
+	{
+
+		if($scratchdata =~ s/^(.{58})`\n//m)		
+		{
+			my @fields = unpack(&quot;A16A12A6A6A8A10&quot;, $1);
+
+			for(0..@fields)
+			{
+				$fields[$_] ||= &quot;&quot;;
+				$fields[$_] =~ s/\s*$//g;
+			}
+
+			my $headers = {};
+			@$headers{qw/name date uid gid mode size/} = @fields;
+
+			$headers-&gt;{data} = substr($scratchdata, 0, $headers-&gt;{size}, &quot;&quot;);
+
+			$this-&gt;_addFile($headers);
+		}else{
+			$this-&gt;_dowarn(&quot;File format appears to be corrupt. The file header is not of the right size, or does not exist at all&quot;);
+			return;
+		}
+	}
+
+	return scalar($this-&gt;{_files});
+}
+
+sub _readFromFilename
+{
+	my ($this, $filename) = @_;
+
+	my $handle;
+	open $handle, $filename or return;
+	return $this-&gt;_readFromFilehandle($handle);
+}
+
+
+sub _readFromFilehandle
+{
+	my ($this, $filehandle) = @_;
+	return unless $filehandle;
+
+	#handle has to be open
+	return unless(fileno $filehandle);
+
+	local $/ = undef;
+	$this-&gt;{_filedata} = &lt;$filehandle&gt;;
+	close $filehandle;
+
+	return length($this-&gt;{_filedata});
+}
+
+sub _addFile
+{
+	my ($this, $file) = @_;
+
+	return unless $file;
+
+	foreach(qw/name date uid gid mode size data/)
+	{
+		unless(exists($file-&gt;{$_}))
+		{
+			$this-&gt;_dowarn(&quot;Can't _addFile because virtual file is missing $_ parameter&quot;);
+			return;
+		}
+	}
+	
+	if(exists($this-&gt;{_filehash}-&gt;{$file-&gt;{name}}))
+	{
+		$this-&gt;_dowarn(&quot;Can't _addFile because virtual file already exists with that name in the archive&quot;);
+		return;
+	}
+
+	push @{$this-&gt;{_files}}, $file-&gt;{name};
+	$this-&gt;{_filehash}-&gt;{$file-&gt;{name}} = $file;
+
+	return $file-&gt;{name};
+}
+
+sub _initValues
+{
+	my ($this) = @_;
+
+	$this-&gt;{_files} = [];
+	$this-&gt;{_filehash} = {};
+	$this-&gt;{_filedata} =&quot;&quot;;
+
+	return;
+}
+
+sub _dowarn
+{
+	my ($this, $warning) = @_;
+
+	if($this-&gt;{_verbose})
+	{
+		warn &quot;DEBUG: $warning&quot;;
+	}
+
+	return;
+}
+
+1;
+
+
+=head1 NAME
+
+Archive::Ar - Interface for manipulating ar archives
+
+=head1 SYNOPSIS
+
+use Archive::Ar;
+
+my $ar = new Archive::Ar(&quot;./foo.ar&quot;);
+
+$ar-&gt;add_data(&quot;newfile.txt&quot;,&quot;Some contents&quot;, $properties);
+
+$ar-&gt;add_files(&quot;./bar.tar.gz&quot;, &quot;bat.pl&quot;)
+$ar-&gt;add_files([&quot;./again.gz&quot;]);
+
+my $filedata = $ar-&gt;get_content(&quot;bar.tar.gz&quot;);
+
+my @files = $ar-&gt;list_files();
+$ar-&gt;read(&quot;foo.deb&quot;);
+
+$ar-&gt;write(&quot;outbound.ar&quot;);
+
+$ar-&gt;DEBUG();
+
+
+=head1 DESCRIPTION
+
+Archive::Ar is a pure-perl way to handle standard ar archives.  
+
+This is useful if you have those types of old archives on the system, but it 
+is also useful because .deb packages for the Debian GNU/Linux distribution are 
+ar archives. This is one building block in a future chain of modules to build, 
+manipulate, extrace, and test debian modules with no platform or architecture 
+independance.
+
+You may notice that the API to Archive::Ar is similar to Archive::Tar, and
+this was done intentionally to keep similarity between the Archive::*
+modules
+
+
+=head2 Class Methods
+
+=over 4
+
+=item new()
+=item new($filename);
+=item new(*GLOB, $debug);
+
+Returns a new Archive::Ar object.  Without a filename or glob, it returns an
+empty object.  If passed a filename as a scalar or in a GLOB, it will attempt
+to populate from either of those sources.  If it fails, you will receive 
+undef, instead of an object reference. 
+
+This also can take a second optional debugging parameter.  This acts exactly
+as if DEBUG() is called on the object before it is returned.  If you have a
+new() that keeps failing, this should help.
+
+=item read($filename)
+=item read(*GLOB);
+
+This reads a new file into the object, removing any ar archive already
+represented in the object.  Any calls to DEBUG() are not lost by reading
+in a new file. Returns the number of bytes read, undef on failure.
+
+=item read_memory($data)
+
+This read information from the first parameter, and attempts to parse and treat
+it like an ar archive. Like read(), it will wipe out whatever you have in the
+object and replace it with the contents of the new archive, even if it fails.
+Returns the number of bytes read (processed) if successful, undef otherwise.
+
+=item list_files()
+
+This lists the files contained inside of the archive by filename, as an 
+array.
+
+=item add_files(&quot;filename1&quot;, &quot;filename2&quot;)
+=item add_files([&quot;filename1&quot;, &quot;filename2&quot;])
+
+Takes an array or an arrayref of filenames to add to the ar archive, in order.
+The filenames can be paths to files, in which case the path information is 
+stripped off.  Filenames longer than 16 characters are truncated when written
+to disk in the format, so keep that in mind when adding files.
+
+Due to the nature of the ar archive format, add_files() will store the uid,
+gid, mode, size, and creation date of the file as returned by stat(); 
+
+add_files() returns the number of files sucessfully added, or undef on failure.
+
+=item add_data(&quot;filename&quot;, $filedata)
+
+Takes an filename and a set of data to represent it. Unlike add_files, add_data
+is a virtual add, and does not require data on disk to be present. The
+data is a hash that looks like:
+
+$filedata = {
+        &quot;data&quot; =&gt; $data,
+        &quot;uid&quot; =&gt; $uid, #defaults to zero
+        &quot;gid&quot; =&gt; $gid, #defaults to zero
+        &quot;date&quot; =&gt; $date,  #date in epoch seconds. Defaults to now.
+        &quot;mode&quot; =&gt; $mode, #defaults to &quot;100644&quot;;
+}
+
+You cannot add_data over another file however.  This returns the file length in 
+bytes if it is successful, undef otherwise.
+
+=item write()
+=item write(&quot;filename.ar&quot;)
+
+This method will return the data as an .ar archive, or will write to the 
+filename present if specified.  If given a filename, write() will return the 
+length of the file written, in bytes, or undef on failure.  If the filename
+already exists, it will overwrite that file.
+
+=item get_content(&quot;filename&quot;)
+
+This returns a hash with the file content in it, including the data that the 
+file would naturally contain.  If the file does not exist or no filename is
+given, this returns undef. On success, a hash is returned with the following
+keys:
+
+name - The file name
+date - The file date (in epoch seconds)
+uid  - The uid of the file
+gid  - The gid of the file
+mode - The mode permissions
+size - The size (in bytes) of the file
+data - The contained data
+
+=item DEBUG()
+
+This method turns on debugging.  Optionally this can be done by passing in a 
+value as the second parameter to new.  While verbosity is enabled, 
+Archive::Ar will toss a warn() if there is a suspicious condition or other 
+problem while proceeding. This should help iron out any problems you have
+while using the module.
+
+=head1 CHANGES
+
+=over 4
+ 
+=item Version 1.1
+
+Documentation cleanups
+
+=item Version 1.0
+
+This is the initial public release for CPAN, so everything is new.
+
+=head1 TODO
+
+A better unit test suite perhaps. I have a private one, but a public one would be
+nice if there was good file faking module.
+
+Fix / investigate stuff in the BUGS section.
+
+=head1 BUGS
+
+To be honest, I'm not sure of a couple of things. The first is that I know 
+of ar archives made on old AIX systems (pre 4.3?) that have a different header
+with a different magic string, etc.  This module perfectly (hopefully) handles
+ar archives made with the modern ar command from the binutils distribtuion. If
+anyone knows of anyway to produce these old-style AIX archives, or would like
+to produce a few for testing, I would be much grateful.
+
+There's no really good reason why this module /shouldn't/ run on Win32 
+platforms, but admittedly, this might change when we have a file exporting 
+function that supports owner and permission writing.
+
+If you read in and write out a file, you get different md5sums, but it's still
+a valid archive. I'm still investigating this, and consider it a minor bug.
+
+=head1 COPYRIGHT
+
+Archive::Ar is copyright 2003 Jay Bonci E&lt;lt&gt;jaybonci@cpan.orgE&lt;gt&gt;. 
+This program is free software; you can redistribute it and/or modify it under
+the same terms as Perl itself.
+
+=cut
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>248850</node_id>
+  <reputation>42</reputation>
+  <author_user>115801</author_user>
+  <title>Archive::Ar - pure perl way to handle Ar archives (comments encouraged)</title>
+  <createtime>2003-04-08 03:17:05</createtime>
+  <nodeupdated>2005-07-04 17:56:22</nodeupdated>
+</node>

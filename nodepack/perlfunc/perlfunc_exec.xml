@@ -1,0 +1,100 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+exec - abandon this program to run another
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>114</author_user>
+  <description>&lt;P&gt;
+The [perlfunc:exec|exec()] function executes a system command &lt;EM&gt;AND NEVER RETURNS&lt;/EM&gt; - use [perlfunc:system|system()] instead of [perlfunc:exec|exec()] if you want it to return. It fails and returns 
+&lt;FONT SIZE=-1&gt;FALSE&lt;/FONT&gt; only if the command does not exist &lt;EM&gt;and&lt;/EM&gt; it is executed directly instead of via your system's command shell (see
+below).
+
+&lt;P&gt;
+Since it's a common mistake to use [perlfunc:exec|exec()] instead of [perlfunc:system|system()], Perl warns you if there is a following statement which isn't [perlfunc:die|die()], [%linkNodeTitle &quot;perlman:perlguts|warn()&quot;, $NODE, &quot;warn()&quot;,{anchor=&gt;&quot;item_warn&quot;};%], or [perlfunc:exit|exit()] (if &lt;CODE&gt;-w&lt;/CODE&gt; is set - but you always do that). If you
+&lt;EM&gt;really&lt;/EM&gt; want to follow an [perlfunc:exec|exec()] with some other statement, you can use one of these styles to avoid the
+warning:
+
+&lt;P&gt;
+&lt;PRE&gt;    exec ('foo')   or print STDERR &amp;quot;couldn't exec foo: $!&amp;quot;;
+    { exec ('foo') }; print STDERR &amp;quot;couldn't exec foo: $!&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+If there is more than one argument in 
+&lt;FONT SIZE=-1&gt;LIST,&lt;/FONT&gt; or if 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; is an array with more than one value, calls 
+&lt;CODE&gt;execvp(3)&lt;/CODE&gt; with the arguments in 
+&lt;FONT SIZE=-1&gt;LIST.&lt;/FONT&gt; If there is only one scalar argument or an array with one element in it, the argument is checked for shell metacharacters, and if there are any, the entire argument is passed to the system's command shell for parsing (this is
+ &lt;CODE&gt;/bin/sh -c&lt;/CODE&gt; on Unix platforms, but varies on other platforms). If there are no shell
+metacharacters in the argument, it is split into words and passed directly
+to &lt;CODE&gt;execvp()&lt;/CODE&gt;, which is more efficient. Note:
+[perlfunc:exec|exec()] and [perlfunc:system|system()] do not flush your output buffer, so you may need to set &lt;CODE&gt;$|&lt;/CODE&gt; to avoid lost output. Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    exec '/bin/echo', 'Your arguments are: ', @ARGV;
+    exec &amp;quot;sort $outfile | uniq&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you don't really want to execute the first argument, but want to lie to the program you are executing about its own name, you can specify the program you actually want to run as an ``indirect object'' (without a comma) in front of the 
+&lt;FONT SIZE=-1&gt;LIST.&lt;/FONT&gt; (This always forces interpretation of the 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; as a multivalued list, even if there is only a single scalar in the list.) Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $shell = '/bin/csh';
+    exec $shell '-sh';          # pretend it's a login shell
+&lt;/PRE&gt;
+&lt;P&gt;
+or, more directly,
+
+&lt;P&gt;
+&lt;PRE&gt;    exec {'/bin/csh'} '-sh';    # pretend it's a login shell
+&lt;/PRE&gt;
+&lt;P&gt;
+When the arguments get executed via the system shell, results will be
+subject to its quirks and capabilities. See [%linkNodeTitle &quot;perlman:perlop|`STRING`&quot;, $NODE, &quot;`STRING`&quot;,{anchor=&gt;&quot;_STRING_&quot;};%]
+for details.
+
+&lt;P&gt;
+Using an indirect object with [perlfunc:exec|exec()] or [perlfunc:system|system()] is also more secure. This usage forces interpretation of the arguments as a
+multivalued list, even if the list had just one argument. That way you're
+safe from the shell expanding wildcards or splitting up words with
+whitespace in them.
+
+&lt;P&gt;
+&lt;PRE&gt;    @args = ( &amp;quot;echo surprise&amp;quot; );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    system @args;               # subject to shell escapes
+                                # if @args == 1
+    system { $args&amp;#091;0&amp;#093; } @args;  # safe even with one-arg list
+&lt;/PRE&gt;
+&lt;P&gt;
+The first version, the one without the indirect object, ran the &lt;EM&gt;echo&lt;/EM&gt;
+program, passing it &lt;CODE&gt;&amp;quot;surprise&amp;quot;&lt;/CODE&gt; an argument. The second version didn't--it tried to run a program literally
+called &lt;EM&gt;&quot;echo surprise&quot;&lt;/EM&gt;, didn't find it, and set &lt;CODE&gt;$?&lt;/CODE&gt; to a non-zero value indicating failure.
+
+&lt;P&gt;
+Note that [perlfunc:exec|exec()] will not call your &lt;CODE&gt;END&lt;/CODE&gt; blocks, nor will it call any &lt;CODE&gt;DESTROY&lt;/CODE&gt; methods in your objects.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-08-24 18:42:00</createtime>
+  <node_id>196</node_id>
+  <synopsis>&lt;P&gt;
+exec 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt;
+
+&lt;P&gt;
+exec 
+&lt;FONT SIZE=-1&gt;PROGRAM&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlfunc:exec</title>
+  <nodeupdated>2005-08-14 12:34:15</nodeupdated>
+</node>

@@ -1,0 +1,129 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+eval - catch exceptions or compile code
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>114</author_user>
+  <description>&lt;P&gt;
+In the first form, the return value of 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; is parsed and executed as if it were a little Perl program. The value of the expression (which is itself determined within scalar context) is first parsed, and if there weren't any errors, executed in the context of the current Perl program, so that any variable settings or subroutine and format definitions remain afterwards. Note that the value is parsed every time the eval executes. If 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; is omitted, evaluates
+ &lt;CODE&gt;$_&lt;/CODE&gt;. This form is typically used to delay parsing and subsequent execution of the text of 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; until run time.
+
+&lt;P&gt;
+In the second form, the code within the 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; is parsed only once--at the same time the code surrounding the eval itself was parsed--and executed within the context of the current Perl program. This form is typically used to trap exceptions more efficiently than the first (see below), while also providing the benefit of checking the code within 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; at compile time.
+
+&lt;P&gt;
+The final semicolon, if any, may be omitted from the value of 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; or within the 
+&lt;FONT SIZE=-1&gt;BLOCK.&lt;/FONT&gt;
+
+&lt;P&gt;
+In both forms, the value returned is the value of the last expression
+evaluated inside the mini-program; a return statement may be also used,
+just as with subroutines. The expression providing the return value is
+evaluated in void, scalar, or list context, depending on the context of the
+eval itself. See [perlfunc:wantarray|wantarray] for more on how the evaluation context can be determined.
+
+&lt;P&gt;
+If there is a syntax error or runtime error, or a [perlfunc:die|die()] statement is executed, an undefined value is returned by [perlfunc:eval|eval()], and &lt;CODE&gt;$@&lt;/CODE&gt; is set to the error message. If there was no error, &lt;CODE&gt;$@&lt;/CODE&gt; is guaranteed to be a null string. Beware that using [perlfunc:eval|eval()] neither silences perl from printing warnings to 
+&lt;FONT SIZE=-1&gt;STDERR,&lt;/FONT&gt; nor does it stuff the text of warning messages
+into &lt;CODE&gt;$@&lt;/CODE&gt;. To do either of those, you have to use the &lt;CODE&gt;$SIG{__WARN__}&lt;/CODE&gt; facility. See
+[perlfunc:warn|warn] and [perlman:perlvar|the perlvar manpage].
+
+&lt;P&gt;
+Note that, because [perlfunc:eval|eval()] traps otherwise-fatal errors, it is useful for determining whether a
+particular feature (such as [perlfunc:socket|socket()] or [perlfunc:symlink|symlink()]) is implemented. It is also Perl's exception trapping mechanism, where the
+die operator is used to raise exceptions.
+
+&lt;P&gt;
+If the code to be executed doesn't vary, you may use the eval-BLOCK form to
+trap run-time errors without incurring the penalty of recompiling each
+time. The error, if any, is still returned in &lt;CODE&gt;$@&lt;/CODE&gt;. Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    # make divide-by-zero nonfatal
+    eval { $answer = $a / $b; }; warn $@ if $@;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # same thing, but less efficient
+    eval '$answer = $a / $b'; warn $@ if $@;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # a compile-time error
+    eval { $answer = };                 # WRONG
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # a run-time error
+    eval '$answer =';   # sets $@
+&lt;/PRE&gt;
+&lt;P&gt;
+When using the [perlfunc:eval|eval{}] form as an exception trap in libraries, you may wish not to trigger any &lt;CODE&gt;__DIE__&lt;/CODE&gt; hooks that user code may have installed. You can use the &lt;CODE&gt;local $SIG{__DIE__}&lt;/CODE&gt; construct for this purpose, as shown in this example:
+
+&lt;P&gt;
+&lt;PRE&gt;    # a very private exception trap for divide-by-zero
+    eval { local $SIG{'__DIE__'}; $answer = $a / $b; };
+    warn $@ if $@;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is especially significant, given that &lt;CODE&gt;__DIE__&lt;/CODE&gt; hooks can call
+[perlfunc:die|die()] again, which has the effect of changing their error messages:
+
+&lt;P&gt;
+&lt;PRE&gt;    # __DIE__ hooks may modify error messages
+    {
+       local $SIG{'__DIE__'} =
+              sub { (my $x = $_&amp;#091;0&amp;#093;) =~ s/foo/bar/g; die $x };
+       eval { die &amp;quot;foo lives here&amp;quot; };
+       print $@ if $@;                # prints &amp;quot;bar lives here&amp;quot;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+With an [perlfunc:eval|eval()], you should be especially careful to remember what's being looked at when:
+
+&lt;P&gt;
+&lt;PRE&gt;    eval $x;            # CASE 1
+    eval &amp;quot;$x&amp;quot;;          # CASE 2
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    eval '$x';          # CASE 3
+    eval { $x };        # CASE 4
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    eval &amp;quot;\$$x++&amp;quot;;      # CASE 5
+    $$x++;              # CASE 6
+&lt;/PRE&gt;
+&lt;P&gt;
+Cases 1 and 2 above behave identically: they run the code contained in the
+variable &lt;CODE&gt;$x&lt;/CODE&gt;. (Although case 2 has misleading double quotes making the reader wonder
+what else might be happening (nothing is).) Cases 3 and 4 likewise behave
+in the same way: they run the code &lt;CODE&gt;'$x'&lt;/CODE&gt;, which does nothing but return the value of &lt;CODE&gt;$x&lt;/CODE&gt;. (Case 4 is preferred for purely visual reasons, but it also has the
+advantage of compiling at compile-time instead of at run-time.) Case 5 is a
+place where normally you &lt;EM&gt;WOULD&lt;/EM&gt; like to use double quotes, except that in this particular situation, you
+can just use symbolic references instead, as in case 6.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-08-24 18:42:01</createtime>
+  <node_id>198</node_id>
+  <synopsis>&lt;P&gt;
+eval 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt;
+
+&lt;P&gt;
+eval 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlfunc:eval</title>
+  <nodeupdated>2005-08-15 07:13:30</nodeupdated>
+</node>

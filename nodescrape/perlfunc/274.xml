@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="274" title="perlfunc:require" created="1999-08-24 18:42:47" updated="2005-08-13 19:25:51">
+<type id="119">
+perlfunc</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+require - load in external functions from a library at runtime
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+require 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt;
+
+&lt;P&gt;
+require
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="description">
+
+&lt;P&gt;
+Demands some semantics specified by 
+&lt;FONT SIZE=-1&gt;EXPR,&lt;/FONT&gt; or by &lt;CODE&gt;$_&lt;/CODE&gt; if 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; is not supplied. If 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; is numeric, demands that the current version of Perl (
+&lt;CODE&gt;$&amp;#093;&lt;/CODE&gt; or 
+&lt;FONT SIZE=-1&gt;$PERL_VERSION)&lt;/FONT&gt; be equal or greater than 
+&lt;FONT SIZE=-1&gt;EXPR.&lt;/FONT&gt;
+
+&lt;P&gt;
+Otherwise, demands that a library file be included if it hasn't already
+been included. The file is included via the do-FILE mechanism, which is
+essentially just a variety of [perlfunc:eval|eval()]. Has semantics similar to the following subroutine:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub require {
+        my($filename) = @_;
+        return 1 if $INC{$filename};
+        my($realfilename,$result);
+        ITER: {
+            foreach $prefix (@INC) {
+                $realfilename = &amp;quot;$prefix/$filename&amp;quot;;
+                if (-f $realfilename) {
+                    $result = do $realfilename;
+                    last ITER;
+                }
+            }
+            die &amp;quot;Can't find $filename in \@INC&amp;quot;;
+        }
+        die $@ if $@;
+        die &amp;quot;$filename did not return true value&amp;quot; unless $result;
+        $INC{$filename} = $realfilename;
+        return $result;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that the file will not be included twice under the same specified name. The file must return 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; as the last statement to indicate successful execution of any initialization code, so it's customary to end such a file with ``
+&lt;CODE&gt;1;&lt;/CODE&gt;'' unless you're sure it'll return 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; otherwise. But it's better just to put the ``&lt;CODE&gt;1;&lt;/CODE&gt;'', in case you add more statements.
+
+&lt;P&gt;
+If 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; is a bareword, the require assumes a ``&lt;EM&gt;.pm&lt;/EM&gt;'' extension and replaces ``&lt;EM&gt;::&lt;/EM&gt;'' with ``&lt;EM&gt;/&lt;/EM&gt;'' in the filename for you, to make it easy to load standard modules. This
+form of loading of modules does not risk altering your namespace.
+
+&lt;P&gt;
+In other words, if you try this:
+
+&lt;P&gt;
+&lt;PRE&gt;        require Foo::Bar;    # a splendid bareword 
+&lt;/PRE&gt;
+&lt;P&gt;
+The require function will actually look for the ``&lt;EM&gt;Foo/Bar.pm&lt;/EM&gt;'' file in the directories specified in the &lt;CODE&gt;@INC&lt;/CODE&gt; array.
+
+&lt;P&gt;
+But if you try this:
+
+&lt;P&gt;
+&lt;PRE&gt;        $class = 'Foo::Bar';
+        require $class;      # $class is not a bareword
+    #or
+        require &amp;quot;Foo::Bar&amp;quot;;  # not a bareword because of the &amp;quot;&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+The require function will look for the ``&lt;EM&gt;Foo::Bar&lt;/EM&gt;'' file in the &lt;CODE&gt;@INC&lt;/CODE&gt; array and will complain about not finding
+``&lt;EM&gt;Foo::Bar&lt;/EM&gt;'' there. In this case you can do:
+
+&lt;P&gt;
+&lt;PRE&gt;        eval &amp;quot;require $class&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+For a yet-more-powerful import facility, see [perlfunc:use|use] and [perlman:perlmod|the perlmod manpage].
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

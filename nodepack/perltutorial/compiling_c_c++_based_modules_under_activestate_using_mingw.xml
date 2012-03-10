@@ -1,0 +1,73 @@
+<node>
+  <doctext>First thing to do, of course, is to install 'dmake.exe' and the MinGW compiler. (Note that &lt;code&gt;nmake&lt;/code&gt; can also be used instead of &lt;code&gt;dmake&lt;/code&gt;. &lt;a href=&quot;http://download.microsoft.com/download/vc15/patch/1.52/w95/en-us/nmake15.exe&quot;&gt;Nmake15.exe&lt;/a&gt; contains an older version of nmake that doesn't provide the milage that dmake delivers - though, depending upon what you build, you may never be bitten by this lack of milage. Recent versions of nmake are fine.)
+&lt;br&gt;&lt;br&gt;To install dmake and MinGW, simply run &lt;c&gt;ppm install MinGW&lt;/c&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Note:&lt;/b&gt; From here on, I'm assuming that dmake is being used. If you're using nmake, then it's just a matter of substituting &quot;nmake&quot; for &quot;dmake&quot; in the commands.
+
+&lt;br&gt;&lt;br&gt;So long as you're running build 815 (or later) of ActiveState Perl, that's theoretically (see the &lt;b&gt;Bugs and Their Fixes&lt;/b&gt; section below) all you need to do.
+Assuming that both MinGW and dmake are in your path, and that neither Microsoft's cl compiler nor nmake can be found in the path, then ActiveState Perl will automatically use dmake and MinGW, and the appropriate %Config values will be loaded. (If cl is in your path, and you want to use gcc, you must either remove cl from the path, or set the ACTIVEPERL_CONFIG_CC environment variable to gcc. If nmake is found in your path, then you can't use dmake - but nmake will work just as well with gcc as it does with cl. See &lt;c&gt;perldoc ActivePerl::Config&lt;/c&gt; for details.)&lt;br&gt;
+You can then build C/C++-based modules by simply downloading the source tarball from CPAN, extracting it to some location, 
+cd'ing to that location and running:
+&lt;code&gt;
+perl Makefile.PL
+dmake test
+dmake install
+&lt;/code&gt;
+Or you can do it using the automation provided by CPAN.pm.
+
+&lt;br&gt;&lt;br&gt;For builds earlier than build 815 (including builds of perl 5.6), it is necessary to also install
+&lt;a href=&quot;http://search.cpan.org/~mbarbon/ExtUtils-FakeConfig-0.09/&quot;&gt;ExtUtils::FakeConfig&lt;/a&gt; in accordance
+with the instructions found in its README.txt. (Note that one can also use ExtUtils::FakeConfig with builds 815 and later, if one wishes). That done, it's then just a matter of building modules by running:
+&lt;code&gt;
+perl -MConfig_m Makefile.PL
+dmake test
+dmake install
+&lt;/code&gt;
+It's the '-MConfig_m' that loads EU::FC's Config_m.pm (and hence the appropriate %Config values). However, in the building of various perl modules
+(eg PDL), the Makefile.PL may run 'perl -e' commands that need to be run
+as 'perl -MConfig_m -e'. In order to ensure that EU::FC's Config_m.pm values are loaded &lt;b&gt;every&lt;/b&gt;
+time perl is run, we can just set the perl5opt environment variable to &lt;code&gt;-MConfig_m&lt;/code&gt;:
+&lt;code&gt;
+set perl5opt=-MConfig_m
+&lt;/code&gt;
+
+Having done that, we no longer need to specify the &lt;code&gt;-MConfig_m&lt;/code&gt; option, so it's back to running: 
+&lt;code&gt;
+perl Makefile.PL
+dmake test
+dmake install
+&lt;/code&gt;
+&lt;br&gt;&lt;b&gt;Bugs and Their Fixes&lt;/b&gt;&lt;br&gt;&lt;br&gt;
+I don't know of any bugs as regarding version 0.09 (or later) of ExtUtils::FakeConfig, so if you're using its &lt;code&gt;-MConfig_m&lt;/code&gt; option to load the appropriate &lt;code&gt;%Config&lt;/code&gt; values, then you can ignore what follows. However, if you're relying on the automation provided by ActiveState builds prior to build 821, then there are some areas
+where ActiveState haven't quite got it right.&lt;br&gt;&lt;br&gt; At time of original writing, build 820 was the latest ActivePerl build. I 
+know of only one problem with it. $Config{obj_ext} remains set to '.obj' (as can be seen by running
+&lt;code&gt;perl -V:obj_ext&lt;/code&gt;). But it needs to be set to
+'.o'. To fix, open up perl/lib/Config.pm, locate the line &lt;code&gt;obj_ext =&gt; '.obj',&lt;/code&gt; and remove it (or comment it out).
+&lt;br&gt;&lt;br&gt;IIRC, builds 815 to 819 insisted on setting $Config{ld} to 'gcc'. Running 
+&lt;code&gt;perl -V:ld&lt;/code&gt; will reveal what $Config{ld} is set to. If it reports 'gcc', open up ActivePerl/Config.pm
+which, with builds 815 to 818 is in perl/site/lib, but is in perl/lib with subsequent builds.
+Find the line that specifies &lt;code&gt;_override(&quot;ld&quot;,        &quot;gcc&quot;);&lt;/code&gt; and change the 'gcc' to 'g++'.&lt;br&gt;&lt;br&gt;
+While you've got that file open, check to see what &lt;code&gt;perl -V:lib_ext&lt;/code&gt; reports. If it reports that
+'lib_ext' is set to '.a', then all is well, but if it reports that 'lib_ext' is set to '.lib' then
+ add &lt;code&gt;_override(&quot;lib_ext&quot;,        &quot;.a&quot;);&lt;/code&gt; to that same list of _override() calls. Also, in the
+same file (near the top), find the lines:
+&lt;code&gt;
+    ldflags
+    libc
+    libs
+&lt;/code&gt;
+and change that to:
+&lt;code&gt;
+    ldflags
+    libc
+    lib_ext
+    libs
+&lt;/code&gt;
+And then, for that change to the $Config{lib_ext} setting to take effect, it is necessary to open perl/lib/Config.pm,
+find the line &lt;code&gt;lib_ext =&gt; '.lib',&lt;/code&gt; and either remove that line or comment it out. &lt;br&gt;&lt;br&gt; These are the only such bugs I know of - though I've never used build 815 or 818. (Build 816 should be avoided at all costs - for unrelated reasons). &lt;br&gt;&lt;br&gt;Cheers,&lt;br&gt;Rob&lt;br&gt;
+&lt;b&gt;Updates:&lt;/b&gt; Altered the advice on how to install dmake and MinGW on the basis of [jdporter]'s comments; &lt;br&gt;Amended &quot;per5opt&quot; to the correct &quot;perl5opt&quot; - thanks [Intrepid]&lt;br&gt;Build 822 of ActivePerl has since been released - no known problems wrt MinGW and dmake.&lt;br&gt;Changed (again) instructions on the installation of dmake and MinGW, as these can now be installed using ppm.&lt;br&gt;Corrected info given about how ActivePerl determines which compiler/make to use.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>614808</node_id>
+  <author_user>524150</author_user>
+  <title>Compiling C/C++ based Modules under ActiveState using MinGW</title>
+  <createtime>2007-05-11 00:07:08</createtime>
+  <nodeupdated>2007-05-10 20:07:08</nodeupdated>
+</node>

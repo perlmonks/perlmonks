@@ -1,0 +1,47 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>363678</node_id>
+  <author_user>357600</author_user>
+  <title>get_external_node</title>
+  <createtime>2004-06-12 20:07:44</createtime>
+  <code>#[get_external_node]
+my ($opts)=@_;
+$opts||={};
+
+$opts-&gt;{node_id}    ||= $NODE-&gt;{node_id};
+$opts-&gt;{parse_tree} ||= undef;
+$opts-&gt;{user}       ||= $VARS-&gt;{external_user};
+$opts-&gt;{passwd}     ||= $VARS-&gt;{external_passwd};
+
+require LWP::Simple;
+require XML::Simple;
+my $site=$ENV{HTTP_HOST}=~/flux8/ ? &quot;perlmonks.org&quot; 
+                                  : &quot;pmdev.flux8.com&quot;;
+
+my $xml = $opts-&gt;{xml} = LWP::Simple::get(
+              &quot;http://&quot;.$site. &quot;/index.pl?&quot; . 
+              join '&amp;',
+              &quot;node_id=$opts-&gt;{node_id}&quot;,
+              &quot;op=login&quot;,
+              &quot;user=$opts-&gt;{user}&quot;,
+              &quot;passwd=$opts-&gt;{passwd}&quot;,
+              &quot;displaytype=xml&quot;,
+              &quot;xmlstyle=flat&quot;,
+);
+
+my $parse= $opts-&gt;{parse_tree} = XML::Simple::XMLin($xml);
+
+$opts-&gt;{type_id}   ||= $parse-&gt;{type}{id};
+($opts-&gt;{typetitle} ||= $parse-&gt;{type}{content})=~s/^\s+|\s+$//g;
+
+$opts-&gt;{title}     ||= $parse-&gt;{title};
+$opts-&gt;{code_fields} = getVars( getNode('code fields setting','setting') );
+$opts-&gt;{code_field}  = $opts-&gt;{code_fields}{$opts-&gt;{type_id}};
+
+$opts-&gt;{code}= $opts-&gt;{code_field} 
+               ? $parse-&gt;{$opts-&gt;{code_field}}{content} 
+               : '';
+$opts-&gt;{code}=~s/\A(\s*\n)+|(\s*\n)+\z//g;
+return $opts-&gt;{code};</code>
+  <nodeupdated>2005-04-15 08:21:20</nodeupdated>
+</node>

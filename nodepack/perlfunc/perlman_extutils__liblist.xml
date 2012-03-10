@@ -1,0 +1,286 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+ExtUtils::Liblist - determine libraries to use and how to use them
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+This utility takes a list of libraries in the form &lt;CODE&gt;-llib1 -llib2
+-llib3&lt;/CODE&gt; and prints out lines suitable for inclusion in an extension Makefile. Extra
+library paths may be included with the form
+&lt;CODE&gt;-L/another/path&lt;/CODE&gt; this will affect the searches for all subsequent libraries.
+
+&lt;P&gt;
+It returns an array of four scalar values: 
+&lt;FONT SIZE=-1&gt;EXTRALIBS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;BSLOADLIBS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LDLOADLIBS,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;LD_RUN_PATH.&lt;/FONT&gt; Some of these don't mean anything on 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; and Win32. See the details about those platform specifics below.
+
+&lt;P&gt;
+Dependent libraries can be linked in one of three ways:
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_For&quot;&gt;For static extensions&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+by the ld command when the perl binary is linked with the extension library. See 
+&lt;FONT SIZE=-1&gt;EXTRALIBS&lt;/FONT&gt; below.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_For&quot;&gt;For dynamic extensions&lt;/A&gt;&lt;/STRONG&gt;
+
+by the ld command when the shared object is built/linked. See 
+&lt;FONT SIZE=-1&gt;LDLOADLIBS&lt;/FONT&gt; below.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;For dynamic extensions&lt;/STRONG&gt;
+
+by the DynaLoader when the shared object is loaded. See 
+&lt;FONT SIZE=-1&gt;BSLOADLIBS&lt;/FONT&gt; below.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;EXTRALIBS&quot;&gt;EXTRALIBS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+List of libraries that need to be linked with when linking a perl binary
+which includes this extension Only those libraries that actually exist are
+included. These are written to a file and used when linking perl.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;LDLOADLIBS_and_LD_RUN_PATH&quot;&gt;LDLOADLIBS and LD_RUN_PATH&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+List of those libraries which can or must be linked into the shared library when created using ld. These may be static or dynamic libraries. 
+&lt;FONT SIZE=-1&gt;LD_RUN_PATH&lt;/FONT&gt; is a colon separated list of the directories in 
+&lt;FONT SIZE=-1&gt;LDLOADLIBS.&lt;/FONT&gt; It is passed as an environment variable to the process that links the shared library.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;BSLOADLIBS&quot;&gt;BSLOADLIBS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+List of those libraries that are needed but can be linked in dynamically at run time on this platform. SunOS/Solaris does not need this because ld records the information (from 
+&lt;FONT SIZE=-1&gt;LDLOADLIBS)&lt;/FONT&gt; into the object file. This list is used to create a .bs (bootstrap) file.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;PORTABILITY&quot;&gt;PORTABILITY&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This module deals with a lot of system dependencies and has quite a few
+architecture specific &lt;STRONG&gt;if&lt;/STRONG&gt;s in the code.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;VMS_implementation&quot;&gt;VMS implementation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The version of 
+&lt;CODE&gt;ext()&lt;/CODE&gt; which is executed under 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; differs from the Unix-OS/2 version in several respects:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Input library and path specifications are accepted with or without the
+&lt;CODE&gt;-l&lt;/CODE&gt; and &lt;CODE&gt;-L&lt;/CODE&gt; prefices used by Unix linkers. If neither prefix is present, a token is considered a directory to search if it is in fact a directory, and a library to search for otherwise. Authors who wish their extensions to be portable to Unix or 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; should use the Unix prefixes, since the Unix-OS/2 version of 
+&lt;CODE&gt;ext()&lt;/CODE&gt; requires them.
+
+&lt;P&gt;&lt;LI&gt;
+
+Wherever possible, shareable images are preferred to object libraries, and object libraries to plain object files. In accordance with 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; naming conventions, 
+&lt;CODE&gt;ext()&lt;/CODE&gt; looks for files named
+ &lt;EM&gt;lib&lt;/EM&gt;shr and &lt;EM&gt;lib&lt;/EM&gt;rtl; it also looks for &lt;EM&gt;lib&lt;/EM&gt;lib and lib&lt;EM&gt;lib&lt;/EM&gt; to accomodate Unix conventions used in some ported software.
+
+&lt;P&gt;&lt;LI&gt;
+
+For each library that is found, an appropriate directive for a linker
+options file is generated. The return values are space-separated strings of
+these directives, rather than elements used on the linker command line.
+
+&lt;P&gt;&lt;LI&gt;
+
+
+&lt;FONT SIZE=-1&gt;LDLOADLIBS&lt;/FONT&gt; contains both the libraries found based on &lt;CODE&gt;$potential_libs&lt;/CODE&gt; and the CRTLs, if any, specified in Config.pm. 
+&lt;FONT SIZE=-1&gt;EXTRALIBS&lt;/FONT&gt; contains just those libraries found based on &lt;CODE&gt;$potential_libs&lt;/CODE&gt;. 
+&lt;FONT SIZE=-1&gt;BSLOADLIBS&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;LD_RUN_PATH&lt;/FONT&gt; are always empty.
+
+&lt;/UL&gt;
+&lt;P&gt;
+In addition, an attempt is made to recognize several common Unix library names, and filter them out or convert them to their 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; equivalents, as appropriate.
+
+&lt;P&gt;
+In general, the 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; version of 
+&lt;CODE&gt;ext()&lt;/CODE&gt; should properly handle input from extensions originally designed for a Unix or 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; environment. If you encounter problems, or discover cases where the search could be improved, please let us know.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Win32_implementation&quot;&gt;Win32 implementation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The version of 
+&lt;CODE&gt;ext()&lt;/CODE&gt; which is executed under
+Win32 differs from the Unix-OS/2 version in several respects:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+If &lt;CODE&gt;$potential_libs&lt;/CODE&gt; is empty, the return value will be empty. Otherwise, the libraries
+specified by &lt;CODE&gt;$Config{libs}&lt;/CODE&gt; (see Config.pm) will be appended to the list of &lt;CODE&gt;$potential_libs&lt;/CODE&gt;. The libraries will be searched for in the directories specified in &lt;CODE&gt;$potential_libs&lt;/CODE&gt;
+as well as in &lt;CODE&gt;$Config{libpth}&lt;/CODE&gt;. For each library that is found, a space-separated list of fully qualified
+library pathnames is generated.
+
+&lt;P&gt;&lt;LI&gt;
+
+Input library and path specifications are accepted with or without the
+&lt;CODE&gt;-l&lt;/CODE&gt; and &lt;CODE&gt;-L&lt;/CODE&gt; prefices used by Unix linkers.
+
+&lt;P&gt;
+An entry of the form &lt;CODE&gt;-La:\foo&lt;/CODE&gt; specifies the &lt;CODE&gt;a:\foo&lt;/CODE&gt; directory to look for the libraries that follow.
+
+&lt;P&gt;
+An entry of the form &lt;CODE&gt;-lfoo&lt;/CODE&gt; specifies the library &lt;CODE&gt;foo&lt;/CODE&gt;, which may be spelled differently depending on what kind of compiler you are using. If you are using 
+&lt;FONT SIZE=-1&gt;GCC,&lt;/FONT&gt; it gets translated to
+ &lt;CODE&gt;libfoo.a&lt;/CODE&gt;, but for other win32 compilers, it becomes &lt;CODE&gt;foo.lib&lt;/CODE&gt;. If no files are found by those translated names, one more attempt is made
+to find them using either &lt;CODE&gt;foo.a&lt;/CODE&gt; or
+&lt;CODE&gt;libfoo.lib&lt;/CODE&gt;, depending on whether 
+&lt;FONT SIZE=-1&gt;GCC&lt;/FONT&gt; or some other win32 compiler is being used,
+respectively.
+
+&lt;P&gt;
+If neither the &lt;CODE&gt;-L&lt;/CODE&gt; or &lt;CODE&gt;-l&lt;/CODE&gt; prefix is present in an entry, the entry is considered a directory to
+search if it is in fact a directory, and a library to search for otherwise.
+The &lt;CODE&gt;$Config{lib_ext}&lt;/CODE&gt; suffix will be appended to any entries that are not directories and don't
+already have the suffix.
+
+&lt;P&gt;
+Note that the &lt;CODE&gt;-L&lt;/CODE&gt; and &amp;lt;-l&amp;gt; prefixes are &lt;STRONG&gt;not required&lt;/STRONG&gt;, but authors who wish their extensions to be portable to Unix or 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; should use the prefixes, since the Unix-OS/2 version of 
+&lt;CODE&gt;ext()&lt;/CODE&gt; requires them.
+
+&lt;P&gt;&lt;LI&gt;
+
+Entries cannot be plain object files, as many Win32 compilers will not
+handle object files in the place of libraries.
+
+&lt;P&gt;&lt;LI&gt;
+
+Entries in &lt;CODE&gt;$potential_libs&lt;/CODE&gt; beginning with a colon and followed by alphanumeric characters are treated
+as flags. Unknown flags will be ignored.
+
+&lt;P&gt;
+An entry that matches &lt;CODE&gt;/:nodefault/i&lt;/CODE&gt; disables the appending of default libraries found in &lt;CODE&gt;$Config{libs}&lt;/CODE&gt; (this should be only needed very rarely).
+
+&lt;P&gt;
+An entry that matches &lt;CODE&gt;/:nosearch/i&lt;/CODE&gt; disables all searching for the libraries specified after it. Translation of &lt;CODE&gt;-Lfoo&lt;/CODE&gt; and
+&lt;CODE&gt;-lfoo&lt;/CODE&gt; still happens as appropriate (depending on compiler being used, as
+reflected by &lt;CODE&gt;$Config{cc}&lt;/CODE&gt;), but the entries are not verified to be valid files or directories.
+
+&lt;P&gt;
+An entry that matches &lt;CODE&gt;/:search/i&lt;/CODE&gt; reenables searching for the libraries specified after it. You can put it at
+the end to enable searching for default libraries specified by &lt;CODE&gt;$Config{libs}&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+The libraries specified may be a mixture of static libraries and import
+libraries (to link with DLLs). Since both kinds are used pretty
+transparently on the win32 platform, we do not attempt to distinguish
+between them.
+
+&lt;P&gt;&lt;LI&gt;
+
+
+&lt;FONT SIZE=-1&gt;LDLOADLIBS&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;EXTRALIBS&lt;/FONT&gt; are always identical under Win32, and 
+&lt;FONT SIZE=-1&gt;BSLOADLIBS&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;LD_RUN_PATH&lt;/FONT&gt; are always empty (this may change in future).
+
+&lt;P&gt;&lt;LI&gt;
+
+You must make sure that any paths and path components are properly
+surrounded with double-quotes if they contain spaces. For example,
+&lt;CODE&gt;$potential_libs&lt;/CODE&gt; could be (literally):
+
+&lt;P&gt;
+&lt;PRE&gt;        &amp;quot;-Lc:\Program Files\vc\lib&amp;quot; msvcrt.lib &amp;quot;la test\foo bar.lib&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+Note how the first and last entries are protected by quotes in order to
+protect the spaces.
+
+&lt;P&gt;&lt;LI&gt;
+
+Since this module is most often used only indirectly from extension
+&lt;CODE&gt;Makefile.PL&lt;/CODE&gt; files, here is an example &lt;CODE&gt;Makefile.PL&lt;/CODE&gt; entry to add a library to the build process for an extension:
+
+&lt;P&gt;
+&lt;PRE&gt;        LIBS =&amp;gt; &amp;#091;'-lgl'&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+When using 
+&lt;FONT SIZE=-1&gt;GCC,&lt;/FONT&gt; that entry specifies that MakeMaker should first
+look for &lt;CODE&gt;libgl.a&lt;/CODE&gt; (followed by &lt;CODE&gt;gl.a&lt;/CODE&gt;) in all the locations specified by
+&lt;CODE&gt;$Config{libpth}&lt;/CODE&gt;.
+
+&lt;P&gt;
+When using a compiler other than 
+&lt;FONT SIZE=-1&gt;GCC,&lt;/FONT&gt; the above entry will search for
+&lt;CODE&gt;gl.lib&lt;/CODE&gt; (followed by &lt;CODE&gt;libgl.lib&lt;/CODE&gt;).
+
+&lt;P&gt;
+If the library happens to be in a location not in &lt;CODE&gt;$Config{libpth}&lt;/CODE&gt;, you need:
+
+&lt;P&gt;
+&lt;PRE&gt;        LIBS =&amp;gt; &amp;#091;'-Lc:\gllibs -lgl'&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is a less often used example:
+
+&lt;P&gt;
+&lt;PRE&gt;        LIBS =&amp;gt; &amp;#091;'-lgl', ':nosearch -Ld:\mesalibs -lmesa -luser32'&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+This specifies a search for library &lt;CODE&gt;gl&lt;/CODE&gt; as before. If that search fails to find the library, it looks at the next
+item in the list. The
+&lt;CODE&gt;:nosearch&lt;/CODE&gt; flag will prevent searching for the libraries that follow, so it simply
+returns the value as &lt;CODE&gt;-Ld:\mesalibs -lmesa -luser32&lt;/CODE&gt;, since 
+&lt;FONT SIZE=-1&gt;GCC&lt;/FONT&gt; can use that value as is with its linker.
+
+&lt;P&gt;
+When using the Visual 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; compiler, the second item is returned as
+&lt;CODE&gt;-libpath:d:\mesalibs mesa.lib user32.lib&lt;/CODE&gt;.
+
+&lt;P&gt;
+When using the Borland compiler, the second item is returned as
+&lt;CODE&gt;-Ld:\mesalibs mesa.lib user32.lib&lt;/CODE&gt;, and MakeMaker takes care of moving the &lt;CODE&gt;-Ld:\mesalibs&lt;/CODE&gt; to the correct place in the linker command line.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:ExtUtils::MakeMaker|MakeMaker]
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:51:43</createtime>
+  <node_id>1189</node_id>
+  <synopsis>&lt;P&gt;
+&lt;CODE&gt;require ExtUtils::Liblist;&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;CODE&gt;ExtUtils::Liblist::ext($self, $potential_libs, $verbose);&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlman:ExtUtils::Liblist</title>
+  <nodeupdated>2005-08-10 15:36:44</nodeupdated>
+</node>

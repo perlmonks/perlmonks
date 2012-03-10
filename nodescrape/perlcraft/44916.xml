@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="44916" title="Yet Another Config File Parser Module" created="2000-12-05 02:12:32" updated="2005-08-02 13:11:18">
+<type id="121">
+perlcraft</type>
+<author id="36507">
+jynx</author>
+<data>
+<field name="doctext">
+# What makes this one better?  nothing really.  i tried out
+# App::Config, but (according to my understanding) one needs
+# to state all variables in the configuration before reading
+# in the configuration file.  That's useful in some situations,
+# i just didn't like it.  i tried Config::IniFile which worked
+# alright, but being lazy i don't like a function call in
+# between me and my values (i could also tie a hash to it,
+# which is useful, but i had a couple minutes so i thought i'd
+# do a quick reinvention of the wheel)
+#
+# What makes mine different is that it's a quick and dirty parser
+# that floods the packages namespace (not main's) with the
+# variables.  It doesn't handle arrays or hashes (to be handled
+# at a later date) just simple name=val (with any number of
+# spaces).
+#
+# The way to call it (in case you're interested) is just:
+#
+# use ConfFile("conf/file/name_here");
+#
+# this seems elegant and useful because i can put in one line
+# at the top of my code and use all of my configuration
+# variables.  It just makes sense to me for some reason.
+# Anyway, enough banter, here it is...
+
+#!/usr/local/bin/perl -w
+
+package ConfFile;
+use strict;
+use Carp;
+
+sub import {
+   shift;               # this gets rid of the calling package...
+   my ($call) = caller;
+
+   # i also changed this: why die cuz there was no file?
+   my $filename = $_[0] || return;
+   my $symbols  = &amp;readFile;
+
+   carp "No values were read in from $filename.\n" unless (keys %$symbols);
+
+   # one has to turn off strict 'refs' in order to flood the namespace of
+   # the calling package in this way.
+   no strict qw(refs);
+   foreach (keys %$symbols) {
+      *{"${call}::${_}"} = \$symbols-&gt;{$_};
+   }
+   use strict qw(refs);
+
+   return;
+}
+
+sub readFile {
+   my $file = shift;
+   my (%sym, $key, $val);
+   local $_;
+
+   open FILE, $file or croak "Couldn't open file $file: $!";
+
+   while (&lt;FILE&gt;) {
+      next if /^\s*#|;/;
+      next if /^$/;
+      chomp;
+
+      ($key, $val) = /^\s*?(\S+)\s*?=?\s*?(\S+)$/;
+      $sym{$key} = $val;
+   }
+   close FILE;
+
+   return (keys %sym) ? \%sym : undef;
+}
+
+
+1;
+
+# please, please comment on anything done badly, i do hope
+# to use this someday soon...
+#
+# jynx
+#
+# Update: i used Fastolfe's suggestions so this looks
+# a little better...</field>
+</data>
+</node>

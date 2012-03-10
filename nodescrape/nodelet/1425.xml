@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1425" title="Chatterbox" created="1999-12-27 21:23:17" updated="1331254621">
+<type id="9">
+nodelet</type>
+<author id="114">
+gods</author>
+<data>
+<field name="nlcode">
+[%
+    my $html= htmlcode(
+        'openform','',
+        getId($USER) == $HTMLVARS{guest_user}
+            ? ( -method =&gt; "get" )
+            : (),
+    );
+    for(  htmlcode( 'showprivatemessages','', 0, 1 )  ) {
+        $html .= $_ . "\n&lt;hr /&gt;\n"
+            if  $_;
+    }
+    # So 'nodes you wrote' doesn't go blank when you hit "Talk":
+    $html .= $q-&gt;hidden( 'user' );
+    if(  $VARS-&gt;{publicchatteroff}  ) {
+        ;
+    } elsif(
+        sub {
+            return 0  if  getId($USER) != $HTMLVARS{guest_user};
+            return 0  if  ! eval { require HTTP::BrowserDetect; 1 };
+            my $ua= HTTP::BrowserDetect-&gt;new( $q-&gt;user_agent() );
+            return 0  if  ! $ua;
+            return $ua-&gt;robot();
+        }-&gt;()
+    ) {
+        $html .= "&lt;i&gt;and the web crawler heard nothing...&lt;/i&gt;\n";
+    } else {
+        $html .= htmlcode( 'showchatter', 500, 10, 1 );
+    }
+    return  $html . htmlcode('talkform');
+%]
+&lt;/form&gt;
+[%
+    return $VARS-&gt;{hintsoff} ? '' : $q-&gt;i(
+        $q-&gt;br(),
+        genLink( 'How do I use this?', { node =&gt; 'ChatterBox FAQ' } ),
+        ' | ',
+        genLink( 'Other CB clients', { node_id =&gt; 20842 } ),
+    );
+%]
+</field>
+<field name="parent_container">
+1058</field>
+</data>
+</node>

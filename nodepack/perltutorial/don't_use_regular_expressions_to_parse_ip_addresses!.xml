@@ -1,0 +1,555 @@
+<node>
+  <doctext>&lt;!-- div class=&quot;nodelet_head&quot;&gt;Document Scope&lt;/div&gt;
+&lt;div class=&quot;nodelet_head&quot;&gt;&lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Document Scope&lt;/div --&gt;
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Document Scope&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+This document is intended to provide &lt;i&gt;numerical and networking&lt;/i&gt; information on why Perl regular expressions are inappropriate for effectively parsing IPv4 addresses.
+&lt;/p&gt;
+&lt;p&gt;
+This document does &lt;b&gt;not&lt;/b&gt; provide specific Perl programming examples of proper parsing. &amp;nbsp; A link to one good example can be found in the &quot;See Also&quot; section below.
+&lt;/p&gt;
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Short Answer&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+Regular expressions should &lt;b&gt;not&lt;/b&gt; be used to parse IP addresses because IP addresses can be expressed in several forms... &amp;nbsp; Aaaand the format that people generally expect to see is &lt;b&gt;not&lt;/b&gt; the one your computer and OS use, nor well-written applications either... &amp;nbsp; Sooooo you aren't really doing what you think you are doing... &amp;nbsp; Aaaaand even if you were, you would still very likely trip over one of many a'remaining trap or snare.
+&lt;/p&gt;
+&lt;p&gt;
+The &lt;tt&gt;inet_aton()&lt;/tt&gt; and &lt;tt&gt;inet_ntoa()&lt;/tt&gt; functions from &lt;tt&gt;Socket.pm&lt;/tt&gt; are generally considered to be the best from a very short list of Proper Ways to parse IP addresses, as they readily handle most all valid formats and representations, as well as being part of the standard Perl install.
+&lt;/p&gt;
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Multiple Representations&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+The term &quot;IP Address&quot; is commonly (mis)understood to mean a number that looks like this:
+&lt;/p&gt;
+&lt;p&gt;
+ &amp;nbsp; &lt;tt&gt;172.31.254.1&lt;/tt&gt;
+&lt;/p&gt;
+and yes, that is indeed a valid &lt;b&gt;human-readable &lt;u&gt;representation&lt;/u&gt;&lt;/b&gt; of an IP address.
+
+&lt;p&gt;
+You see, any given IP address is actually a &lt;b&gt;32 bit binary&lt;/b&gt; number, and &lt;b&gt;dotted-quad is merely one convenient convention&lt;/b&gt; to ease the strain on binary-impaired people brains when forced to deal with IP addresses. &amp;nbsp It provides a mental model that works well within limits, but the way you mentally process those four octets has very little relationship with the way routing and operating system softwares do.
+&lt;/p&gt;
+
+&lt;p&gt;
+Other representations include:&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; C-style hex &amp;nbsp; &lt;tt&gt;0xac1f35fe&lt;/tt&gt;&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; dotted hex &amp;nbsp; &lt;tt&gt;ac.1f.35.fe&lt;/tt&gt;&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; decimal &amp;nbsp; &lt;tt&gt;2887726590&lt;/tt&gt;&lt;br /&gt;
+ &amp;nbsp; &amp;nbsp; octal &amp;nbsp; &lt;tt&gt;025407632776&lt;/tt&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+Perhaps the &lt;b&gt;best summarization&lt;/b&gt; I've seen is from one particular version of &lt;tt&gt;man inet&lt;/tt&gt;
+&lt;p&gt;
+&lt;i&gt;
+Internet Address Values specified using dot notation take one of the following four forms:&lt;br /&gt;
+ &amp;nbsp; a.b.c.d&lt;br /&gt;
+ &amp;nbsp; a.b.c&lt;br /&gt;
+ &amp;nbsp; a.b&lt;br /&gt;
+ &amp;nbsp; a&lt;br /&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+4 part - each is interpreted as a byte of data and assigned, from left to right, to the four bytes of an Internet address.
+&lt;/p&gt;
+
+&lt;p&gt;
+3 part - last part is interpreted as a 16-bit quantity and placed in the right-most two bytes of the network address. &amp;nbsp; This makes the three-part address format convenient for specifying Class B network addresses as in 128.net.host.
+&lt;/p&gt;
+
+&lt;p&gt;
+2 part - the last part is interpreted as a 24-bit quantity and placed in the right-most three bytes of the network address. &amp;nbsp; This makes the two-part address format convenient for specifying Class A network addresses as in net.host.
+&lt;/p&gt;
+
+&lt;p&gt;
+1 part - the value is stored directly in the network address without any byte rearrangement.
+&lt;/p&gt;
+
+All numbers supplied as parts in dot notation can be decimal, octal, or hexadecimal, as specified in the C language (i.e., a leading 0x or 0X implies hexadecimal; a leading 0 implies octal; otherwise, the number is interpreted as decimal).
+&lt;/p&gt;
+&lt;/i&gt;
+
+&lt;p&gt;
+Buuuuuut... if you really want to grok IP addressing you &lt;b&gt;must&lt;/b&gt; start by thinking of them as binary, because that's what they really are, regardless of visible or programatic representations.
+&lt;/p&gt;
+
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Convert Dotted-Quad to Binary&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+Let's dissect our dotted-quad example from above.
+&lt;/p&gt;
+&lt;p&gt;
+ &amp;nbsp; &lt;tt&gt;172.31.254.1&lt;/tt&gt;
+&lt;/p&gt;
+First step - convert each part to binary&lt;pre&gt;
+  decimal   binary
+    172    1010 1100
+    31     0001 1111
+    254    1111 1110
+    1      0000 0001
+
+&lt;/pre&gt;
+
+Line them all up, in original order&lt;pre&gt;
+   172         31          53           254
+1010 1100   0001 1111   0011 0101   1111 1110
+
+&lt;/pre&gt;
+
+Then strip the spaces, and voila - a real-live IP address in all its 32 bit binary glory! &amp;nbsp; &lt;i&gt;(we'll leave spaces in later examples for clarity)&lt;/i&gt;&lt;pre&gt;
+  10101100000111110011010111111110
+
+&lt;/pre&gt;
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Traps and Snares&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+The 32 bit binary number above is what IOS, *nix, or Win32 use to route or process. &amp;nbsp; Given that, trying to parse while still in dotted-quad form can give unintended results.
+
+&lt;ul&gt;
+  &lt;li&gt;inclusion of unintended dotted-quad addresses
+  &lt;li&gt;inadvertant inclusion of dotted-quad addresses that are *not* valid as client source/destination
+  &lt;li&gt;unexpected inclusion of addresses in other formats
+  &lt;li&gt;unwitting exclusion of valid addresses in other forms
+  &lt;li&gt;(big|little) endian issues may rise up mightily and smite thee
+  &lt;li&gt;some utilities may want the address in native form (probably not many)
+&lt;/ul&gt;
+&lt;/p&gt;
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Blocks and Netmasks&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+If this section makes any sense at all,  then you likely see why binary Is The One True Way and how dotted-quad Is The Path To Perdition.
+&lt;/p&gt;
+
+
+Basic rules for address blocks, whether classful or classless:
+&lt;ul&gt;
+  &lt;li&gt;a block is defined by the combination of starting address and netmask
+  &lt;li&gt;the lowest-numbered address in a block is always the network itself &lt;b&gt;&lt;sup&gt;*&lt;/sup&gt;&lt;/b&gt;
+  &lt;li&gt;the highest-numbered address in a block is always broadcast &lt;b&gt;&lt;sup&gt;*&lt;/sup&gt;&lt;/b&gt;
+  &lt;li&gt;all the addresses between are usable for hosts
+  &lt;li&gt;each address specifies a physical or virtual &lt;b&gt;interface&lt;/b&gt;, not necessarily a host
+      &lt;br /&gt;&lt;i&gt;(consider a router with multiple LAN and/or WAN interfaces)&lt;/i&gt;
+&lt;/ul&gt;
+&lt;b&gt;&lt;sup&gt;*&lt;/sup&gt;&lt;/b&gt; &amp;nbsp; &lt;i&gt;&lt;small&gt;unless your internal network infrastructure architect has more time than brains and is insanely devious and contrary&lt;/small&gt;&lt;/i&gt;
+
+&lt;p&gt;
+Basic rules for (sub|super)netmasking:
+&lt;ul&gt;
+  &lt;li&gt;subnetting divides a single classful block into multiple networks of fewer addresses each
+  &lt;li&gt;supernetting combines multiple classful blocks into a single network of greater number of addresses
+  &lt;li&gt;both are done using netmasks - binary numbers verrrry similar to IP addresses
+  &lt;li&gt;no 0 may precede any 1 in the mask number
+
+  &lt;li&gt;the ones bits &lt;i&gt;(left side of mask)&lt;/i&gt; indicate network
+  &lt;li&gt;the zeros bits &lt;i&gt;(right side of mask)&lt;/i&gt; indicate host
+&lt;/ul&gt;
+&lt;/p&gt;
+
+
+Valid Octets for Netmasks&lt;pre&gt;
+  128   1000 0000
+  192   1100 0000
+  224   1110 0000
+  240   1111 0000
+  248   1111 1000
+  252   1111 1100
+  255   1111 1111
+
+&lt;/pre&gt;
+
+The Classful Netmasks&lt;pre&gt;
+  255.0.0.0       /8    11111111  00000000  00000000  00000000
+  255.255.0.0     /16   11111111  11111111  00000000  00000000
+  255.255.255.0   /24   11111111  11111111  11111111  00000000
+
+&lt;/pre&gt;
+
+Some Popular Classless Netmasks&lt;pre&gt;
+  255.255.255.224   /27   11111111  11111111  11111111  11100000
+  255.255.255.248   /29   11111111  11111111  11111111  11111000
+  255.255.255.252   /30   11111111  11111111  11111111  11111100
+
+&lt;/pre&gt;
+
+
+A common example of classful netmasking&lt;pre&gt;
+  netmask       255.255.255.0    11111111  11111111  11111111  00000000
+  bitwise       /24
+  network       192.168.0.0      11000000  10101000  00000000  00000000
+  first usable  192.168.0.1                                    00000001
+  last usable   192.168.0.254                                  11111110
+  broadcast     192.168.0.255                                  11111111
+  254 usable addresses
+  corporate office LAN
+
+&lt;/pre&gt;
+
+
+Examples of variable length subnet masking (VLSM) (classless)&lt;pre&gt;
+  netmask       255.255.255.224  11111111  11111111  11111111  11100000
+  bitwise       /27
+  network       172.31.254.0     10101100  00011111  11111110  00000000
+  first usable  172.31.254.1                                      00001
+  last host     172.31.254.30                                     11110
+  broadcast     172.31.254.31                                     11111
+  30 usable addresses
+  remote office LAN
+
+
+  netmask       255.255.255.248  11111111  11111111  11111111  11111000
+  bitwise       /29
+  network       172.31.254.32    10101100  00011111  11111110  00100000
+  first usable  172.31.254.33                                       001
+  last usable   172.31.254.38                                       110
+  broadcast     172.31.254.39                                       111
+  6 usable addresses
+  tiny remote LAN
+
+
+  netmask       255.255.255.252  11111111  11111111  11111111  11111100
+  bitwise       /30
+  network       172.31.254.40    10101100  00011111  11111110  00101000
+  first usable  172.31.254.41                                        01
+  last usable   172.31.254.42                                        10
+  broadcast     172.31.254.43                                        11
+  2 usable addresses
+  point-to-point WAN link
+  or PC+router telecommuter LAN
+
+&lt;/pre&gt;
+
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Invalid Client Addresses&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;
+None of these addresses should be assigned to Internet-attached client device interfaces, and most should not appear on private network client devices.
+&lt;/p&gt;
+
+zero&lt;pre&gt;
+  n.n.n.0         class C network n.n.n
+  n.n.0.0         class B network n.n
+  n.0.0.0         class C network n
+  0.0.0.0         default route
+  
+&lt;/pre&gt;
+broadcast&lt;pre&gt;
+  n.n.n.255        all hosts on class C network n.n.n
+  n.n.255.255      all hosts on class B network n.n
+  n.255.255.255    all hosts on class A network n
+  255.255.255.255  all hosts on whatever network I happen to be on
+
+&lt;/pre&gt;
+Loopback&lt;pre&gt;
+  127.0.0.0 through 127.255.255.255
+    127.0.0.0/8
+
+&lt;/pre&gt;
+Link Local&lt;pre&gt;
+  169.254.0.0 through 169.254.255.255
+    169.254.0.0/16
+
+&lt;/pre&gt;
+TEST-NET&lt;pre&gt;
+  192.0.2.0 through 192.0.2.255
+    192.0.2.0/24
+
+&lt;/pre&gt;
+Class D - statically scoped multicast&lt;pre&gt;
+  224.0.0.0 through 239.255.255.255
+  224.0.0.0/4   netmask 240.0.0.0
+    224.0.0.0/8   netmask 255.0.0.0
+    225.0.0.0/8
+    226.0.0.0/8
+    227.0.0.0/8
+    228.0.0.0/8
+    229.0.0.0/8
+    230.0.0.0/8
+    231.0.0.0/8
+    232.0.0.0/8
+    233.0.0.0/8
+    234.0.0.0/8
+    235.0.0.0/8
+
+    236.0.0.0/8
+    237.0.0.0/8
+    238.0.0.0/8
+    239.0.0.0/8
+
+&lt;/pre&gt;
+Class E - administratively scoped multicast&lt;pre&gt;
+  240.0.0.0 through 255.255.255.255
+  240.0.0.0/4   netmask 240.0.0.0
+    240.0.0.0/8   netmask 255.0.0.0
+    241.0.0.0/8
+    242.0.0.0/8
+    243.0.0.0/8
+    244.0.0.0/8
+    245.0.0.0/8
+    246.0.0.0/8
+    247.0.0.0/8
+    248.0.0.0/8
+    249.0.0.0/8
+    250.0.0.0/8
+    251.0.0.0/8
+    252.0.0.0/8
+    253.0.0.0/8
+    254.0.0.0/8
+    255.0.0.0/8
+
+&lt;/pre&gt;
+
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;See Also&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;ul&gt;
+  &lt;li&gt;[id://211290] &amp;nbsp; &lt;i&gt;example of inet_aton() for address parsing&lt;/i&gt;
+  &lt;li&gt;perldoc [cpan://Socket] &amp;nbsp; &lt;i&gt;inet_aton() pod&lt;/i&gt;
+  &lt;li&gt;perldoc [pack]
+  &lt;li&gt;perldoc [unpack]
+  &lt;li&gt;[http://lists.q-linux.com/pipermail/ph-perl/2002-February/000328.html|IP Manipulation: An Exercise]
+  &lt;li&gt;[cpan://Regexp::Common]
+  &lt;li&gt;man 3 inet_addr
+  &lt;li&gt;[http://search.barnesandnoble.com/textbooks/booksearch/isbninquiry.asp?ISBN=0%2D201%2D61571%2D1&amp;pdf=y&amp;userid=558O6CVMB0|Network Programming with Perl] &amp;nbsp; Stein &amp;nbsp; 0-201-61571-1
+  &lt;li&gt;[http://search.barnesandnoble.com/textbooks/booksearch/isbninquiry.asp?userid=558O6CVMB0&amp;isbn=0201877112|TCP/IP running a successful network] &amp;nbsp; Washburn and Evans &amp;nbsp; 0-201-87711-2
+  &lt;li&gt;[http://www.iana.org/assignments/multicast-addresses|IANA  Multicast Addresses]
+  &lt;li&gt;[http://www.rfc-editor.org/rfc/rfc3330.txt|RFC 3330]
+  &lt;li&gt;[http://www.isi.edu/in-notes/rfc1918.txt|RFC 1918]
+  &lt;li&gt;[Pod::Master] &amp;nbsp; &lt;i&gt;for friendlier perldoc&lt;/i&gt;
+  &lt;li&gt;[?index.pl|Perl Monks]
+&lt;/ul&gt;
+
+
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Credits&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+Big phat props to the following monks:
+&lt;ul&gt;
+  &lt;li /&gt;[jdporter] for inspiration for this node from his CB explanation &amp; post of inet_aton() usage
+  &lt;li /&gt;[jdporter], [Zaxo], [tye], [Mr. Muskrat] and [jeffa]  for mondo pre-post critique, additions and corrections
+  &lt;li /&gt;[MidLifeXis] for catching usable-host-count error
+  &lt;li /&gt;other monks what shall remain nameless due to witness protection program restrictions
+  &lt;li /&gt;some guy named [vroom].
+&lt;/ul&gt;
+Any mistakes, misinformation, or bold-faced lies contained herein are mine, all mine.
+&lt;!-- jeffa --&gt;
+&lt;!--   pack() --&gt;
+
+&lt;!-- Zaxo --&gt;
+&lt;!--   execrated v-strings --&gt;
+&lt;!--   5.6-8 will pack vddd.ddd.ddd.ddd into 4 bytes, network order, but everyone now thinks it was a mistake --&gt;
+&lt;!--   what inet_aton does, convert the quad to native u32 --&gt;
+&lt;!--   I mislead you, inet_aton packs in network order --&gt;
+&lt;!--   Traps &amp; Snares - warn about endian issues, some utils want ip number in native form --&gt;
+&lt;!--   man 3 inet_addr', gethostbyname can handle quad, but not ip number --&gt;
+&lt;!--   inet_aton(&quot;66.92.212.9&quot;) produces a string of four bytes in the same order as the quad. --&gt;
+&lt;!--     They can be sorted as strings in that representation, which turns out to be 'B\?' followed by tab... --&gt;
+&lt;!--     On a big-endian machine, that would be the same as the 32-bit integer for that ip... --&gt;
+&lt;!--     Perl, however, still thinks it's a string,... --&gt;
+&lt;!--     so, not matching a number-like string, it evaluates to zero unless... --&gt;
+&lt;!--     ...unless the quad looks like 56.48.52.53, in which case it evaluates wrong... --&gt;
+&lt;!--     The solution is to say if the code was mangled, $ipnum = unpack 'N', inet_aton(&quot;66.92.212.9&quot;); --&gt;
+
+&lt;!-- tye --&gt;
+&lt;!--   perldoc Socket --&gt;
+&lt;!--   more info on inet_aton() other formats ie (C-style)hexadecimal --&gt;
+&lt;!--   also how inet_aton() is The Right To Do It --&gt;
+&lt;!--   man inet --&gt;
+
+&lt;!-- jdporter --&gt;
+&lt;!--   typos --&gt;
+&lt;!--   dl, dt, dd --&gt;
+&lt;!--   CSS --&gt;
+
+&lt;!-- Mr. Muskrat --&gt;
+&lt;!--   Socket.pm for inet_(aton|ntoa) --&gt;
+&lt;!--   binary ip address can be converted to decimal (2887726590) and used --&gt;
+&lt;!--   http://2887726590 --&gt;
+&lt;!--   http://1109866011 perlmonks.org --&gt;
+&lt;/p&gt;
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Decimal-to-Binary Conversion Chart&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+&lt;pre&gt;
+example:
+
+dotted quad    192           9           200           1
+binary      1100 0000    0000 1001    1100 1000    0000 0001
+
+
+
+* indicates valid netmask
+
+  0    0000 0000      64   0100 0000     *128  1000 0000*    *192  1100 0000*
+  1    0000 0001      65   0100 0001      129  1000 0001      193  1100 0001
+
+  2    0000 0010      66   0100 0010      130  1000 0010      194  1100 0010
+  3    0000 0011      67   0100 0011      131  1000 0011      195  1100 0011
+
+  4    0000 0100      68   0100 0100      132  1000 0100      196  1100 0100
+  5    0000 0101      69   0100 0101      133  1000 0101      197  1100 0101
+
+  6    0000 0110      70   0100 0110      134  1000 0110      198  1100 0110
+  7    0000 0111      71   0100 0111      135  1000 0111      199  1100 0111
+
+  8    0000 1000      72   0100 1000      136  1000 1000      200  1100 1000
+  9    0000 1001      73   0100 1001      137  1000 1001      201  1100 1001
+
+  10   0000 1010      74   0100 1010      138  1000 1010      202  1100 1010
+  11   0000 1011      75   0100 1011      139  1000 1011      203  1100 1011
+
+
+  12   0000 1100      76   0100 1100      140  1000 1100      204  1100 1100
+  13   0000 1101      77   0100 1101      141  1000 1101      205  1100 1101
+
+  14   0000 1110      78   0100 1110      142  1000 1110      206  1100 1110
+  15   0000 1111      79   0100 1111      143  1000 1111      207  1100 1111
+
+  16   0001 0000      80   0101 0000      144  1001 0000      208  1101 0000
+  17   0001 0001      81   0101 0001      145  1001 0001      209  1101 0001
+
+  18   0001 0010      82   0101 0010      146  1001 0010      210  1101 0010
+  19   0001 0011      83   0101 0011      147  1001 0011      211  1101 0011
+
+  20   0001 0100      84   0101 0100      148  1001 0100      212  1101 0100
+  21   0001 0101      85   0101 0101      149  1001 0101      213  1101 0101
+
+  22   0001 0110      86   0101 0110      150  1001 0110      214  1101 0110
+  23   0001 0111      87   0101 0111      151  1001 0111      215  1101 0111
+
+  24   0001 1000      88   0101 1000      152  1001 1000      216  1101 1000
+  25   0001 1001      89   0101 1001      153  1001 1001      217  1101 1001
+
+  26   0001 1010      90   0101 1010      154  1001 1010      218  1101 1010
+  27   0001 1011      91   0101 1011      155  1001 1011      219  1101 1011
+
+  28   0001 1100      92   0101 1100      156  1001 1100      220  1101 1100
+  29   0001 1101      93   0101 1101      157  1001 1101      221  1101 1101
+
+  30   0001 1110      94   0101 1110      158  1001 1110      222  1101 1110
+  31   0001 1111      95   0101 1111      159  1001 1111      223  1101 1111
+
+  32   0010 0000      96   0110 0000      160  1010 0000     *224  1110 0000*
+  33   0010 0001      97   0110 0001      161  1010 0001      225  1110 0001
+
+  34   0010 0010      98   0110 0010      162  1010 0010      226  1110 0010
+  35   0010 0011      99   0110 0011      163  1010 0011      227  1110 0011
+
+  36   0010 0100      100  0110 0100      164  1010 0100      228  1110 0100
+  37   0010 0101      101  0110 0101      165  1010 0101      229  1110 0101
+
+  38   0010 0110      102  0110 0110      166  1010 0110      230  1110 0110
+  39   0010 0111      103  0110 0111      167  1010 0111      231  1110 0111
+
+  40   0010 1000      104  0110 1000      168  1010 1000      232  1110 1000
+  41   0010 1001      105  0110 1001      169  1010 1001      233  1110 1001
+
+  42   0010 1010      106  0110 1010      170  1010 1010      234  1110 1010
+  43   0010 1011      107  0110 1011      171  1010 1011      235  1110 1011
+
+  44   0010 1100      108  0110 1100      172  1010 1100      236  1110 1100
+  45   0010 1101      109  0010 1101      173  1010 1101      237  1010 1101
+
+  46   0010 1110      110  0110 1110      174  1010 1110      238  1110 1110
+  47   0010 1111      111  0110 1111      175  1010 1111      239  1110 1111
+
+  48   0011 0000      112  0111 0000      176  1011 0000     *240  1111 0000*
+  49   0011 0001      113  0111 0001      177  1011 0001      241  1111 0001
+
+  50   0011 0010      114  0111 0010      178  1011 0010      242  1111 0010
+  51   0011 0011      115  0111 0011      179  1011 0011      243  1111 0011
+
+  52   0011 0100      116  0111 0100      180  1011 0100      244  1111 0100
+  53   0011 0101      117  0111 0101      181  1011 0101      245  1111 0101
+
+  54   0011 0110      118  0111 0110      182  1011 0110      246  1111 0110
+  55   0011 0111      119  0111 0111      183  1011 0111      247  1111 0111
+
+  56   0011 1000      120  0111 1000      184  1011 1000     *248  1111 1000*
+  57   0011 1001      121  0111 1001      185  1011 1001      249  1111 1001
+
+  58   0011 1010      122  0111 1010      186  1011 1010      250  1111 1010
+  59   0011 1011      123  0111 1011      187  1011 1011      251  1111 1011
+
+  60   0011 1100      124  0111 1100      188  1011 1100     *252  1111 1100*
+  61   0011 1101      125  0111 1101      189  1011 1101      253  1111 1101
+
+  62   0011 1110      126  0111 1110      190  1011 1110      254  1111 1110
+  63   0011 1111      127  0111 1111      191  1011 1111     *255  1111 1111*
+
+&lt;/pre&gt;
+&lt;/p&gt;
+
+
+
+&lt;table width=&quot;100%&quot; cellpadding=&quot;14&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;th class=&quot;nodelet_head&quot;&gt; &lt;a name=&quot;put&quot;&gt;&lt;/a&gt;Updates &lt;strike&gt;2003-08-28&lt;/strike&gt; 2005-10-22&lt;/th&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;
+&lt;ul&gt;
+  &lt;li&gt;additional &quot;special&quot; address blocks in Invalid Client Addresses
+  &lt;li&gt;additional links in See Also
+  &lt;li&gt;more Traps and Snares
+  &lt;li&gt;minor verbage tweaks
+  &lt;li&gt;fix typos
+  &lt;li&gt;add caveat regarding net=.0 and broadcast=.255
+&lt;/ul&gt;
+&lt;/p&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>221512</node_id>
+  <author_user>14909</author_user>
+  <title>Don't Use Regular Expressions To Parse IP Addresses!</title>
+  <createtime>2002-12-20 15:53:46</createtime>
+  <nodeupdated>2005-08-15 11:39:49</nodeupdated>
+</node>

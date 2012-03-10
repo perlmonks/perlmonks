@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="187779" title="High Quality Anime" created="2002-08-05 15:04:02" updated="2005-06-19 10:39:50">
+<type id="121">
+perlcraft</type>
+<author id="961">
+Anonymous Monk</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+# On irc.qeast.net, there's a channel called #hqa where you can go
+# to download fansubbed anime.  Their preferred method of
+# distribution is ftp, and a list of participating ftp sites can
+# be recieved by typing "!HQA-list" in the channel.
+# 
+# The following script will take this list of ftp sites and
+# reformat it into ncftp bookmark format before printing it to
+# STDOUT.  This output can be appended to ~/.ncftp/bookmarks.
+# 
+# Then, if you use zsh 4.x (or greater) and have completions
+# turned on, typing `ncftp [TAB]` should present you with list of
+# bookmarks to choose from.  Zsh's completions can be enabled by
+# running `autoload -U compinit; compinit`.
+
+use strict;
+
+sub ip {
+    my $host = shift;
+    my $ip; 
+    if ($host =~ /^d/) {
+	$ip = $host;
+    } else {
+	my $dat = gethostbyname($host);
+	if (defined($dat)) {
+	    $ip = join('.', unpack('CCCC', $dat));
+	} else {
+	    $ip = "";
+	}
+    }
+    $ip;
+}
+
+my $fn = shift || "hqa-list.txt";
+open(IN, $fn)  || die($!);
+
+while (&lt;IN&gt;) {
+    last if /^Name/;
+}
+my @line = &lt;IN&gt;;
+shift(@line);
+
+*F = *STDOUT;
+
+foreach (@line) {
+    my ($name, $host, $port, $login, $pass) = split(/\s+/, $_);
+    printf F (
+	"%s,%s,%s,,,%s,I,%d,%d,1,1,1,1,%s,,,,,,S,-1\n",
+	$name,
+	$host,
+	$login,
+	"",
+	$port,
+	0,
+	ip($host),
+    );
+}
+
+exit 0;
+</field>
+</data>
+</node>

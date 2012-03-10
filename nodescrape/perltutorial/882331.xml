@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="882331" title="Using Test-Point Callbacks for Automated Diagnostics in Testing" created="2011-01-14 07:27:52" updated="2011-01-14 07:27:52">
+<type id="956">
+perltutorial</type>
+<author id="437266">
+ait</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;What is a "Test-Point" and why should I care?&lt;/h3&gt;
+&lt;p&gt;
+Tests usually fail, at most, with a diagnostic message regarding the overall result of the test or some observable side-effect available to the test code. Then it's up to the programmer to elevate the debugging level and re-run the tests in the hopes that the &lt;i&gt;diagnostic&lt;/i&gt; debug messages will give some clue as to what went wrong &lt;i&gt;inside&lt;/i&gt; a specific method or subroutine. If the diagnostic messages don't help, the programmer then has to dive into the code, usually placing warn/debug statements or firing up the debugger and use breakpoints, watches, etc. to determine under what conditions this particular test was failing. 
+&lt;/p&gt;
+&lt;p&gt;
+It's quite customary to leave these debug-level messages (and even DB breakpoints) in the code as they are basically innocuous at runtime, but are left there, precisely as a reminder that this is usually a good place to stop and inspect something when testing and debugging. &lt;b&gt;It is these spots in the code which we will call "Test-Points" in the context of this tutorial&lt;/b&gt;. They are places in the code that help you diagnose a failure, akin somewhat to &lt;i&gt;assertions&lt;/i&gt;, but targeted not at unexpected results or side-effects, but rather at expected flows, values, etc. based on certain conditions created by a specific test.
+&lt;/p&gt;
+&lt;p&gt;
+It is important to note that contrary to assertions, Test-Points (or TP) are mainly used to give the test code the ability to inspect &lt;i&gt;inside&lt;/i&gt; methods at specific places, when running a specific test, and just as debug statements and pre-defined breakpoints, they can be safely left in the code, and activated when needed. The TPs are analogous to those found in printed circuit boards which are sometimes used by special self-test / diagnostic circuitry such as I2C, for example, which is commonly found in most modern Phillips appliances.
+&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;
+Anywhere you place a permanent debug-level statement, or have found the need to place a DB breakpoint, qualifies as a potential TP.&lt;/b&gt;
+&lt;/p&gt;
+&lt;p&gt;
+By using the TP techniques described here, you can actually do stuff in tests like: evaluate partial results within a sub, monitor some local/automatic var, check an object attribute or side-effect at a given spot, or even condition further tests based on these intermediate results.
+&lt;/p&gt;
+
+&lt;h3&gt;What Test-Points are not&lt;/h3&gt;
+&lt;p&gt;
+&lt;b&gt;Test-Points are not a substitute for good design&lt;/b&gt;. Having said that, the techniques outlined here &lt;b&gt;can actually be used to test otherwise un-testable software&lt;/b&gt;. And while this is better than no testing at all, it is always best to re-think and factorize your code to make it more test-able in the first place. In fact, by learning the Test-Point techniques in this tutorial, you might be inspired to use some functional techniques (yes, even in your OO code!) to make your software more flexible and elegant. The underlying concepts of this technique were borrowed directly from a book titled "Higher Order Perl" by Mark Jason Dominus. One particular paragraph that will hopefully encourage you to read this book, and come to &lt;i&gt;really appreciate the beauty and power&lt;/i&gt; of a multi-paradigm language such as Perl:
+&lt;/p&gt;
+&lt;blockquote&gt;&lt;i&gt;... by parametrizing some part of a function to call some other function instead of hardwiring the behavior, we can make it more flexible. This added flexibility will pay off when we want the function to do something a little different, such as performing an automatic self-check. Instead of having to clutter up the function with a lot of optional self-testing code, we can separate the testing part from the main algorithm. The algorithm remains as clear and simple as ever, and we can enable or disable the self-checking code at run time if we want to, by passing a different coderef argument.
+&lt;/i&gt;&lt;/blockquote&gt;
+&lt;p&gt;Last paragraph, section 1.3 "The Tower of Hanoi"&lt;/p&gt;
+
+&lt;h3&gt;The Technique&lt;/h3&gt;
+&lt;p&gt;
+To illustrate the method, we will be using Moose code as an example, although this technique can be applied to any and all Perl code, as it is based on powerful features/capabilities of the core language such as code references and callbacks.
+&lt;/p&gt;
+&lt;p&gt;
+The example code below uses a single callback as a class attribute. In reality, you would probably want protect this attribute with specific read and write methods, use configuration options, environment variables and so forth, but for the sake of simplicity, we will just use the default get/setters to map the single callback to a code reference in the test code itself.
+&lt;/p&gt;
+&lt;h4&gt;Security Warning&lt;/h4&gt;
+&lt;p&gt;
+Any potential hook in software can lead to unscrupulous use by crackers and malware. It could also lead to inadvertent use by a clever hacker to exploit some other use for your TP, possibly not even realizing that it should only be used for testing and no code should depend on these callbacks whatsoever. Also in the example below, you will notice that these callbacks are used just to send scalar values in anonymous hashes, giving the testing software a chance to inspect values inside a sub, much like watches. Likewise, they &lt;i&gt;could&lt;/i&gt; be also used bi-directionally to force certain behavior in a specific test (e.g. to simulate some data inside the subroutine) but &lt;b&gt;this is highly unrecommended, unless you really need to and know what you're doing&lt;/b&gt;. Although, such inbound manipulation could be used to further &lt;i&gt;diagnose&lt;/i&gt; a failure by re-running the test and forcing conditions to &lt;i&gt;assert&lt;/i&gt; the failure, perhaps based on particular experience or expertise.
+&lt;/p&gt;
+
+&lt;h4&gt;test_class.pm&lt;/h4&gt;
+&lt;h5&gt;Setting up the Callback&lt;/h5&gt;
+&lt;p&gt;
+This example Moose class implements the TP technique by setting up a single callback attribute (tp_callback), which is preset to be a code reference. In the BUILD method, we initialize the callback with a simple sub, making it innocuous unless someone deliberately points this code reference elsewhere. In this example, this may occur at creation time (in the new() method of the class), or ad-hoc later on.
+&lt;/p&gt;
+&lt;h5&gt;Security Note&lt;/h5&gt;
+&lt;p&gt;
+In real life, you would probably want to limit this by wrapping/conditioning the actual calls to the callback with a debug-level or diagnostic-mode flag of some sort. Similar to the way debug messages are conditioned by level, you could make the attribute private or simply unavailable if certain conditions are not met. One way to accomplish this in Moose, could be to verify the debug-level (config param, environment var, etc.), and by using a code block at the beginning of your class, modify the class before creation, making the whole callback mechanism is simply disabled or non-existent to external code. A simple example of this is given at the end of this tutorial.
+&lt;/p&gt;
+&lt;h5&gt;Creating the Test Point&lt;/h5&gt;
+&lt;p&gt;
+In the example code below, a TP is created by simply calling the global callback with two parameters (a recommendation, but the parameter list is really up to you). The first parameter is the TP name, this will allow the testing code to identify which TP is being called. The second parameter is optional as you may just want to check the object's public attributes or side-effect. We recommended that you standardize this to a single anonymous hash, containing key-value pairs of the things you want to inspect, or even modify by returning references. References would allow the test code to perform more elaborate actions, but again, &lt;b&gt;this is not recommended unless really needed, usually if there is no other way to accomplish this using the regular input of the sub in question, or because you want to drill-down into the diagnosis&lt;/b&gt;. 
+&lt;/p&gt;
+&lt;p&gt;
+Remember that the principal objective of the Test-Point is for better diagnostics, but in some particular situations it might be useful to force certain things and analyze the behavior. In other words, forcing something may allow the testing code to diagnose the problem even further and pin-point exactly not only &lt;i&gt;what&lt;/i&gt; failed but possibly even &lt;i&gt;why&lt;/i&gt;. In an electronic circuit this would be similar to injecting a signal at a TP to verify or &lt;i&gt;assert&lt;/i&gt; the diagnosis. Of course, this is what a test software is meant to accomplish in the first place, but it's generally limited to the sub's standard input parameters, whilst this technique may allow a test to alter or force certain things inside the sub itself. Again, use with care and only if it makes sense to enhance the diagnostic capabilities of your tests. 
+&lt;/p&gt;
+
+&lt;code&gt;
+package test_class;
+
+use Moose;
+
+has 'foo' =&gt; (
+  is =&gt; 'rw',
+  isa =&gt; 'Str',
+);
+
+has 'bar' =&gt; (
+  is =&gt; 'rw',
+  isa =&gt; 'Str',
+);
+
+has 'tp_callback' =&gt; (
+  is =&gt; 'rw',
+  isa =&gt; 'CodeRef',
+);
+
+sub BUILD {
+  my $self = shift;
+  # initialize the test callback
+  $self-&gt;tp_callback(sub {return;});
+}
+
+sub asub {
+  my $self = shift;
+  my $lvar_foo;
+  my $lvar_bar;
+
+  # some code that sets bar
+  $self-&gt;bar('result');
+
+  # you want to test the value of bar at this point
+  $self-&gt;tp_callback-&gt;('test_point_one');
+
+  # some code that sets a local vars
+  $lvar_foo = 'yuca';
+  $lvar_bar = 'pelada';
+
+  # you want to test the value of lvar at this point
+  $self-&gt;tp_callback-&gt;('test_point_two', {
+    lvar_foo =&gt; $lvar_foo,
+    lvar_bar =&gt; $lvar_bar,
+  });
+
+  return 1;
+
+}
+
+__PACKAGE__-&gt;meta-&gt;make_immutable;
+
+1;
+
+&lt;/code&gt;
+
+&lt;h4&gt;test_class.t&lt;/h4&gt;
+&lt;p&gt;
+The test code below implements the Test Points. The general structure of the test file is just like any other except that the Test-Points are handled in an event-driven fashion, meaning that they will be called at any time during the execution of a regular test, and a specific Test-Point may be called by several tests as well, so you may need additional parameters or test logic to differentiate.
+&lt;/p&gt;
+&lt;p&gt;
+This test example below has four main sections. The first is just the basic declarations and common use_ok tests of any test file. The second, is the declaration of the dispatch table that maps the Test-Point names to their servicing sub-routines. The third is the standard tests you would usually perform on this class, and the fourth are the Test-Point service subroutines.
+&lt;/p&gt;
+&lt;p&gt;
+TP names of course, should be unique, so you may want to include the sub name as part of their name, or could also be numbered with some special TP scheme such as those used in circuit boards. Also, bear in mind as mentioned above, that a TP may be called by different tests. This can be addressed by conditioning the callback in the test code itself, or in the class code as well (e.g. invoke this TP only if x,y,z). 
+&lt;/p&gt;
+&lt;p&gt;
+The final implementation details depend very much on your your specific needs so you must adapt this technique accordingly. The technique described here is intended to be simple and introduce the subject of Test-Points by using Callbacks. Other options you may want to consider are: using multiple callbacks or allowing your subs to accept coderefs as parameters. This is commonly used in functional programming as was described above in the reference Mark Jason Dominus' "Higher order Perl".
+&lt;/p&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Test::More;
+
+BEGIN { use_ok 'test_class' }
+
+my $tc = test_class-&gt;new();
+
+# the dispatch table
+my %test_points = (
+  test_point_one =&gt; \&amp;test_point_one,
+  test_point_two =&gt; \&amp;test_point_two,
+);
+
+# setup the callback dispatch
+$tc-&gt;tp_callback(
+  sub {
+    my $tp = shift; 
+    $test_points{$tp}-&gt;(@_);
+  }
+);
+
+# regular tests here
+cmp_ok($tc-&gt;asub(), '==', 1, 'Result of asub');
+
+# callback test subs here (or in pm?)
+sub test_point_one {
+  my $params = shift; #not used in this test point
+  cmp_ok($tc-&gt;bar, 'eq', 'result', 
+         'Value of attr bar at test_point_one');
+}
+
+sub test_point_two {
+  my $params = shift;
+  cmp_ok($params-&gt;{lvar_foo}, 'eq', 'yuca',
+         'Value of lvar_foo at test_point_two');
+  cmp_ok($params-&gt;{lvar_bar}, 'eq', 'pelada', 
+         'Value of lvar_bar at test_point_two');
+}
+
+done_testing();
+
+&lt;/code&gt;
+
+&lt;h4&gt;How to run the examples&lt;/h4&gt;
+&lt;p&gt;
+Download the examples to the same directory and run with:
+&lt;/p&gt;
+&lt;p&gt;
+prove -v test_class.t
+&lt;/p&gt;
+&lt;p&gt;
+You should see something like the example results below using bash shell:
+&lt;/p&gt;
+&lt;code&gt;
+aimass@yclt2:~/languages/perl/MooseTest$ prove -v test_class.t
+test_class.t .. 
+ok 1 - use test_class;
+ok 2 - Value of attr bar at test_point_one
+ok 3 - Value of lvar_foo at test_point_two
+ok 4 - Value of lvar_bar at test_point_two
+ok 5 - Result of asub
+1..5
+ok
+All tests successful.
+Files=1, Tests=5,  0 wallclock secs ( 0.05 usr  0.00 sys +  0.37 cusr  0.02 csys =  0.44 CPU)
+Result: PASS
+&lt;/code&gt;
+
+&lt;h3&gt;Avoiding TP abuse by Meta manipulation in Moose&lt;/h3&gt;
+&lt;p&gt;
+This las section deals with some security concerns that may arise by allowing external code to peek or modify the behavior of your subs. It is not meant as an exhaustive analysis, but rather as a simple example to prevent inadvertent use of your Test-Points. The following code is almost exactly the same as above, but with a simple mechanism to disable the TP mechanism unless an environment variable is set to a specific debugging level.
+&lt;/p&gt;
+&lt;h4&gt;cond_tp.pm&lt;/h4&gt;
+&lt;p&gt;
+The class is almost identical to the original example above. Nevertheless, a code block at the top of the class modifies the class' meta information disabling the TP capabilities. To explain this code in detail is beyond the scope of this tutorial but it should clearly illustrate the point. To further understand it please refer to the POD for [cpan://Class::MOP], [cpan://Moose], [cpan://Moose::Manual] and [cpan://Moose::Manual::Attributes].
+&lt;/p&gt;
+
+&lt;code&gt;
+package cond_tp;
+
+use Moose;
+use namespace::autoclean;
+
+has 'foo' =&gt; (
+  is =&gt; 'rw',
+  isa =&gt; 'Str',
+);
+
+has 'bar' =&gt; (
+  is =&gt; 'rw',
+  isa =&gt; 'Str',
+);
+
+# set-up Test-Point depending on debug level  
+{
+  my $debug_level = $ENV{'MYDEBUG_LEVEL'} || 0;
+  my $meta = Class::MOP::get_metaclass_by_name(__PACKAGE__);
+  # enable TPs at debug level 5 and higher      
+  if($debug_level &gt; 4){
+    $meta-&gt;add_attribute(
+      tp_enabled =&gt; (
+        accessor =&gt; 'tp_enabled',
+        init_arg =&gt; undef, # prevent override via new()
+        predicate =&gt; 'has_tp_enabled'
+        default =&gt; 1, # test-points are enabled
+        writer =&gt; undef, # always read-only       
+      )
+    );
+    $meta-&gt;add_attribute(
+      tp_callback =&gt; (
+        accessor =&gt; 'tp_callback', # default is rw
+        predicate =&gt; 'has_tp_callback',
+        default =&gt; sub {return;},
+      )
+    );
+  }
+  else{
+    $meta-&gt;add_attribute(
+      tp_enabled =&gt; (
+        accessor =&gt; 'tp_enabled',
+        init_arg =&gt; undef,
+        predicate =&gt; 'has_tp_enabled',
+        default =&gt; 0, # test points are disabled 
+        writer =&gt; undef,
+      )
+    );
+    $meta-&gt;add_attribute(
+      tp_callback =&gt; (
+        accessor =&gt; 'tp_callback',
+        predicate =&gt; 'has_tp_callback',
+        default =&gt; sub {return;},
+        writer =&gt; undef, # cb is now read-only
+      )
+    );
+  }
+}
+
+sub asub {
+  my $self = shift;
+  my $lvar_foo;
+  my $lvar_bar;
+
+  # some code that sets bar                 
+  $self-&gt;bar('result');
+
+  # TP conditioned                                  
+  $self-&gt;tp_callback-&gt;('test_point_one') 
+      if $self-&gt;tp_enabled;
+
+  # some code that sets a local vars         
+  $lvar_foo = 'yuca';
+  $lvar_bar = 'pelada';
+
+  # TP conditioned                                  
+  $self-&gt;tp_callback-&gt;('test_point_two', {
+    lvar_foo =&gt; $lvar_foo,
+    lvar_bar =&gt; $lvar_bar,
+  }) if $self-&gt;tp_enabled;
+
+  return 1;
+}
+
+__PACKAGE__-&gt;meta-&gt;make_immutable;
+1;
+
+&lt;/code&gt;
+
+&lt;h4&gt;cond_tp.t&lt;/h4&gt;
+
+&lt;p&gt;
+The test code is almost exactly the same as the previous one except for the conditional on setting-up the callback.
+&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl                                   
+
+use strict;
+use warnings;
+use Test::More;
+
+BEGIN { use_ok 'cond_tp' }
+
+my $tc = cond_tp-&gt;new();
+
+# the dispatch table                                                                                                     
+my %test_points = (
+  test_point_one =&gt; \&amp;test_point_one,
+  test_point_two =&gt; \&amp;test_point_two,
+);
+
+# setup the callback dispatch only if enabled   
+if($tc-&gt;tp_enabled){
+  $tc-&gt;tp_callback(
+    sub {
+      my $tp = shift; 
+      $test_points{$tp}-&gt;(@_);
+    }
+  );
+}
+
+# regular tests here                         
+cmp_ok($tc-&gt;asub(), '==', 1, 'Result of asub');
+
+# callback test subs here (or in pm?)        
+sub test_point_one {
+  my $params = shift; #not used in this test point
+  cmp_ok($tc-&gt;bar, 'eq', 'result', 'Value of attr bar at test_point_one');
+}
+
+sub test_point_two {
+  my $params = shift;
+  cmp_ok($params-&gt;{lvar_foo}, 'eq', 'yuca',   
+         'Value of lvar_foo at test_point_two');
+  cmp_ok($params-&gt;{lvar_bar}, 'eq', 'pelada', 
+         'Value of lvar_bar at test_point_two');
+}
+
+done_testing();
+
+&lt;/code&gt;
+
+
+&lt;h4&gt;How to run the examples&lt;/h4&gt;
+&lt;p&gt;
+Download the examples to the same directory and run with:
+&lt;/p&gt;
+&lt;p&gt;
+prove -v cond_tp.t
+&lt;/p&gt;
+&lt;p&gt;
+Test the TP conditionals by setting the MYDEBUG_LEVEL to 5 and above. You should see something like the example results below using bash shell:
+&lt;/p&gt;
+&lt;code&gt;
+aimass@yclt2:~/languages/perl/MooseMeta$ export MYDEBUG_LEVEL=5
+aimass@yclt2:~/languages/perl/MooseMeta$ prove -v cond_tp.t
+cond_tp.t .. 
+ok 1 - use cond_tp;
+ok 2 - Value of attr bar at test_point_one
+ok 3 - Value of lvar_foo at test_point_two
+ok 4 - Value of lvar_bar at test_point_two
+ok 5 - Result of asub
+1..5
+ok
+All tests successful.
+Files=1, Tests=5,  1 wallclock secs ( 0.04 usr  0.01 sys +  0.40 cusr  0.01 csys =  0.46 CPU)
+Result: PASS
+aimass@yclt2:~/languages/perl/MooseMeta$ export MYDEBUG_LEVEL=4
+aimass@yclt2:~/languages/perl/MooseMeta$ prove -v cond_tp.t
+cond_tp.t .. 
+ok 1 - use cond_tp;
+ok 2 - Result of asub
+1..2
+ok
+All tests successful.
+Files=1, Tests=2,  0 wallclock secs ( 0.03 usr  0.01 sys +  0.39 cusr  0.02 csys =  0.45 CPU)
+Result: PASS
+
+&lt;/code&gt;
+
+&lt;h3&gt;References&lt;/h3&gt;
+&lt;p&gt;[id://880440]&lt;/p&gt;
+&lt;p&gt;[id://880012]&lt;/p&gt;
+</field>
+</data>
+</node>

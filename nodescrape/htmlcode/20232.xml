@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="20232" title="Q&amp;Avoteit" created="2000-03-21 00:10:20" updated="2004-11-24 04:23:56">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+# this code has been integrated into [voteit]; Q&amp;Avoteit should no longer be used
+return "[Q&amp;Avoteit] is deprecated; use [voteit]";
+__END__
+
+my ($N) = @_;
+$N = $NODE unless $N;
+
+
+
+getRef($N);
+#return unless $$N{type}{title} eq 'writeup';
+
+#return if $$N{author_user} == $HTMLVARS{default_user};
+return if getId($USER) == $HTMLVARS{default_user};
+
+foreach (values %HTMLVARS) {
+  return if (getId($N) eq $_);
+}
+
+
+use lib $HTMLVARS{uselib};
+use Everything::Experience;
+
+
+my $str;
+my $VSETTINGS=getVars(getNode('vote settings','setting'));
+my $uplbl = $$VSETTINGS{upLabel} if exists $$VSETTINGS{upLabel};
+$uplbl ||= "up";
+my $dnlbl = $$VSETTINGS{downLabel} if exists $$VSETTINGS{downLabel};
+$dnlbl ||= "down";
+my $nolbl = $$VSETTINGS{nullLabel} if exists $$VSETTINGS{nullLabel};
+$nolbl ||= "none";
+
+$str .= $$VSETTINGS{voteHeader};
+
+if (hasVoted($N, $USER) or (getId($USER) == $$N{original_author})) {
+  
+  return $$VSETTINGS{voteHeader} 
+    ."Reputation: $$N{reputation}"
+    .$$VSETTINGS{voteFooter};
+}
+
+return if $q-&gt;param('displaytype') eq 'print';
+
+return unless ($$USER{votesleft});
+
+#else this is part of a checkbox group
+$str.="&lt;INPUT type=radio name='vote__".getId($N)."' value='1'&gt; $uplbl"
+  ."&lt;INPUT type=radio name='vote__".getId($N)."' value='-1'&gt; $dnlbl";
+
+if (exists $$VARS{nullvote} and $$VARS{nullvote} eq 'on') {
+  $str .= "&lt;INPUT type=radio checked name='vote__".getId($N)."' value='0' &gt; $nolbl";
+}
+
+
+$str . $$VSETTINGS{voteFooter};
+</field>
+</data>
+</node>

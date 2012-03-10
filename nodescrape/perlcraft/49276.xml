@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="49276" title="ChilliBot Web Crawler" created="2001-01-02 09:56:24" updated="2005-07-21 13:46:57">
+<type id="121">
+perlcraft</type>
+<author id="37684">
+ChilliHead</author>
+<data>
+<field name="doctext">
+#!/usr/local/bin/perl
+
+# This program uses the LWP module to read a web page
+# and store its URL, Title, Description and Keywords in
+# a database. It then follows the links on the page and
+# processes any other pages it finds. The following 
+# switches are used to control how the program operates:
+# 	/u specify the url to start at
+#	/c continue from the last saved restart point
+#	/f follow links on page and process pages found
+#	/r write next page to process to a restart file
+#	/d update the database
+#	/l produce logfile of crawl
+#   either /u or /c must be specified.
+#
+# This is my first attempt at a reasonable program in Perl
+# so please feel free to criticise to your hearts content
+# (its the only way I will learn).
+
+use HTML::TreeBuilder;
+use LWP::RobotUA;
+use URI::URL;
+use DBI;
+
+# Setup user agent for robot
+
+$ua = LWP::RobotUA-&gt;new('ChilliBot/0.1.' . LWP::Version,'ChilliBot@nextmilltech.co.uk');
+
+$ua-&gt;delay(1);
+
+print $ua-&gt;agent;
+print "\n";
+
+# check if any arguements entered
+
+if(scalar(@ARGV) &gt; 0)
+{
+	my $startpage="";
+
+	local @visitedpages;
+	local $logtofile = 0;
+	local $drilldown = 0;
+	local $usedatabase = 0;
+	local $setforrestart =0;
+	local $continue=0;
+	local $logfilename;
+
+	$|=1; # set autoflush on for logfile
+
+	# check parameters and set appropriate variables.
+
+	for(my $i=0;$i&lt;scalar(@ARGV);$i++)
+	{
+		if($ARGV[$i] eq "/f")
+		{
+			$drilldown = 1;
+		}
+		if($ARGV[$i] eq "/l")
+		{
+			$logtofile = 1;
+			$logfilename=$ARGV[$i+1];
+		}
+		if($ARGV[$i] eq "/u")
+		{
+			$startpage=$ARGV[$i+1];
+		}
+		if($ARGV[$i] eq "/d")
+		{
+			$usedatabase = 1;
+		}
+		if($ARGV[$i] eq "/r")
+		{
+			$setforrestart = 1;
+		}
+		if($ARGV[$i] eq "/c")
+		{
+			$continue= 1;
+		}
+
+	}
+
+	if($logtofile==1)
+	{
+		open(LOGFILE,"&gt;$logfilename") || die "Cannot open logfile $logfilename\n";
+		close(LOGFILE);
+	}
+
+
+	# we do not want to visit pages already visited so keep an array
+	# of their URLs
+
+	@visitedpages=();
+
+	if($usedatabase==1)
+	{
+		# if we are using the database then add all URLs from it
+		# to the list of visited pages.
+
+		print "Building visited pages list...";
+
+		my $DSN = "DSN=PageData";
+
+		my $dbh  = DBI-&gt;connect("dbi:ODBC:$DSN") || die "$DBI::errstr\n";
+
+		my $sql_handle=$dbh-&gt;prepare("SELECT PageURL FROM Page") || die $dbh-&gt;errstr;
+
+		$sql_handle-&gt;execute() || die $dbh-&gt;errstr;
+
+		while ( @row = $sql_handle-&gt;fetchrow_array() )
+		{
+			push(@visitedpages,$row[0]);	
+		}
+
+		$dbh-&gt;disconnect();
+		
+		print "done\n";
+	}
+
+	if($continue==1)
+	{
+		# if we are continuing then find which page to continue from
+
+		open(CONTINUE,"restartwith.txt") || die "Cannot open restart file\n";
+		my @continueeurl=&lt;CONTINUE&gt;;
+		foreach (@continueeurl)
+		{
+			$startpage=$_;
+		}
+		close(CONTINUE);
+	}
+
+	if($startpage ne "")
+	{
+		&amp;gethtml($startpage);
+	}
+
+
+
+
+}
+else
+{
+	# No parameters entered so printout the usage information
+
+	print "Usage:\n";
+	print "    perl robot.pl [/u start_url] [/f] [/d] [/r] [/c] [/s] [/l logfile]\n";
+	print "        where /u - url to start crawl from\n";
+	print "              /f - follow links on each page\n";
+	print "              /d - add page details to database\n";
+	print "              /r - save last accessed url for restart with /c\n";
+	print "              /c - continue from last restart-saved url\n";
+	print "              /l - output to logfile\n\n";
+	print "	       note: either /u or /c must be specified\n\n";
+}
+print ("Run Complete\n");
+
+
+# main routine
+
+sub gethtml
+{
+
+	my $html;
+	my $treeparse;
+
+	my $rlink;
+	my @linkarray;
+	my $baseurl;
+	my $pagealreadyvisited;
+	my $pagetoprocess;
+	my $rlinkarray;
+
+	local $pagetitle ="";
+	local $pagedescription = "";
+	local $pagekeywords="";
+	local $pagebaseurl="";
+
+	$pagetoprocess = $_[0];
+
+	if($setforrestart==1)
+	{
+		# write URL to restart file.
+
+		open(RESTARTFILE,"&gt;restartwith.txt") || die "Cannot open restart file\n";
+		print RESTARTFILE $pagetoprocess;
+		close(RESTARTFILE);
+	}
+
+	# check we have not already visited this page
+
+	$pagealreadyvisited=0;
+
+	foreach (@visitedpages)
+	{
+		if($_ eq $pagetoprocess)
+		{
+			$pagealreadyvisited=1;
+		}
+
+	}
+
+	if ($pagealreadyvisited == 0)
+	{
+		print "Processing: $_[0]...";
+
+		# request the page
+
+		$request = HTTP::Request-&gt;new('GET', $_[0]);		
+		$response = $ua-&gt;request($request); 	
+
+		if ($response-&gt;is_success) 
+		{		    
+			if($logtofile==1)
+     			{
+				open(LOGFILE,"&gt;&gt;$logfilename") || die "Cannot open logfile $logfilename\n";
+     				print LOGFILE "Processing: $_[0]...Response OK\n";
+				close(LOGFILE);
+		  	}
+			
+			# parse retrieved HTML
+			
+			@linkarray=();
+			$html=$response-&gt;content;
+			$treeparse=HTML::TreeBuilder-&gt;new;
+			$treeparse-&gt;parse($html);
+			
+			# extract anchor links
+
+			$rlinkarray=$treeparse-&gt;extract_links("a");
+
+			# call treewalker function to check meta tags
+
+			$treeparse-&gt;traverse(\&amp;treewalker);
+			$treeparse-&gt;delete();
+			$pagebaseurl=$response-&gt;base;
+
+			if($logtofile==1)
+		     			{
+						open(LOGFILE,"&gt;&gt;$logfilename") || die "Cannot open logfile $logfilename\n";
+		     				print LOGFILE "    Title: $pagetitle\n";
+		     				print LOGFILE "    Description: $pagedescription\n";
+		     				print LOGFILE "    Keywords: $pagekeywords\n";
+						print LOGFILE "    Base URL: $pagebaseurl\n";
+						close(LOGFILE);
+		     			}
+	
+			if($usedatabase==1)
+			{
+
+				# write page details to database
+
+				# DBI::ODBC falls over with any string
+				# longer than 255
+
+				if(length($pagetitle)&gt;255)
+				{
+					$pagetitle=substr($pagetitle,0,255);
+				}
+
+				if(length($pagedescription)&gt;255)
+				{
+					$pagedescription=substr($pagedescription,0,255);
+				}
+				
+				if(length($pagekeywords)&gt;255)
+				{
+					$pagekeywords=substr($pagekeywords,0,255);
+				}
+								
+				my $DSN = "DSN=PageData";
+
+				my $dbh  = DBI-&gt;connect("dbi:ODBC:$DSN") || die "$DBI::errstr\n";
+
+				my $sql_handle=$dbh-&gt;prepare(q{
+						INSERT INTO Page (PageURL, Title, Description,Keywords) VALUES (?, ?, ?, ?)
+						}) || die $dbh-&gt;errstr;
+
+				$sql_handle-&gt;execute("$_[0]","$pagetitle","$pagedescription","$pagekeywords")
+						    || die $dbh-&gt;errstr;
+
+				$dbh-&gt;disconnect();
+
+			}
+
+			# add page to visited pages array
+
+			push(@visitedpages,$_[0]);	
+
+			print "OK\n";
+
+			# convert links from a referenced array to
+			# a normal array
+			
+			foreach $rlink(@$rlinkarray)
+			{
+	
+				push(@linkarray,$$rlink[0]);	
+			}
+
+			# create full URLs from links
+
+			$baseurl=$response-&gt;base;
+			@linkarray = map { $_= url($_, $baseurl)-&gt;abs; } @linkarray;
+
+			foreach (@linkarray)
+			{
+				if($logtofile==1)
+		     		{
+					open(LOGFILE,"&gt;&gt;$logfilename") || die "Cannot open logfile $logfilename\n";
+		     			print LOGFILE "    $_\n";
+					close(LOGFILE);
+		     		}
+
+			}
+		
+			# put in seperate loop so that printout is correct
+			foreach (@linkarray)
+			{
+				# if link is http and does not contain
+				# any odd charcters then call this function
+				# recursively passing in the link
+
+				if (/http:/i)
+				{
+					if (/[#\@\$]/)
+					{
+					}
+					else
+					{
+						if($drilldown == 1)
+						{
+							&amp;gethtml($_);
+						}
+					}
+				}
+			}
+		} 
+		else 
+		{
+		     print "Failed\n";
+		     if($logtofile==1)
+     		     {
+			open(LOGFILE,"&gt;&gt;$logfilename") || die "Cannot open logfile $logfilename\n";
+     			print LOGFILE "Processing: $_[0]...Failed\n";
+			close(LOGFILE);
+		     }
+		}
+	}
+
+}
+
+# Used to find title tag, and description and keyword metatags.
+sub treewalker
+{
+	my ($node, $start, $depth) = @_;
+        if (ref $node) 
+	{
+             my $tag = $node-&gt;tag;
+
+	     if ($tag eq "meta")
+	     {
+		my $metaname=$node-&gt;attr("name");
+		if ($metaname ne "")
+		{
+			if ($metaname=~ /description/i)
+			{
+				my $description=$node-&gt;attr("content");
+
+				# remove CR and LF from description.
+				$description =~ s/\n/ /sg;
+				$description =~ s/\r/ /sg;
+				$pagedescription = $description;		
+			}
+			if ($metaname=~ /keywords/i)
+			{
+				my $keywords=$node-&gt;attr("content");
+
+				# remove CR and LF from description.
+				$keywords =~ s/\n/ /sg;
+				$keywords =~ s/\r/ /sg;
+				$pagekeywords = $keywords;		
+			}
+		}
+     	     }     
+	
+	     if ($tag eq "title" &amp;&amp; $pagetitle eq "")
+	     {
+		my $contentnodearray=$node-&gt;content;
+		foreach my $contentnode(@$contentnodearray)
+		{
+			if (not ref $contentnode)
+			{
+				$pagetitle=$contentnode;		
+			}
+		}
+	     }
+	
+	
+
+	}
+	return 1; # This makes it recurse through all sub nodes
+}
+ </field>
+</data>
+</node>

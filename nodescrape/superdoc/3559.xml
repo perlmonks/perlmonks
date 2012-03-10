@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3559" title="Saints in our Book" created="2000-01-04 20:25:51" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<keywords>
+<keyword rating="">
+node</keyword>
+<keyword rating="">
+this</keyword>
+<keyword rating="">
+for</keyword>
+<keyword rating="">
+top</keyword>
+<keyword rating="">
+nodelet</keyword>
+<keyword rating="">
+keyword</keyword>
+</keywords>
+<field name="doctext">
+[{get_sitedoclet}]
+
+&lt;table border="0" align="center"&gt;
+&lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;User&lt;/th&gt;&lt;th&gt;Experience&lt;/th&gt;&lt;th&gt;Level&lt;/th&gt;
+&lt;th&gt;&lt;a href="?node_id=3557"&gt;Writeups&lt;/a&gt;&lt;/th&gt;&lt;th&gt;User Since&lt;/th&gt;&lt;th&gt;Last Here&lt;/th&gt;&lt;/tr&gt;
+[%
+  require Everything::Experience;
+  my $csr = $Everything::dbh-&gt;prepare(
+    "select node_id,title,experience,vars,createtime,lasttime
+     from user left join node on node_id=user_id
+     left join setting on setting_id=user_id
+     where experience&gt;=3000 order by experience DESC"
+  );
+
+  return "Ack!  Something's broken..." unless($csr-&gt;execute);
+
+  # Skip these users
+  my %skip = ( "dbrown" =&gt; 1, "nate" =&gt; 1,
+    "Webster 1913" =&gt; 1, "ShadowLost" =&gt; 1, "superuser"=&gt;1 );
+  my $PMUS = 6364; # getNode("Perl Monks User Search","superdoc");
+
+  my $html = "";
+  my $index = 1;
+  my $node;
+  my $level_titles=getVars(getNode('level titles','setting'));
+  my $level_experience=getVars(getNode('level experience','setting'));
+  my $level=0;
+  for my $l (keys %$level_experience) {
+    $level=$l if $l&gt;$level;
+  }
+  # The default format makes the table too wide; override it temporarily
+  { local $VARS-&gt;{timeformat} = '%Y-%m-%d';
+    while(  $node = $csr-&gt;fetchrow_hashref()  ) {
+      next   if  exists $skip{$node-&gt;{title}};
+      while ($node-&gt;{experience}&lt;$level_experience-&gt;{$level}) {
+        $level--;
+      }
+      my $vars = getVars($node);
+      $html .= ( 1 &amp; $index ) ? qq[&lt;tr class="highlight"&gt;] : qq[&lt;tr&gt;];
+      $html .= qq[&lt;td align="right"&gt;$index&lt;/td&gt;]
+          . qq[&lt;td&gt;&lt;span class="user-$node-&gt;{node_id}"&gt;]
+	  . linkNode($node)
+	  . qq[&lt;/span&gt;&lt;/td&gt;]
+          . qq[&lt;td align="right"&gt;$node-&gt;{experience}&lt;/td&gt;]
+          . qq[&lt;td&gt;$level_titles-&gt;{$level} ($level)&lt;/td&gt;]
+	  . qq[&lt;td align="right"&gt;]
+	  . linkNode( $PMUS, $vars-&gt;{numwriteups}||"None", {
+              usersearch =&gt; $node-&gt;{title},
+	    } )
+	  . qq[&lt;/td&gt;&lt;td align="right"&gt;]
+	  . htmlcode('parseTimeInString', '', $node-&gt;{createtime}, '', '', 'short')
+	  . qq[&lt;/td&gt;&lt;td align="right"&gt;]
+	  . htmlcode('timesince', '', $node-&gt;{lasttime}, '')
+	  . qq[&lt;/td&gt;&lt;/tr&gt;\n];
+
+      $index++;
+    }
+  } # end local
+  $html;
+%]
+
+[%
+  return ""; # By number of writeups.  Turn off for now.
+  my $type1 = getId(getType('writeup'));
+  my $type2 = getId(getType('superdoc'));
+  my $csr = $Everything::dbh-&gt;prepare("
+    select DISTINCT author_user, count(author_user)
+    from node
+    where type_nodetype=$type1 OR type_nodetype=$type2
+    group by author_user");
+  $csr-&gt;execute;
+  my %usrHash;
+  my %hide;
+
+  # Remove these users from the list
+  $hide{getId(getNode("Webster 1913", "user"))} = 1;
+  $hide{getId(getNode("ShadowLost", "user"))} = 1;
+
+  while (my ($user, $count) = $csr-&gt;fetchrow) {
+    # skip these users
+    next if(exists $hide{$user});
+    $usrHash{$user} = $count;
+  }
+  $csr-&gt;finish;
+  delete $usrHash{''};
+  my @author = sort {$usrHash{$b} &lt;=&gt; $usrHash{$a}} (keys (%usrHash));
+  use Everything::Experience;
+  my ($min, $max, $steps) = (160, 255, 50);
+
+  my $count = 0;
+  my $num;
+  my $html = '';
+  while ($count &lt; $steps) {
+    unless($author[$count]) {
+      $count++;
+      next;
+    }
+    $num = sprintf "%lx", ($max-((($max-$min)*$count) / $steps));
+    my $bg = $num . $num . 'CC';
+    my ($u) = getNodeWhere({node_id=&gt;$author[$count]},getType('user'));
+    $html .= qq[&lt;tr bgcolor="#$bg"&gt;]
+      . qq[&lt;td&gt;&lt;span class="user-$author[$count]"&gt;]
+      . linkNode( $author[$count], $$u{title} )
+      . qq[&lt;/span&gt;&lt;/td&gt;]
+      . qq[&lt;td align="center"&gt;$usrHash{$author[$count]} &lt;/td&gt;]
+      . qq[&lt;td&gt;Level: ] . getLevel($u) . qq[&lt;/td&gt;&lt;/tr&gt;\n];
+    $count++;
+  }
+
+  if (getId($USER) ne $HTMLVARS{guest_user} and
+    $usrHash{getId($USER)}&lt;$usrHash{$author[$count-1]}) {
+
+     $html.= "&lt;tr bgcolor=#FF6666&gt;&lt;td&gt;"
+    .linkNode($USER)
+    ."&lt;/td&gt;&lt;td align=center&gt;"
+    .$usrHash{getId($USER)}
+    ."&lt;/td&gt;&lt;td&gt;Level: "
+    .getLevel($USER)."&lt;/td&gt;&lt;/tr&gt;"; # can`t accessrule
+  }
+  return $html;
+%]
+&lt;/table&gt;
+</field>
+</data>
+</node>

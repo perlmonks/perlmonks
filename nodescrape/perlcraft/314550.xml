@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="314550" title="Copy Mp3s By Genre" created="2003-12-13 15:02:05" updated="2005-08-12 20:44:51">
+<type id="121">
+perlcraft</type>
+<author id="68266">
+mumbles</author>
+<data>
+<field name="doctext">
+#
+# Copies MP3s by genre tag using sources directory tree.
+# Script must be executed from the source's root
+# i.e. $srcdir must be a path on the same drive as where the script is executed from
+#
+# Criticism/advice appreciated
+# 
+
+use strict;
+use MP3::Info;
+use File::Find;
+use File::Copy;
+use File::Basename;
+use File::Path;
+
+my $genre = 'Country';
+my $srcdir = '/MP3 Test/';
+my $dstdir = 'c:/';
+my ($tag, $newdir, $path, $file, $dir);
+
+find(\&amp;wanted, $srcdir);
+
+sub wanted {
+    open(FL, $File::Find::name);
+
+if ((/\.mp3/)){
+	$tag = get_mp3tag($_) or print "Could not access tag on $_\n" and next;
+
+	if ($tag-&gt;{"GENRE"} eq $genre) {
+		$path = $File::Find::name;
+		$dir = dirname($path);
+		$file = basename($path);
+		$newdir = $dstdir . $dir;
+
+		if (! -d $newdir ) { 
+			mkpath ($newdir, 0666) || die "can't mkdir $newdir: $!\n";
+		}
+		copy($path, $newdir . '/' . $file) or die "copy failed: $!\n"; 
+	}
+}
+	close(FL);
+}
+</field>
+</data>
+</node>

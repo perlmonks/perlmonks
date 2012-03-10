@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="397476" title="sqlquery display page" created="2004-10-07 19:09:35" updated="2005-08-12 08:43:54">
+<type id="5">
+htmlpage</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="page">
+[%
+    my $vars= getVars($NODE);
+    return "&lt;b&gt;This node is restricted to gods\n&lt;/b&gt;"
+        if  $vars-&gt;{gods_only}  and  !isGod($USER);
+
+    my $ret= '&lt;p&gt;'
+      . linkNode($NODE,'(edit)',{displaytype=&gt;'edit'})
+      . ' - '
+      . linkNode(
+            getNode( "Node Lister", "superdoc" ),
+            "List $NODE-&gt;{type}{title} nodes",
+            { 'whichtype' =&gt; $NODE-&gt;{type}{node_id} } )
+      . "&lt;/p&gt;\n";
+
+    $ret .= "&lt;h3&gt;Description:&lt;/h3&gt;".htmlcode('parselinksincontent','',$NODE-&gt;{doctext})."&lt;hr /&gt;\n"
+        if  $NODE-&gt;{doctext};
+
+    if(  ! $NODE-&gt;{code}  ) {
+        $ret .= "&lt;b&gt;No SQL to execute&lt;/b&gt;\n";
+    } elsif(  ! $q-&gt;param('runsql')  ) {
+        $ret .= htmlcode( 'wrapcode','', "\n$NODE-&gt;{code}\n" )
+          . htmlcode('openform')
+          . $q-&gt;submit('runsql') . "&lt;/form&gt;\n";
+    } else {
+        $ret .= htmlcode(
+            'exec_sql_query','',
+            {
+                exec    =&gt; 1,
+                sql     =&gt; "\n$NODE-&gt;{code}\n",
+                no_form =&gt; 1,
+                no_query=&gt; 1,
+            } );
+    }
+    return $ret;
+%]
+</field>
+<field name="displaytype">
+display</field>
+</data>
+</node>

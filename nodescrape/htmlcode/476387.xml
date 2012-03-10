@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="476387" title="fix_node_votes" created="2005-07-20 03:15:58" updated="2005-07-20 01:58:50">
+<type id="4">
+htmlcode</type>
+<author id="474174">
+yitzchak</author>
+<data>
+<field name="code">
+my ($node_id) = @_;
+
+my $dbh = $DB-&gt;getDatabaseHandle();
+my $count_sth = $dbh-&gt;prepare_cached( 'SELECT count(weight), 
+sum(weight) from vote where vote_id = ?' )
+   or return "prepare to count votes for $node_id failed";
+$count_sth-&gt;bind_param( 1, $node_id)
+   or return "bind_param to count votes for $node_id failed";
+
+my ($i, $prevvotes, $prevrep, $hadvotes, $hadrep);
+my ($votes, $rep) = $dbh-&gt;selectrow_array( $count_sth )
+    or return "couldn't count votes for $node_id: $DBI::errstr";
+
+do {
+    my $N = getNodeById( $node_id, 'force' );
+    ($hadvotes, $hadrep) = ($N-&gt;{votescast}, $N-&gt;{reputation});
+    $N-&gt;{reputation} = $prevrep = $rep;
+    $N-&gt;{votescast} = $prevvotes = $votes;
+    updateNode( $N, -1 ) or return "updateNode( $node_id ) failed"
+        if $votes != $hadvotes || $rep != $hadrep;
+
+    ($votes, $rep) = $dbh-&gt;selectrow_array( $count_sth )
+        or return "couldn't count votes for $node_id: $DBI::errstr";
+
+    last if ++$i == 10; # just in case
+# loop for as long as anything changes, to try to reduce races
+} while ( $prevvotes != $votes || $prevrep != $rep
+    || $hadvotes != $votes || $hadrep != $rep );
+</field>
+</data>
+</node>

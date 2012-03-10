@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="37150" title="node query xml generator" created="2000-08-29 17:26:47" updated="2005-08-15 15:42:55">
+<type id="122">
+fullpage</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="doctext">
+[%
+  my @nodes = grep !/\D/, split ',', $query-&gt;param('nodes');
+  return "&lt;error&gt;Error creatng fling object&lt;/error&gt;"
+     unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),"add_header");
+
+  my $tag_info = $xmlstyle{clean} ? 'info' : 'INFO';
+  my $tag_node = $xmlstyle{clean} ? 'node' : 'NODE';
+
+  $xml-&gt;header("windows-1252")-&gt;
+    start( $tag_info,
+      site     =&gt; $HTMLVARS{site_url},
+      sitename =&gt; $HTMLVARS{site_name},
+      "Rendered by the Node query XML Generator"
+    );
+
+    foreach my $n ( grep ref $_, map getNodeById($_), @nodes ) {
+      $n-&gt;{createtime} =~ s/\D//g;
+
+      my @attrs = (
+        node_id     =&gt; getId($n),
+        author_user =&gt; $n-&gt;{author_user},
+        createtime  =&gt; $n-&gt;{createtime},
+        lastupdate  =&gt; $n-&gt;{lastupdate},
+        nodetype    =&gt; $n-&gt;{type}{title}
+      );
+
+      my( $author_name )= $DB-&gt;sqlSelect('title', 'node', "node_id = $n-&gt;{author_user}");
+      if (defined $author_name) {
+       push @attrs, author_name =&gt; $author_name;
+      }
+
+      if ( $n-&gt;{type}{title} eq 'note'  ||  $n-&gt;{type}{title} eq 'categorized answer' ) {
+        push @attrs,
+          parent_node =&gt; $n-&gt;{parent_node},
+          root_node =&gt; $n-&gt;{root_node},
+          root_type =&gt; getNodeById( $n-&gt;{root_node} )-&gt;{type}{title};
+      }
+
+      $xml-&gt;element( $tag_node, @attrs, $n-&gt;{title} );
+    }
+
+  $xml-&gt;end;
+
+  my $data = join "",@data;       
+  htmlcode('postProcessXML','',\$data);
+  return $data;
+%]</field>
+</data>
+</node>

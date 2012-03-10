@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="5936" title="list replies" created="1999-08-30 17:48:29" updated="2005-03-24 08:09:26">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+# Version of [shownote] for the css.perlmonks.* site.
+
+my $settings=getVars(getNode('shownote settings', getType('setting')));
+
+my $sth  = $DB-&gt;getDatabaseHandle-&gt;prepare_cached('
+  SELECT note_id
+    FROM note
+   WHERE parent_node = ?
+');
+
+# Get replies for the given nodeid (don't pass a hash!),
+# as an arrayref of node_id's.
+my $get_replies = sub {
+  $sth-&gt;execute($_[0]);
+  [ @{ $sth-&gt;fetchall_arrayref || [] } ];
+};
+
+# Gets a tree of replies to the given node id 
+# (do not pass a hash)
+# TODO: Document structure.
+# TODO: Work with .
+my $get_tree; $get_tree = sub {
+  my $parent = shift;
+  my $replies = $get_replies-&gt;($parent);
+  return [] unless @$replies;
+  my $tree = [];
+  for my $reply ( @$replies ) {
+    my $subtree = $get_tree-&gt;( $reply-&gt;[0] );
+    push @$tree, @$subtree ? [ @$reply, $subtree ] : $reply;
+  }
+  $tree;
+};
+
+my $make_list; $make_list = sub {
+  my $dsc  = shift;
+  my $list = [];
+  for ( @$dsc ) {
+    my $replies = $q-&gt;ul( { class =&gt; 'replies' }, $make_list-&gt;( @$_[1..$#$_] ) ) if @$_ &gt; 1;
+    my $reply = getNodeById( $_-&gt;[0] );
+    my $id = getId($reply);
+
+    my @links;
+    htmlcode( 'downloadcode','',
+      $reply,
+      '[d/l]',
+      '[select]',
+      \@links
+    );
+
+    if (  $HTMLVARS{guest_user} != $reply-&gt;{author_user}
+      and $HTMLVARS{guest_user} != getId($USER)
+    ) {
+      my $author= getNodeById( $reply-&gt;{author_user}, 'light' )-&gt;{title};
+      my $lnk = linkNode( 762476, # Message Outbox
+        '/msg',
+        {
+          sendto =&gt; $author,
+          replytotext =&gt; "Re: [id://$id] - ",
+        },
+        {
+          trusted =&gt; 'yes',
+        }
+      );
+      $lnk =~ s/a href/a title="Send private \/msg" href/;
+      unshift @links, $lnk;
+    }
+
+    unshift @links,
+      genLink( 'reply', {
+        node_id =&gt; 3333, # Comment On
+        parent  =&gt; $id,
+      }, { title =&gt; 'Comment on' } );
+
+    push @$list, $q-&gt;li(
+      { class =&gt; 'reply', id =&gt; 'r'.$id },
+      $q-&gt;div(
+        { class =&gt; 'header', id =&gt; 'rh'.$id },
+        $q-&gt;span(
+          { class =&gt; 'title' },
+          linkNode( $reply )
+        ),
+        $q-&gt;span(
+          { class =&gt; 'voterep' },
+          $settings-&gt;{votingon} ? htmlcode('voteit',$id) : ''
+        ),  
+        ( $VARS-&gt;{threads_as_div} ? () : (
+          '(', $q-&gt;a(
+            {
+              href    =&gt; 'javascript:doNothing()',
+              onClick =&gt; "javascript:toggleReply('$id')"
+            }, 'hide/show'
+          ), ')',
+        ) ),
+        $q-&gt;br,
+        ' by ',
+        $q-&gt;span(
+          { class =&gt; 'author' },
+          linkNode( $reply-&gt;{author_user} )
+        ),
+        ' on ',
+        $q-&gt;span(
+          { class =&gt; 'date' },
+          htmlcode( 'parseTimeInString', $reply-&gt;{createtime} )
+        )
+      ),
+      $q-&gt;div(
+        { class =&gt; 'body', id =&gt; 'rb'.$id },
+        htmlcode( 'parseLinksInString', 1, $id, $reply-&gt;{doctext} )
+      ),
+      $q-&gt;div(
+        { class =&gt; 'footer', id =&gt; 'rf'.$id },
+        '&lt;ul class="inline-list"&gt;'
+          .join( '', map '&lt;li&gt;'.$_.'&lt;/li&gt;', @links ).
+        '&lt;/ul&gt;'
+      ),
+      $replies || ''
+    );
+  }
+  $list;
+};
+
+my $tree = $get_tree-&gt;( getId($NODE) );
+return '' unless @$tree;
+my $replies = $make_list-&gt;( $tree );
+return '' unless @$replies;
+return $q-&gt;ul( { class =&gt; 'replies' }, @$replies );
+</field>
+</data>
+</node>

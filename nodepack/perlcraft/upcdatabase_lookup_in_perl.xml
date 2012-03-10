@@ -1,0 +1,64 @@
+<node>
+  <doctext># Takes raw cuecat output and looks up the barcode scanned
+# through upcdatabase.com
+# I DID NOT WRITE THE SECTION THAT DOES THE DECODING
+# and at the moment the name of the person who did escapes
+# me
+use LWP::Simple;
+$seq = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-';
+
+sub decode
+{
+    ($encoded) = @_;
+    @s = map { index($seq,$_); } split(//,$encoded);
+    $l = ($#s+1) % 4;
+    if ($l)
+    {
+	if ($l == 1)
+	{
+	    print &quot;Error!&quot;;
+	    return;
+	}
+	$l = 4-$l;
+	$#s += $l;
+    }
+    $r = '';
+    while ($#s &gt;= 0)
+    {
+	$n = (($s[0] &lt;&lt; 6 | $s[1]) &lt;&lt; 6 | $s[2]) &lt;&lt; 6 | $s[3];
+	$r .=chr(($n &gt;&gt; 16) ^ 67) .
+	     chr(($n &gt;&gt; 8 &amp; 255) ^ 67) .
+	     chr(($n &amp; 255) ^ 67);
+	@s = @s[4..$#s];
+    }
+    $r = substr($r,0,length($r)-$l);
+    return $r;
+}
+    chomp($s = &lt;STDIN&gt;);
+    @fields = split(/\./,$s);
+    @results = map(decode($_), @fields[1..$#fields]);
+
+$code = $results[2];
+
+$upcdata = get(&quot;http://www.upcdatabase.com/item.pl?upc=$code&quot;);
+
+$upcdata =~ s/&lt;(?:[^&gt;'&quot;]*|(['&quot;]).*?\1)*&gt;//gs;
+
+$upcdata =~ /Description(.*)\n/;
+
+print &quot;\n\n$1\n&quot;;
+
+$upcdata =~ /Manufacturer(.*)\n/;
+
+print &quot;Made by: $1\n&quot;;
+
+$upcdata =~ /Size\/Weight(.*)\n/;
+
+print &quot;Size: $1&quot;;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>92439</node_id>
+  <author_user>70819</author_user>
+  <title>UPCdatabase lookup in perl</title>
+  <createtime>2001-06-28 19:54:38</createtime>
+  <nodeupdated>2005-07-21 01:27:28</nodeupdated>
+</node>

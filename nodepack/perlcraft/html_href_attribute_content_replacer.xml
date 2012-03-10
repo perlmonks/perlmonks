@@ -1,0 +1,138 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+######################################################################
+#
+#   Parse-href.pl      2001-05
+#
+#   Grab the content of all &quot;href&quot; attributes of the HTML &quot;&lt;a&gt;&quot; tag,
+#   Insert a redirection URL in the &quot;href&quot; and then UrlEncode the Old 
+#   Url to pass it in parameter.
+# 
+#   Greetings flys out to OeufMayo for his help.
+#
+#   Nicolas Crovatti  &lt;ncrovatti@ifrance.com&gt;
+#   http://www.gencoding.com
+#
+######################################################################
+
+
+use strict;
+use URI::Escape;
+use warnings;
+use CGI ':standard';
+
+my @forminputs;
+my $JavascriptLinks;
+my %results;
+my $name;
+my $html;
+my $OUTHTML;
+my $INHTML;
+my $dDate     = time();
+my $RedirURL  = &quot;http://127.0.0.1/rapport/rnews.php?dt=&quot; . $dDate . &quot;&amp;url=&quot;;
+my $File      = param(&quot;file&quot;);
+
+{
+  package myParser;
+  use base qw(HTML::Parser);
+    sub start
+    {
+      # We fill Scalars using predefined array &quot;@_&quot;
+      ####################################################################
+      my ($self, $tagname, $attr, $attrseq, $origtext) = @_;
+      my $at;
+      # For each &lt;a&gt; tag, we  grab the content of the &quot;href&quot; attribute, then we
+      # uri_escape it with URI::Escape module, and we rebuild the integrality 
+      # of the tag including our $RedirURL .
+      ##########################################################################
+      if ($tagname eq 'a'){
+        #Here, if we reach a &lt;a&gt; tag,i don't want to parse '&lt;a href=&quot;#&quot;&gt;' 
+        #links, we incremment the $LiensJavascript counter.
+        ###################################################################
+        if ($attr-&gt;{href} &amp;&amp; $attr-&gt;{href} eq &quot;#&quot;) {
+          $JavascriptLinks++;
+          print $origtext;
+        } else {
+            $attr-&gt;{href} =  $RedirURL . main::uri_escape($attr-&gt;{href}, &quot;^A-Za-z0-9&quot;);
+            print '&lt;a';
+            print qq' $_=&quot;$attr-&gt;{$_}&quot;' foreach @{$attrseq};
+            print &quot;&gt;&quot;;
+        }
+      } else {
+        # If we don't find &lt;a&gt; tag, we print the original text
+        ######################################################
+        print $origtext;
+      }
+    }
+    sub end {
+      my ($self, undef, $origtext) = @_;
+      print $origtext;
+    }
+    sub text
+    {
+      my ($self, $origtext) = @_;
+      print $origtext;
+    }
+}
+
+# Getting all params
+####################
+@forminputs=param();
+foreach $name (@forminputs){
+  $results{$name}=param($name);
+}
+
+# Opening the HTML file in read mode only
+############################################
+open(INHTML, &quot;&lt;$File&quot;) || die &lt;&lt;&quot;EOT_&quot;;
+ -[Erreur prevue]---------------------
+ Usage :
+ perl parse.pl file=file_name.htm
+ $!
+ -------------------------------------
+EOT_
+
+
+open(OUTHTML, &quot;&gt;News-ok.htm&quot;) || die &lt;&lt;&quot;EOT_&quot;;
+ -[Erreur]----------------------------
+ Cannot open file:
+ $!
+ -------------------------------------
+EOT_
+
+# $html is filled with all the content of the input file
+########################################################
+while ($_=&lt;INHTML&gt;){$html .= $_;}
+close INHTML;
+
+
+# Initialising the Parser
+#########################
+my $p = myParser-&gt;new();
+
+# Parsing $html
+###############
+select OUTHTML;
+$p-&gt;parse($html);
+select STDOUT;
+
+close OUTHTML;
+
+print &quot;
+ -[Result ok]---------------
+
+ Everything goes Ok!
+ 
+ not modified links : $JavascriptLinks
+ 
+ -[eot]-----------------------------
+&quot;;
+exit;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>86027</node_id>
+  <author_user>85664</author_user>
+  <title>HTML Href attribute content replacer</title>
+  <createtime>2001-06-05 21:37:14</createtime>
+  <nodeupdated>2005-08-06 23:43:11</nodeupdated>
+</node>

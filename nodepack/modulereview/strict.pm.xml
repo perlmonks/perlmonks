@@ -1,0 +1,146 @@
+<node>
+  <doctext>&lt;p&gt;
+There are (currently) three options for &quot;strictness&quot;.  Though you should
+usually use all three by placing:
+&lt;code&gt;
+    use strict;
+&lt;/code&gt;
+near the top of each of your Perl files.  This will help to make your
+source code easier to maintain.
+&lt;/p&gt;&lt;h3&gt;&lt;code&gt;use strict &quot;vars&quot;&lt;/code&gt;
+&lt;/h3&gt;&lt;p&gt;
+If you &lt;code&gt;use strict &quot;vars&quot;&lt;/code&gt;, then you will get an error if you
+ever use a variable without &quot;declaring&quot; it.  You can &quot;declare&quot; a variable via:
+&lt;ul&gt;&lt;li&gt;&lt;code&gt;use vars qw( $scalar @array %hash );&lt;/code&gt;
+&lt;li&gt;&lt;code&gt;my( $scalar, @array, %hash );&lt;/code&gt;
+&lt;li&gt;&lt;code&gt;our( $scalar, @array, %hash );&lt;/code&gt; (only for Perl 5.6 and higher).
+&lt;li&gt;Having the variable imported from a module (not common).
+&lt;li&gt;Including the package name in the variable name: &lt;code&gt;$main::scalar&lt;/code&gt;
+&lt;/ul&gt;&lt;/p&gt;&lt;p&gt;
+Detection of undeclared variables happens at compile time.
+&lt;/p&gt;&lt;h3&gt;&lt;code&gt;use strict &quot;subs&quot;&lt;/code&gt;
+&lt;/h3&gt;&lt;p&gt;
+If you &lt;code&gt;use strict &quot;subs&quot;&lt;/code&gt;, then you will get an error for
+most uses of &quot;barewords&quot;.  Without this strictness, Perl will often
+interpret an unadorned identifier as a string:
+&lt;/p&gt;&lt;code&gt;
+    print &quot; &quot;, Hello, &quot;, &quot;, World::ALL, &quot;!\n&quot;;
+    # prints &quot; Hello, World::ALL!&quot;
+&lt;/code&gt;&lt;p&gt;
+It is good to use this strictness because forgetting to &quot;adorn&quot; an
+identifier is a common mistake.  Perhaps you meant to write:
+&lt;/p&gt;&lt;code&gt;
+    print &quot; &quot;, Hello(), &quot;, &quot;, $World::ALL, &quot;!\n&quot;;
+&lt;/code&gt;&lt;p&gt;
+There are lots of ways to adorn an identifier so that it won't be a bareword:
+&lt;ul&gt;&lt;li&gt;Put it inside quotes or any of Perl's many other quoting operators.
+&lt;li&gt;Put &lt;code&gt;$&lt;/code&gt;, &lt;code&gt;@&lt;/code&gt;, &lt;code&gt;%&lt;/code&gt;, or &lt;code&gt;&amp;&lt;/code&gt;
+in front of it.
+&lt;li&gt;Put parentheses after it (making it a function call).
+&lt;li&gt;Put &lt;code&gt;:&lt;/code&gt; after it (making it a label).
+&lt;/ul&gt;&lt;/p&gt;&lt;p&gt;
+And there are several ways you are expected to use barewords that will not
+be complained about even if you &lt;code&gt;use strict &quot;subs&quot;&lt;/code&gt;:
+&lt;ul&gt;&lt;li&gt;Reserved words (of course):
+&lt;code&gt;print if &quot;a&quot; le $_ and not -s $_;&lt;/code&gt;
+&lt;/li&gt;&lt;li&gt;File handles: &lt;code&gt;open(BAREWORD,&quot;&lt;$file&quot;); print BAREWORD &quot;Text\n&quot;;&lt;/code&gt;
+&lt;/li&gt;&lt;li&gt;Hash keys:  &lt;code&gt;$hash{bareword}&lt;/code&gt;
+&lt;/li&gt;&lt;li&gt;Hash keys in front of &lt;code&gt;=&gt;&lt;/code&gt;:  &lt;code&gt;%hash= ( bareword =&gt; &quot;value&quot; );&lt;/code&gt;
+&lt;/li&gt;&lt;li&gt;Declared subroutines (where &lt;code&gt;use strict &quot;subs&quot;&lt;/code&gt; got
+    its name).  You can declare a subroutine several ways:
+    &lt;ul&gt;&lt;li&gt;Import from a module:
+    &lt;code&gt;
+    use Fcntl qw( LOCK_EX LOCK_NB );
+    flock FILE, LOCK_EX|LOCK_NB or die &quot;File already locked&quot;
+    &lt;/code&gt;
+    &lt;/li&gt;&lt;li&gt;Just define the subroutine before you use it:
+    &lt;code&gt;
+    sub Log {
+        warn localtime(), &quot;: &quot;, @_, &quot;\n&quot;;
+    }
+    Log &quot;Ready.&quot;;
+    &lt;/code&gt;
+    &lt;/li&gt;&lt;li&gt;Predeclare the subroutine before you use it and then define it
+    elsewhere:
+    &lt;code&gt;
+    sub Log;
+    Log &quot;Ready.&quot;;
+    sub Log {
+        warn localtime(), &quot;: &quot;, @_, &quot;\n&quot;;
+    }
+    &lt;/code&gt;
+    Note that you aren't protected from naming your subroutine &quot;log&quot; instead
+    of &quot;Log&quot; which would result in you trying to take the natural logarithm
+    of &quot;Ready.&quot; in both of the examples above because just declaring a
+    subroutine doesn't override built-in routines like log().  So it is a
+    good idea to name subroutines with mixed letter case &amp;#91;you can also
+    invoke your subroutine named &quot;log&quot; using &lt;code&gt;&amp;log(&quot;Ready.&quot;)&lt;/code&gt;
+    but trying &lt;code&gt;&amp;log &quot;Ready.&quot;&lt;/code&gt; won't work even if you have
+    predeclared &lt;code&gt;sub log&lt;/code&gt; as using &lt;code&gt;&amp;&lt;/code&gt; without
+    parentheses is a special form of function invocation that takes no
+    arguments, reusing the current values in &lt;code&gt;@_&lt;/code&gt; instead&amp;#93;.
+    &lt;/li&gt;&lt;/ul&gt;
+&lt;/li&gt;&lt;li&gt;Package names used to invoke class methods:
+    &lt;code&gt;
+    $o= My::Package-&gt;new();
+    &lt;/code&gt;
+    Here &lt;code&gt;My::Package&lt;/code&gt; is usually a bareword.  Note that this is
+    a bit of an ambiguous case because you could have a subroutine called
+    &lt;code&gt;sub My::Package&lt;/code&gt; and the above code would be interpretted as:
+    &lt;code&gt;
+    $o= My::Package()-&gt;new();
+    &lt;/code&gt;
+    which is why, for Perl5.6 and later, you may wish to write:
+    &lt;code&gt;
+    $o= My::Package::-&gt;new();
+    &lt;/code&gt;
+    to avoid the ambiguity.
+&lt;/li&gt;&lt;/ul&gt;&lt;/p&gt;&lt;p&gt;
+Detection of barewords happens at compile time.  This is particularly nice
+because you can make a policy of making sure many of your subroutines are
+declared before you use them (especially in the case of constants which
+are usually imported from modules) and them call them as barewords (no parens
+and no &amp;) and then Perl will detect typos in these names at compile time
+for you.
+&lt;/p&gt;&lt;h3&gt;&lt;code&gt;use strict &quot;refs&quot;&lt;/code&gt;
+&lt;/h3&gt;&lt;p&gt;
+If you &lt;code&gt;use strict &quot;refs&quot;&lt;/code&gt;, then you will get an error if you
+try to access a variable by &quot;computing&quot; its name.  This is called a symbolic
+reference.  For example:
+&lt;/p&gt;&lt;code&gt;
+    use vars qw( $this $that );
+    my $varname= @ARGV ? &quot;this&quot; : &quot;that&quot;;
+    ${$varname}= &quot;In use&quot;; # This line uses a symbolic reference.
+&lt;/code&gt;&lt;p&gt;
+Symbolic references were often used in Perl4.  Perl5 has real references
+(often created with the backslash operator, \) that should be used instead
+(or perhaps you should be using a hash and computing key names instead
+of computing variable names).  Perl5 also has lexical variables (see
+the [my] operator) that can't be accessed via symbolic
+references.  Catching symbolic reference is good because a common mistake
+is having a variable that should contain a real reference but doesn't.
+Dereferencing such a variable might silently fetch you garbage without
+this strictness.
+&lt;/p&gt;&lt;p&gt;
+Detection of using symbolic references happens at run time.
+&lt;/p&gt;&lt;p&gt;
+If you have one of those truely rare cases where you need to do symbolic
+references in Perl5, then you can delcare &lt;code&gt;no strict &quot;refs&quot;&lt;/code&gt;
+for just that chunk of code or use &lt;code&gt;eval&lt;/code&gt;.
+&lt;/p&gt;&lt;p&gt;
+&lt;b&gt;Updated&lt;/b&gt; to cover a few more cases.
+&lt;/p&gt;
+&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;- 
+&lt;a href=&quot;/index.pl?node=tye&amp;lastnode_id=1072&quot;&gt;tye&lt;/a&gt; 
+(but my friends call me &quot;Tye&quot;)
+</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>22609</author_user>
+  <createtime>2000-09-13 18:46:58</createtime>
+  <itemdescription>Adds strictness that can make Perl code easier to maintain</itemdescription>
+  <identifier></identifier>
+  <node_id>32314</node_id>
+  <usercomment>Put &quot;use strict;&quot; near the top of any Perl code that you plan to keep</usercomment>
+  <title>strict.pm</title>
+  <nodeupdated>2005-08-13 01:13:30</nodeupdated>
+</node>

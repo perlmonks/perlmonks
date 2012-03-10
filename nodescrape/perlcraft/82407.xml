@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="82407" title="Text Gradient" created="2001-05-22 21:49:02" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="71923">
+dooberwah</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+#By Ben Jacobs &lt;dooberwah&gt; 2001
+#    "Use": Colors a string with a gradient. The user inputs
+#the string and two colors in hexedcimal.
+#    Comments welcome, I know this isn't a very efficient
+#script but it's the best I could come up with. 
+
+# Update 5/24/01: Fixed a bug in the HTML code. Before there was an
+# extra &lt;/HTML&gt; Tag that was messing some browsers up
+
+# Update 5/23/01: You can now see this script in action at
+# http://dooberwah.perlmonk.org/cgi-bin/gradient.pl. 
+
+# Update 5/22/01: Added in the use of the &lt;b&gt;abs&lt;/b&gt; function instead
+# of writing my own function to do the exact same thing.
+
+use strict;
+#use warnings;
+
+use CGI;
+
+sub hexify {
+    my $red = shift;
+    my $green = shift;
+    my $blue = shift;
+
+    my $hexed = sprintf("%.2x%.2x%.2x", $red, $green, $blue);
+}
+
+sub color {
+    my $string = shift;
+    my $FromColor = shift;
+    my $ToColor = shift;
+
+    my @letters = split //, $string;
+
+    my ($fromR, $fromG, $fromB) = $FromColor =~/(\w{2})(\w{2})(\w{2})/;
+    my ($toR, $toG, $toB) = $ToColor =~ /(\w{2})(\w{2})(\w{2})/; 
+
+    $fromR = hex($fromR);
+    $toR = hex($toR);
+
+    $fromG = hex($fromG);
+    $toG = hex($toG);
+
+    $fromB = hex($fromB);
+    $toB = hex($toB);
+
+    my $rstep;
+    my $gstep;
+    my $bstep;
+
+    $rstep = abs($fromR - $toR) / length($string);
+    $gstep = abs($fromG - $toG) / length($string);
+    $rstep = abs($fromB - $toB) / length($string);
+
+    my $happystring;
+    my $r;
+    my $g;
+    my $b;
+
+    foreach my $letter (@letters) {
+        if($r == 1) { $fromR -= $rstep; } else { $fromR += $rstep; }
+        if($g == 1) { $fromG -= $rstep; } else { $fromG += $gstep; } 
+        if($b == 1) { $fromB -= $bstep; } else { $fromB += $bstep; } 
+
+        if ( $fromR &gt; 255) {
+            $r = 1;
+        }elsif ( $fromR &lt; 0) {
+            $r = 0;
+        }
+
+        if ( $fromG &gt; 255) {
+            $g = 1;
+        }elsif ( $fromG &lt; 0) {
+            $g = 0;
+        }
+
+        if ( $fromB &gt; 255) {
+            $b = 1;
+        }elsif ( $fromB &lt; 0) {
+            $b = 0;
+        }
+
+        my $hexcolors = hexify($fromR, $fromG, $fromB);
+        $happystring .= "&lt;FONT COLOR=\"#$hexcolors\"&gt;$letter&lt;/FONT&gt;";
+    }
+    $happystring;
+}
+
+my %input = CGI::Vars();
+
+my $string = %input-&gt;{'string'};
+my $fromcolor = %input-&gt;{'fromcolor'};
+my $tocolor = %input-&gt;{'tocolor'};
+
+print "Content type: text/html\n\n";
+print "&lt;HTML&gt;&lt;HEAD&gt;&lt;TITLE&gt;Text Gradient&lt;/TITLE&gt;&lt;/HEAD&gt;\n";
+print "&lt;BODY BGCOLOR=\"#000000\" TEXT=\"#e0e0e0\"&gt;\n";
+
+print "&lt;form action=\"./gradient.pl\" method=\"GET\"&gt;\n";
+print "String &lt;input type=\"text\" name=\"string\" value=\"$string\"&gt;&lt;br&gt;\n";
+print "FromColor &lt;input type=\"text\" name=\"fromcolor\" value=\"$fromcolor\"&gt;&lt;br&gt;\n";
+print "ToColor &lt;input type=\"text\" name=\"tocolor\" value=\"$tocolor\"&gt;&lt;br&gt;\n";
+print "&lt;input type=\"submit\" value=\"Make it So\"&gt;\n";
+print "&lt;/form&gt;\n";
+
+print color($string, $fromcolor, $tocolor) . "&lt;br&gt;\n";
+print "&lt;/BODY&gt;&lt;/HEAD&gt;\n";</field>
+</data>
+</node>

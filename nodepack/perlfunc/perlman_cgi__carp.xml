@@ -1,0 +1,234 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+&lt;STRONG&gt;CGI::Carp&lt;/STRONG&gt; - 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; routines for writing to the 
+&lt;FONT SIZE=-1&gt;HTTPD&lt;/FONT&gt; (or other) error log
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts have a nasty habit of leaving warning
+messages in the error logs that are neither time stamped nor fully
+identified. Tracking down the script that caused the error is a pain. This
+fixes that. Replace the usual
+
+&lt;P&gt;
+&lt;PRE&gt;    use Carp;
+&lt;/PRE&gt;
+&lt;P&gt;
+with
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Carp
+&lt;/PRE&gt;
+&lt;P&gt;
+And the standard 
+&lt;CODE&gt;warn(),&lt;/CODE&gt; die (), 
+&lt;CODE&gt;croak(),&lt;/CODE&gt; 
+&lt;CODE&gt;confess()&lt;/CODE&gt; and 
+&lt;CODE&gt;carp()&lt;/CODE&gt; calls will automagically be replaced with functions that write out nicely time-stamped messages to the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; server error log.
+
+&lt;P&gt;
+For example:
+
+&lt;P&gt;
+&lt;PRE&gt;   &amp;#091;Fri Nov 17 21:40:43 1995&amp;#093; test.pl: I'm confused at test.pl line 3.
+   &amp;#091;Fri Nov 17 21:40:43 1995&amp;#093; test.pl: Got an error message: Permission denied.
+   &amp;#091;Fri Nov 17 21:40:43 1995&amp;#093; test.pl: I'm dying.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;REDIRECTING_ERROR_MESSAGES&quot;&gt;REDIRECTING ERROR MESSAGES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+By default, error messages are sent to 
+&lt;FONT SIZE=-1&gt;STDERR.&lt;/FONT&gt; Most 
+&lt;FONT SIZE=-1&gt;HTTPD&lt;/FONT&gt; servers direct 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; to the server's error log. Some applications may wish to keep private error logs, distinct from the server's error log, or they may wish to direct error messages to 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; so that the browser will receive them.
+
+&lt;P&gt;
+The &lt;CODE&gt;carpout()&lt;/CODE&gt; function is provided for this purpose. Since 
+&lt;CODE&gt;carpout()&lt;/CODE&gt; is not exported by
+default, you must import it explicitly by saying
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI::Carp qw(carpout);
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;CODE&gt;carpout()&lt;/CODE&gt; function requires
+one argument, which should be a reference to an open filehandle for writing
+errors. It should be called in a &lt;CODE&gt;BEGIN&lt;/CODE&gt; block at the top of the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; application so that compiler errors will be
+caught. Example:
+
+&lt;P&gt;
+&lt;PRE&gt;   BEGIN {
+     use CGI::Carp qw(carpout);
+     open(LOG, &amp;quot;&amp;gt;&amp;gt;/usr/local/cgi-logs/mycgi-log&amp;quot;) or
+       die(&amp;quot;Unable to open mycgi-log: $!\n&amp;quot;);
+     carpout(LOG);
+   }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;carpout()&lt;/CODE&gt; does not handle
+file locking on the log for you at this point.
+
+&lt;P&gt;
+The real 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; is not closed -- it is moved to 
+&lt;FONT SIZE=-1&gt;SAVEERR.&lt;/FONT&gt; Some servers, when dealing with 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts, close their connection to the browser when the script closes 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STDERR.&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;SAVEERR&lt;/FONT&gt; is used to prevent this from happening prematurely.
+
+&lt;P&gt;
+You can pass filehandles to 
+&lt;CODE&gt;carpout()&lt;/CODE&gt; in a variety of ways. The ``correct'' way according to Tom Christiansen is to pass a reference to a filehandle 
+&lt;FONT SIZE=-1&gt;GLOB:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    carpout(\*LOG);
+&lt;/PRE&gt;
+&lt;P&gt;
+This looks weird to mere mortals however, so the following syntaxes are
+accepted as well:
+
+&lt;P&gt;
+&lt;PRE&gt;    carpout(LOG);
+    carpout(main::LOG);
+    carpout(main'LOG);
+    carpout(\LOG);
+    carpout(\'main::LOG');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    ... and so on
+&lt;/PRE&gt;
+&lt;P&gt;
+FileHandle and other objects work as well.
+
+&lt;P&gt;
+Use of 
+&lt;CODE&gt;carpout()&lt;/CODE&gt; is not great for performance, so it is recommended for debugging purposes or for moderate-use applications. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; future version of this module may delay redirecting 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; until one of the CGI::Carp methods is called to prevent the performance hit.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;MAKING_PERL_ERRORS_APPEAR_IN_THE&quot;&gt;MAKING PERL ERRORS APPEAR IN THE BROWSER WINDOW&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+If you want to send fatal (die, confess) errors to the browser, ask to
+import the special ``fatalsToBrowser'' subroutine:
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Carp qw(fatalsToBrowser);
+    die &amp;quot;Bad error here&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Fatal errors will now be echoed to the browser as well as to the log. CGI::Carp arranges to send a minimal 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header to the browser so that even errors that occur in the early compile phase will be seen. Nonfatal errors will still be directed to the log file only (unless redirected with carpout).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Changing_the_default_message&quot;&gt;Changing the default message&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+By default, the software error message is followed by a note to contact the Webmaster by e-mail with the time and date of the error. If this message is not to your liking, you can change it using the 
+&lt;CODE&gt;set_message()&lt;/CODE&gt; routine. This is not imported by default; you should import it on the 
+&lt;CODE&gt;use()&lt;/CODE&gt; line:
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Carp qw(fatalsToBrowser set_message);
+    set_message(&amp;quot;It's not a bug, it's a feature!&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+You may also pass in a code reference in order to create a custom error
+message. At run time, your code will be called with the text of the error
+message that caused the script to die. Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Carp qw(fatalsToBrowser set_message);
+    BEGIN {
+       sub handle_errors {
+          my $msg = shift;
+          print &amp;quot;&amp;lt;h1&amp;gt;Oh gosh&amp;lt;/h1&amp;gt;&amp;quot;;
+          print &amp;quot;Got an error: $msg&amp;quot;;
+      }
+      set_message(\&amp;amp;handle_errors);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+In order to correctly intercept compile-time errors, you should call 
+&lt;CODE&gt;set_message()&lt;/CODE&gt; from within a 
+&lt;FONT SIZE=-1&gt;BEGIN{}&lt;/FONT&gt; block.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;CHANGE_LOG&quot;&gt;CHANGE LOG&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+1.05 
+&lt;CODE&gt;carpout()&lt;/CODE&gt; added and minor
+corrections by Marc Hedlund &amp;lt;&lt;A
+HREF=&quot;mailto:hedlund@best.com&quot;&gt;hedlund@best.com&lt;/A&gt;&amp;gt; on 11/26/95.
+
+&lt;P&gt;
+1.06 
+&lt;CODE&gt;fatalsToBrowser()&lt;/CODE&gt; no longer aborts for fatal errors within 
+&lt;CODE&gt;eval()&lt;/CODE&gt; statements.
+
+&lt;P&gt;
+1.08 
+&lt;CODE&gt;set_message()&lt;/CODE&gt; added and 
+&lt;CODE&gt;carpout()&lt;/CODE&gt; expanded to allow for FileHandle objects.
+
+&lt;P&gt;
+1.09 
+&lt;CODE&gt;set_message()&lt;/CODE&gt; now allows users to pass a code 
+&lt;FONT SIZE=-1&gt;REFERENCE&lt;/FONT&gt; for really custom error messages. croak and carp are now exported by default. Thanks to Gunther Birznieks for the patches.
+
+&lt;P&gt;
+1.10 Patch from Chris Dean (&lt;A
+HREF=&quot;mailto:ctdean@cogit.com&quot;&gt;ctdean@cogit.com&lt;/A&gt;) to allow module to run
+correctly under mod_perl.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHORS&quot;&gt;AUTHORS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Lincoln 
+&lt;FONT SIZE=-1&gt;D.&lt;/FONT&gt; Stein &amp;lt;&lt;A
+HREF=&quot;mailto:lstein@genome.wi.mit.edu&quot;&gt;lstein@genome.wi.mit.edu&lt;/A&gt;&amp;gt;
+Feel free to redistribute this under the Perl Artistic License.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Carp, CGI::Base, CGI::BasePlus, CGI::Request, CGI::MiniSvr, CGI::Form,
+CGI::Response
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:50:49</createtime>
+  <node_id>1168</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    use CGI::Carp;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    croak &amp;quot;We're outta here!&amp;quot;;
+    confess &amp;quot;It was my fault: $!&amp;quot;;
+    carp &amp;quot;It was your fault!&amp;quot;;   
+    warn &amp;quot;I'm confused&amp;quot;;
+    die  &amp;quot;I'm dying.\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;</synopsis>
+  <title>perlman:CGI::Carp</title>
+  <nodeupdated>2005-08-12 23:28:54</nodeupdated>
+</node>

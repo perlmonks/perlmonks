@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="31304" title="CPAN nodelet" created="2000-09-06 18:43:04" updated="1331254374">
+<type id="9">
+nodelet</type>
+<author id="929">
+developers</author>
+<data>
+<field name="nlcode">
+[%
+  my $str;
+  my $NL;
+
+  eval{
+    use XML::RSS;
+    use LWP::Simple;
+    my $xml = LWP::Simple::get( 'http://search.cpan.org/uploads.rdf' );
+    my $rss = XML::RSS-&gt;new;
+    $rss-&gt;parse( $xml );
+    my @items = @{ $rss-&gt;{items} };
+    @items = @items[0..24]
+      if @items &gt; 25;
+    $str .= qq(&lt;li&gt;&lt;a href = "$_-&gt;{link}"&gt;$_-&gt;{title}&lt;/a&gt;&lt;/li&gt;\n)
+      for @items;
+    $str =~ s!search.cpan.org,\s+!!g;
+    $str = htmlcode('split_html','',$str);
+    $str = '&lt;ul class="spacey-list"&gt;'.$str.'&lt;/ul&gt;';
+    $str .= &lt;&lt;'END';
+      &lt;form method = get action="http://search.cpan.org/search"&gt;
+        &lt;select name = "mode"&gt;
+          &lt;option value = "module" &gt;Module        &lt;/option&gt;
+          &lt;option value = "dist"   &gt;Distribution  &lt;/option&gt;
+          &lt;option value = "author" &gt;Author        &lt;/option&gt;
+          &lt;option value = "doc"    &gt;Documentation &lt;/option&gt;
+        &lt;/select&gt;
+        &lt;input type = "text"   name  = "query"  /&gt;&lt;br /&gt;
+        &lt;input type = "submit" value = "Search" /&gt;
+      &lt;/form&gt;
+END
+  };
+  $@ ? "CPAN seems to be down; connection trouble&lt;br /&gt;\n" : $str;
+%]
+</field>
+<field name="parent_container">
+1058</field>
+</data>
+</node>

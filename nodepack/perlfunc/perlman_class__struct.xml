@@ -1,0 +1,257 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+Class::Struct - declare struct-like datatypes as Perl classes
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+&lt;CODE&gt;Class::Struct&lt;/CODE&gt; exports a single function, &lt;CODE&gt;struct&lt;/CODE&gt;. Given a list of element names and types, and optionally a class name, &lt;CODE&gt;struct&lt;/CODE&gt; creates a Perl 5 class that implements a ``struct-like'' data structure.
+
+&lt;P&gt;
+The new class is given a constructor method, &lt;CODE&gt;new&lt;/CODE&gt;, for creating struct objects.
+
+&lt;P&gt;
+Each element in the struct data has an accessor method, which is used to
+assign to the element and to fetch its value. The default accessor can be
+overridden by declaring a [perlfunc:sub|sub] of the same name in the package. (See Example 2.)
+
+&lt;P&gt;
+Each element's type can be scalar, array, hash, or class.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_C_struct_function&quot;&gt;The &lt;CODE&gt;struct()&lt;/CODE&gt; function&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;struct&lt;/CODE&gt; function has three forms of parameter-list.
+
+&lt;P&gt;
+&lt;PRE&gt;    struct( CLASS_NAME =&amp;gt; &amp;#091; ELEMENT_LIST &amp;#093;);
+    struct( CLASS_NAME =&amp;gt; { ELEMENT_LIST });
+    struct( ELEMENT_LIST );
+&lt;/PRE&gt;
+&lt;P&gt;
+The first and second forms explicitly identify the name of the class being
+created. The third form assumes the current package name as the class name.
+
+&lt;P&gt;
+An object of a class created by the first and third forms is based on an
+array, whereas an object of a class created by the second form is based on
+a hash. The array-based forms will be somewhat faster and smaller; the
+hash-based forms are more flexible.
+
+&lt;P&gt;
+The class created by &lt;CODE&gt;struct&lt;/CODE&gt; must not be a subclass of another class other than &lt;CODE&gt;UNIVERSAL&lt;/CODE&gt;.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; function named &lt;CODE&gt;new&lt;/CODE&gt; must not be explicitly defined in a class created by &lt;CODE&gt;struct&lt;/CODE&gt;.
+
+&lt;P&gt;
+The &lt;EM&gt;ELEMENT_LIST&lt;/EM&gt; has the form
+
+&lt;P&gt;
+&lt;PRE&gt;    NAME =&amp;gt; TYPE, ...
+&lt;/PRE&gt;
+&lt;P&gt;
+Each name-type pair declares one element of the struct. Each element name
+will be defined as an accessor method unless a method by that name is
+explicitly defined; in the latter case, a warning is issued if the warning
+flag (&lt;STRONG&gt;-w&lt;/STRONG&gt;) is set.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Element_Types_and_Accessor_Metho&quot;&gt;Element Types and Accessor Methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The four element types -- scalar, array, hash, and class -- are represented
+by strings -- &lt;CODE&gt;'$'&lt;/CODE&gt;, &lt;CODE&gt;'@'&lt;/CODE&gt;, &lt;CODE&gt;'%'&lt;/CODE&gt;, and a class name -- optionally preceded by a &lt;CODE&gt;'*'&lt;/CODE&gt;.
+
+&lt;P&gt;
+The accessor method provided by &lt;CODE&gt;struct&lt;/CODE&gt; for an element depends on the declared type of the element.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Scalar&quot;&gt;Scalar ('$' or '*$')&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The element is a scalar, and is initialized to [perlfunc:undef|undef].
+
+&lt;P&gt;
+The accessor's argument, if any, is assigned to the element.
+
+&lt;P&gt;
+If the element type is &lt;CODE&gt;'$'&lt;/CODE&gt;, the value of the element (after assignment) is returned. If the element
+type is &lt;CODE&gt;'*$'&lt;/CODE&gt;, a reference to the element is returned.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Array&quot;&gt;Array ('@' or '*@')&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The element is an array, initialized to &lt;CODE&gt;()&lt;/CODE&gt;.
+
+&lt;P&gt;
+With no argument, the accessor returns a reference to the element's whole
+array.
+
+&lt;P&gt;
+With one or two arguments, the first argument is an index specifying one
+element of the array; the second argument, if present, is assigned to the
+array element. If the element type is &lt;CODE&gt;'@'&lt;/CODE&gt;, the accessor returns the array element value. If the element type is &lt;CODE&gt;'*@'&lt;/CODE&gt;, a reference to the array element is returned.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Hash&quot;&gt;Hash ('%' or '*%')&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The element is a hash, initialized to &lt;CODE&gt;()&lt;/CODE&gt;.
+
+&lt;P&gt;
+With no argument, the accessor returns a reference to the element's whole
+hash.
+
+&lt;P&gt;
+With one or two arguments, the first argument is a key specifying one
+element of the hash; the second argument, if present, is assigned to the
+hash element. If the element type is &lt;CODE&gt;'%'&lt;/CODE&gt;, the accessor returns the hash element value. If the element type is
+&lt;CODE&gt;'*%'&lt;/CODE&gt;, a reference to the hash element is returned.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Class&quot;&gt;Class ('Class_Name' or '*Class_Name')&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The element's value must be a reference blessed to the named class or to
+one of its subclasses. The element is initialized to the result of calling
+the &lt;CODE&gt;new&lt;/CODE&gt; constructor of the named class.
+
+&lt;P&gt;
+The accessor's argument, if any, is assigned to the element. The accessor
+will [perlman:perlguts|perlguts] if this is not an appropriate object reference.
+
+&lt;P&gt;
+If the element type does not start with a &lt;CODE&gt;'*'&lt;/CODE&gt;, the accessor returns the element value (after assignment). If the element
+type starts with a &lt;CODE&gt;'*'&lt;/CODE&gt;, a reference to the element itself is returned.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;EXAMPLES&quot;&gt;EXAMPLES&lt;/A&gt;&lt;/H1&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Example&quot;&gt;Example 1&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Giving a struct element a class type that is also a struct is how structs
+are nested. Here, &lt;CODE&gt;timeval&lt;/CODE&gt; represents a time (seconds and microseconds), and &lt;CODE&gt;rusage&lt;/CODE&gt; has two elements, each of which is of type &lt;CODE&gt;timeval&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    use Class::Struct;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    struct( rusage =&amp;gt; {
+        ru_utime =&amp;gt; timeval,  # seconds
+        ru_stime =&amp;gt; timeval,  # microseconds
+    });
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    struct( timeval =&amp;gt; &amp;#091;
+        tv_secs  =&amp;gt; '$',
+        tv_usecs =&amp;gt; '$',
+    &amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # create an object:
+    my $t = new rusage;
+        # $t-&amp;gt;ru_utime and $t-&amp;gt;ru_stime are objects of type timeval.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # set $t-&amp;gt;ru_utime to 100.0 sec and $t-&amp;gt;ru_stime to 5.0 sec.
+    $t-&amp;gt;ru_utime-&amp;gt;tv_secs(100);
+    $t-&amp;gt;ru_utime-&amp;gt;tv_usecs(0);
+    $t-&amp;gt;ru_stime-&amp;gt;tv_secs(5);
+    $t-&amp;gt;ru_stime-&amp;gt;tv_usecs(0);
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;Example 2&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+An accessor function can be redefined in order to provide additional
+checking of values, etc. Here, we want the &lt;CODE&gt;count&lt;/CODE&gt;
+element always to be nonnegative, so we redefine the &lt;CODE&gt;count&lt;/CODE&gt;
+accessor accordingly.
+
+&lt;P&gt;
+&lt;PRE&gt;    package MyObj;
+    use Class::Struct;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # declare the struct
+    struct ( 'MyObj', { count =&amp;gt; '$', stuff =&amp;gt; '%' } );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # override the default accessor method for 'count'
+    sub count {
+        my $self = shift;
+        if ( @_ ) {
+            die 'count must be nonnegative' if $_&amp;#091;0&amp;#093; &amp;lt; 0;
+            $self-&amp;gt;{'count'} = shift;
+            warn &amp;quot;Too many args to count&amp;quot; if @_;
+        }
+        return $self-&amp;gt;{'count'};
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    package main;
+    $x = new MyObj;
+    print &amp;quot;\$x-&amp;gt;count(5) = &amp;quot;, $x-&amp;gt;count(5), &amp;quot;\n&amp;quot;;
+                            # prints '$x-&amp;gt;count(5) = 5'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;\$x-&amp;gt;count = &amp;quot;, $x-&amp;gt;count, &amp;quot;\n&amp;quot;;
+                            # prints '$x-&amp;gt;count = 5'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;\$x-&amp;gt;count(-5) = &amp;quot;, $x-&amp;gt;count(-5), &amp;quot;\n&amp;quot;;
+                            # dies due to negative argument!
+&lt;/PRE&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Author_and_Modification_History&quot;&gt;Author and Modification History&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Renamed to &lt;CODE&gt;Class::Struct&lt;/CODE&gt; and modified by Jim Miner, 1997-04-02.
+
+&lt;P&gt;
+&lt;PRE&gt;    members() function removed.
+    Documentation corrected and extended.
+    Use of struct() in a subclass prohibited.
+    User definition of accessor allowed.
+    Treatment of '*' in element types corrected.
+    Treatment of classes as element types corrected.
+    Class name to struct() made optional.
+    Diagnostic checks added.
+&lt;/PRE&gt;
+&lt;P&gt;
+Originally &lt;CODE&gt;Class::Template&lt;/CODE&gt; by Dean Roehrich.
+
+&lt;P&gt;
+&lt;PRE&gt;    # Template.pm   --- struct/member template builder
+    #   12mar95
+    #   Dean Roehrich
+    #
+    # changes/bugs fixed since 28nov94 version:
+    #  - podified
+    # changes/bugs fixed since 21nov94 version:
+    #  - Fixed examples.
+    # changes/bugs fixed since 02sep94 version:
+    #  - Moved to Class::Template.
+    # changes/bugs fixed since 20feb94 version:
+    #  - Updated to be a more proper module.
+    #  - Added &amp;quot;use strict&amp;quot;.
+    #  - Bug in build_methods, was using @var when @$var needed.
+    #  - Now using my() rather than local().
+    #
+    # Uses perl5 classes to create nested data types.
+    # This is offered as one implementation of Tom Christiansen's &amp;quot;structs.pl&amp;quot;
+    # idea.
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:51:13</createtime>
+  <node_id>1173</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    use Class::Struct;
+            # declare struct, based on array:
+    struct( CLASS_NAME =&amp;gt; &amp;#091; ELEMENT_NAME =&amp;gt; ELEMENT_TYPE, ... &amp;#093;);
+            # declare struct, based on hash:
+    struct( CLASS_NAME =&amp;gt; { ELEMENT_NAME =&amp;gt;</synopsis>
+  <title>perlman:Class::Struct</title>
+  <nodeupdated>2005-08-10 15:36:19</nodeupdated>
+</node>

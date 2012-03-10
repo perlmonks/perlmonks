@@ -1,0 +1,121 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>20108</node_id>
+  <author_user>929</author_user>
+  <title>wrapcode</title>
+  <createtime>2000-06-28 01:00:05</createtime>
+  <code>my( $code, $dllink, $preview )= @_;
+$code= $HTMLVARS{codewraptext}
+    if  ! defined $code;
+
+$code =~ tr/\r//d;
+$code =~ s/\t/    /g; # why is this 4 and not 8!?
+my $numlines = split /\n/,$code;
+my $multiline= $numlines&gt;1 ? ' class=&quot;code&quot;' : &quot;&quot;;
+my $auto= ( $VARS-&gt;{codeautowrap} &amp;&amp; ! $VARS-&gt;{codewrapoff} );
+my $tag =  $auto ? 'span' : 'div';
+if(     $VARS-&gt;{dllink_lines}
+    &amp;&amp;  $numlines &lt; $VARS-&gt;{dllink_lines}
+) {
+    $dllink= &quot;&quot;;
+}
+
+my $begin= qq[&lt;tt class=']
+         . ($multiline ? &quot;codetext&quot; : &quot;inlinecode&quot;) 
+         . qq['&gt;];
+my $end= qq[&lt;/tt&gt;];
+if ($dllink) {
+   $dllink= &quot;&lt;$tag class='embed-code-dl'&gt;$dllink&lt;/$tag&gt;&quot;;
+}
+
+if(  ! $VARS-&gt;{codebig}  ) {
+    $begin .= qq[&lt;font size=&quot;-1&quot;&gt;];
+    $end= qq[&lt;/font&gt;$end];
+    $dllink= &quot;&lt;font size='-1'&gt;$dllink&lt;/font&gt;&quot;
+        if $dllink;
+}
+
+if(  $multiline  ) {
+    $code =~ s#^\n##;
+    if(  $dllink  ) {
+        $begin= &quot;&lt;$tag class='codeblock'&gt;&quot;. $begin;
+        $end .= &quot;&lt;/$tag&gt;&quot;;
+        $end .= $dllink
+             if !$preview;
+    }
+    if( $auto ) {
+        $code =~ s#\n\z##;
+        $begin= &quot;&lt;p$multiline&gt;&quot; . $begin;
+        $end .= &quot;&lt;/p&gt;&quot;;
+    } else {
+        $code =~ s#\n?\z#\n#;
+        $begin= &quot;&lt;pre$multiline&gt;&quot; . $begin;
+        $end .= &quot;&lt;/pre&gt;&quot;;
+    }
+    $end .= &quot;\n&quot;;
+}
+
+return  $begin . $q-&gt;escapeHTML($code) . $end
+   if  $VARS-&gt;{codewrapoff};
+
+my $prefix= $multiline ? $VARS-&gt;{codeprefix} : '';
+my $start= '';
+$start= $1   if  $prefix =~ s#&amp;(\d+);#&amp;d;#;
+
+# deal with a raw &amp;d; below:
+$start= 1   if  $start eq ''  and  $prefix =~ /&amp;d;/;
+# add a trailing space to the prefix if it ends in a line number
+$prefix.=&quot; &quot;   if  $prefix =~ /&amp;d;$/;
+# figure out the right amount of space for the line numbering
+my $d_len= length( ()= $code =~ m/^/gm );
+$d_len= length($start)
+    if  $d_len &lt; length($start);
+
+if(  $VARS-&gt;{codeautowrap}  ||  ! $multiline  ) {
+    my $len= $VARS-&gt;{codewraplength} || 0;
+    if(  $len  &amp;&amp;  $VARS-&gt;{codeautowrap}  ) {
+        my $short= $len - 1 || 1;
+        my $br= qq[&lt;font color=&quot;red&quot;&gt;&lt;b&gt;&lt;u&gt;&lt;wbr /&gt;&amp;#173;&lt;/u&gt;&lt;/b&gt;&lt;/font&gt;];
+        $code =~ s[\G(\S{$len})(?=\S)|(\s+|\S+\s*)]{
+            defined($1)
+                ? $q-&gt;escapeHTML($1).$br
+                : $q-&gt;escapeHTML($2)
+        }ge;
+    } else {
+        $code= $q-&gt;escapeHTML($code);
+    }
+    $code =~ s#^#$prefix#   if  $multiline;
+    $code =~ s#\n#&lt;br /&gt;\n$prefix#g;
+    $code =~ s#&amp;d;# sprintf '%*s', $d_len, $start++ #ge
+        if  length $start;
+    # handle spaces after all other processing, especially prefix related
+    $code =~ s#^ #&amp;nbsp;#mg; # handle special case of odd number indent
+    $code =~ s#  # &amp;nbsp;#g; # prevent html rules eating all the spaces
+    $code .= &quot;&lt;br /&gt;\n&quot;   if  $multiline;
+    return $begin . $code . $end;
+}
+my $breaklength= $VARS-&gt;{codewraplength} || 70;
+my $shorter= $breaklength-1 || 1;
+my $str= '';
+while(  $code =~ m{
+        (?:
+          (^|\n)                # Start of a line: $1
+          (.{0,$breaklength})   # Unwrapped part of line: $2
+         |
+          (.{1,$shorter})       # Continuation of line: $3
+        )
+        (?=(.?))                # Next char (more wrapping?): $4
+    }gx
+) {
+    my $line= defined($3) ? $3 : $2;
+    $str .= $1 . $prefix   if  ! defined($3);
+    $str .= $query-&gt;escapeHTML( $line );
+    $str .= qq[&lt;span class=&quot;line-breaker&quot;&gt;\n&lt;font color=&quot;red&quot;&gt;+&lt;/font&gt;&lt;/span&gt;]
+        if  $4 ne &quot;&quot;;
+}
+$str =~ s#&amp;d;# sprintf '%*s', $d_len, $start++ #ge
+    if  length $start;
+return $begin . $str . $end;
+</code>
+  <nodeupdated>2005-08-06 22:18:44</nodeupdated>
+</node>

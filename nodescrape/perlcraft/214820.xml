@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="214820" title="compressed logfile grep" created="2002-11-21 12:04:19" updated="2005-05-27 11:25:05">
+<type id="121">
+perlcraft</type>
+<author id="211915">
+ibanix</author>
+<data>
+<field name="doctext">
+This was one of the first scripts I wrote. I needed to rapidly find strings in compressed IIS logfiles, and this was the result.
+
+It handles both compressed and uncompressed logfiles in the same directory, but does not handle ZIP files with more than one file inside.
+
+Any feedback welcomed.
+
+#
+# Search.pl -- Search for arbitary string in logfiles
+# Designed for a ActivePerl/Win32 environment
+#
+# Author: Joshua Thomas
+# Last update: 10/24/2002
+#
+# 1.0: initial release
+# 
+
+use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
+use Cwd;
+
+# Get our path and current working dir
+# Expect the following args, ARGV[0] = [zip|log|all] 
+# ARGV[1] = [path], ARGV[2] = [phrase], ARGV[3] = [outfile]
+
+($scope = $ARGV[0]) || &amp;usage;
+($path = $ARGV[1]) || &amp;usage;
+($phrase = $ARGV[2]) || &amp;usage;
+($outfile = $ARGV[3]) || &amp;usage;
+
+# Strip whitespace from args
+$scope =~ s/\s+//;
+
+if ($scope != /(zip)|(log)|(all)/) { &amp;usage; }
+
+# Move to working directory
+
+$cwd = getcwd();
+chdir $path;
+
+# Open the master file that we write results out to
+
+open(OUTFILE, "&gt;$outfile");
+
+# Loop through all the zip files
+
+if ($scope =~ /(zip)|(all)/ ) {
+
+	while (defined ($file = glob("*.zip"))) { 
+    
+	    print "$file: ";
+
+	    $zip = Archive::Zip-&gt;new();
+	    die 'Bad zip file!' if $zip-&gt;read( $file ) != AZ_OK;
+
+	    # We only expect one member/file [for now]
+	    @members = $zip-&gt;memberNames();
+	    $extracted = $members[0] . ".tmp";
+		die "could not extract $members[0]!" if $zip-&gt;extractMember($members[0], $extracted) != AZ_OK;
+
+		print "Extracted $members[0], ";
+		
+	    # Now we've got $file.log.tmp
+
+	    # Find string, write to file
+	    open(INFILE, $extracted);
+	    print "finding matches, ";
+
+	    while(&lt;INFILE&gt;){
+	        if (/$phrase/) {
+	        print OUTFILE "$_";
+	        }
+	    }
+
+	    close(INFILE);
+
+	    $result = `del $extracted`;
+	
+	    print" done.\n\n";
+	}
+}
+
+# Loop through .log files
+
+if ($scope =~ /(log)|(all)/ ) {
+
+	while (defined ($file = glob("*.log"))) { 
+    
+	    print "$file: ";
+	    
+	    # Don't have to extract the file here, skip right to searching
+
+	    open(INFILE, $file);
+	    print "finding matches, ";
+
+	    while(&lt;INFILE&gt;){
+	        if (/$phrase/) {
+	        print OUTFILE "$_";
+	        }
+	    }
+
+	    close(INFILE);
+	
+	    print" done.\n\n";
+	}
+}
+
+# Change back to starting directory 
+chdir $cwd;
+
+# Close file
+
+close(OUTFILE);
+
+sub usage {
+    print ("search.pl -- Find lines with a given phrase from a directory of logfiles.\n");
+    print ("useage: search.pl [zip|log|all] [path] [phrase] [outfile]\n\n");
+    print ("option 'zip' will strip compessed .zip archives\n");
+    print ("option 'log' will strip uncompressed .log files\n");
+    print ("option 'all' will do both .zip and .log files\n");
+    print ("[path] should be a full-length path surrounded by double-quotes.\n");
+    exit(0);
+
+}
+
+
+/rgds,
+ibanix
+</field>
+</data>
+</node>

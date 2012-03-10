@@ -1,0 +1,85 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>1940</node_id>
+  <author_user>979</author_user>
+  <title>listanswers</title>
+  <createtime>2000-01-10 16:15:23</createtime>
+  <code>my $str;
+my @lt=getNodeWhere({title=&gt;&quot;answer approved linktype&quot;});
+my $lt_id=getId($lt[0]);
+my $numshown=0;
+     
+my $gods=canUpdateNode($USER,$NODE);
+my @flt=getNodeWhere({title=&gt;'frontpage linktype'});
+
+if($gods){
+   my(@params)=$query-&gt;param();   
+   my $nodeid=getId($NODE);
+
+      foreach(@params){
+         my $curid=$_;
+         if(/\d+/){
+            my $TEMP=getNodeById $curid;
+            my $parent=$$TEMP{parent_node};
+            my $self=getId($TEMP);
+            my(@operations)=$query-&gt;param($curid);
+            foreach(@operations){
+               if($_ eq &quot;frontpage&quot;){
+                   updateLinks($self,$parent,$lt_id);
+                }
+               if($_ eq &quot;ok&quot;){
+                   updateLinks($self,$parent,$lt_id);
+               }
+               if($_ eq &quot;delete&quot;){
+                  my $ref=selectNodeWhere({node_id=&gt;$self},&quot;&quot;,&quot;&quot;);
+                  foreach(@$ref){
+                     nukeNode($_,$USER);
+                  }
+               }
+            }
+         }
+      }
+}
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;SELECT * FROM links WHERE linktype=$lt_id&quot;); 
+$csr-&gt;execute or return &quot;SHIT&quot;;
+my $N;
+my %approved;
+while($N=$csr-&gt;fetchrow_hashref){
+   $approved{$$N{from_node}}{$$N{to_node}}=1;
+}
+my @unapproved;
+my $ref=selectNodeWhere({type_nodetype=&gt;getType('categorized answer')},&quot;&quot;,&quot;&quot;);
+foreach my $CURNODE(@$ref){
+   my $N=selectNode $CURNODE;
+   unless($approved{$$N{parent_node}}{getId($CURNODE)}){
+      push @unapproved, $CURNODE;
+   }
+}
+$HTMLVARS{unapproved}=\@unapproved;
+    my $str=&quot;&lt;TABLE width=100%&gt;&lt;TR BGCOLOR=&quot;;
+    if($$THEME{titlebgcolor}){
+       $str.=$$THEME{titlebgcolor};
+    } else{
+       $str.=&quot;b64234&quot;;
+    }
+    my(@nl)=getNodeWhere({title=&gt;&quot;moderate node&quot;},getType('nodelet'));
+    my $nodelet;
+    foreach(@nl){
+       $nodelet=$_;
+    }
+    $str.=&quot;&gt;&lt;TD colspan=2&gt;&lt;font color=white size+=1&gt;&lt;B&gt;Approve Answers&lt;/B&gt;&lt;/font&gt;&lt;/TD&gt;&lt;/TR&gt;&quot;;
+    $str.=htmlcode('openform','',-method =&gt; 'get');
+    $str.=$query-&gt;hidden(&quot;displaytype&quot;,&quot;display&quot;);
+    $str.=$query-&gt;hidden(&quot;node_id&quot;,getId($NODE));
+    $str.=&quot;&lt;TR&gt;&quot;;
+    foreach(@{$HTMLVARS{unapproved}}){
+       $HTMLVARS{embed_node}=selectNode $_;
+       $str.=insertNodelet($nodelet) if($nodelet);
+    }
+    $str.=&quot;&lt;/TR&gt;&lt;/TABLE&gt;&quot;;
+    $str.=$query-&gt;submit(&quot;Submit&quot;);
+    $str.=$query-&gt;endform;
+    return $str;
+</code>
+  <nodeupdated>2004-10-29 10:06:21</nodeupdated>
+</node>

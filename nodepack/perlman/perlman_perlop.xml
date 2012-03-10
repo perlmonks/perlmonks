@@ -1,0 +1,1443 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlop - Perl operators and precedence
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SYNOPSIS&quot;&gt;SYNOPSIS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Perl operators have the following associativity and precedence, listed from highest precedence to lowest. Note that all operators borrowed from 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; keep the same precedence relationship with each other, even where C's precedence is slightly screwy. (This makes learning Perl easier for 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; folks.) With very few exceptions, these all operate on scalar values only, not array values.
+
+&lt;P&gt;
+&lt;PRE&gt;    left        terms and list operators (leftward)
+    left        -&amp;gt;
+    nonassoc    ++ --
+    right       **
+    right       ! ~ \ and unary + and -
+    left        =~ !~
+    left        * / % x
+    left        + - .
+    left        &amp;lt;&amp;lt; &amp;gt;&amp;gt;
+    nonassoc    named unary operators
+    nonassoc    &amp;lt; &amp;gt; &amp;lt;= &amp;gt;= lt gt le ge
+    nonassoc    == != &amp;lt;=&amp;gt; eq ne cmp
+    left        &amp;amp;
+    left        | ^
+    left        &amp;amp;&amp;amp;
+    left        ||
+    nonassoc    ..  ...
+    right       ?:
+    right       = += -= *= etc.
+    left        , =&amp;gt;
+    nonassoc    list operators (rightward)
+    right       not
+    left        and
+    left        or xor
+&lt;/PRE&gt;
+&lt;P&gt;
+In the following sections, these operators are covered in precedence order.
+
+&lt;P&gt;
+Many operators can be overloaded for objects. See &lt;U&gt;the overload manpage&lt;/U&gt;&lt;!--../lib/overload.html--&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Terms_and_List_Operators_Leftwa&quot;&gt;Terms and List Operators (Leftward)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;TERM&lt;/FONT&gt; has the highest precedence in Perl. They includes variables, quote and quote-like operators, any expression in parentheses, and any function whose arguments are parenthesized. Actually, there aren't really functions in this sense, just list operators and unary operators behaving as functions because you put parentheses around the arguments. These are all documented in
+ [perlman:perlfunc|the perlfunc manpage].
+
+&lt;P&gt;
+If any list operator (print(), etc.) or any unary operator (chdir(), etc.)
+is followed by a left parenthesis as the next token, the operator and
+arguments within parentheses are taken to be of highest precedence, just
+like a normal function call.
+
+&lt;P&gt;
+In the absence of parentheses, the precedence of list operators such as
+[perlfunc:print|print], [perlfunc:sort|sort], or [perlfunc:chmod|chmod] is either very high or very low depending on whether you are looking at the
+left side or the right side of the operator. For example, in
+
+&lt;P&gt;
+&lt;PRE&gt;    @ary = (1, 3, sort 4, 2);
+    print @ary;         # prints 1324
+&lt;/PRE&gt;
+&lt;P&gt;
+the commas on the right of the sort are evaluated before the sort, but the commas on the left are evaluated after. In other words, list operators tend to gobble up all the arguments that follow them, and then act like a simple 
+&lt;FONT SIZE=-1&gt;TERM&lt;/FONT&gt; with regard to the preceding expression. Note that you have to be careful with parentheses:
+
+&lt;P&gt;
+&lt;PRE&gt;    # These evaluate exit before doing the print:
+    print($foo, exit);  # Obviously not what you want.
+    print $foo, exit;   # Nor is this.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # These do the print before evaluating exit:
+    (print $foo), exit; # This is what you want.
+    print($foo), exit;  # Or this.
+    print ($foo), exit; # Or even this.
+&lt;/PRE&gt;
+&lt;P&gt;
+Also note that
+
+&lt;P&gt;
+&lt;PRE&gt;    print ($foo &amp;amp; 255) + 1, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+probably doesn't do what you expect at first glance. See
+&lt;A HREF=&quot;#Named_Unary_Operators&quot;&gt;Named Unary Operators&lt;/A&gt; for more discussion of this.
+
+&lt;P&gt;
+Also parsed as terms are the [perlfunc:do] and [perlfunc:eval] constructs, as well as subroutine and method calls, and the anonymous
+constructors &lt;CODE&gt;&amp;#091;&amp;#093;&lt;/CODE&gt; and &lt;CODE&gt;{}&lt;/CODE&gt;.
+
+&lt;P&gt;
+See also &lt;A HREF=&quot;#Quote_and_Quote_like_Operators&quot;&gt;Quote and Quote-like Operators&lt;/A&gt; toward the end of this section, as well as &lt;A HREF=&quot;#I_O_Operators&quot;&gt;I/O Operators&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_Arrow_Operator&quot;&gt;The Arrow Operator&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Just as in 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;C++,&lt;/FONT&gt; ``&lt;CODE&gt;-&amp;gt;&lt;/CODE&gt;'' is an infix dereference operator. If the right side is either a &lt;CODE&gt;&amp;#091;...&amp;#093;&lt;/CODE&gt; or &lt;CODE&gt;{...}&lt;/CODE&gt; subscript, then the left side must be either a hard or symbolic reference
+to an array or hash (or a location capable of holding a hard reference, if
+it's an lvalue (assignable)). See [perlman:perlref|the perlref manpage].
+
+&lt;P&gt;
+Otherwise, the right side is a method name or a simple scalar variable
+containing the method name, and the left side must either be an object (a
+blessed reference) or a class name (that is, a package name). See [perlman:perlobj|the perlobj manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Auto_increment_and_Auto_decremen&quot;&gt;Auto-increment and Auto-decrement&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+``++'' and ``--'' work as in 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt; That is, if placed before a variable, they
+increment or decrement the variable before returning the value, and if
+placed after, increment or decrement the variable after returning the
+value.
+
+&lt;P&gt;
+The auto-increment operator has a little extra builtin magic to it. If you
+increment a variable that is numeric, or that has ever been used in a
+numeric context, you get a normal increment. If, however, the variable has
+been used in only string contexts since it was set, and has a value that is
+not the empty string and matches the pattern
+&lt;CODE&gt;/^&amp;#091;a-zA-Z&amp;#093;*&amp;#091;0-9&amp;#093;*$/&lt;/CODE&gt;, the increment is done as a string, preserving each character within its
+range, with carry:
+
+&lt;P&gt;
+&lt;PRE&gt;    print ++($foo = '99');      # prints '100'
+    print ++($foo = 'a0');      # prints 'a1'
+    print ++($foo = 'Az');      # prints 'Ba'
+    print ++($foo = 'zz');      # prints 'aaa'
+&lt;/PRE&gt;
+&lt;P&gt;
+The auto-decrement operator is not magical.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Exponentiation&quot;&gt;Exponentiation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``**'' is the exponentiation operator. Note that it binds even more tightly than unary minus, so -2**4 is -(2**4), not (-2)**4. (This is implemented using C's 
+&lt;CODE&gt;pow(3)&lt;/CODE&gt; function, which actually works on doubles internally.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Symbolic_Unary_Operators&quot;&gt;Symbolic Unary Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Unary ``!'' performs logical negation, i.e., ``not''. See also &lt;CODE&gt;not&lt;/CODE&gt; for a lower precedence version of this.
+
+&lt;P&gt;
+Unary ``-'' performs arithmetic negation if the operand is numeric. If the
+operand is an identifier, a string consisting of a minus sign concatenated
+with the identifier is returned. Otherwise, if the string starts with a
+plus or minus, a string starting with the opposite sign is returned. One
+effect of these rules is that &lt;CODE&gt;-bareword&lt;/CODE&gt; is equivalent to &lt;CODE&gt;&amp;quot;-bareword&amp;quot;&lt;/CODE&gt;.
+
+&lt;P&gt;
+Unary ``~'' performs bitwise negation, i.e., 1's complement. For example,
+&lt;CODE&gt;0666 &amp;amp;~ 027&lt;/CODE&gt; is 0640. (See also &lt;A HREF=&quot;#Integer_Arithmetic&quot;&gt;Integer Arithmetic&lt;/A&gt; and &lt;A HREF=&quot;#Bitwise_String_Operators&quot;&gt;Bitwise String Operators&lt;/A&gt;.)
+
+&lt;P&gt;
+Unary ``+'' has no effect whatsoever, even on strings. It is useful
+syntactically for separating a function name from a parenthesized
+expression that would otherwise be interpreted as the complete list of
+function arguments. (See examples above under &lt;A HREF=&quot;#Terms_and_List_Operators_Leftwa&quot;&gt;Terms and List Operators (Leftward)&lt;/A&gt;.)
+
+&lt;P&gt;
+Unary ``\'' creates a reference to whatever follows it. See [perlman:perlref|the perlref manpage]. Do not confuse this behavior with the behavior of backslash within a
+string, although both forms do convey the notion of protecting the next
+thing from interpretation.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Binding_Operators&quot;&gt;Binding Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``=~'' binds a scalar expression to a pattern match. Certain
+operations search or modify the string &lt;CODE&gt;$_&lt;/CODE&gt; by default. This
+operator makes that kind of operation work on some other string. The right
+argument is a search pattern, substitution, or transliteration. The left
+argument is what is supposed to be searched, substituted, or transliterated
+instead of the default $_. The return value indicates the success of the
+operation. (If the right argument is an expression rather than a search
+pattern, substitution, or transliteration, it is interpreted as a search
+pattern at run time. This can be is less efficient than an explicit search,
+because the pattern must be compiled every time the expression is
+evaluated.
+
+&lt;P&gt;
+Binary ``!~'' is just like ``=~'' except the return value is negated in the
+logical sense.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Multiplicative_Operators&quot;&gt;Multiplicative Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``*'' multiplies two numbers.
+
+&lt;P&gt;
+Binary ``/'' divides two numbers.
+
+&lt;P&gt;
+Binary ``%'' computes the modulus of two numbers. Given integer operands &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt;: If &lt;CODE&gt;$b&lt;/CODE&gt; is positive, then &lt;CODE&gt;$a % $b&lt;/CODE&gt; is
+&lt;CODE&gt;$a&lt;/CODE&gt; minus the largest multiple of &lt;CODE&gt;$b&lt;/CODE&gt; that is not greater than
+&lt;CODE&gt;$a&lt;/CODE&gt;. If &lt;CODE&gt;$b&lt;/CODE&gt; is negative, then &lt;CODE&gt;$a % $b&lt;/CODE&gt; is &lt;CODE&gt;$a&lt;/CODE&gt; minus the smallest multiple of &lt;CODE&gt;$b&lt;/CODE&gt; that is not less than &lt;CODE&gt;$a&lt;/CODE&gt; (i.e. the result will be less than or equal to zero). Note than when &lt;CODE&gt;use integer&lt;/CODE&gt; is in scope, ``%'' give you direct access to the modulus operator as implemented by your 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; compiler. This operator is not as well defined for negative operands, but it will execute faster.
+
+&lt;P&gt;
+Binary ``x'' is the repetition operator. In scalar context, it returns a
+string consisting of the left operand repeated the number of times
+specified by the right operand. In list context, if the left operand is a
+list in parentheses, it repeats the list.
+
+&lt;P&gt;
+&lt;PRE&gt;    print '-' x 80;             # print row of dashes
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;\t&amp;quot; x ($tab/8), ' ' x ($tab%8);      # tab over
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @ones = (1) x 80;           # a list of 80 1's
+    @ones = (5) x @ones;        # set all elements to 5
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Additive_Operators&quot;&gt;Additive Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``+'' returns the sum of two numbers.
+
+&lt;P&gt;
+Binary ``-'' returns the difference of two numbers.
+
+&lt;P&gt;
+Binary ``.'' concatenates two strings.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Shift_Operators&quot;&gt;Shift Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``&amp;lt;&amp;lt;`` returns the value of its left argument shifted left by the number of
+bits specified by the right argument. Arguments should be integers. (See
+also &lt;A HREF=&quot;#Integer_Arithmetic&quot;&gt;Integer Arithmetic&lt;/A&gt;.)
+
+&lt;P&gt;
+Binary ``&amp;gt;&amp;gt;'' returns the value of its left argument shifted right by
+the number of bits specified by the right argument. Arguments should be
+integers. (See also &lt;A HREF=&quot;#Integer_Arithmetic&quot;&gt;Integer Arithmetic&lt;/A&gt;.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Named_Unary_Operators&quot;&gt;Named Unary Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The various named unary operators are treated as functions with one
+argument, with optional parentheses. These include the filetest operators,
+like &lt;CODE&gt;-f&lt;/CODE&gt;, &lt;CODE&gt;-M&lt;/CODE&gt;, etc. See [perlman:perlfunc|the perlfunc manpage].
+
+&lt;P&gt;
+If any list operator (print(), etc.) or any unary operator (chdir(), etc.)
+is followed by a left parenthesis as the next token, the operator and
+arguments within parentheses are taken to be of highest precedence, just
+like a normal function call. Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    chdir $foo    || die;       # (chdir $foo) || die
+    chdir($foo)   || die;       # (chdir $foo) || die
+    chdir ($foo)  || die;       # (chdir $foo) || die
+    chdir +($foo) || die;       # (chdir $foo) || die
+&lt;/PRE&gt;
+&lt;P&gt;
+but, because * is higher precedence than ||:
+
+&lt;P&gt;
+&lt;PRE&gt;    chdir $foo * 20;    # chdir ($foo * 20)
+    chdir($foo) * 20;   # (chdir $foo) * 20
+    chdir ($foo) * 20;  # (chdir $foo) * 20
+    chdir +($foo) * 20; # chdir ($foo * 20)
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    rand 10 * 20;       # rand (10 * 20)
+    rand(10) * 20;      # (rand 10) * 20
+    rand (10) * 20;     # (rand 10) * 20
+    rand +(10) * 20;    # rand (10 * 20)
+&lt;/PRE&gt;
+&lt;P&gt;
+See also &lt;A HREF=&quot;#Terms_and_List_Operators_Leftwa&quot;&gt;Terms and List Operators (Leftward)&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Relational_Operators&quot;&gt;Relational Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``&amp;lt;'' returns true if the left argument is numerically less than
+the right argument.
+
+&lt;P&gt;
+Binary ``&amp;gt;'' returns true if the left argument is numerically greater
+than the right argument.
+
+&lt;P&gt;
+Binary ``&amp;lt;='' returns true if the left argument is numerically less
+than or equal to the right argument.
+
+&lt;P&gt;
+Binary ``&amp;gt;='' returns true if the left argument is numerically greater
+than or equal to the right argument.
+
+&lt;P&gt;
+Binary ``lt'' returns true if the left argument is stringwise less than the
+right argument.
+
+&lt;P&gt;
+Binary ``gt'' returns true if the left argument is stringwise greater than
+the right argument.
+
+&lt;P&gt;
+Binary ``le'' returns true if the left argument is stringwise less than or
+equal to the right argument.
+
+&lt;P&gt;
+Binary ``ge'' returns true if the left argument is stringwise greater than
+or equal to the right argument.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Equality_Operators&quot;&gt;Equality Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``=='' returns true if the left argument is numerically equal to the
+right argument.
+
+&lt;P&gt;
+Binary ``!='' returns true if the left argument is numerically not equal to
+the right argument.
+
+&lt;P&gt;
+Binary ``&amp;lt;=&amp;gt;'' returns -1, 0, or 1 depending on whether the left
+argument is numerically less than, equal to, or greater than the right
+argument.
+
+&lt;P&gt;
+Binary ``eq'' returns true if the left argument is stringwise equal to the
+right argument.
+
+&lt;P&gt;
+Binary ``ne'' returns true if the left argument is stringwise not equal to
+the right argument.
+
+&lt;P&gt;
+Binary ``cmp'' returns -1, 0, or 1 depending on whether the left argument
+is stringwise less than, equal to, or greater than the right argument.
+
+&lt;P&gt;
+``lt'', ``le'', ``ge'', ``gt'' and ``cmp'' use the collation (sort) order
+specified by the current locale if &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect. See [perlman:perllocale|the perllocale manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Bitwise_And&quot;&gt;Bitwise And&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``&amp;amp;'' returns its operators ANDed together bit by bit. (See also &lt;A HREF=&quot;#Integer_Arithmetic&quot;&gt;Integer Arithmetic&lt;/A&gt; and &lt;A HREF=&quot;#Bitwise_String_Operators&quot;&gt;Bitwise String Operators&lt;/A&gt;.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Bitwise_Or_and_Exclusive_Or&quot;&gt;Bitwise Or and Exclusive Or&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``|'' returns its operators ORed together bit by bit. (See also &lt;A HREF=&quot;#Integer_Arithmetic&quot;&gt;Integer Arithmetic&lt;/A&gt; and &lt;A HREF=&quot;#Bitwise_String_Operators&quot;&gt;Bitwise String Operators&lt;/A&gt;.)
+
+&lt;P&gt;
+Binary ``^'' returns its operators XORed together bit by bit. (See also &lt;A HREF=&quot;#Integer_Arithmetic&quot;&gt;Integer Arithmetic&lt;/A&gt; and &lt;A HREF=&quot;#Bitwise_String_Operators&quot;&gt;Bitwise String Operators&lt;/A&gt;.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;C_style_Logical_And&quot;&gt;C-style Logical And&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``&amp;amp;&amp;amp;'' performs a short-circuit logical 
+&lt;FONT SIZE=-1&gt;AND&lt;/FONT&gt; operation. That is, if the left operand is false,
+the right operand is not even evaluated. Scalar or list context propagates
+down to the right operand if it is evaluated.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;C_style_Logical_Or&quot;&gt;C-style Logical Or&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``||'' performs a short-circuit logical 
+&lt;FONT SIZE=-1&gt;OR&lt;/FONT&gt; operation. That is, if the left operand is true,
+the right operand is not even evaluated. Scalar or list context propagates
+down to the right operand if it is evaluated.
+
+&lt;P&gt;
+The &lt;CODE&gt;||&lt;/CODE&gt; and &lt;CODE&gt;&amp;amp;&amp;amp;&lt;/CODE&gt; operators differ from C's in that, rather than returning 0 or 1, they
+return the last value evaluated. Thus, a reasonably portable way to find
+out the home directory (assuming it's not ``0'') might be:
+
+&lt;P&gt;
+&lt;PRE&gt;    $home = $ENV{'HOME'} || $ENV{'LOGDIR'} ||
+        (getpwuid($&amp;lt;))&amp;#091;7&amp;#093; || die &amp;quot;You're homeless!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+In particular, this means that you shouldn't use this for selecting between
+two aggregates for assignment:
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = @b || @c;              # this is wrong
+    @a = scalar(@b) || @c;      # really meant this
+    @a = @b ? @b : @c;          # this works fine, though
+&lt;/PRE&gt;
+&lt;P&gt;
+As more readable alternatives to &lt;CODE&gt;&amp;amp;&amp;amp;&lt;/CODE&gt; and &lt;CODE&gt;||&lt;/CODE&gt; when used for control flow, Perl provides &lt;CODE&gt;and&lt;/CODE&gt; and &lt;CODE&gt;or&lt;/CODE&gt; operators (see below). The short-circuit behavior is identical. The
+precedence of ``and'' and ``or'' is much lower, however, so that you can
+safely use them after a list operator without the need for parentheses:
+
+&lt;P&gt;
+&lt;PRE&gt;    unlink &amp;quot;alpha&amp;quot;, &amp;quot;beta&amp;quot;, &amp;quot;gamma&amp;quot;
+            or gripe(), next LINE;
+&lt;/PRE&gt;
+&lt;P&gt;
+With the C-style operators that would have been written like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    unlink(&amp;quot;alpha&amp;quot;, &amp;quot;beta&amp;quot;, &amp;quot;gamma&amp;quot;)
+            || (gripe(), next LINE);
+&lt;/PRE&gt;
+&lt;P&gt;
+Use ``or'' for assignment is unlikely to do what you want; see below.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Range_Operators&quot;&gt;Range Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``..'' is the range operator, which is really two different
+operators depending on the context. In list context, it returns an array of
+values counting (by ones) from the left value to the right value. This is
+useful for writing &lt;CODE&gt;foreach (1..10)&lt;/CODE&gt; loops and for doing slice operations on arrays. In the current
+implementation, no temporary array is created when the range operator is
+used as the expression in &lt;CODE&gt;foreach&lt;/CODE&gt; loops, but older versions of Perl might burn a lot of memory when you write
+something like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    for (1 .. 1_000_000) {
+        # code
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+In scalar context, ``..'' returns a boolean value. The operator is
+bistable, like a flip-flop, and emulates the line-range (comma) operator of &lt;STRONG&gt;sed&lt;/STRONG&gt;, &lt;STRONG&gt;awk&lt;/STRONG&gt;, and various editors. Each ``..'' operator maintains its own boolean
+state. It is false as long as its left operand is false. Once the left
+operand is true, the range operator stays true until the right operand is
+true, &lt;EM&gt;AFTER&lt;/EM&gt; which the range operator becomes false again. (It doesn't become false till
+the next time the range operator is evaluated. It can test the right
+operand and become false on the same evaluation it became true (as in &lt;STRONG&gt;awk&lt;/STRONG&gt;), but it still returns true once. If you don't want it to test the right
+operand till the next evaluation (as in &lt;STRONG&gt;sed&lt;/STRONG&gt;), use three dots (``...'') instead of two.) The right operand is not evaluated while the operator is in the ``false'' state, and the left operand is not evaluated while the operator is in the ``true'' state. The precedence is a little lower than || and &amp;amp;&amp;amp;. The value returned is either the empty string for false, or a sequence number (beginning with 1) for true. The sequence number is reset for each range encountered. The final sequence number in a range has the string 
+&lt;FONT SIZE=-1&gt;``E0''&lt;/FONT&gt; appended to it, which doesn't affect its numeric value, but gives you something to search for if you want to exclude the endpoint. You can exclude the beginning point by waiting for the sequence number to be greater than 1. If either operand of scalar ``..'' is a constant expression, that operand is implicitly compared to the
+ &lt;CODE&gt;$.&lt;/CODE&gt; variable, the current line number. Examples:
+
+&lt;P&gt;
+As a scalar operator:
+
+&lt;P&gt;
+&lt;PRE&gt;    if (101 .. 200) { print; }  # print 2nd hundred lines
+    next line if (1 .. /^$/);   # skip header lines
+    s/^/&amp;gt; / if (/^$/ .. eof()); # quote body
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # parse mail messages
+    while (&amp;lt;&amp;gt;) {
+        $in_header =   1  .. /^$/;
+        $in_body   = /^$/ .. eof();
+        # do something based on those
+    } continue {
+        close ARGV if eof;              # reset $. each file
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+As a list operator:
+
+&lt;P&gt;
+&lt;PRE&gt;    for (101 .. 200) { print; } # print $_ 100 times
+    @foo = @foo&amp;#091;0 .. $#foo&amp;#093;;    # an expensive no-op
+    @foo = @foo&amp;#091;$#foo-4 .. $#foo&amp;#093;;      # slice last 5 items
+&lt;/PRE&gt;
+&lt;P&gt;
+The range operator (in list context) makes use of the magical
+auto-increment algorithm if the operands are strings. You can say
+
+&lt;P&gt;
+&lt;PRE&gt;    @alphabet = ('A' .. 'Z');
+&lt;/PRE&gt;
+&lt;P&gt;
+to get all the letters of the alphabet, or
+
+&lt;P&gt;
+&lt;PRE&gt;    $hexdigit = (0 .. 9, 'a' .. 'f')&amp;#091;$num &amp;amp; 15&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+to get a hexadecimal digit, or
+
+&lt;P&gt;
+&lt;PRE&gt;    @z2 = ('01' .. '31');  print $z2&amp;#091;$mday&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+to get dates with leading zeros. If the final value specified is not in the
+sequence that the magical increment would produce, the sequence goes until
+the next value would be longer than the final value specified.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Conditional_Operator&quot;&gt;Conditional Operator&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Ternary ``?:'' is the conditional operator, just as in 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt; It works much like an if-then-else. If the argument
+before the ? is true, the argument before the : is returned, otherwise the
+argument after the : is returned. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    printf &amp;quot;I have %d dog%s.\n&amp;quot;, $n,
+            ($n == 1) ? '' : &amp;quot;s&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Scalar or list context propagates downward into the 2nd or 3rd argument,
+whichever is selected.
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = $ok ? $b : $c;  # get a scalar
+    @a = $ok ? @b : @c;  # get an array
+    $a = $ok ? @b : @c;  # oops, that's just a count!
+&lt;/PRE&gt;
+&lt;P&gt;
+The operator may be assigned to if both the 2nd and 3rd arguments are legal
+lvalues (meaning that you can assign to them):
+
+&lt;P&gt;
+&lt;PRE&gt;    ($a_or_b ? $a : $b) = $c;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is not necessarily guaranteed to contribute to the readability of your
+program.
+
+&lt;P&gt;
+Because this operator produces an assignable result, using assignments
+without parentheses will get you in trouble. For example, this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $a % 2 ? $a += 10 : $a += 2
+&lt;/PRE&gt;
+&lt;P&gt;
+Really means this:
+
+&lt;P&gt;
+&lt;PRE&gt;    (($a % 2) ? ($a += 10) : $a) += 2
+&lt;/PRE&gt;
+&lt;P&gt;
+Rather than this:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($a % 2) ? ($a += 10) : ($a += 2)
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Assignment_Operators&quot;&gt;Assignment Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+``='' is the ordinary assignment operator.
+
+&lt;P&gt;
+Assignment operators work as in 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt; That is,
+
+&lt;P&gt;
+&lt;PRE&gt;    $a += 2;
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = $a + 2;
+&lt;/PRE&gt;
+&lt;P&gt;
+although without duplicating any side effects that dereferencing the lvalue might trigger, such as from 
+&lt;CODE&gt;tie().&lt;/CODE&gt; Other assignment operators work similarly. The following are recognized:
+
+&lt;P&gt;
+&lt;PRE&gt;    **=    +=    *=    &amp;amp;=    &amp;lt;&amp;lt;=    &amp;amp;&amp;amp;=
+           -=    /=    |=    &amp;gt;&amp;gt;=    ||=
+           .=    %=    ^=
+                 x=
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that while these are grouped by family, they all have the precedence
+of assignment.
+
+&lt;P&gt;
+Unlike in 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; the assignment operator produces a valid lvalue.
+Modifying an assignment is equivalent to doing the assignment and then
+modifying the variable that was assigned to. This is useful for modifying a
+copy of something, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($tmp = $global) =~ tr &amp;#091;A-Z&amp;#093; &amp;#091;a-z&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Likewise,
+
+&lt;P&gt;
+&lt;PRE&gt;    ($a += 2) *= 3;
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    $a += 2;
+    $a *= 3;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Comma_Operator&quot;&gt;Comma Operator&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``,'' is the comma operator. In scalar context it evaluates its left
+argument, throws that value away, then evaluates its right argument and
+returns that value. This is just like C's comma operator.
+
+&lt;P&gt;
+In list context, it's just the list argument separator, and inserts both
+its arguments into the list.
+
+&lt;P&gt;
+The =&amp;gt; digraph is mostly just a synonym for the comma operator. It's
+useful for documenting arguments that come in pairs. As of release 5.001,
+it also forces any word to the left of it to be interpreted as a string.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;List_Operators_Rightward_&quot;&gt;List Operators (Rightward)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+On the right side of a list operator, it has very low precedence, such that
+it controls all comma-separated expressions found there. The only operators
+with lower precedence are the logical operators ``and'', ``or'', and
+``not'', which may be used to evaluate calls to list operators without the
+need for extra parentheses:
+
+&lt;P&gt;
+&lt;PRE&gt;    open HANDLE, &amp;quot;filename&amp;quot;
+        or die &amp;quot;Can't open: $!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+See also discussion of list operators in &lt;A HREF=&quot;#Terms_and_List_Operators_Leftwa&quot;&gt;Terms and List Operators (Leftward)&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Logical_Not&quot;&gt;Logical Not&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Unary ``not'' returns the logical negation of the expression to its right.
+It's the equivalent of ``!'' except for the very low precedence.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Logical_And&quot;&gt;Logical And&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``and'' returns the logical conjunction of the two surrounding
+expressions. It's equivalent to &amp;amp;&amp;amp; except for the very low
+precedence. This means that it short-circuits: i.e., the right expression
+is evaluated only if the left expression is true.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Logical_or_and_Exclusive_Or&quot;&gt;Logical or and Exclusive Or&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Binary ``or'' returns the logical disjunction of the two surrounding
+expressions. It's equivalent to || except for the very low precedence. This
+makes it useful for control flow
+
+&lt;P&gt;
+&lt;PRE&gt;    print FH $data              or die &amp;quot;Can't write to FH: $!&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+This means that it short-circuits: i.e., the right expression is evaluated
+only if the left expression is false. Due to its precedence, you should
+probably avoid using this for assignment, only for control flow.
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = $b or $c;              # bug: this is wrong
+    ($a = $b) or $c;            # really means this
+    $a = $b || $c;              # better written this way
+&lt;/PRE&gt;
+&lt;P&gt;
+However, when it's a list context assignment and you're trying to use
+``||'' for control flow, you probably need ``or'' so that the assignment
+takes higher precedence.
+
+&lt;P&gt;
+&lt;PRE&gt;    @info = stat($file) || die;     # oops, scalar sense of stat!
+    @info = stat($file) or die;     # better, now @info gets its due
+&lt;/PRE&gt;
+&lt;P&gt;
+Then again, you could always use parentheses.
+
+&lt;P&gt;
+Binary ``xor'' returns the exclusive-OR of the two surrounding expressions.
+It cannot short circuit, of course.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;C_Operators_Missing_From_Perl&quot;&gt;C Operators Missing From Perl&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Here is what 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; has that Perl doesn't:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_unary&quot;&gt;unary &amp;amp;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Address-of operator. (But see the ``\'' operator for taking a reference.)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;unary *&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Dereference-address operator. (Perl's prefix dereferencing operators are
+typed: $, @, %, and &amp;amp;.)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__TYPE_&quot;&gt;(TYPE)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Type casting operator.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Quote_and_Quote_like_Operators&quot;&gt;Quote and Quote-like Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+While we usually think of quotes as literal values, in Perl they function
+as operators, providing various kinds of interpolating and pattern matching
+capabilities. Perl provides customary quote characters for these behaviors,
+but also provides a way for you to choose your quote character for any of
+them. In the following table, a &lt;CODE&gt;{}&lt;/CODE&gt; represents any pair of delimiters you choose. Non-bracketing delimiters use
+the same character fore and aft, but the 4 sorts of brackets (round, angle,
+square, curly) will all nest.
+
+&lt;P&gt;
+&lt;PRE&gt;    Customary  Generic        Meaning        Interpolates
+        ''       q{}          Literal             no
+        &amp;quot;&amp;quot;      qq{}          Literal             yes
+        ``      qx{}          Command             yes (unless '' is delimiter)
+                qw{}         Word list            no
+        //       m{}       Pattern match          yes
+                qr{}          Pattern             yes
+                 s{}{}      Substitution          yes
+                tr{}{}    Transliteration         no (but see below)
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that there can be whitespace between the operator and the quoting
+characters, except when &lt;CODE&gt;#&lt;/CODE&gt; is being used as the quoting character.
+&lt;CODE&gt;q#foo#&lt;/CODE&gt; is parsed as being the string &lt;CODE&gt;foo&lt;/CODE&gt;, while &lt;CODE&gt;q #foo#&lt;/CODE&gt; is the operator [perlman:perlop] followed by a comment. Its argument will be taken from the next line. This
+allows you to write:
+
+&lt;P&gt;
+&lt;PRE&gt;    s {foo}  # Replace foo
+      {bar}  # with bar.
+&lt;/PRE&gt;
+&lt;P&gt;
+For constructs that do interpolation, variables beginning with ``&lt;CODE&gt;$&lt;/CODE&gt;'' or ``&lt;CODE&gt;@&lt;/CODE&gt;'' are interpolated, as are the following sequences. Within a
+transliteration, the first ten of these sequences may be used.
+
+&lt;P&gt;
+&lt;PRE&gt;    \t          tab             (HT, TAB)
+    \n          newline         (NL)
+    \r          return          (CR)
+    \f          form feed       (FF)
+    \b          backspace       (BS)
+    \a          alarm (bell)    (BEL)
+    \e          escape          (ESC)
+    \033        octal char
+    \x1b        hex char
+    \c&amp;#091;         control char
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    \l          lowercase next char
+    \u          uppercase next char
+    \L          lowercase till \E
+    \U          uppercase till \E
+    \E          end case modification
+    \Q          quote non-word characters till \E
+&lt;/PRE&gt;
+&lt;P&gt;
+If &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, the case map used by &lt;CODE&gt;\l&lt;/CODE&gt;, &lt;CODE&gt;\L&lt;/CODE&gt;, &lt;CODE&gt;\u&lt;/CODE&gt;
+and &lt;CODE&gt;\U&lt;/CODE&gt; is taken from the current locale. See [perlman:perllocale|the perllocale manpage].
+
+&lt;P&gt;
+All systems use the virtual &lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; to represent a line terminator, called a ``newline''. There is no such thing as an unvarying, physical newline character. It is an illusion that the operating system, device drivers, 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; libraries, and Perl all conspire to preserve. Not all systems read
+ &lt;CODE&gt;&amp;quot;\r&amp;quot;&lt;/CODE&gt; as 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CR&lt;/FONT&gt; and &lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; as 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LF.&lt;/FONT&gt; For example, on a Mac, these are reversed, and on systems without line terminator, printing
+ &lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; may emit no actual data. In general, use &lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; when you mean a ``newline'' for your system, but use the literal 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; when you need an exact character. For example, most networking protocols expect and prefer a 
+&lt;FONT SIZE=-1&gt;CR+LF&lt;/FONT&gt; (
+&lt;CODE&gt;&amp;quot;\012\015&amp;quot;&lt;/CODE&gt; or &lt;CODE&gt;&amp;quot;\cJ\cM&amp;quot;&lt;/CODE&gt;) for line terminators, and although they often accept just &lt;CODE&gt;&amp;quot;\012&amp;quot;&lt;/CODE&gt;, they seldom tolerate just
+&lt;CODE&gt;&amp;quot;\015&amp;quot;&lt;/CODE&gt;. If you get in the habit of using &lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; for networking, you may be burned some day.
+
+&lt;P&gt;
+You cannot include a literal &lt;CODE&gt;$&lt;/CODE&gt; or &lt;CODE&gt;@&lt;/CODE&gt; within a &lt;CODE&gt;\Q&lt;/CODE&gt; sequence. An unescaped &lt;CODE&gt;$&lt;/CODE&gt; or &lt;CODE&gt;@&lt;/CODE&gt; interpolates the corresponding variable, while escaping will cause the
+literal string &lt;CODE&gt;\$&lt;/CODE&gt; to be inserted. You'll need to write something like &lt;CODE&gt;m/\Quser\E\@\Qhost/&lt;/CODE&gt;. 
+
+&lt;P&gt;
+Patterns are subject to an additional level of interpretation as a regular
+expression. This is done as a second pass, after variables are
+interpolated, so that regular expressions may be incorporated into the
+pattern from the variables. If this is not what you want, use &lt;CODE&gt;\Q&lt;/CODE&gt; to interpolate a variable literally.
+
+&lt;P&gt;
+Apart from the above, there are no multiple levels of interpolation. In
+particular, contrary to the expectations of shell programmers, back-quotes
+do &lt;EM&gt;NOT&lt;/EM&gt; interpolate within double quotes, nor do single quotes impede evaluation of
+variables when used within double quotes.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Regexp_Quote_Like_Operators&quot;&gt;Regexp Quote-Like Operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Here are the quote-like operators that apply to pattern matching and
+related activities.
+
+&lt;P&gt;
+Most of this section is related to use of regular expressions from Perl. Such a use may be considered from two points of view: Perl handles a a string and a ``pattern'' to 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; (regular expression) engine to match, 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine finds (or does not find) the match, and Perl uses the findings of 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine for its operation, possibly asking the engine for other matches.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine has no idea what Perl is going to do with what it finds, similarly, the rest of Perl has no idea what a particular regular expression means to 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine. This creates a clean separation, and in this section we discuss matching from Perl point of view only. The other point of view may be found in
+ [perlman:perlre|the perlre manpage].
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__PATTERN_&quot;&gt;?PATTERN?&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is just like the &lt;CODE&gt;/pattern/&lt;/CODE&gt; search, except that it matches only once between calls to the 
+&lt;CODE&gt;reset()&lt;/CODE&gt; operator. This is a
+useful optimization when you want to see only the first occurrence of
+something in each file of a set of files, for instance. Only &lt;CODE&gt;??&lt;/CODE&gt;
+patterns local to the current package are reset.
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        if (?^$?) {
+                            # blank line between header and body
+        }
+    } continue {
+        reset if eof;       # clear ?? status for next file
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+This usage is vaguely deprecated, and may be removed in some future version
+of Perl.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_m&quot;&gt;m/PATTERN/cgimosx&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__PATTERN_cgimosx&quot;&gt;/PATTERN/cgimosx&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Searches a string for a pattern match, and in scalar context returns true
+(1) or false (''). If no string is specified via the &lt;CODE&gt;=~&lt;/CODE&gt; or
+&lt;CODE&gt;!~&lt;/CODE&gt; operator, the &lt;CODE&gt;$_&lt;/CODE&gt; string is searched. (The string specified
+with
+&lt;CODE&gt;=~&lt;/CODE&gt; need not be an lvalue--it may be the result of an expression evaluation,
+but remember the &lt;CODE&gt;=~&lt;/CODE&gt; binds rather tightly.) See also
+[perlman:perlre|the perlre manpage]. See [perlman:perllocale|the perllocale manpage] for discussion of additional considerations that apply when &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect.
+
+&lt;P&gt;
+Options are:
+
+&lt;P&gt;
+&lt;PRE&gt;    c   Do not reset search position on a failed match when /g is in effect.
+    g   Match globally, i.e., find all occurrences.
+    i   Do case-insensitive pattern matching.
+    m   Treat string as multiple lines.
+    o   Compile pattern only once.
+    s   Treat string as single line.
+    x   Use extended regular expressions.
+&lt;/PRE&gt;
+&lt;P&gt;
+If ``/'' is the delimiter then the initial [perlman:perlop] is optional. With the [perlman:perlop]
+you can use any pair of non-alphanumeric, non-whitespace characters as delimiters (if single quotes are used, no interpretation is done on the replacement string. Unlike Perl 4, Perl 5 treats backticks as normal delimiters; the replacement text is not evaluated as a command). This is particularly useful for matching Unix path names that contain ``/'', to avoid 
+&lt;FONT SIZE=-1&gt;LTS&lt;/FONT&gt; (leaning toothpick syndrome). If ``?'' is the delimiter, then the match-only-once rule of
+ &lt;CODE&gt;?PATTERN?&lt;/CODE&gt; applies.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;PATTERN&lt;/FONT&gt; may contain variables, which will be
+interpolated (and the pattern recompiled) every time the pattern search is
+evaluated. (Note that &lt;CODE&gt;$)&lt;/CODE&gt; and &lt;CODE&gt;$|&lt;/CODE&gt; might not be interpolated because they look like end-of-string tests.) If
+you want such a pattern to be compiled only once, add a &lt;CODE&gt;/o&lt;/CODE&gt; after the trailing delimiter. This avoids expensive run-time
+recompilations, and is useful when the value you are interpolating won't
+change over the life of the script. However, mentioning
+&lt;CODE&gt;/o&lt;/CODE&gt; constitutes a promise that you won't change the variables in the pattern.
+If you change them, Perl won't even notice.
+
+&lt;P&gt;
+If the 
+&lt;FONT SIZE=-1&gt;PATTERN&lt;/FONT&gt; evaluates to the empty string, the last
+&lt;EM&gt;successfully&lt;/EM&gt; matched regular expression is used instead.
+
+&lt;P&gt;
+If the &lt;CODE&gt;/g&lt;/CODE&gt; option is not used, [perlman:perlop] in a list context returns a list consisting of the subexpressions matched
+by the parentheses in the pattern, i.e., (&lt;CODE&gt;$1&lt;/CODE&gt;, &lt;CODE&gt;$2&lt;/CODE&gt;, &lt;CODE&gt;$3&lt;/CODE&gt;...). (Note that here &lt;CODE&gt;$1&lt;/CODE&gt; etc. are also set, and that this differs from Perl 4's behavior.) When
+there are no parentheses in the pattern, the return value is the list &lt;CODE&gt;(1)&lt;/CODE&gt; for success. With or without parentheses, an empty list is returned upon
+failure.
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    open(TTY, '/dev/tty');
+    &amp;lt;TTY&amp;gt; =~ /^y/i &amp;amp;&amp;amp; foo();    # do foo if desired
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if (/Version: *(&amp;#091;0-9.&amp;#093;*)/) { $version = $1; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    next if m#^/usr/spool/uucp#;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # poor man's grep
+    $arg = shift;
+    while (&amp;lt;&amp;gt;) {
+        print if /$arg/o;       # compile only once
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if (($F1, $F2, $Etc) = ($foo =~ /^(\S+)\s+(\S+)\s*(.*)/))
+&lt;/PRE&gt;
+&lt;P&gt;
+This last example splits &lt;CODE&gt;$foo&lt;/CODE&gt; into the first two words and the remainder of the line, and assigns those three fields to 
+&lt;FONT SIZE=-1&gt;$F1,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;$F2,&lt;/FONT&gt; and $Etc. The conditional is true if any variables were assigned, i.e., if the pattern matched.
+
+&lt;P&gt;
+The &lt;CODE&gt;/g&lt;/CODE&gt; modifier specifies global pattern matching--that is, matching as many times
+as possible within the string. How it behaves depends on the context. In
+list context, it returns a list of all the substrings matched by all the
+parentheses in the regular expression. If there are no parentheses, it
+returns a list of all the matched strings, as if there were parentheses
+around the whole pattern.
+
+&lt;P&gt;
+In scalar context, each execution of &lt;CODE&gt;m//g&lt;/CODE&gt; finds the next match, returning 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; if it matches, and 
+&lt;FONT SIZE=-1&gt;FALSE&lt;/FONT&gt; if there is no further match. The position after the last match can be read or set using the 
+&lt;CODE&gt;pos()&lt;/CODE&gt; function; see
+ [perlfunc:pos|pos]. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; failed match normally resets the search position to
+the beginning of the string, but you can avoid that by adding the &lt;CODE&gt;/c&lt;/CODE&gt; modifier (e.g. &lt;CODE&gt;m//gc&lt;/CODE&gt;). Modifying the target string also resets the search position.
+
+&lt;P&gt;
+You can intermix &lt;CODE&gt;m//g&lt;/CODE&gt; matches with &lt;CODE&gt;m/\G.../g&lt;/CODE&gt;, where &lt;CODE&gt;\G&lt;/CODE&gt; is a zero-width assertion that matches the exact position where the
+previous
+&lt;CODE&gt;m//g&lt;/CODE&gt;, if any, left off. The &lt;CODE&gt;\G&lt;/CODE&gt; assertion is not supported without the &lt;CODE&gt;/g&lt;/CODE&gt; modifier; currently, without &lt;CODE&gt;/g&lt;/CODE&gt;, &lt;CODE&gt;\G&lt;/CODE&gt; behaves just like
+&lt;CODE&gt;\A&lt;/CODE&gt;, but that's accidental and may change in the future.
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    # list context
+    ($one,$five,$fifteen) = (`uptime` =~ /(\d+\.\d+)/g);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # scalar context
+    $/ = &amp;quot;&amp;quot;; $* = 1;  # $* deprecated in modern perls
+    while (defined($paragraph = &amp;lt;&amp;gt;)) {
+        while ($paragraph =~ /&amp;#091;a-z&amp;#093;&amp;#091;'&amp;quot;)&amp;#093;*&amp;#091;.!?&amp;#093;+&amp;#091;'&amp;quot;)&amp;#093;*\s/g) {
+            $sentences++;
+        }
+    }
+    print &amp;quot;$sentences\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # using m//gc with \G
+    $_ = &amp;quot;ppooqppqq&amp;quot;;
+    while ($i++ &amp;lt; 2) {
+        print &amp;quot;1: '&amp;quot;;
+        print $1 while /(o)/gc; print &amp;quot;', pos=&amp;quot;, pos, &amp;quot;\n&amp;quot;;
+        print &amp;quot;2: '&amp;quot;;
+        print $1 if /\G(q)/gc;  print &amp;quot;', pos=&amp;quot;, pos, &amp;quot;\n&amp;quot;;
+        print &amp;quot;3: '&amp;quot;;
+        print $1 while /(p)/gc; print &amp;quot;', pos=&amp;quot;, pos, &amp;quot;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The last example should print:
+
+&lt;P&gt;
+&lt;PRE&gt;    1: 'oo', pos=4
+    2: 'q', pos=5
+    3: 'pp', pos=7
+    1: '', pos=7
+    2: 'q', pos=8
+    3: '', pos=8
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; useful idiom for &lt;CODE&gt;lex&lt;/CODE&gt;-like scanners is &lt;CODE&gt;/\G.../gc&lt;/CODE&gt;. You can combine several regexps like this to process a string
+part-by-part, doing different actions depending on which regexp matched.
+Each regexp tries to match where the previous one leaves off.
+
+&lt;P&gt;
+&lt;PRE&gt; $_ = &amp;lt;&amp;lt;'EOL';
+      $url = new URI::URL &amp;quot;&lt;A HREF=&quot;http://www/&amp;quot&quot;&gt;http://www/&amp;quot&lt;/A&gt;;;   die if $url eq &amp;quot;xXx&amp;quot;;
+ EOL
+ LOOP:
+    {
+      print(&amp;quot; digits&amp;quot;),         redo LOOP if /\G\d+\b&amp;#091;,.;&amp;#093;?\s*/gc;
+      print(&amp;quot; lowercase&amp;quot;),      redo LOOP if /\G&amp;#091;a-z&amp;#093;+\b&amp;#091;,.;&amp;#093;?\s*/gc;
+      print(&amp;quot; UPPERCASE&amp;quot;),      redo LOOP if /\G&amp;#091;A-Z&amp;#093;+\b&amp;#091;,.;&amp;#093;?\s*/gc;
+      print(&amp;quot; Capitalized&amp;quot;),    redo LOOP if /\G&amp;#091;A-Z&amp;#093;&amp;#091;a-z&amp;#093;+\b&amp;#091;,.;&amp;#093;?\s*/gc;
+      print(&amp;quot; MiXeD&amp;quot;),          redo LOOP if /\G&amp;#091;A-Za-z&amp;#093;+\b&amp;#091;,.;&amp;#093;?\s*/gc;
+      print(&amp;quot; alphanumeric&amp;quot;),   redo LOOP if /\G&amp;#091;A-Za-z0-9&amp;#093;+\b&amp;#091;,.;&amp;#093;?\s*/gc;
+      print(&amp;quot; line-noise&amp;quot;),     redo LOOP if /\G&amp;#091;^A-Za-z0-9&amp;#093;+/gc;
+      print &amp;quot;. That's all!\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is the output (split into several lines):
+
+&lt;P&gt;
+&lt;PRE&gt; line-noise lowercase line-noise lowercase UPPERCASE line-noise
+ UPPERCASE line-noise lowercase line-noise lowercase line-noise
+ lowercase lowercase line-noise lowercase lowercase line-noise
+ MiXeD line-noise. That's all!
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_q&quot;&gt;q/STRING/&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__STRING_&quot;&gt;'STRING'&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; single-quoted, literal string. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; backslash represents a backslash unless followed by the delimiter or another backslash, in which case the delimiter or backslash is interpolated.
+
+&lt;P&gt;
+&lt;PRE&gt;    $foo = q!I said, &amp;quot;You said, 'She said it.'&amp;quot;!;
+    $bar = q('This is it.');
+    $baz = '\n';                # a two-character string
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_qq&quot;&gt;qq/STRING/&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__STRING_&quot;&gt;&amp;quot;STRING&amp;quot;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; double-quoted, interpolated string.
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ .= qq
+     (*** The previous line contains the naughty word &amp;quot;$1&amp;quot;.\n)
+                if /(tcl|rexx|python)/;      # :-)
+    $baz = &amp;quot;\n&amp;quot;;                # a one-character string
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_qr&quot;&gt;qr/STRING/imosx&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; string which is (possibly) interpolated and then
+compiled as a regular expression. The result may be used as a pattern in a
+match
+
+&lt;P&gt;
+&lt;PRE&gt;    $re = qr/$pattern/;
+    $string =~ /foo${re}bar/;   # can be interpolated in other patterns
+    $string =~ $re;             # or used standalone
+&lt;/PRE&gt;
+&lt;P&gt;
+Options are:
+
+&lt;P&gt;
+&lt;PRE&gt;    i   Do case-insensitive pattern matching.
+    m   Treat string as multiple lines.
+    o   Compile pattern only once.
+    s   Treat string as single line.
+    x   Use extended regular expressions.
+&lt;/PRE&gt;
+&lt;P&gt;
+The benefit from this is that the pattern is precompiled into an internal
+representation, and does not need to be recompiled every time a match is
+attempted. This makes it very efficient to do something like:
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach $pattern (@pattern_list) {
+        my $re = qr/$pattern/;
+        foreach $line (@lines) {
+            if($line =~ /$re/) {
+                do_something($line);
+            }
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+See [perlman:perlre|the perlre manpage] for additional information on valid syntax for 
+&lt;FONT SIZE=-1&gt;STRING,&lt;/FONT&gt; and for a detailed look at the semantics of
+regular expressions.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_qx&quot;&gt;qx/STRING/&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__STRING_&quot;&gt;`STRING`&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; string which is (possibly) interpolated and then
+executed as a system command with &lt;CODE&gt;/bin/sh&lt;/CODE&gt; or its equivalent. Shell wildcards, pipes, and redirections will be honored. The collected standard output of the command is returned; standard error is unaffected. In scalar context, it comes back as a single (potentially multi-line) string. In list context, returns a list of lines (however you've defined lines with $/ or 
+&lt;FONT SIZE=-1&gt;$INPUT_RECORD_SEPARATOR).&lt;/FONT&gt;
+
+&lt;P&gt;
+Because backticks do not affect standard error, use shell file descriptor syntax (assuming the shell supports this) if you care to address this. To capture a command's 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; together:
+
+&lt;P&gt;
+&lt;PRE&gt;    $output = `cmd 2&amp;gt;&amp;amp;1`;
+&lt;/PRE&gt;
+&lt;P&gt;
+To capture a command's 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; but discard its 
+&lt;FONT SIZE=-1&gt;STDERR:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    $output = `cmd 2&amp;gt;/dev/null`;
+&lt;/PRE&gt;
+&lt;P&gt;
+To capture a command's 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; but discard its 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; (ordering is important here):
+
+&lt;P&gt;
+&lt;PRE&gt;    $output = `cmd 2&amp;gt;&amp;amp;1 1&amp;gt;/dev/null`;
+&lt;/PRE&gt;
+&lt;P&gt;
+To exchange a command's 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; in order to capture the 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; but leave its 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; to come out the old 
+&lt;FONT SIZE=-1&gt;STDERR:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    $output = `cmd 3&amp;gt;&amp;amp;1 1&amp;gt;&amp;amp;2 2&amp;gt;&amp;amp;3 3&amp;gt;&amp;amp;-`;
+&lt;/PRE&gt;
+&lt;P&gt;
+To read both a command's 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; and its 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; separately, it's easiest and safest to redirect them separately to files, and then read from those files when the program is done:
+
+&lt;P&gt;
+&lt;PRE&gt;    system(&amp;quot;program args 1&amp;gt;/tmp/program.stdout 2&amp;gt;/tmp/program.stderr&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+Using single-quote as a delimiter protects the command from Perl's
+double-quote interpolation, passing it on to the shell instead:
+
+&lt;P&gt;
+&lt;PRE&gt;    $perl_info  = qx(ps $$);            # that's Perl's $$
+    $shell_info = qx'ps $$';            # that's the new shell's $$
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that how the string gets evaluated is entirely subject to the command
+interpreter on your system. On most platforms, you will have to protect
+shell metacharacters if you want them treated literally. This is in
+practice difficult to do, as it's unclear how to escape which characters.
+See [perlman:perlsec|the perlsec manpage] for a clean and safe example of a manual 
+&lt;CODE&gt;fork()&lt;/CODE&gt; and 
+&lt;CODE&gt;exec()&lt;/CODE&gt; to emulate backticks safely.
+
+&lt;P&gt;
+On some platforms (notably DOS-like ones), the shell may not be capable of
+dealing with multiline commands, so putting newlines in the string may not
+get you what you want. You may be able to evaluate multiple commands in a
+single line by separating them with the command separator character, if
+your shell supports that (e.g. &lt;CODE&gt;;&lt;/CODE&gt; on many Unix shells; &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; on the Windows 
+&lt;FONT SIZE=-1&gt;NT&lt;/FONT&gt; &lt;CODE&gt;cmd&lt;/CODE&gt; shell).
+
+&lt;P&gt;
+Beware that some command shells may place restrictions on the length of the
+command line. You must ensure your strings don't exceed this limit after
+any necessary interpolations. See the platform-specific release notes for
+more details about your particular environment.
+
+&lt;P&gt;
+Using this operator can lead to programs that are difficult to port,
+because the shell commands called vary between systems, and may in fact not
+be present at all. As one example, the &lt;CODE&gt;type&lt;/CODE&gt; command under the 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; shell is very different from the &lt;CODE&gt;type&lt;/CODE&gt; command under 
+&lt;FONT SIZE=-1&gt;DOS.&lt;/FONT&gt; That doesn't mean you should go out of your way
+to avoid backticks when they're the right way to get something done. Perl
+was made to be a glue language, and one of the things it glues together is
+commands. Just understand what you're getting yourself into.
+
+&lt;P&gt;
+See &lt;A HREF=&quot;#I_O_Operators&quot;&gt;I/O Operators&lt;/A&gt; for more discussion.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_qw&quot;&gt;qw/STRING/&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a list of the words extracted out of 
+&lt;FONT SIZE=-1&gt;STRING,&lt;/FONT&gt; using embedded whitespace as the word
+delimiters. It is exactly equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    split(' ', q/STRING/);
+&lt;/PRE&gt;
+&lt;P&gt;
+This equivalency means that if used in scalar context, you'll get split's
+(unfortunate) scalar context behavior, complete with mysterious warnings.
+
+&lt;P&gt;
+Some frequently seen examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    use POSIX qw( setlocale localeconv )
+    @EXPORT = qw( foo bar baz );
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; common mistake is to try to separate the words with
+comma or to put comments into a multi-line [perlman:perlop]-string. For this reason the &lt;CODE&gt;-w&lt;/CODE&gt;
+switch produce warnings if the 
+&lt;FONT SIZE=-1&gt;STRING&lt;/FONT&gt; contains the ``,'' or the ``#'' character.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_s&quot;&gt;s/PATTERN/REPLACEMENT/egimosx&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Searches a string for a pattern, and if found, replaces that pattern with
+the replacement text and returns the number of substitutions made.
+Otherwise it returns false (specifically, the empty string).
+
+&lt;P&gt;
+If no string is specified via the &lt;CODE&gt;=~&lt;/CODE&gt; or &lt;CODE&gt;!~&lt;/CODE&gt; operator, the &lt;CODE&gt;$_&lt;/CODE&gt;
+variable is searched and modified. (The string specified with &lt;CODE&gt;=~&lt;/CODE&gt; must be scalar variable, an array element, a hash element, or an assignment
+to one of those, i.e., an lvalue.)
+
+&lt;P&gt;
+If the delimiter chosen is single quote, no variable interpolation is done on either the 
+&lt;FONT SIZE=-1&gt;PATTERN&lt;/FONT&gt; or the 
+&lt;FONT SIZE=-1&gt;REPLACEMENT.&lt;/FONT&gt; Otherwise, if the 
+&lt;FONT SIZE=-1&gt;PATTERN&lt;/FONT&gt; contains a $ that looks like a variable rather than an end-of-string test, the variable will be interpolated into the pattern at run-time. If you want the pattern compiled only once the first time the variable is interpolated, use the
+ &lt;CODE&gt;/o&lt;/CODE&gt; option. If the pattern evaluates to the empty string, the last successfully
+executed regular expression is used instead. See [perlman:perlre|the perlre manpage] for further explanation on these. See [perlman:perllocale|the perllocale manpage] for discussion of additional considerations that apply when &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect.
+
+&lt;P&gt;
+Options are:
+
+&lt;P&gt;
+&lt;PRE&gt;    e   Evaluate the right side as an expression.
+    g   Replace globally, i.e., all occurrences.
+    i   Do case-insensitive pattern matching.
+    m   Treat string as multiple lines.
+    o   Compile pattern only once.
+    s   Treat string as single line.
+    x   Use extended regular expressions.
+&lt;/PRE&gt;
+&lt;P&gt;
+Any non-alphanumeric, non-whitespace delimiter may replace the slashes. If
+single quotes are used, no interpretation is done on the replacement string
+(the &lt;CODE&gt;/e&lt;/CODE&gt; modifier overrides this, however). Unlike Perl 4, Perl 5 treats backticks as normal delimiters; the replacement text is not evaluated as a command. If the 
+&lt;FONT SIZE=-1&gt;PATTERN&lt;/FONT&gt; is delimited by bracketing quotes, the 
+&lt;FONT SIZE=-1&gt;REPLACEMENT&lt;/FONT&gt; has its own pair of quotes, which may or may not be bracketing quotes, e.g.,
+
+[perlman:perlop] or &lt;CODE&gt;s&amp;lt;foo&amp;gt;/bar/&lt;/CODE&gt;. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; &lt;CODE&gt;/e&lt;/CODE&gt; will cause the replacement portion to be interpreted as a full-fledged Perl expression and 
+&lt;CODE&gt;eval()ed&lt;/CODE&gt; right then and there. It is, however, syntax checked at compile-time.
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    s/\bgreen\b/mauve/g;                # don't change wintergreen
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $path =~ s|/usr/bin|/usr/local/bin|;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    s/Login: $foo/Login: $bar/; # run-time pattern
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    ($foo = $bar) =~ s/this/that/;      # copy first, then change
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $count = ($paragraph =~ s/Mister\b/Mr./g);  # get change-count
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $_ = 'abc123xyz';
+    s/\d+/$&amp;amp;*2/e;               # yields 'abc246xyz'
+    s/\d+/sprintf(&amp;quot;%5d&amp;quot;,$&amp;amp;)/e;  # yields 'abc  246xyz'
+    s/\w/$&amp;amp; x 2/eg;             # yields 'aabbcc  224466xxyyzz'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    s/%(.)/$percent{$1}/g;      # change percent escapes; no /e
+    s/%(.)/$percent{$1} || $&amp;amp;/ge;       # expr now, so /e
+    s/^=(\w+)/&amp;amp;pod($1)/ge;      # use function call
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # expand variables in $_, but dynamics only, using
+    # symbolic dereferencing
+    s/\$(\w+)/${$1}/g;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # /e's can even nest;  this will expand
+    # any embedded scalar variable (including lexicals) in $_
+    s/(\$\w+)/$1/eeg;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Delete (most) C comments.
+    $program =~ s {
+        /\*     # Match the opening delimiter.
+        .*?     # Match a minimal number of characters.
+        \*/     # Match the closing delimiter.
+    } &amp;#091;&amp;#093;gsx;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    s/^\s*(.*?)\s*$/$1/;        # trim white space in $_, expensively
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    for ($variable) {           # trim white space in $variable, cheap
+        s/^\s+//;
+        s/\s+$//;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    s/(&amp;#091;^ &amp;#093;*) *(&amp;#091;^ &amp;#093;*)/$2 $1/;  # reverse 1st two fields
+&lt;/PRE&gt;
+&lt;P&gt;
+Note the use of $ instead of \ in the last example. Unlike
+&lt;STRONG&gt;sed&lt;/STRONG&gt;, we use the \&amp;lt;&lt;EM&gt;digit&lt;/EM&gt;&amp;gt; form in only the left hand side. Anywhere else it's $&amp;lt;&lt;EM&gt;digit&lt;/EM&gt;&amp;gt;.
+
+&lt;P&gt;
+Occasionally, you can't use just a &lt;CODE&gt;/g&lt;/CODE&gt; to get all the changes to occur. Here are two common cases:
+
+&lt;P&gt;
+&lt;PRE&gt;    # put commas in the right places in an integer
+    1 while s/(.*\d)(\d\d\d)/$1,$2/g;      # perl4
+    1 while s/(\d)(\d\d\d)(?!\d)/$1,$2/g;  # perl5
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # expand tabs to 8-column spacing
+    1 while s/\t+/' ' x (length($&amp;amp;)*8 - length($`)%8)/e;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_tr&quot;&gt;tr/SEARCHLIST/REPLACEMENTLIST/cds&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_y&quot;&gt;y/SEARCHLIST/REPLACEMENTLIST/cds&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Transliterates all occurrences of the characters found in the search list with the corresponding character in the replacement list. It returns the number of characters replaced or deleted. If no string is specified via the =~ or !~ operator, the &lt;CODE&gt;$_&lt;/CODE&gt; string is transliterated. (The string specified with =~ must be a scalar variable, an array element, a hash element, or an assignment to one of those, i.e., an lvalue.) 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; character range may be specified with a hyphen, so
+ &lt;CODE&gt;tr/A-J/0-9/&lt;/CODE&gt; 
+does the same replacement as &lt;CODE&gt;tr/ACEGIBDFHJ/0246813579/&lt;/CODE&gt;. For &lt;STRONG&gt;sed&lt;/STRONG&gt; devotees, [perlman:perlop] is provided as a synonym for [perlman:perlop]. If the 
+&lt;FONT SIZE=-1&gt;SEARCHLIST&lt;/FONT&gt; is delimited by bracketing quotes, the 
+&lt;FONT SIZE=-1&gt;REPLACEMENTLIST&lt;/FONT&gt; has its own pair of quotes, which may or may not be bracketing quotes, e.g.,
+ &lt;CODE&gt;tr&amp;#091;A-Z&amp;#093;&amp;#091;a-z&amp;#093;&lt;/CODE&gt; or &lt;CODE&gt;tr(+\-*/)/ABCD/&lt;/CODE&gt;.
+
+&lt;P&gt;
+Options:
+
+&lt;P&gt;
+&lt;PRE&gt;    c   Complement the SEARCHLIST.
+    d   Delete found but unreplaced characters.
+    s   Squash duplicate replaced characters.
+&lt;/PRE&gt;
+&lt;P&gt;
+If the &lt;CODE&gt;/c&lt;/CODE&gt; modifier is specified, the 
+&lt;FONT SIZE=-1&gt;SEARCHLIST&lt;/FONT&gt; character set is complemented. If the &lt;CODE&gt;/d&lt;/CODE&gt; modifier is specified, any characters specified by 
+&lt;FONT SIZE=-1&gt;SEARCHLIST&lt;/FONT&gt; not found in 
+&lt;FONT SIZE=-1&gt;REPLACEMENTLIST&lt;/FONT&gt; are deleted. (Note that this is slightly more flexible than the behavior of some
+ &lt;STRONG&gt;tr&lt;/STRONG&gt;
+programs, which delete anything they find in the 
+&lt;FONT SIZE=-1&gt;SEARCHLIST,&lt;/FONT&gt; period.) If the [perlman:perlop] modifier is specified, sequences of characters that were transliterated to
+the same character are squashed down to a single instance of the character.
+
+&lt;P&gt;
+If the &lt;CODE&gt;/d&lt;/CODE&gt; modifier is used, the 
+&lt;FONT SIZE=-1&gt;REPLACEMENTLIST&lt;/FONT&gt; is always interpreted exactly as specified. Otherwise, if the 
+&lt;FONT SIZE=-1&gt;REPLACEMENTLIST&lt;/FONT&gt; is shorter than the 
+&lt;FONT SIZE=-1&gt;SEARCHLIST,&lt;/FONT&gt; the final character is replicated till it is long enough. If the 
+&lt;FONT SIZE=-1&gt;REPLACEMENTLIST&lt;/FONT&gt; is empty, the 
+&lt;FONT SIZE=-1&gt;SEARCHLIST&lt;/FONT&gt; is replicated. This latter is useful for counting characters in a class or for squashing character sequences in a class.
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    $ARGV&amp;#091;1&amp;#093; =~ tr/A-Z/a-z/;    # canonicalize to lower case
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $cnt = tr/*/*/;             # count the stars in $_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $cnt = $sky =~ tr/*/*/;     # count the stars in $sky
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $cnt = tr/0-9//;            # count the digits in $_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tr/a-zA-Z//s;               # bookkeeper -&amp;gt; bokeper
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    ($HOST = $host) =~ tr/a-z/A-Z/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tr/a-zA-Z/ /cs;             # change non-alphas to single space
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tr &amp;#091;\200-\377&amp;#093;
+       &amp;#091;\000-\177&amp;#093;;             # delete 8th bit
+&lt;/PRE&gt;
+&lt;P&gt;
+If multiple transliterations are given for a character, only the first one
+is used:
+
+&lt;P&gt;
+&lt;PRE&gt;    tr/AAA/XYZ/
+&lt;/PRE&gt;
+&lt;P&gt;
+will transliterate any 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; to 
+&lt;FONT SIZE=-1&gt;X.&lt;/FONT&gt;
+
+&lt;P&gt;
+Note that because the transliteration table is built at compile time, neither the 
+&lt;FONT SIZE=-1&gt;SEARCHLIST&lt;/FONT&gt; nor the 
+&lt;FONT SIZE=-1&gt;REPLACEMENTLIST&lt;/FONT&gt; are subjected to double quote interpolation. That means that if you want to use variables, you must use an 
+&lt;CODE&gt;eval():&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    eval &amp;quot;tr/$oldlist/$newlist/&amp;quot;;
+    die $@ if $@;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    eval &amp;quot;tr/$oldlist/$newlist/, 1&amp;quot; or die $@;
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+[perlman:perlop2|More...]&lt;BR&gt;
+Return to the [Library]
+</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>377</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlop</title>
+  <createtime>1999-08-25 02:08:01</createtime>
+  <nodeupdated>2005-08-15 09:21:49</nodeupdated>
+</node>

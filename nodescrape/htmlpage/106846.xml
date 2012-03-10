@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="106846" title="node viewcode page" created="2001-08-22 01:06:55" updated="2005-08-06 04:04:00">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+[%
+    return "Sorry, you can't see this because you aren't a developer."
+        if  ! $DB-&gt;isApproved( $USER, 'pmdev' );
+
+    my $field= htmlcode('lookup_patchable_field');
+
+    if(  ! $field  ) {
+        return join "\n",
+            "&lt;p&gt;&lt;b&gt;Sorry 'viewcode' means nothing for this nodetype.&lt;/b&gt;&lt;/p&gt;",
+            "&lt;p&gt;There doesn't appear to be any code associated directly",
+            "with the nodetype of this node",
+            "(" . linkNode( $NODE-&gt;{type} ) . ").",
+            "If you think this is wrong please ask a",
+            linkNode( getNode("gods",'usergroup'), "god" ),
+            "to update the relevent setting.&lt;/p&gt;",
+            "&lt;p&gt;It is much more likely that the code you really",
+            "want to see is in one of the following display",
+            "pages that are used to render this nodetype:&lt;/p&gt;",
+            htmlcode('get_display_types'),
+        '';
+    }
+
+    my $html= '';
+    if(  'vars' ne $field  ) {
+        $html .= htmlcode( 'listcode','', $field );
+    } else {
+        $html .= join "\n",
+            htmlcode( 'displayvars','', $field ),
+            htmlcode( 'open_new_patch_form','', 'vars', 'edit' ),
+            $q-&gt;sethidden( "patch_code", $NODE-&gt;{vars} ),
+            htmlcode( 'closeform','', 'Create Patch' ),
+        '';
+    }
+
+    if(  'patch' ne $NODE-&gt;{type}{title}  ) {
+        $html .= join "\n",
+            "&lt;br /&gt;",
+            htmlcode('showsitedoclet'),
+            htmlcode('listpatches'),
+        '';
+    } elsif(  'vars' ne $field  ) {
+        $html .= join "\n",
+            "&lt;p&gt;This text area allows you to cut/copy the patched text:",
+            "&lt;br /&gt;&lt;form&gt;",
+            $q-&gt;textarea( 'code', $NODE-&gt;{$field}, 20, 60 ),
+            "&lt;/form&gt;&lt;/p&gt;",
+        '';
+    }
+
+    return $html;
+%]
+</field>
+<field name="displaytype">
+viewcode</field>
+</data>
+</node>

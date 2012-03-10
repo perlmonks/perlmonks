@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="32270" title="cursebox v0.9 - &quot;The Cursed Jukebox&quot;" created="2000-09-13 13:28:03" updated="2005-07-21 01:19:39">
+<type id="121">
+perlcraft</type>
+<author id="31586">
+odie</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+# I have no idea if it will display ok on unusual term size.
+# There are a few functions not implemented yet. Playlists
+# can not be saved/loaded, and songs cannot me added. Instead
+# cursebox will recursively parse the dir it is started in
+# and find all *.mp3 files. It will consider them to be mp3
+# files no matter what. It will not follow sym links.
+# There are no safeguards despite forks, etc, so it is not
+# gauranteed to work properly (although it seems to). It is
+# after all v0.9.
+# cursebox requires the following:
+# -- ncurses
+# -- CPAN Curses module
+# -- A term capable of color
+# Sorry for the ugly and messy code... =)
+
+use Curses;
+$SIG{CHLD} = 'IGNORE';
+
+# CURSES INIT
+initscr;
+start_color;
+noecho;
+halfdelay(1);
+nl();
+intrflush(stdscr, 0);
+keypad(stdscr, 1);
+init_pair(1,1,0);
+init_pair(2,2,0);
+init_pair(3,3,0);
+init_pair(5,5,0);
+
+# CURSEBOX INIT
+$mark = -1;
+$centersongnr = 0;
+$randplay = 0;
+$pid=0;
+$playingon = 0;
+$playno = 0;
+$mode = "play";        # play, help, add, ver
+$pwd=`pwd`;
+chop($pwd);
+&amp;parsedir($pwd);
+&amp;refreshmid;
+&amp;setup;
+
+# MAIN
+&amp;loop;
+exit(1);
+
+sub parsedir {
+ my $pwd=$_[0];
+ chdir($pwd);
+ opendir(DIR, $pwd);
+ my @files=readdir(DIR);
+ closedir(DIR);
+ foreach (@files) {
+  unless ( $_ =~ m/^\.$/ || $_ =~ m/^\.\.$/ ) {
+   if ( -d $_ &amp;&amp; !-l $_ ) {
+    $npwd="$pwd/$_";
+    parsedir($npwd);
+    chdir("..");
+   } else {
+    if ( $_ =~ m/\.mp3$/i ) {
+     $mp3s[$#mp3s+1]="$pwd/$_";
+    }
+   }
+  }
+ }
+}
+
+sub loop {
+ while ( 1 ) {
+  $char = getch();
+  unless ($char eq "-1") {
+   &amp;interpret;
+  }
+  unless ( kill 0 =&gt; $pid ) {
+   if ($playingon) {
+    if ( $randplay ) {
+     &amp;playrand;
+    } else {
+     &amp;skip;
+    }
+   }
+  }
+ }
+}
+
+sub interpret {
+ SWITCH: {
+  if ( $mode eq "help" ) { &amp;interprethelp ; last SWITCH;}
+  if ( $mode eq "play" ) { &amp;interpretplay ; last SWITCH;}
+  if ( $mode eq "cred"  ) { &amp;interpretcred  ; last SWITCH;}
+ }
+}
+
+sub interpretcred {
+ SWITCH: {
+  if ( $char eq "c" ) { &amp;setmode("play") ; last SWITCH; }
+  &amp;invalid;
+ }
+}
+
+sub interprethelp {
+ SWITCH: {
+  if ( $char eq "h" ) { &amp;setmode("play") ; last SWITCH; }
+  &amp;invalid;
+ }
+}
+
+sub interpretplay {
+ SWITCH: {
+  if ( $char eq "n" ) { &amp;skip ; last SWITCH; }
+  if ( $char eq "m" ) { &amp;movesong ; last SWITCH; }
+  if ( $char eq "b" ) { &amp;back ; last SWITCH; }
+  if ( $char eq "r" ) { &amp;rand ; last SWITCH; }
+  if ( $char eq "c" ) { &amp;setmode("cred") ; last SWITCH; }
+  if ( $char eq "s" ) { &amp;stop ; last SWITCH; }
+  if ( $char eq "p" ) { &amp;play ; last SWITCH; }
+  if ( $char eq "q" ) { &amp;quit ; last SWITCH; }
+  if ( $char eq "d" ) { &amp;delsong ; last SWITCH; }
+  if ( $char eq "h" ) { &amp;setmode("help") ; last SWITCH; }
+  if ( $char eq "g" ) { &amp;gotocent ; last SWITCH; }
+  if ( $char eq "259" ) { &amp;up ; last SWITCH; }
+  if ( $char eq "258" ) { &amp;down ; last SWITCH; }
+  if ( $char eq "\n" ) { &amp;goto ; last SWITCH; }
+  &amp;invalid;
+ }
+}
+
+sub setmode {
+ $mode=$_[0];
+ &amp;refreshmid;
+}
+
+sub refreshmid {
+ if ($mode eq "play") {
+  &amp;midplay;
+ }
+ if ($mode eq "help") {
+  &amp;midhelp;
+ }
+ if ($mode eq "cred") {
+  &amp;midcred;
+ }
+ if ($mode eq "add") {
+  &amp;midadd;
+ }
+}
+
+sub midplay {
+ if ( $#mp3s == -1 ) {
+  &amp;emptylist;
+ } else {
+  $nooflines = $LINES-7;
+  $centerline = int($nooflines/2);
+  $songnumber = $centersongnr-$centerline;
+  while ($songnumber &lt; 0) {
+   $songnumber = $songnumber + $#mp3s+1;
+  }
+  for ( $i=0 ; $i&lt;$nooflines ; $i++ ) {
+   if ($songnumber&gt;$#mp3s) { $songnumber=0; }
+   $shownumber = $songnumber+1;
+   $playname = $mp3s[$songnumber];
+   $nr = length($playname) - ($COLS-8);
+   if ( $nr &gt; 0 ) {
+    $playname =~ s/^.{$nr}//;
+    $playname =~ s/^.{3}/\.\.\./;
+   }
+   $printwidth = $COLS-3;
+   $sprintstring = "%-".$printwidth."s";
+   $printnum = sprintf("%-4s", $shownumber);
+   $playname = sprintf($sprintstring, " ".$printnum.$playname);
+   $attrm=0;$attrc=0;$attrp=0;
+   if ($songnumber==$mark &amp;&amp; $mark!=-1 ) {$attrm=1;}
+   if ($songnumber==$playno || ($songnumber==-1 &amp;&amp; $playno==$#mp3s)){$attrp=1;}
+   if ($i==$centerline) {$attrc=1;}
+   if ($attrm) {attron(COLOR_PAIR(1))}
+   if ($attrc) {attron(A_BOLD)}
+   if ($attrp) {attron(COLOR_PAIR(2))}
+   addstr((6+$i), 1, $playname);
+   if ($attrm) {attroff(COLOR_PAIR(1))}
+   if ($attrc) {attroff(A_BOLD)}
+   if ($attrp) {attroff(COLOR_PAIR(2))}
+   $songnumber++;
+  }
+  refresh;
+ }
+}
+
+sub playsong {
+ if ( $#mp3s &gt;= 0 ) {
+  if ( $pid == 0 ) {
+   if ( $playno &lt; 0 ) {
+    $playno = $#mp3s;
+   }
+   if ( $playno &gt; $#mp3s ) {
+    $playno = 0;
+   }
+   $playname=$mp3s[$playno];
+   $playnameqtd = quotemeta( $playname );
+   $mpgcommand="mpg123 -q $playnameqtd";
+   &amp;refreshmid;
+   $pid = fork();
+   if ( $pid == 0 ) {
+    open(STDERR, "/dev/null");
+    exec($mpgcommand);
+    exit 1;
+   }
+  }
+ }
+}
+
+sub setup {
+ attron(COLOR_PAIR(1));
+ box(stdscr, 0, 0);
+ move(5,1);
+ hline(0, 78);
+ attroff(COLOR_PAIR(1));
+ $sprintstring = "The Cursed JukeBox ( cursebox v0.9 )";
+ $nr = $COLS/2-length($sprintstring)/2;
+ $nr = int($nr);
+ attron(COLOR_PAIR(2));
+ addstr(0, $nr, $sprintstring );
+ attroff(COLOR_PAIR(2));
+ addstr(1, 2, "COMMANDS: (N)ext    (B)ack    (S)top    (P)lay".
+              "    (R)andom  (M)ark/(M)ove");
+ addstr(2, 2, "          (Q)quit   (D)elete  (H)elp    (C)redits (G)oto");
+ addstr(3, 2, "          Arrow Keys to scroll, &lt;ENTER&gt; to Select.");
+ addstr(4, 2, "RANDOM:           PLAYING:      ");
+ attron(COLOR_PAIR(1));
+ addstr(4, 12, "OFF");
+ addstr(4, 31, "OFF");
+ attroff(COLOR_PAIR(1));
+ refresh;
+}
+
+sub emptylist {
+ $nooflines = $LINES-7;
+ $centerline = int($nooflines/2-1);
+ $songnumber = $centersongnr-$centerline;
+ $clearpatt = "%".($COLS-2)."s";
+ $clearline = sprintf($clearpatt, "");
+ for ( $i=0 ; $i&lt;$nooflines ; $i++ ) {
+  addstr(($i+6),1,$clearline);
+ }
+ $sprintstring = "SONGLIST EMPTY";
+ $nr = int($COLS/2-length($sprintstring)/2);
+ addstr(($LINES/2+3), $nr, $sprintstring );
+ refresh;
+}
+
+sub midcred {
+ $nooflines = $LINES-7;
+ $centerline = int($nooflines/2-1);
+ $songnumber = $centersongnr-$centerline;
+ $clearpatt = "%".($COLS-2)."s";
+ $clearline = sprintf($clearpatt, "");
+ for ( $i=0 ; $i&lt;$nooflines ; $i++ ) {
+  addstr(($i+6),1,$clearline);
+ }
+ addstr(6,1,"The Cursed Jukebox ( cursebox v0.9 )");
+ addstr(8,1,"Cursebox uses:");
+ addstr(9,1,"  mpg123");
+ addstr(10,1,"  perl");
+ addstr(11,1,"  Curses, the perl ncurses interface ( Yes, you".
+             " need a color Term .)");
+ addstr(13,1,"Tools used in coding:");
+ addstr(14,1,"  vim ( VI Improved )");
+ addstr(15,1,"  man ( RTFM... )");
+ addstr(17,1,"Cursebox has been created in vga text mode on a".
+             " debian linux i386 machine");
+ addstr(18,1,"by Mats Ström. ( d99msr\@efd.lth.se )");
+ addstr(20,1,"A big \"hooray\" goes to www.perlmonks.org. Good".
+             "place to ask questions.");
+ addstr(22,1,"Press C to exit this screen.");
+ refresh;
+}
+
+sub midhelp {
+ $nooflines = $LINES-7;
+ $centerline = int($nooflines/2-1);
+ $songnumber = $centersongnr-$centerline;
+ $clearpatt = "%".($COLS-2)."s";
+ $clearline = sprintf($clearpatt, "");
+ for ( $i=0 ; $i&lt;$nooflines ; $i++ ) {
+  addstr(($i+6),1,$clearline);
+ }
+ addstr(6,1,"Use Up/Down arrow keys to scroll in the playlist.");
+ addstr(7,1,"Enter will start playing the song on the highlighted line.");
+ addstr(9,1,"N      Next: Play next song. If random is on, it skips to".
+            "a random song.");
+ addstr(10,1,"B      Back: Play previous song. If random is on, it skips".
+             "to a random song.");
+ addstr(11,1,"S      Stop: Stop playing.");
+ addstr(12,1,"P      Play: Start playing.");
+ addstr(13,1,"R      Random: Toggle random play on/off.");
+ addstr(14,1,"Q      Quit: Exit program. ( Yes, CTRL-C works as well. )");
+ addstr(15,1,"G      Goto: This will move your view to the playing song.");
+ addstr(16,1,"H      Help: Display this text.");
+ addstr(17,1,"C      Credits: Show credits and information about cursebox.");
+ addstr(18,1,"M      Mark: Pressing M once will mark a message for moving.".
+             "The line will");
+ addstr(19,1,"       turn red. Move with the arrow keys to another song".
+             "and press M again.");
+ addstr(20,1,"       The marked line will be removed and inserted at new".
+             "position.");
+ addstr(22,1,"Press H to exit help.");
+ refresh;
+}
+
+sub playrand {
+ $playno=int(rand($#mp3s+1));
+ if ( $playno == $#mp3s+1 ) {
+  $playno=$#mp3s;
+ }
+ &amp;stop;
+ &amp;play;
+}
+
+sub delsong {
+ if ( $#mp3s &gt;= 0 ) {
+  splice(@mp3s,$centersongnr,1);
+  if ( $centersongnr == $playno ) {
+   $playno = $centersongnr;
+   if ( $playingon ) {
+    &amp;stop;
+    &amp;play;
+   }
+  }
+  if ( $centersongnr &lt; $playno ) {
+   $playno--;
+  }
+  if ( $centersongnr == ($#mp3s+1) ) {
+   $centersongnr = 0;
+  }
+  if ( $playno &gt; ($#mp3s+1) ) {
+   $playno=$#mp3s+1;
+  }
+  &amp;refreshmid;
+ } else {
+  &amp;invalid;
+ }
+}
+
+sub up {
+ $centersongnr--;
+ if ( $centersongnr &lt; 0 ) {
+  $centersongnr = $#mp3s;
+ }
+ &amp;refreshmid;
+}
+
+sub down {
+ $centersongnr++;
+ if ( $centersongnr &gt; $#mp3s ) {
+  $centersongnr = 0;
+ }
+ &amp;refreshmid;
+}
+
+sub movesong {
+ if ( $#mp3s &gt;= 0 ) {
+  if ( $mark == -1 ) {
+   $mark = $centersongnr;
+  } else {
+   $tmp = $mp3s[$mark];
+   splice(@mp3s,$mark,1);
+   splice(@mp3s,$centersongnr,0,$tmp);
+   SWITCH: {
+    if ( $playno == $centersongnr ) { $playno = $mark; ; last SWITCH; }
+    if ( $playno == $mark ) { $playno = $centersongnr; ; last SWITCH; }
+    $playno=$playno;
+   }
+   $mark=-1;
+  }
+  &amp;refreshmid;
+ } else {
+  &amp;invalid;
+ }
+}
+
+sub goto {
+ if ( $#mp3s &gt;= 0 ) {
+  &amp;play;
+  $playno = $centersongnr;
+  if ( kill 0 =&gt; $pid ) {
+   if ( $pid != 0 ) {
+    &amp;killsong;
+   }
+   &amp;playsong;
+  }
+ } else {
+  &amp;invalid;
+ }
+}
+
+sub gotocent {
+ if ( $#mp3s &gt;= 0 ) {
+  $centersongnr = $playno;
+  &amp;refreshmid;
+ }
+}
+
+sub stop {
+ attron(COLOR_PAIR(1));
+ addstr(4, 31, "OFF");
+ attroff(COLOR_PAIR(1));
+ refresh;
+ if ($pid != 0) {
+  &amp;killsong;
+ }
+ $playingon = 0;
+}
+
+sub play {
+ if ( $#mp3s &gt;= 0 ) {
+  attron(COLOR_PAIR(2));
+  addstr(4, 31, "ON ");
+  attroff(COLOR_PAIR(2));
+  refresh;
+  unless ($playingon) {
+   &amp;playsong;
+  }
+  $playingon = 1;
+ } else {
+  &amp;invalid;
+ }
+}
+
+sub skip {
+ if ( $#mp3s &gt;= 0 ) {
+  &amp;play;
+  unless ( $randplay ) {
+   $playno++;
+   unless ( $pid == 0 ){
+    &amp;killsong;
+   }
+   &amp;playsong;
+  } else {
+   unless ( $pid == 0 ){
+    &amp;killsong;
+   }
+   &amp;playrand;
+  }
+ } else {
+  &amp;invalid;
+ }
+}
+
+sub back {
+ if ( $#mp3s &gt;= 0 ) {
+  &amp;play;
+  unless ( $randplay ) {
+   $playno--;
+   unless ( $pid == 0 ) {
+    &amp;killsong;
+   }
+   &amp;playsong;
+  } else {
+   unless ( $pid == 0 ){
+    &amp;killsong;
+   }
+   &amp;playrand;
+  }
+ } else {
+  &amp;invalid;
+ }
+}
+
+sub rand {
+ if ( $randplay ) {
+  attron(COLOR_PAIR(1));
+  addstr(4, 12, "OFF");   refresh;
+  attroff(COLOR_PAIR(1));
+  $randplay = 0;
+ } else {
+  attron(COLOR_PAIR(2));
+  addstr(4, 12, "ON ");
+  attroff(COLOR_PAIR(2));
+  refresh;
+  $randplay = 1;
+ }
+}
+
+sub killsong {
+ unless ( $pid == 0 ){
+  while ( kill 0 =&gt; $pid ) {
+   kill TERM, $pid;
+  }
+ }
+ $pid=0;
+}
+
+sub quit {
+ &amp;killsong;
+ endwin;
+ exit(1);
+}
+
+sub invalid {
+ beep;
+ refresh;
+}</field>
+</data>
+</node>

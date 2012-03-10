@@ -1,0 +1,67 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>1613</node_id>
+  <author_user>979</author_user>
+  <title>parseTimeInString</title>
+  <createtime>1999-12-30 17:51:49</createtime>
+  <code>my( $date, $timezone, $user, $fmt ) = @_;
+my $args;
+if ( ref $date ) {
+   $args = $date;
+   ( $date, $timezone, $fmt ) = @$args{ qw/ string timezone format / };
+}
+
+$timezone= $VARS-&gt;{timezone}
+   if  &quot;&quot; eq $timezone;
+
+my( $yy, $mm, $dd, $hrs, $min, $sec, $gmforced );
+if(  '' ne $date  ) {
+   my $cc;
+   ( $cc, $yy, $mm, $dd, $hrs, $min, $sec )=
+      $date =~ /(\d\d)/g;
+   $yy= $cc.$yy;
+   if ($user) { $gmforced = $date =~ /UTC|GM/gi; }
+} else {
+   ( $sec, $min, $hrs, $dd, $mm, $yy )= localtime();
+   $yy += 1900;
+   ++$mm;
+}
+
+return &quot;&lt;i&gt;never&lt;/i&gt;&quot;   unless  0 &lt; $yy  &amp;&amp;  0 &lt; $mm  &amp;&amp;  0 &lt; $dd;
+
+use Time::Local 'timelocal', 'timegm_nocheck', 'timelocal_nocheck';
+
+my $epoch_secs;
+if ($yy &gt; 2038) {
+   if ($user) {
+       return &quot;Year $yy out of range!&quot;;
+   } else {
+       die &quot;Year $yy out of range!&quot;;
+   }
+}
+if ($user) {
+   if ($gmforced) {
+     $epoch_secs = timegm_nocheck( $sec, $min, $hrs, $dd, $mm-1, $yy );
+   } else {   
+      $epoch_secs = timelocal_nocheck( $sec, $min, $hrs, $dd, $mm-1, $yy );
+   }
+} else {
+     $epoch_secs = timelocal( $sec, $min, $hrs, $dd, $mm-1, $yy );
+}
+
+my $format= $fmt || $VARS-&gt;{timeformat} || '%b %d, %Y at %H:%M&amp;nbsp;%Z';
+$format =~ s/^short\z|%{short}/
+   $VARS-&gt;{shorttimeformat} || '%Y-%m-%d %H:%M' /ge;
+$format =~ s/^ISO\z|%{ISO}/%Y-%m-%d %H:%M:%S&amp;nbsp;%Z/g;
+$format =~ s/^RFC822\z|%{RFC822}/%a, %d %b %Y %H:%M:%S %z/gi;
+
+
+$timezone= sprintf 'Etc/GMT%+d', -$timezone
+   if  $timezone =~ /^-?\d+$/;
+$timezone= &quot;Etc/UTC&quot;
+   if  $timezone !~ /\S/;
+my $nicetime= htmlcode( 'strftime_localtime', '', $format, $timezone, $epoch_secs );
+
+return $nicetime;</code>
+  <nodeupdated>2005-07-15 03:52:28</nodeupdated>
+</node>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="902" title="uploadimage" created="1999-11-02 20:59:00" updated="2005-03-09 15:34:01">
+<type id="4">
+htmlcode</type>
+<author id="113">
+root</author>
+<data>
+<field name="code">
+# [{uploadimage:field}]
+#
+# generates an input file field, and sets the field to the URL 
+
+my ($field) =@_;
+my $str ="";
+my $name = $field."_file";
+my $tmpfile = '/tmp/everythingimage' . rand(10000); 
+my $imagedir = '/home/perlmonks/images/incoming';
+my $imageurl = 'images/incoming/';
+
+if ($query-&gt;param($name)) {
+  my ($fname) = $query-&gt;param($name);
+  my $imgname = $fname;
+  $imgname =~ s/[\/\\]([\w|\.]*)$/$1/;
+  $str.= "'". $query-&gt;uploadInfo($fname)-&gt;{"Content-Type"}."'!";
+	
+  open OUTFILE, "&gt;$tmpfile";
+  my ($buf, $size);
+  while (read($fname, $buf, 1024)) { 
+    #$size+=$bytes;
+    print OUTFILE $buf;
+  }
+  close OUTFILE;
+
+  `mv $tmpfile $imagedir/$imgname`;
+  $$NODE{$field} = $imageurl.$imgname;
+  $DB-&gt;updateNode ($NODE, $USER);
+ # $str.="$size bytes recieved!";
+} else {
+  $str.=$query-&gt;filefield($name);
+  $str .= "&lt;br&gt;NOTE: Image directory is hard-coded in htmlcode:uploadimage&lt;br&gt;";
+}
+$str;</field>
+</data>
+</node>

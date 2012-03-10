@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="208185" title="node help display page" created="2002-10-25 21:39:33" updated="2005-05-24 03:45:43">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+[%
+
+  return ""  unless $$USER{title} eq "vroom";
+  my $dohelp = $query-&gt;param("dohelp");  
+  my $txt = $query-&gt;param("helptext");
+
+  if($dohelp eq "create")
+  {
+    $DB-&gt;sqlInsert("nodehelp", {nodehelp_id =&gt; $$NODE{node_id}, nodehelp_text =&gt; $txt});
+
+    return "Help topic created!&lt;br&gt;&lt;br&gt;";
+  }
+  
+  if($dohelp eq "update")
+  {
+    $DB-&gt;sqlUpdate("nodehelp", {nodehelp_text =&gt; $txt}, "nodehelp_id=$$NODE{node_id}");
+    return "Help topic updated!&lt;br&gt;&lt;br&gt;";
+  }
+
+  return "";
+
+%]
+
+[%
+  my $csr = $DB-&gt;sqlSelectMany("*", "nodehelp", "nodehelp_id=$$NODE{node_id}");
+  my $str = "&lt;p align=\"right\"&gt;Help for: ".linkNode($NODE)."&lt;/p&gt;&lt;br&gt;";
+  my $nohelp = "&lt;em&gt;&lt;p align=\"center\"&gt;No help topic available for this item&lt;/p&gt;&lt;/em&gt;";
+  if(my $row = $csr-&gt;fetchrow_hashref())
+  { 
+     if(length($$row{nodehelp_text}) &lt; 3)
+     {
+      $str.= $nohelp 
+     }
+     else
+     {
+      $str.= parseLinks($$row{nodehelp_text});
+     }
+  }
+  else
+  {
+     $str.= $nohelp;
+  }
+  
+  $str.= "&lt;br&gt;&lt;br&gt;";
+  return $str;
+%]
+
+[%
+  return unless  $$USER{title} eq "vroom";
+
+  my $csr = $DB-&gt;sqlSelectMany("*", "nodehelp", "nodehelp_id=$$NODE{node_id}");
+  my $row;
+  my $dohelp;
+  if($row = $csr-&gt;fetchrow_hashref())
+  {
+    $dohelp = "update";
+  }
+  else
+  {
+    $dohelp = "create";
+  }
+
+  my $str = "&lt;br&gt;&lt;br&gt;&lt;p align=\"center\"&gt;&lt;hr width=\"200\"&gt;&lt;/p&gt;&lt;br&gt;Because you are spiffy, you can edit the help topic for ".linkNode($NODE).":&lt;br&gt;&lt;br&gt;".htmlcode("openform")."&lt;input type=\"hidden\" name=\"dohelp\" value=\"$dohelp\"&gt;&lt;textarea name=\"helptext\" rows=\"30\" cols=\"80\"&gt;$$row{nodehelp_text}&lt;/textarea&gt;&lt;br&gt;&lt;input type=\"submit\" value=\"submit\"&gt;&lt;/form&gt;";
+
+  return $str;
+%]</field>
+<field name="displaytype">
+help</field>
+</data>
+</node>

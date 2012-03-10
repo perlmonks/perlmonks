@@ -1,0 +1,284 @@
+<node>
+  <doctext>&lt;h2&gt;The Scalar Range Operator&lt;/h2&gt;
+&lt;p&gt;
+I have been playing with the scalar range operator, and it 
+confused me so much that I started experimenting and reading about it,
+and here is what I wrote up.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;h3&gt;Numeric Values&lt;/h3&gt;
+This operator, in scalar context, has two forms that act as a bistable or flip-flop.  The first form looks like this:
+
+&lt;code&gt;
+  if ($left .. $right)
+  {
+    ...
+  }
+&lt;/code&gt;
+
+This &lt;code&gt;if&lt;/code&gt; statement works as follows:
+
+The condition evaluates false until &lt;code&gt;$left&lt;/code&gt; evaluates true.
+Then the &lt;code&gt;$left&lt;/code&gt; condition is ignored, and the condition continues
+to evaluate true until &lt;code&gt;$right&lt;/code&gt; evaluates true, at which point
+the condition evaluates false, and it goes back to check &lt;code&gt;$left&lt;/code&gt;.
+
+In this way, it flip-flops between waiting for the left side to evaluate true,
+and then waiting for the right side to evaluate true.  Very strange, until
+you see it operating in a program:
+
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    print if 2 .. 4;
+  }
+
+  __DATA__
+  first
+  second
+  third
+  fourth
+  fifth
+
+  __OUTPUT__
+  second
+  third
+  fourth
+&lt;/code&gt;
+
+This program prints out the second and third line of the data.
+A numeric value in the scalar range operator is therefore compared to
+&lt;code&gt;$.&lt;/code&gt;.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;h3&gt;Regular Expressions&lt;/h3&gt;
+This example shows the use of two regular expressions in the scalar
+range operator:
+
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    print if /start/ .. /end/;
+  }
+
+  __DATA__
+  ignore
+  start
+  first
+  second
+  third
+  end
+  ignore
+  start
+  fourth
+  fifth
+  end
+  ignore
+
+  __OUTPUT__
+  start
+  first
+  second
+  third
+  end
+  start
+  fourth
+  fifth
+  end
+&lt;/code&gt;
+
+It prints out lines in the data beginning with the line that first evaluates
+true (&lt;code&gt;start&lt;/code&gt;), until the line that next evaluates true
+(&lt;code&gt;end&lt;/code&gt;).  All the lines that are not bracked by &lt;code&gt;start/end&lt;/code&gt;
+pairs are ignored.  Note that this data contains two blocks of lines that are between &lt;code&gt;start&lt;/code&gt; and &lt;code&gt;end&lt;/code&gt; markers, and the lines outside those ranges are ignored.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;h3&gt;Numeric and Regular Expressions&lt;/h3&gt;
+Combining a numeric and a regex in the range operator also works as expected.
+In this example, the lines from &lt;code&gt;$. == 1&lt;/code&gt; until &lt;code&gt;$_ =~ /end/&lt;/code&gt;
+are printed.
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    print if 2 .. /end/;
+  }
+
+  __DATA__
+  first
+  second
+  third
+  end
+  ignore
+
+  __OUTPUT__
+  second
+  third
+  end
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;h3&gt;Exluding Markers&lt;/h3&gt;
+In order to exclude lines that contain &lt;code&gt;start&lt;/code&gt; and &lt;code&gt;end&lt;/code&gt;,
+a further condition is required.  The condition is that the result returned by
+the scalar range operator must be neither &lt;code&gt;1&lt;/code&gt; (representing
+&lt;code&gt;$.&lt;/code&gt; of 1), nor must it contain &lt;code&gt;E&lt;/code&gt;.  When the operator
+encounters the line that evaluates true for the right-hand-side, it's return
+value is (in the example below) &lt;code&gt;5E0&lt;/code&gt;.  This number evaluates to
+&lt;code&gt;5&lt;/code&gt;, but contains that &lt;code&gt;E&lt;/code&gt;, which is the indicator that
+this line terminates the right-hand-side of the operator.
+
+This code prints all the lines &lt;i&gt;between&lt;/i&gt; the &lt;code&gt;start&lt;/code&gt; and
+&lt;code&gt;end&lt;/code&gt; lines:
+
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    if (my $num = /start/ .. /end/)
+    {
+      print unless $num == 1 || $num =~ /E/;
+    }
+  }
+
+  __DATA__
+  ignore
+  start
+  first
+  second
+  third
+  end
+  ignore
+  start
+  fourth
+  fifth
+  end
+  ignore
+
+  __OUTPUT__
+  first
+  second
+  third
+  fourth
+  fifth
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+To better illustrate that, this program prints out that value, for all
+lines between &lt;code&gt;start&lt;/code&gt; and &lt;code&gt;end&lt;/code&gt;:
+
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    if (my $num = /start/ .. /end/)
+    {
+      print $num, &quot;\t&quot;, $_;
+    }
+  }
+
+  __DATA__
+  ignore
+  start
+  first
+  second
+  third
+  end
+  ignore
+  start
+  fourth
+  fifth
+  end
+  ignore
+
+  __OUTPUT__
+  1       start
+  2       first
+  3       second
+  4       third
+  5E0     end
+  1       start
+  2       fourth
+  3       fifth
+  4E0     end
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;h3&gt;Markers on Same Line&lt;/h3&gt;
+This example places both the &lt;code&gt;start&lt;/code&gt; and &lt;code&gt;end&lt;/code&gt; tokens
+on the same line.  From the output, it can be seen that the combined line
+has a value of &lt;code&gt;1E0&lt;/code&gt; which satisfies the test as both the first
+and last line of the desired input.
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    if (my $num = /start/ .. /end/)
+    {
+      print $num, &quot;\t&quot;, $_;
+    }
+  }
+
+  __DATA__
+  ignore
+  start
+  first
+  second
+  end
+  ignore
+  start third end
+  ignore
+
+  __OUTPUT__
+  1       start
+  2       first
+  3       second
+  4E0     end
+  1E0     start third end
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;h3&gt;The Scalar ... Operator&lt;/h3&gt;
+The other form of the scalar range operator is &lt;code&gt;...&lt;/code&gt;. This operator
+performs as the &lt;code&gt;..&lt;/code&gt; operator does, but lines that meet one criteria
+are not also evaluated for the other.
+
+So a line that contains both &lt;code&gt;start&lt;/code&gt; and &lt;code&gt;end&lt;/code&gt; is only
+evaluated once - in this case for the &lt;code&gt;start&lt;/code&gt; line, causing this
+data to be considered as having a &lt;code&gt;start&lt;/code&gt; but not an &lt;code&gt;end&lt;/code&gt;, meaning that the data is not properly treated in this example.
+
+&lt;code&gt;
+  while (&lt;DATA&gt;)
+  {
+    if (my $num = /start/ ... /end/)
+    {
+      print &quot;$num\t$_&quot;;
+    }
+  }
+
+  __DATA__
+  ignore
+  start first end
+  ignore
+
+  __OUTPUT__
+  1       start first end
+  2       ignore
+&lt;/code&gt;
+
+This form of the scalar range operator is more efficient only if it is known that both
+conditions can never be true on the same line.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Update:&lt;/b&gt; Changed examples to not include so many edge cases.  Thanks to [hossman].
+&lt;/p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>377450</node_id>
+  <author_user>329777</author_user>
+  <title>The Scalar Range Operator</title>
+  <createtime>2004-07-26 11:18:40</createtime>
+  <nodeupdated>2005-08-15 11:31:08</nodeupdated>
+</node>

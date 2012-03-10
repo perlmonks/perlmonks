@@ -1,0 +1,609 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>222865</node_id>
+  <author_user>8948</author_user>
+  <title>listpatches</title>
+  <createtime>2002-12-29 01:23:05</createtime>
+  <code>my ($opts)=@_;
+
+#$opts-&gt;{DEBUG}=1 if $USER-&gt;{title}=~/merphq/;
+
+return &quot;&quot; if $q-&gt;param(&quot;style&quot;) eq &quot;bare&quot; &amp;&amp; ! $opts-&gt;{full_list};
+
+my $ID = $opts-&gt;{diff} || getId($NODE);
+
+# these are special lookup tables used by ordering and filtering logic
+# Used for Ordering:
+my %fmap=qw(
+   p   p.patch_id
+   f   fn.title
+   au  an.title
+   ab  abn.title
+   fnt fnt.title
+   ap  p.applied
+   r   p.reason
+   lu  pn.nodeupdated
+   D   DESC
+   A   ASC
+);
+
+# Reverse lookup for ordering
+my %fmap2=reverse %fmap;
+
+# fields/clauses for getting distinct column data for filtering porpoises
+# idx 0 is a where clause for getting the distinct data
+# idx 1 is a snippet to complete the description of the filter, assume
+#       &quot;Filter by $idx[1]&quot; is the title
+# idx 2 is a value used to put the fields in a particular order
+#       its needed because of the way the select box widths will be calculated.
+#       The filter with the longest title text should be the first or the
+#       filter boxes will display with different sizes.
+my %filt=(
+    'p.for_node'     =&gt; [ 'INNER JOIN node t  ON p.for_node=t.node_id',
+                          'node patch is for',0 ],
+    'pn.author_user' =&gt; [ 'INNER JOIN node t  ON pn.author_user=t.node_id',
+                          'author of patch'  ,1 ],
+    'p.applied_by'   =&gt; [ 'INNER JOIN node t  ON p.applied_by=t.node_id',
+                          'patch applier'    ,2 ],
+);
+
+my %distinct; #
+my $where; # eventually this is used to produce the main query
+my $dbh=$DB-&gt;getDatabaseHandle;
+my ($limit,$skip); #used for determining the offset
+my $CacheSpoiled=0; # a flag to indicate if the cache is spoiled
+
+# used for determining if we need to cache
+my $max_patch_info = $dbh-&gt;selectrow_arrayref('
+        SELECT MAX(patch_id),
+               MAX(applied),
+               MAX(nodeupdated)
+        FROM   patch, node
+        WHERE  node_id=patch_id
+    ');
+
+
+
+
+### Build the where clause to handle ordering and filtering
+if (not $opts-&gt;{full_list}) {
+    # we are a list for a specific node so we dont need as much info,
+    # nor should we respect user settings.
+    $where=&quot;AND p.for_node = ? ORDER BY p.applied DESC, p.patch_id DESC&quot;
+} elsif ($opts-&gt;{full_list}) {
+    # the real thing. here a lot of user setting come into play
+    # this could probably be reordered into something nicer.
+
+
+    $where=&quot;&quot;;
+
+    # limit logic
+    ($limit,$skip)=split/,/,$opts-&gt;{limit}||
+                            $q-&gt;param('limit')||
+                            $VARS-&gt;{listpatches_default_limit}||
+                            50;
+
+    $skip=0 if $skip&lt;0;
+    $limit=500 if $limit&gt;500;
+
+    my $limit_str=$limit;
+    $limit_str=&quot;$skip,$limit&quot; if $skip;
+    $opts-&gt;{limit}=$limit_str;
+
+
+    if (!%PatchCache::Distinct ||
+        $PatchCache::MaxPatch_Id  ne $max_patch_info-&gt;[0]  ||
+        $PatchCache::MaxPatchApplied ne $max_patch_info-&gt;[1]
+    )
+    {
+        $CacheSpoiled=1;
+        printLog(join &quot;\n&quot;,
+                 &quot;Fetching distinct patch data. &quot;,
+                 &quot;mpid=$PatchCache::MaxPatch_Id|$max_patch_info-&gt;[0]&quot;,
+                 &quot;mpa=$PatchCache::MaxPatchApplied|$max_patch_info-&gt;[1]&quot;,
+                 &quot;pcd=&quot;.join(&quot;|&quot;,map{ &quot;$_:&quot;.scalar @{$PatchCache::Distinct{$_}}  }
+                                 keys %PatchCache::Distinct
+                            )
+                ) if $opts-&gt;{DEBUG};
+
+        $PatchCache::MaxPatch_Id=$max_patch_info-&gt;[0];
+        $PatchCache::MaxPatchApplied=$max_patch_info-&gt;[1];
+
+        foreach my $col (keys %filt) {
+            printLog(&quot;Patchlister: starting distinct query for $col&quot;)
+                if $opts-&gt;{DEBUG};
+
+
+            my $array=$dbh-&gt;selectall_arrayref(my $query=&quot;
+               SELECT DISTINCT t.node_id item_id,t.title text
+               FROM patch p
+               INNER JOIN node pn  ON p.patch_id=pn.node_id
+               $filt{$col}[0]
+               ORDER BY text, item_id
+            &quot;);
+            printLog(&quot;Patchlister: Got &quot;.scalar(@$array).&quot; records&quot;)
+                if $opts-&gt;{DEBUG};
+
+            unshift @$array,[-1,'&lt;All&gt;'];
+            unshift @$array,[-2,'&lt;Never Applied&gt;']
+               if $col eq 'p.applied_by';
+            $distinct{$col}=$array;
+            $PatchCache::Distinct{$col}=[@$array];
+        }
+
+    } else {
+        printLog(&quot;Reusing distinct patch data. &quot;.
+                 &quot;mpid=$PatchCache::MaxPatch_Id : mpa=$PatchCache::MaxPatchApplied&quot;)
+                 if $opts-&gt;{DEBUG};
+        foreach my $col (keys %filt) {
+            $distinct{$col}=[@{$PatchCache::Distinct{$col}}];
+        }
+    }
+    my @filter_get_str;
+
+    foreach my $field (keys %filt) {
+       my @set=sort { $a &lt;=&gt; $b}
+               map { /^(-?\d+)$/ ? 0+$1 : () }
+               (
+                $q-&gt;param(&quot;only_$field&quot;)
+                 ? $q-&gt;param(&quot;only_$field&quot;)
+                 : split(/,/,$q-&gt;param(&quot;gonly_$field&quot;)
+                             ||$VARS-&gt;{&quot;listpatches_only_$field&quot;}
+                             ||'')
+               );
+               # the last of above is as yet unsetable
+
+       $opts-&gt;{&quot;only_$field&quot;}=(@set and $set[0]) ? \@set : [-1];
+
+
+       $q-&gt;param(&quot;only_$field&quot;,'');
+       my $not_str=&quot;&quot;;
+       if ($q-&gt;param(&quot;only_invert_$field&quot;)) {
+         push @filter_get_str,&quot;only_invert_$field&quot;=&gt;1;
+         $not_str =' NOT ';
+       }
+       if ($opts-&gt;{&quot;only_$field&quot;}[0] == -1) {
+               $opts-&gt;{&quot;only_$field&quot;}=[-1];
+       } elsif ($opts-&gt;{&quot;only_$field&quot;}[0] == -2) {
+               if ($opts-&gt;{&quot;only_$field&quot;}[1] and $opts-&gt;{&quot;only_$field&quot;}[1]&gt;0) {
+                  $where.=&quot;\nAND ($field $not_str in ( 0, &quot;.
+                         join(', ',@set).&quot; ))&quot;;
+               } else {
+                  $where.=&quot;\nAND ($not_str ($field=0))&quot;;
+                  $opts-&gt;{&quot;only_$field&quot;}=[-2];
+               }
+       } else {
+               $where.=&quot;\nAND $field $not_str in ( &quot;.join(', ',@set).&quot; )&quot;;
+       };
+       push @filter_get_str,&quot;gonly_$field&quot;=&gt;join(',',@{$opts-&gt;{&quot;only_$field&quot;}});
+
+
+       $opts-&gt;{&quot;_labels_$field&quot;}={ map { $_-&gt;[1] ? @$_ : () } @{$distinct{$field}} };
+
+       my %dupe;
+       $opts-&gt;{&quot;_values_$field&quot;}=
+           [
+              map { $_-&gt;[0] &amp;&amp; $_-&gt;[1] &amp;&amp; !$dupe{$_-&gt;[0]}++ ? $_-&gt;[0] : () }
+              (
+               (
+                map{[$_ ,$opts-&gt;{&quot;_labels_$field&quot;}{$_}] }
+                @{$opts-&gt;{&quot;only_$field&quot;}}
+               ),
+               @{$distinct{$field}}
+              )
+           ];
+    }
+
+    $opts-&gt;{gfilter}=\@filter_get_str;
+
+    $opts-&gt;{order}=$q-&gt;param('order')||$VARS-&gt;{listpatches_default_order};
+    my %has;
+    my %order;
+    my @opts=map {
+               my $o=chop($_);
+               $fmap{$_} &amp;&amp; $fmap{$o} &amp;&amp; !$has{$_}++
+
+                 ? [$fmap{$_},$fmap{$o}]
+                 : ()
+             } split /,/,$opts-&gt;{order};
+
+    push @opts,['p.patch_id','DESC']
+      unless @opts;
+    $opts-&gt;{order}=join &quot;,&quot;,map { $fmap2{$_-&gt;[0]}.$fmap2{$_-&gt;[1]} } @opts;
+    $opts-&gt;{optsmap}=\@opts;
+    $opts-&gt;{optsorder}=\%order;
+    $opts-&gt;{fmap2}=\%fmap2;
+    my $ocnt=1;
+    my $order=join &quot;, &quot;,map{ $order{$_-&gt;[0]}=$_-&gt;[1];
+                             $opts-&gt;{sort_precedence}{$_-&gt;[0]}=$ocnt++;
+                             join &quot; &quot;, @$_
+                           } @opts;
+    $where.=&quot;\nORDER BY $order\nLIMIT $limit_str&quot;;
+
+
+    # we need to set this to 0 because it is used to determine which node
+    # to diff against and also as the node to determine upto-date-ness
+    $ID=0;
+}
+
+### Now run the query. We use a lighter query for !$opts-&gt;{full_list}
+
+my $query=$opts-&gt;{full_list} ?
+&quot;
+  SELECT pn.node_id,
+             p.patch_id,
+             pn.title,
+             p.reason,
+  
+             pn.author_user,
+             an.title           authortitle,
+  
+             pn.nodeupdated lastupdate,
+  
+             p.applied,
+             p.applied_by,
+             abn.title          appliedbytitle,
+  
+             p.for_node,
+             fn.title fortitle,
+             fn.type_nodetype   fortype_id,
+             fnt.title          fortypetitle,
+  
+             p.field,
+             h.code
+  
+        FROM patch p
+        JOIN node pn    ON p.patch_id = pn.node_id
+        JOIN htmlcode h ON p.patch_id = h.htmlcode_id
+        JOIN node an    ON pn.author_user = an.node_id
+        JOIN node fn    ON p.for_node = fn.node_id
+        JOIN node fnt   ON fn.type_nodetype = fnt.node_id
+   LEFT JOIN node abn   ON abn.node_id=p.applied_by
+       WHERE 1=1
+         $where
+&quot; : # not full list light query
+&quot;
+    SELECT pn.node_id,
+           p.patch_id,
+           pn.title,
+           p.reason,
+           p.applied,
+           p.applied_by,
+           pn.author_user,
+           h.code,
+           p.field,
+           p.for_node,
+           pn.nodeupdated lastupdate
+      FROM patch p, node pn, htmlcode h
+     WHERE p.patch_id = pn.node_id
+       AND p.patch_id = h.htmlcode_id
+       $where
+&quot;;
+
+my $N = $ID ? getNodeById( $ID ) : 0;
+my @patches;
+my %patches;
+my $first=10000000;   #TODO: need to check if these are really used
+my $last=0;           #TODO: need to check if these are really used
+
+$CacheSpoiled||=grep { ! ref $_ } 
+                @{$PatchCache::Queries{&quot;$ID:$query&quot;}{array_patches}}
+    if $PatchCache::Queries{&quot;$ID:$query&quot;} &amp;&amp; 
+       $PatchCache::Queries{&quot;$ID:$query&quot;}{array_patches};
+
+if ($CacheSpoiled or !$PatchCache::Queries{&quot;$ID:$query&quot;}
+    or $PatchCache::MaxLastupdate ne $max_patch_info-&gt;[2] )
+{
+   $CacheSpoiled=1;
+   my $sth = $dbh-&gt;prepare_cached($query);
+   printLog(&quot;Patchlist: (Full:$opts-&gt;{full_list}) &quot;.
+            &quot;#$max_patch_info-&gt;[2]&lt;$PatchCache::MaxLastupdate#&quot;.
+            ($PatchCache::Queries{&quot;$ID:$query&quot;}
+             ? $PatchCache::Queries{&quot;$ID:$query&quot;}{qid}
+             : &quot;Query Id:&quot;.(++$PatchCache::Queries{&quot;$ID:$query&quot;}{qid}).&quot;=$ID:$query&quot;
+            )
+           ) if $opts-&gt;{DEBUG};
+   $sth-&gt;execute($ID ? $ID : ());
+
+   while ( my $p = $sth-&gt;fetchrow_hashref ) {
+    my $ref={%$p}; # cant rely on getting different hashes here.
+
+    push @patches,$ref;
+    $patches{$p-&gt;{patch_id}}=$ref;
+    # standardize the time
+    $patches[-1]-&gt;{lastupdate}=~s&lt;(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})&gt;
+                                 &lt;$1$2$3 $4$5$6&gt;;
+    $patches[-1]-&gt;{applied}=~s&lt;(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})&gt;
+                                 &lt;$1$2$3 $4$5$6&gt;;
+
+    #TODO: need to check if these are really used
+    $first=$p-&gt;{node_id} if $first &gt; $p-&gt;{node_id};
+    $last=$p-&gt;{node_id} if $last   &lt; $p-&gt;{node_id};
+  }
+  printLog(&quot;Patchlist:finished query&quot;)
+    if $opts-&gt;{DEBUG};
+  $PatchCache::Queries{&quot;$ID:$query&quot;}{last_cache_hit}=gmtime;
+  if (50&gt;keys %{$PatchCache::Queries} ) {
+     my @queries=sort {
+                        $PatchCache::Queries{$a}-&gt;{last_cache_hit}
+                        &lt;=&gt;
+                        $PatchCache::Queries{$b}-&gt;{last_cache_hit}
+                      }
+                 keys %{$PatchCache::Queries};
+     for my $qnum (0..9) {
+        delete  $PatchCache::Queries{$queries[$qnum]};
+     }
+  }
+
+  $PatchCache::Queries{&quot;$ID:$query&quot;}{array_patches}=\@patches;
+  $PatchCache::Queries{&quot;$ID:$query&quot;}{hash_patches}=\%patches;
+  $PatchCache::Queries{&quot;$ID:$query&quot;}{first}=$first;
+  $PatchCache::Queries{&quot;$ID:$query&quot;}{last}=$last;
+  $PatchCache::MaxLastupdate=$max_patch_info-&gt;[2];
+} else {
+  printLog(&quot;Reusing previous patchlist &quot;.
+           &quot;(qid:&quot;.$PatchCache::Queries{&quot;$ID:$query&quot;}{qid}.&quot;) &quot;.
+           &quot;$max_patch_info-&gt;[2]==$PatchCache::MaxLastupdate\n&quot;)
+           if $opts-&gt;{DEBUG};
+  @patches=@{$PatchCache::Queries{&quot;$ID:$query&quot;}{array_patches}||[]};
+  %patches=%{$PatchCache::Queries{&quot;$ID:$query&quot;}{hash_patches}||{}};
+  $first=$PatchCache::Queries{&quot;$ID:$query&quot;}{first};
+  $last =$PatchCache::Queries{&quot;$ID:$query&quot;}{last};
+
+}
+
+###
+###  Handle counts. We dont cache this, so we overwrite it everytime for now
+###
+if (@patches) {
+  my $sth=$dbh-&gt;prepare_cached('
+     select root_node, count(note_id) numreplies
+     from note
+     where
+     root_node in ( '.join(&quot;,&quot;,map { $_-&gt;{patch_id} } @patches).' )
+     group by root_node
+  ');
+  $sth-&gt;execute();
+  while (my @rec=$sth-&gt;fetchrow_array) {
+    $patches{$rec[0]}{numreplies}=$rec[1];
+  }
+}
+
+
+###
+### Now build the response. We start with the filter form at the top.
+###
+
+my $ulinkcache=\%PatchCache::Links;
+my %ncache;
+my $style_flag='';
+my $form=join &quot;\n&quot;,
+         htmlcode('openform'),
+         (map{
+              $opts-&gt;{$_} ? $q-&gt;hidden($_,$opts-&gt;{$_}) : ()
+             } 'order','limit'),
+         '&lt;table&gt;',
+         (map {
+                my ($field,$titlestr)=($_,$filt{$_}[1]);
+                $q-&gt;Tr($q-&gt;td(&quot;Filter by $titlestr:&quot;).
+                    $q-&gt;td($q-&gt;scrolling_list(
+                                 -name=&gt;&quot;only_$field&quot;,
+                                 -values=&gt;$opts-&gt;{&quot;_values_$field&quot;},
+                                 -default=&gt;$opts-&gt;{&quot;only_$field&quot;},
+                                 -force=&gt;1,
+                                 -size=&gt;3,
+                                 -multiple=&gt;'true',
+                                 -labels=&gt;$opts-&gt;{&quot;_labels_$field&quot;},
+                                 ($style_flag++ ? (-style=&gt;'width:100%') : ()),
+                                 #-attributes=&gt;\%attributes
+                                ))),
+                $q-&gt;Tr($q-&gt;td('&amp;nbsp;').
+                    $q-&gt;td($q-&gt;checkbox(-name=&gt;&quot;only_invert_$field&quot;,
+                           -checked=&gt;0,
+                           -value=&gt;'invert',
+                           -label=&gt;'&lt;font size=&quot;2&quot;&gt;'.
+                                   'Show records that do NOT match.'.
+                                   '&lt;/font&gt;'))),
+         } ( sort {$filt{$a}[2] &lt;=&gt; $filt{$b}[2]} keys %filt )
+         ),
+         $q-&gt;Tr($q-&gt;td([$q-&gt;submit(-name=&gt;'Filter',-value=&gt;'Filter'),'&amp;nbsp'])),
+         '&lt;/table&gt;&lt;/form&gt;';
+
+###
+### Now we handle the title row of the table
+###  we handle creating the appropriate ordering links here
+###
+
+my @hdr;
+my @rows;
+unless ($opts-&gt;{full_list}) {
+    push @hdr,[ 'Patch', 'Author','Modified','Applied', 'Reason',]
+} else {
+    push @hdr,
+       [
+        map {
+               my ($t,$f_code)=@$_;
+               my $field=$fmap{$f_code};
+               my @o=grep { $_-&gt;[0] ne $field } @{$opts-&gt;{optsmap}};
+               my $ret;
+               for my $order ('ASC','DESC') {
+                    $ret.=$ret ? '/' : '&lt;font size=&quot;2pt&quot;&gt;(';
+                    if ($opts-&gt;{sort_precedence}{$field} and
+                        $opts-&gt;{optsorder}{$field} eq $order)
+                    {
+
+                       $ret.='&lt;b&gt;'.$opts-&gt;{sort_precedence}{$field}.':&lt;/b&gt;';
+                    }
+
+                    $ret.= linkNode($NODE, substr($order,0,1),
+                                {
+                                 limit=&gt;$opts-&gt;{limit},
+                                 @{$opts-&gt;{gfilter}||[]},
+                                 order=&gt; join(&quot;,&quot;,
+                                           map {
+                                                 $opts-&gt;{fmap2}{$_-&gt;[0]}.
+                                                 $opts-&gt;{fmap2}{$_-&gt;[1]}
+                                               } [$field,$order],
+                                                 @o
+                                         ),
+                                }
+                     );
+
+               }
+               $t.'&lt;br /&gt;'.$ret.')&lt;/font&gt;';
+            } (
+               ['Patch',        'p'   ],   # 0
+               ['For',          'f'   ],   # 1
+               ['Last Updated', 'lu'  ],   # 2
+               ['Author',       'au'  ],   # 3
+               ['Applier',      'ab'  ],   # 4
+               ['Applied',      'ap'  ],   # 5
+               ['Reason',       'r'   ],   # 6
+              )
+         ],
+
+}
+
+###
+### Now we build the table. Its important to understand that certain columns
+### will be merged after build, so if you add columns check the followup code
+### that handles the merge
+### TODO: improve handling of this to be less error prone for maintainers.
+###
+my @tmp=@patches;
+@rows=map {
+    my $node=($N || ($ncache{$_-&gt;{for_node}} ||= getNodeById($_-&gt;{for_node})));
+    my $is_cur=
+        ($_-&gt;{field} eq &quot;vars&quot;
+            ? ! Everything::cmpVarsStrs( $_-&gt;{code}, $node-&gt;{$_-&gt;{field}} )
+            : $_-&gt;{code} eq $node-&gt;{$_-&gt;{field}}
+        );
+    $ulinkcache-&gt;{$_-&gt;{author_user}}||=
+         linkNode(getNodeById($_-&gt;{author_user}));
+    $_-&gt;{applied_by}||='';
+    $ulinkcache-&gt;{$_-&gt;{applied_by}}||= $_-&gt;{applied_by}
+          ? linkNode(getNodeById( $_-&gt;{applied_by}))
+          : '&lt;i&gt;none&lt;/i&gt;';
+    my $replies=$_-&gt;{numreplies} ? &quot;&amp;nbsp;($_-&gt;{numreplies} repl&quot;.
+                ($_-&gt;{numreplies}==1 ? &quot;y&quot; : &quot;ies&quot;).&quot;)&quot; : &quot;&quot;;
+    my $id=$_-&gt;{node_id};
+    my $r=[
+        join('',
+              linkNode( $_, $opts-&gt;{full_list} ? () : $_-&gt;{node_id} ),
+              '&lt;br /&gt;&lt;font size=&quot;2pt&quot;&gt;',
+              linkNode( $_, &quot;(Edit)&quot;, { displaytype =&gt; 'edit' } ),
+              $replies,
+              ($opts-&gt;{diff}
+               ? '&amp;nbsp;&amp;lt;'.
+                 (
+                   $opts-&gt;{old} == $id ? '&lt;b&gt;DIFF&lt;/b&gt;' :
+                   $opts-&gt;{new} == $id ? '&lt;b&gt;THIS&lt;/b&gt;' :
+                   linkNode( $NODE, &quot;Diff&quot;,
+                             { diff_against =&gt; $_-&gt;{node_id} } )
+                 ).'&amp;gt;'
+               : ''
+              ),'&lt;/font&gt;'
+        ),
+        ($opts-&gt;{full_list}
+         ?(
+           linkNode($node,$node-&gt;{node_id},{displaytype=&gt;'viewcode'}).
+             '&lt;br/&gt;('.linkNode($node-&gt;{type},do {
+                    (my $title=$node-&gt;{type}{title})=~s#_# #g;
+                    $title=~s/(pmdev)(.)/$1 $2/g;
+                    $title } ).')',
+           qq[&lt;font size=&quot;2pt&quot;&gt;$_-&gt;{lastupdate}&lt;/font&gt;],
+           $ulinkcache-&gt;{$_-&gt;{author_user}},
+           $ulinkcache-&gt;{$_-&gt;{applied_by}},
+          )
+         :(
+           $ulinkcache-&gt;{$_-&gt;{author_user}} ,
+           qq[&lt;font size=&quot;2pt&quot;&gt;$_-&gt;{lastupdate}&lt;/font&gt;],
+          )
+        ),
+        ( $_-&gt;{applied} =~ /[^-0:\s]/
+          ? (
+             $q-&gt;font({size=&gt;'2pt'}, $is_cur
+                      ? &quot;Current&lt;br /&gt;&quot; . $_-&gt;{applied}
+                      : $_-&gt;{applied}
+              ),
+            )
+          : $q-&gt;i('never')
+        ),
+        (
+          length $_-&gt;{reason}
+           ? htmlcode( 'parselinksinchatter','', $_-&gt;{reason} )
+           : '&lt;b&gt;&lt;i&gt;Silly programmer forgot an excuse.&lt;/i&gt;&lt;/b&gt;'
+        ),
+        {
+          'other-patch'=&gt; $opts-&gt;{diff} &amp;&amp; $opts-&gt;{old} == $id,
+          'this-patch' =&gt; $opts-&gt;{diff} &amp;&amp; $opts-&gt;{new} == $id,
+          'highlight'  =&gt; $is_cur,
+          'different'  =&gt; !$is_cur,
+        }
+    ];
+    $r
+} @tmp;
+
+###
+### Follow up and merge specific columns.
+###
+
+if ($opts-&gt;{full_list}) {
+  for (@hdr,@rows) {
+     $_-&gt;[3]=~s/&lt;br\s*\/&gt;//g;
+     $_-&gt;[4]=~s/&lt;br\s*\/&gt;//g;
+     splice @$_,3,2,$_-&gt;[3].'&lt;br /&gt;'.$_-&gt;[4];
+  }
+}
+
+###
+### Construct table from @hdr and @row data
+###
+my $return=$q-&gt;table(
+  { width =&gt; '100%', id =&gt; &quot;patchlist&quot;,
+    border =&gt; 1, cellspacing =&gt; 0, cellpadding =&gt; 3
+  },
+  join &quot;\n&quot;, $q-&gt;Tr( {},[ map { $q-&gt;th( $_ ) } @hdr  ]),
+             map {
+                   my $class=pop @$_;
+                   $q-&gt;Tr( { class=&gt;join(&quot; &quot;,grep $class-&gt;{$_},keys %$class) },
+                     $q-&gt;td( $_ )
+                   )
+                 } @rows
+);
+
+###
+### Add in links to the next set of data
+###
+
+if ($opts-&gt;{full_list}) {
+  $VARS-&gt;{patchlisterlast}=$last if $VARS-&gt;{patchlisterlast}&lt;$last;
+  my $r=&quot;&lt;b&gt;Patches &quot;.($skip+1).&quot; - &quot;.($skip+$limit).&quot;&lt;/b&gt;&amp;nbsp;(&quot;;
+
+  my $prev=$skip-$limit;
+
+
+  $r.=($prev&gt;=0 ? linkNode($NODE,($prev+1).&quot; .. &quot;.($prev+$limit),
+                     { limit=&gt;&quot;$limit,$prev&quot;,
+                       order=&gt;$opts-&gt;{order},
+                       @{$opts-&gt;{gfilter}||[]},
+                     } ).&quot; - &quot; : &quot;&quot;)
+    . linkNode(
+               $NODE,($limit+$skip+1).&quot; .. &quot;.($limit+$skip+$limit),
+               {limit=&gt;&quot;$limit,&quot;.($limit+$skip),
+                order=&gt;$opts-&gt;{order},
+                @{$opts-&gt;{gfilter}||[]},
+               }
+              );
+  $return=$r.')&lt;br /&gt;'.$return;
+  $return=$form.$return;
+}
+
+###
+### All done.
+###
+
+$return;
+</code>
+  <nodeupdated>2005-08-06 04:15:25</nodeupdated>
+</node>

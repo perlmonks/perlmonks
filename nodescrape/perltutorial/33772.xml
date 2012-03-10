@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="33772" title="Overloading '='" created="2000-09-23 12:38:00" updated="2005-08-15 11:48:28">
+<type id="956">
+perltutorial</type>
+<author id="13201">
+dchetlin</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;Table of Contents&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;What is an object, really?
+&lt;li&gt;What happens when you assign a non-overloaded object?
+&lt;li&gt;Altering objects
+&lt;li&gt;Overloading addition
+&lt;li&gt;Perl's Promise
+&lt;li&gt;What the heck is a mutator?
+&lt;li&gt;Overloading a mutator
+&lt;li&gt;Overloading the copy constructor (`=')
+&lt;li&gt;Wrapping things up
+&lt;/ul&gt;
+
+&lt;h3&gt;Intro&lt;/h3&gt;
+
+&lt;p&gt;The most confusing aspect of using operator overloading in Perl is
+undoubtedly the operator `='. It is natural to assume, at first glance,
+that overloading `=' means that you're overloading assignment for the
+class in question. When that doesn't happen, going to the documentation
+isn't much better, as overload.pm is quite cryptic on this matter.
+
+&lt;p&gt;The difficult thing to understand about `=' is what it really affects.
+Invariably, users think that overloading `=' causes your specified code
+to be called when an overloaded object is assigned to another via
+`my $newobj = $obj' or a similar construct. It is necessary
+to think about the process from a Perl point of view to understand why
+this is not the case.
+
+&lt;h3&gt;What is an object, really?&lt;/h3&gt;
+&lt;p&gt;In Perl, an object is simply a variable, be it scalar, array, hash,
+or something more exotic, that has been `bless'ed (note to self: try
+not to use the word "thingy" in this tutorial). We refer to this
+variable by holding a reference to it. If we do this:
+
+&lt;p&gt;&lt;CODE&gt;
+  package MyPackage;
+  sub new {
+      my $self = $_[0];
+      bless { foo =&gt; $_[1] }, ref($self) || $self;
+  }
+
+  package main;
+  my $a = MyPackage::-&gt;new(1);
+&lt;/CODE&gt;
+
+&lt;p&gt;We've created an object of type MyPackage. However, $a itself is
+&lt;strong&gt;not&lt;/strong&gt; the object, $a is &lt;strong&gt;not&lt;/strong&gt; a member of
+MyPackage, and it hasn't been blessed.  It simply
+&lt;strong&gt;points&lt;/strong&gt; to the object we created.
+
+&lt;p&gt;&lt;PRE&gt;
+    /---\         /--------------------------------\
+    | a | ------&gt; | instance of MyPackage: foo = 1 |
+    \---/         \--------------------------------/
+&lt;/PRE&gt;
+
+&lt;h3&gt;What happens when you assign a non-overloaded
+object?&lt;/h3&gt;
+&lt;p&gt;And now, we create a new variable $b, and assign $a to it:
+
+&lt;p&gt;&lt;CODE&gt;
+  package main;
+  my $b = $a;
+&lt;/CODE&gt;
+
+&lt;p&gt;What has happened here? Remember that $a and $b are references, and
+they're just pointing to other things. If $a was a reference to an
+unblessed array, and we executed the above assignment, &lt;strong&gt;would we
+create a brand new array for $b to point to&lt;/strong&gt;? Of course not. $b
+would be pointing to the same array. So in our case, all that has
+changed is:
+
+&lt;p&gt;&lt;PRE&gt;
+    /---\         /--------------------------------\
+    | a | ------&gt; | instance of MyPackage: foo = 1 |
+    \---/    /--&gt; \--------------------------------/
+             |
+    /---\    |
+    | b | ---/
+    \---/
+&lt;/PRE&gt;
+
+&lt;p&gt;We now have two variables pointing to the same object. Things are as
+they should be.
+
+&lt;h3&gt;Altering objects&lt;/h3&gt;
+&lt;p&gt;Ah, but what happens if we try to change one of them? Well, it depends
+on how you try to change it. If you treat it like a normal reference to
+an object, overloading has nothing to do with it. If you go and modify
+`$a-&gt;{foo}', it will of course be reflected when you ask for `$b-&gt;{foo}'.
+Just like always, it's your responsibility to create a new copy if you
+want one. So the only question is what happens if you try to modify them
+with an overloaded operation?
+
+&lt;p&gt;&lt;CODE&gt;
+  my $c = $a + $b;
+&lt;/CODE&gt;
+
+&lt;p&gt;Well, actually, nothing, because we forgot to overload addition, so Perl
+has no way of knowing how to add a MyPackage.
+
+&lt;h3&gt;Overloading addition&lt;/h3&gt;
+&lt;p&gt;&lt;CODE&gt;
+  package MyPackage;
+  use overload q/+/ =&gt; \&amp;add;
+
+  sub add {
+      $_[0]-&gt;new( $_[0]-&gt;{foo} + (ref($_[1]) ? $_[1]-&gt;{foo} : $_[1]) )
+  }
+&lt;/CODE&gt;
+
+&lt;p&gt;In the add subroutine, we're creating a new instance of MyPackage with
+its foo attribute initialized to the foo attribute of the first operand
+plus either the foo attribute of the second operand if it's a MyPackage
+and the actual value of the second operand if it's not. (In real code
+we'd probably do a little more error checking to make sure we're not
+passed, say, an IO::Socket as our second operand).
+
+&lt;p&gt;&lt;CODE&gt;
+  package main;
+  my $c = $a + $b;
+&lt;/CODE&gt;
+
+&lt;p&gt;This time, it works. If you take a look at $c, it points to a brand new
+instance of MyPackage.
+
+&lt;p&gt;&lt;PRE&gt;
+    /---\         /--------------------------------\
+    | a | ------&gt; | instance of MyPackage: foo = 1 |
+    \---/    /--&gt; \--------------------------------/
+             |
+    /---\    |
+    | b | ---/
+    \---/
+    /---\         /--------------------------------\
+    | c | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/         \--------------------------------/
+&lt;/PRE&gt;
+
+&lt;p&gt;So in the case of a binary operation, Perl relies on us to provide the
+right subroutine. If we'd had our add subroutine return an reference to
+a URI object, it would have still worked, and $c would now point to that
+URI object. This would be bizarre, of course, but unfortunately no one
+has come up with a module such that we could write `no bizarre
+qw/constructs/', and so Perl would merrily give us back the URI
+object.
+
+&lt;h3&gt;Perl's Promise&lt;/h3&gt;
+&lt;p&gt;So what happens when we use something like `++'? To understand this,
+we have to understand what happens inside the works when we assign one
+overloaded object to another, like we did above with `$b =
+$a'.
+
+&lt;p&gt;When we do a pure assignment, like we discussed above, Perl treats the
+operands ($b and $a) as normal references and has them point to the same
+thing. That's all. Well ... almost all. Perl also makes us a "promise".
+
+&lt;p&gt;&lt;PRE&gt;
+Dear dlc,
+If at any point in this program you use a mutator on either $a or $b, I
+promise to create a new object for $b to point to so the mutator doesn't
+affect both variables. If you change either $a or $b by normal means
+before that, this promise is null and void.
+
+Your pal,
+-Perl
+&lt;/PRE&gt;
+
+&lt;p&gt;Why does it do this? Well, Perl's whole philosophy revolves around DWIM,
+which stands for &lt;strong&gt;D&lt;/strong&gt;o &lt;strong&gt;W&lt;/strong&gt;hat &lt;strong&gt;I&lt;/strong&gt;
+&lt;strong&gt;M&lt;/strong&gt;ean. When I assign $a to $b, it doesn't yet know "what I
+mean" -- am I going to treat $a and $b like usual references, or like
+references to overloaded objects? It can't tell, so it hedges its bets and
+waits to see what I'll do with them. If I don't use a mutator, nothing
+changes. If I &lt;em&gt;do&lt;/em&gt; use a mutator, it realizes that I'm using the
+overloaded properties, and clones me a new object, because if it didn't, and
+`$a++' also modified what $b was pointing to, that would almost certainly
+&lt;strong&gt;not&lt;/strong&gt; be "what I mean".
+
+&lt;h3&gt;What the heck is a mutator?&lt;/h3&gt;
+&lt;p&gt;A mutator is an operator that modifies one of its operands. Mutators
+that we can overload include `++', `--', and all of the assignment
+operators, such as `+=', `&amp;amp;=', etc. Note the subtle difference
+between an operator that &lt;strong&gt;modifies&lt;/strong&gt; an operand, which is
+a mutator, and one that &lt;strong&gt;sets&lt;/strong&gt; an operand, which is the
+assignment operator `='.
+
+&lt;p&gt;So Perl is basically telling us that we can safely use mutators on
+references to objects, even when two references are pointing to the same
+object because we've used `=' to assign them.
+
+&lt;p&gt;This may still sound confusing, so let's keep plugging away at our
+example:
+
+&lt;p&gt;&lt;CODE&gt;
+  $b++;
+&lt;/CODE&gt;
+
+&lt;p&gt;Scroll up if you don't remember what our data structures looked like
+before -- $a and $b pointed to the same object, because we assigned $b
+to $a using `='. Perl remembers this, and so when we try to use the
+mutator `++' here, it says "Aha! I promised dlc that I'd make this
+work!"
+
+&lt;p&gt;And it does work, even though we haven't overloaded `++' or `='. Perl
+translates `$b++' into `$b = $b + 1', because it's smart enough to know
+how to construct non-overloaded operators from operators we have
+overloaded. And because we did overload addition, we get a reference to
+a  new MyPackage object back from the call to add(), and it's assigned
+to $b:
+
+&lt;p&gt;&lt;PRE&gt;
+    /---\         /--------------------------------\
+    | a | ------&gt; | instance of MyPackage: foo = 1 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | b | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | c | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/         \--------------------------------/
+&lt;/PRE&gt;
+
+&lt;p&gt;So why would we ever need to overload `=', then, if Perl is smart
+enough to do all of this for us? Well, when more complicated things
+happen, Perl won't necessarily be able to figure out a copy constructor
+(copy constructor is a fancy phrase for "the thing that gets called when
+Perl has to make good on its promise") and we'll have to write it
+ourselves.
+
+&lt;h3&gt;Overloading a mutator&lt;/h3&gt;
+&lt;p&gt;Let's say we decide that autoincrement for MyPackage has to do
+something special -- it's going to double the value in foo, rather than
+add 1 to it.
+
+&lt;p&gt;&lt;CODE&gt;
+  package MyPackage;
+  use overload q/++/ =&gt; sub { $_[0]-&gt;{foo}*=2; shift };
+
+  package main;
+  $d = $c;
+  $d++;
+&lt;/CODE&gt;
+
+&lt;p&gt;Oops -- we get a fatal runtime error:
+
+&lt;p&gt;&lt;PRE&gt;
+  Operation `=': no method found, argument in overloaded package
+  MyPackage at overload.pl line 26.
+&lt;/PRE&gt;
+
+&lt;p&gt;So &lt;strong&gt;now&lt;/strong&gt; it's asking for the copy constructor, because we have a custom
+autoincrement.
+
+&lt;h3&gt;Overloading the copy constructor (`=')&lt;/h3&gt;
+
+&lt;p&gt;We'll add a very simple copy constructor:
+
+&lt;p&gt;&lt;CODE&gt;
+  package MyPackage;
+  use overload q/=/ =&gt; sub { $_[0]-&gt;new($_[0]-&gt;{foo}) };
+&lt;/CODE&gt;
+
+&lt;p&gt;All we're doing here is asking for a new object, which is pretty much
+exactly what was happening before we added our custom autoincrement. So,
+we try the above code again:
+
+&lt;p&gt;&lt;CODE&gt;
+  package main;
+  $d = $c;
+&lt;/CODE&gt;
+
+&lt;p&gt;Let's stop here and look at our structures after executing that last
+line of code:
+
+&lt;p&gt;&lt;PRE&gt;
+    /---\         /--------------------------------\
+    | a | ------&gt; | instance of MyPackage: foo = 1 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | b | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | c | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/    /--&gt; \--------------------------------/
+             |
+    /---\    |
+    | d | ---/
+    \---/
+&lt;/PRE&gt;
+
+&lt;p&gt;And now, we do the increment:
+
+&lt;p&gt;&lt;CODE&gt;
+  $d++;
+&lt;/CODE&gt;
+
+&lt;p&gt;And voila, our new autoincrement has worked:
+
+&lt;p&gt;&lt;PRE&gt;
+    /---\         /--------------------------------\
+    | a | ------&gt; | instance of MyPackage: foo = 1 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | b | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | c | ------&gt; | instance of MyPackage: foo = 2 |
+    \---/         \--------------------------------/
+    /---\         /--------------------------------\
+    | d | ------&gt; | instance of MyPackage: foo = 4 |
+    \---/         \--------------------------------/
+&lt;/PRE&gt;
+
+&lt;h3&gt;Wrapping things up&lt;/h3&gt;
+&lt;p&gt;What does all of this mean?
+
+&lt;ul&gt;
+  &lt;li&gt;You rarely need to worry about overloading the copy constructor
+     unless you also overload `++' (or another mutator), which in turn
+     you rarely need to worry about unless you want it to mean
+     something other than += 1 (or the standard meaning for the mutator
+     you've chosen).
+
+  &lt;li&gt;When you do overload `++' (or some other mutator), you'll need to
+     overload `=' as well, but in general it will be a very
+     straightforward function, doing pretty much exactly what Perl does
+     underneath when you don't overload your mutators but let it derive
+     them for you.
+
+  &lt;li&gt;The documentation for overload is confusing and oddly ordered. I
+hope to work on that soon.
+&lt;/ul&gt;
+
+&lt;p&gt;-dlc</field>
+</data>
+</node>

@@ -1,0 +1,389 @@
+<node>
+  <doctext>&lt;h3&gt;Some Background&lt;/h3&gt;
+
+&lt;p&gt;As you probably know, Perl will successfully compile nested named subroutines, but they probably won't behave as intended. Perl even tries to warn you:
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+sub outer {
+   my $foo;
+
+   sub inner {
+      $foo;
+   }
+
+   inner();
+}
+&lt;/c&gt;
+
+&lt;c&gt;
+&gt;perl -c test.pl
+Variable &quot;$foo&quot; will not stay shared at test.pl line 8.
+test.pl syntax OK
+&lt;/c&gt;
+
+&lt;p&gt;The fix is obviously to use an anonymous sub instead of a named one.
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+sub outer {
+   my $foo;
+
+   my $inner = sub {
+      $foo;
+   };
+
+   $inner-&gt;();
+}
+&lt;/c&gt;
+
+&lt;c&gt;
+&gt;perl -c test.pl
+test.pl syntax OK
+&lt;/c&gt;
+
+&lt;p&gt;However, that fails spectacularly when recursion is introduced.
+
+&lt;h3&gt;Problem 1 &amp;mdash; Referencing the Wrong Variable&lt;/h3&gt;
+
+&lt;p&gt;This problem is almost always easy to spot if &lt;c&gt;use strict;&lt;/c&gt; is in effect.
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+sub outer {
+   my $inner = sub {
+      $inner-&gt;()
+   }
+}
+&lt;/c&gt;
+
+&lt;c&gt;
+Global symbol &quot;$inner&quot; requires explicit package name at test.pl line 6.
+test.pl had compilation errors.
+&lt;/c&gt;
+
+&lt;p&gt;Remember that a &lt;c&gt;my&lt;/c&gt; only makes the declared symbol available in statements following the one containing the &lt;c&gt;my&lt;/c&gt;. This can be fixed trivially by splitting the assignment into two statements.
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+sub outer {
+   my $inner;
+   $inner = sub {
+      $inner-&gt;()
+   }
+}
+&lt;/c&gt;
+
+
+&lt;c&gt;
+&gt;perl -c test.pl
+test.pl syntax OK
+&lt;/c&gt;
+
+&lt;h3&gt;Problem 2 &amp;mdash; Memory Leak&lt;/h3&gt;
+
+&lt;p&gt;There's a subtle lesson we should have learned from the first problem: If the sub references the lexical (by capturing it), and that same lexical references the sub, then it's a cyclic structure that cannot be freed by Perl's garbage collecting mechanism.
+
+&lt;c&gt;
+# ReleaseTracker.pm
+
+# This &quot;module&quot; simply provides &quot;o()&quot;, a
+# func that creates a simple object whose
+# sole purpose is to print &quot;Destroyed&quot; when
+# it is freed. The inner workings are not
+# relevant to this example.   
+
+use strict;
+use warnings;
+
+package ReleaseTracker;
+
+BEGIN {
+   our @EXPORT_OK = qw( o );
+   require Exporter;
+   *import = \&amp;Exporter::import;
+}
+
+sub new { return bless(\(my $o), $_[0]); }
+sub DESTROY { print(&quot;Destroyed\n&quot;); }
+
+sub o { ReleaseTracker-&gt;new(); }
+
+1;
+&lt;/c&gt;
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+use ReleaseTracker qw( o );
+
+sub outer {
+   # Variables that are read by each recursive instance.
+   my $var = shift @_;
+
+   my $helper;
+   $helper = sub {
+      no warnings 'void';
+      &quot;do something with $var and @_&quot;;
+
+      $helper-&gt;(@_);
+   };
+
+   #$helper-&gt;(@_);
+}
+
+outer( o() );
+
+END { print(&quot;On program exit:\n&quot;); }
+&lt;/c&gt;
+
+&lt;c&gt;
+&gt;perl test.pl
+On program exit:
+Destroyed           &lt;--- BAD!
+&lt;/c&gt;
+
+&lt;p&gt;$var is not being freed because the anonymous sub is not being freed.
+&lt;br&gt;The anonymous sub is not being freed because it both references and is referenced by $helper.
+
+&lt;p&gt;Let's illustrate:
+
+&lt;pre&gt;################################################
+## Before outer exits
+##
+
+   &amp;amp;outer
+      |                       +=============+
+      v              --+-----&amp;gt;&amp;#91; Reference   &amp;#93;
++==============+    /  |      +=============+
+&amp;#91; outer's pad  &amp;#93;   /   |      &amp;#91; refcount: 2 &amp;#93;    +=============+
++==============+  /    |      &amp;#91; pointer:  ------&amp;gt;&amp;#91; Object      &amp;#93;
+&amp;#91; $var:    -------     |      +=============+    +=============+
+&amp;#91; $helper: -------     |                         &amp;#91; refcount: 1 &amp;#93;
++==============+  \    |                         +=============+
+                   \   |
+                    \  |      +=============+
+                     -----+--&amp;gt;&amp;#91; Reference   &amp;#93;
+                       |  |   +=============+
+                       |  |   &amp;#91; refcount: 2 &amp;#93;    +=============+
++==============+       |  |   &amp;#91; pointer:  ------&amp;gt;&amp;#91; Helper Sub  &amp;#93;
+&amp;#91; helper's pad &amp;#93;       |  |   +=============+    +=============+
++==============+       |  |                      &amp;#91; refcount: 1 &amp;#93;
+&amp;#91; $var:    ------------+  |                      &amp;#91; pad:      -----+
+&amp;#91; $helper: ---------------+                      +=============+  |
++==============+                                                  |
+      ^                                                           |
+      |                                                           |
+      +-----------------------------------------------------------+
+
+
+################################################
+## After outer exits
+##
+
+                              +=============+
+                       +-----&amp;gt;&amp;#91; Reference   &amp;#93;
+                       |      +=============+
+    (outer still       |      &amp;#91; refcount: 1 &amp;#93;    +=============+
+     exists, but       |      &amp;#91; pointer:  ------&amp;gt;&amp;#91; Object      &amp;#93;
+     it's not          |      +=============+    +=============+
+     referencing       |                         &amp;#91; refcount: 1 &amp;#93;
+     anything in       |                         +=============+
+     this graph )      |
+                       |      +=============+
+                       |  +--&amp;gt;&amp;#91; Reference   &amp;#93;
+                       |  |   +=============+
+                       |  |   &amp;#91; refcount: 1 &amp;#93;    +=============+
++==============+       |  |   &amp;#91; pointer:  ------&amp;gt;&amp;#91; Helper Sub  &amp;#93;
+&amp;#91; helper's pad &amp;#93;       |  |   +=============+    +=============+
++==============+       |  |                      &amp;#91; refcount: 1 &amp;#93;
+&amp;#91; $var:    ------------+  |                      &amp;#91; pad:      -----+
+&amp;#91; $helper: ---------------+                      +=============+  |
++==============+                                                  |
+      ^                                                           |
+      |                                                           |
+      +-----------------------------------------------------------+
+&lt;/pre&gt;
+
+&lt;p&gt;Nothing has a refcount of zero, so nothing can be freed.
+
+&lt;h3&gt;Solution &amp;mdash; Dynamic Scoping&lt;/h3&gt;
+
+&lt;p&gt;The solution to both problems is the same: Don't use a lexical variable.
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+use ReleaseTracker qw( o );
+
+sub outer {
+   # Variables that are read by each recursive instance.
+   my $var = shift @_;
+
+   local *helper = sub {
+      no warnings 'void';
+      &quot;do something with $var and @_&quot;;
+
+      helper(@_);
+   };
+
+   #helper(@_);
+}
+
+outer( o() );
+
+END { print(&quot;On program exit:\n&quot;); }
+&lt;/c&gt;
+
+&lt;c&gt;
+&gt;perl test.pl
+Destroyed
+On program exit:
+                    &lt;-- good
+&lt;/c&gt;
+
+&lt;p&gt;Package variables aren't captured, so &amp;helper's reference count isn't affected by the call in the inner function.
+
+&lt;pre&gt;
+################################################
+## Before outer exits
+##
+
+
+   &amp;amp;outer
+      |
+      v
++=================+
+&amp;#91 outer's pad     &amp;#93;
++=================+        +=============+
+&amp;#91 $var: --------------+---&amp;gt;&amp;#91 Reference   &amp;#93;
++=================+   |    +=============+
+                      |    &amp;#91 refcount: 2 &amp;#93;    +=============+
+                      |    &amp;#91 pointer:  ------&amp;gt;&amp;#91 Object      &amp;#93;
+                      |    +=============+    +=============+
++=================+   |                       &amp;#91 refcount: 1 &amp;#93;
+&amp;#91 *helper{SCALAR} &amp;#93;   |                       +=============+
++=================+   |    +=============+
+&amp;#91 pointer: ---------------&amp;gt;&amp;#91 Reference   &amp;#93;
++=================+   |    +=============+
+                      |    &amp;#91 refcount: 1 &amp;#93;    +=============+
+                      |    &amp;#91 pointer:  ------&amp;gt;&amp;#91 Helper Sub  &amp;#93;
++=================+   |    +=============+    +=============+
+&amp;#91 helper's pad    &amp;#93;   |                       &amp;#91 refcount: 1 &amp;#93;
++=================+   |                       &amp;#91 pad:      -----+
+&amp;#91 $var: ===-----------+                       +=============+  |
++=================+                                            |
+      ^                                                        |
+      |                                                        |
+      +--------------------------------------------------------+
+
+
+################################################
+## After outer exits
+## and local restores
+## *helper{SCALAR}
+##
+
+                           +=============+
+                      +---&amp;gt;&amp;#91 Reference   &amp;#93;
+                      |    +=============+
+    (outer still      |    &amp;#91 refcount: 1 &amp;#93;    +=============+
+     exists, but      |    &amp;#91 pointer:  ------&amp;gt;&amp;#91 Object      &amp;#93;
+     it's not         |    +=============+    +=============+
+     referencing      |                       &amp;#91 refcount: 1 &amp;#93;
+     anything in      |                       +=============+
+     this graph )     |
+                      |    +=============+
+                      |    &amp;#91 Reference   &amp;#93;
+                      |    +=============+
+                      |    &amp;#91 refcount: 0 &amp;#93;    +=============+
++=================+   |    &amp;#91 pointer:  ------&amp;gt;&amp;#91 Sub         &amp;#93;
+&amp;#91 helper's pad    &amp;#93;   |    +=============+    +=============+
++=================+   |                       &amp;#91 refcount: 1 &amp;#93;
+&amp;#91 $var: --------------+                       &amp;#91 pad:      -----+
++=================+                           +=============+  |
+      ^                                                        |
+      |                                                        |
+      +--------------------------------------------------------+
+&lt;/pre&gt;
+
+&lt;p&gt;There is no cycle, so everything will be freed in turn, starting with the reference with a refcount of zero.
+
+&lt;h3&gt;Alternative Solutions&lt;/h3&gt;
+
+&lt;p&gt;I won't delve into these, so feel free to provide links which discuss these in more details. For each alternative solution, I'll post the equivalent to the solution I've already presented.
+
+&lt;c&gt;
+sub outer {
+   ...
+   local *helper = sub {
+      ...
+      helper(...);
+      ...
+   };
+   helper(@_);
+}
+&lt;/c&gt;
+
+
+&lt;h4&gt;Y Combinator&lt;/h4&gt;
+
+&lt;p&gt;[ambrus] pointed out that [http://use.perl.org/~Aristotle/journal/30896|Y Combinator] can also achieve this goal. This is the most worthwhile alternative.
+
+&lt;c&gt;
+sub outer {
+   ...
+   Y( sub {
+      my $helper = shift @_;
+      sub {
+         ...
+         $helper-&gt;(...);
+         ...
+      }
+   } )-&gt;(@_);
+}
+&lt;/c&gt;
+
+&lt;p&gt;While it's a great tool to completely anonymize a recursive function, and while it might even be required in functional languages, it adds overhead in a situation where reducing overhead is important, and I think it's unnecessarily complex to solve the problem of nesting functions in Perl.
+
+&lt;h4&gt;Weak Reference&lt;/h4&gt;
+
+&lt;p&gt;One could weaken the reference to the inner function using [mod://Scalar::Util|&lt;c&gt;Scalar::Util&lt;/c&gt;]&lt;c&gt;::weaken&lt;/c&gt;.
+
+&lt;c&gt;
+sub outer {
+   ...
+   my $helper;
+   $helper = sub {
+      ...
+      $helper-&gt;(...);
+      ...
+   };
+   weaken($helper);
+   $helper-&gt;(@_);
+}
+&lt;/c&gt;
+
+&lt;p&gt;However, the Weak Reference solution is much more complex than the Dynamic Scoping solution and has no advantage that I can see.
+
+&lt;h3&gt;Summary&lt;/h3&gt;
+
+&lt;p&gt;Using &lt;c&gt;local *helper = sub {};&lt;/c&gt; over &lt;c&gt;my $helper = sub {};&lt;/c&gt; not only provides a cleaner calling syntax, it can be used for recursive functions without accidentally referencing the wrong variable or causing a memory leak.
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>696592</node_id>
+  <author_user>381608</author_user>
+  <title>Creating Nested Functions</title>
+  <createtime>2008-07-09 21:42:56</createtime>
+  <nodeupdated>2008-07-09 17:42:56</nodeupdated>
+</node>

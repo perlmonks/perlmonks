@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="40003" title="savetime / loadtime" created="2000-11-04 15:38:22" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="16217">
+fundflow</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+=pod
+
+=head1 savetime / loadtime
+
+  This pair of simple scripts that are useful for making sure that
+  file times remain correct even after small updates.
+
+  I use it to make sure that the photos from my digital camera have
+  the original times, even after some retouching or evil FTP clients
+  which do not set the right times...
+
+  To install: Copy the file to somewhere within the path and make a
+  (symbolic) link to it, so that it appears in two names: loadtime and
+  savetime.
+
+=head2 savetime
+
+  Creates the file '.filetimes' in the current directory and stores
+  access and modification time for all of the files in the current
+  directory.
+
+=head2 loadtime
+
+  Resets the file times for all the files that have different time
+  than what is written in '.filetimes'.
+
+  It will print one line for each file that is updated, containing the
+  number of seconds that have been changed.
+
+=cut 
+
+if($0=~/savetime/)
+  { my @f=&lt;*&gt;;
+
+  open(F, "&gt;.filetimes") or die "open .filetimes: $!\n";
+  for (@f) {
+    my ($atime, $mtime)=(stat($_))[8,9];
+    print F "$_ $atime $mtime\n";
+  }
+}
+
+if($0=~/loadtime/) {
+  die unless -f ".filetimes";
+
+  open(F, "&lt;.filetimes") or die "open .filetimes: $!\n";
+  while(&lt;F&gt;) {
+    my ($n,$a,$m) = split;
+    $atime{$n} = $a;
+    $mtime{$n} = $m;
+  }
+  close(F);
+
+  for (&lt;*&gt;) {
+    my ($a, $m)=(stat($_))[8,9];
+    next if($a==$atime{$_} and $m==$mtime{$_});
+    print "$_ \t", $a-$atime{$_}, " \t",$m-$mtime{$_}, "\n";
+    utime $atime{$_}, $mtime{$_}, $_ or die "utime: $!\n";
+  }
+}
+</field>
+</data>
+</node>

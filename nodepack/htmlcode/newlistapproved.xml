@@ -1,0 +1,178 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>4692</node_id>
+  <author_user>929</author_user>
+  <title>newlistapproved</title>
+  <createtime>2000-02-10 17:42:06</createtime>
+  <code>use lib $HTMLVARS{uselib};
+use Everything::Experience;
+
+my( $type, $linktype, $title, $length, @options )= @_;
+$length ||= 10;
+
+my $html= '';
+my( $showall, $navbaron, $showunapproved, $linkto );
+my $lt_id= getId( getNode($linktype,'linktype') );
+
+my $SETTING= getNode('listapproved settings','setting');
+my $LAS= getVars $SETTING;
+
+my $outercontainer= $LAS-&gt;{&quot;outerContainerForType_&quot;.$type}  ||  $LAS-&gt;{defaultOuterContainer};
+my $innercontainer= $LAS-&gt;{&quot;innerContainerForType_&quot;.$type}  ||  $LAS-&gt;{defaultInnerContainer};
+my $innerhtmlcode=  $LAS-&gt;{&quot;innerHtmlcodeForType_&quot;.$type}   ||  $LAS-&gt;{defaultInnerHtmlcode};
+
+my $start= my $count= $q-&gt;param('next') || 0;
+my $max= $count + $length;
+my $numshown= 0;
+my $showreaped= $VARS-&gt;{showreaped};
+
+foreach( @options ) {
+    my $opt= lc( $_ );
+    if(  &quot;navbaron&quot; eq $opt  ) {
+        $navbaron= 1;
+    } elsif(  &quot;showunapproved&quot; eq $opt  ) {
+        $showunapproved= 1;
+    } elsif(  &quot;showall&quot; eq $opt  ) {
+        $showall= 1;
+    } elsif(  &quot;showreaped&quot; eq $opt  ) {
+        $showreaped= 1;
+    } elsif(  /^linkto\|(.*?)\|(.*)/i  ) {
+        $HTMLVARS{listapproved}{linkto_node_id}= getId( getNode($1,$2) );
+    } elsif(  /^outerContainerOverride:(.*)/i  ) {
+        $outercontainer= $LAS-&gt;{$1};
+    } elsif(  /^innerContainerOverride:(.*)/i  ) {
+        $innercontainer= $LAS-&gt;{$1};
+    } elsif(  /^innerHtmlcodeOverride:(.*)/i  ) {
+        $innerhtmlcode= $LAS-&gt;{$1};
+    }
+}
+
+my( %approved, @unapproved );
+
+my @sql_hide_reaped= ( -author_user =&gt; '! ' . $HTMLVARS{NodeReaperID} );
+if(  defined $q-&gt;param(&quot;showreaped&quot;)  ) {
+    $showreaped= $q-&gt;param(&quot;showreaped&quot;);
+}
+if(  $showreaped  ) {
+    @sql_hide_reaped= ();
+}
+
+if(  ! $showall  ) {
+    my $links= selectLinks( $NODE );
+    $approved{ $_-&gt;{to_node} }= 1
+        for grep $_-&gt;{linktype} == $lt_id, @$links;
+}
+
+$HTMLVARS{listapproved}{title}= $title;
+
+my $ref= selectNodeWhere(
+    {
+        @sql_hide_reaped,
+        type_nodetype =&gt; getType($type),
+    },
+    &quot;&quot;,
+    &quot;createtime desc limit 300&quot;,
+);
+return
+    if(  ! $ref  );
+
+my $mysqltime;
+if(  $VARS-&gt;{lastviewednewestnodes}  ) {
+    my( $sec, $min, $hour, $mday, $mon, $year )=
+        localtime( $VARS-&gt;{lastviewednewestnodes} );
+    $mysqltime= sprintf(
+        &quot;%04d-%02d-%02d %02d:%02d:%02d&quot;,
+        1900 + $year, 1 + $mon, $mday, $hour, $min, $sec );
+}
+
+my $i;
+my $j= 0;
+my $innerstr= '';
+my $canconsider= Everything::isApproved( $USER, 'CanConsider' );
+for(  $i= $count;  $i &lt; @$ref &amp;&amp; $numshown &lt; $length;  $i++  ) {
+    my $node= $HTMLVARS{embed_node}= selectNode( $ref-&gt;[$i] );
+    if(     $approved{ getId( $node ) }
+        ||  $VARS-&gt;{unapprovedcontent}  &amp;&amp;  $showunapproved
+        ||  $showall
+        ||      $node-&gt;{author_user} == $USER-&gt;{node_id}
+            &amp;&amp;  $node-&gt;{author_user} != $HTMLVARS{guest_user}
+    ) {
+        $numshown++;
+
+        my $Q= {
+            directreplies =&gt; $DB-&gt;sqlSelect(
+                'COUNT(*)',
+                'note',
+                'parent_node = ' . getId( $node ),
+            ),
+            repliesbelow  =&gt; $DB-&gt;sqlSelect(
+                'COUNT(*)',
+                'note',
+                'root_node = ' . getId( $node ),
+            ),
+            parent =&gt; getId( $node ),
+        };
+
+        my $typeofreplies= $VARS-&gt;{repliesdisplay} || &quot;directreplies&quot;;
+        $node-&gt;{numreplies}= $Q-&gt;{$typeofreplies} || '0';
+        $node-&gt;{classprefix}=
+            $mysqltime &amp;&amp; $mysqltime lt $node-&gt;{createtime}
+                ? 'new-' : '';
+        $innerstr .= containHtml( $innercontainer, htmlcode($innerhtmlcode) );
+        $j++;
+    }
+    if(     $canconsider
+        &amp;&amp;  ! $approved{ getId( $node ) }
+    ) {
+        push @unapproved, $node;
+    }
+}
+
+
+$HTMLVARS{unapproved}= \@unapproved;
+$html .= containHtml( $outercontainer, $innerstr );
+
+if(  $navbaron  ) {
+    $html .= join '',
+        '&lt;table width=&quot;100%&quot; class=&quot;highlight&quot; border=&quot;0&quot;',
+        ' cellpadding=&quot;2&quot; cellspacing=&quot;0&quot;&gt;', $/,
+        '&lt;tr&gt;&lt;td align=&quot;left&quot; width=&quot;100&quot;&gt;', $/;
+    my $next= $count - $length;
+    $next= 0
+        if(  $count - $length &lt; 0  );
+    $html .= join '',
+        &quot;&lt;a href=&quot;,
+        urlGen( {
+            node_id =&gt; getId($NODE),
+            next =&gt; $count-$length,
+        } ),
+        &quot;&gt;&lt;--Previous&amp;nbsp;entries&lt;/a&gt;&quot;, $/
+        if(  0 &lt; $count  );
+    $html .= &quot;&amp;nbsp;&quot;;
+
+    $html .= '&lt;/td&gt;&lt;td align=&quot;center&quot;&gt;';
+    $html .= join '', &quot;(&quot;, $count+1, &quot;-$max) of &quot;
+        if(  $max &lt; @$ref  );
+    $html .= join '',
+        '&amp;nbsp;&lt;/td&gt;&lt;td align=&quot;center&quot;&gt;(', $count+1, &quot;-&quot;, 0+@$ref, &quot;) of &quot;
+        if(  @$ref &lt;= $max  );
+    $html .= join '', 0+@$ref, '&lt;/td&gt;&lt;td align=&quot;right&quot; width=&quot;100&quot;&gt;', $/;
+    $next= $count + $length;
+    my $num= $length;
+    if(  @$ref &lt; $next + $length  ) {
+        $num= @$ref - $next;
+    }
+    $html .= join '',
+        &quot;&lt;a href=&quot;,
+        urlGen( {
+            node_id =&gt; getId($NODE),
+            next =&gt; $max,
+        } ),
+        &quot;&gt;Next&amp;nbsp;entries--&gt;&lt;/a&gt;&quot;
+        if(  $max &lt; @$ref  );
+    $html .= &quot;&amp;nbsp;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/center&gt;\n&quot;;
+}
+return $html;
+</code>
+  <nodeupdated>2005-08-03 04:14:05</nodeupdated>
+</node>

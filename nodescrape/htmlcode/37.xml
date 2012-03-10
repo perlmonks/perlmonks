@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="37" title="listcode" created="1999-10-04 18:34:59" updated="2005-08-06 04:05:10">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+my( $field, $oneline )= @_;
+my $html= $NODE-&gt;{$field} || '';
+$html= encodeHTML( $html, 1 );
+
+my $lnt= sub {
+    my( $title, $type )= @_;
+    $title =~ s/&amp;nbsp;/ /g;
+    return genLink( $q-&gt;escapeHTML($title), { node=&gt;$title, type=&gt;$type } );
+};
+
+# Search for [{name}] and replace the name with a link:
+$html =~ s&lt; ( &amp;\#91;{ ) ([^:{}]*?) ( : | }&amp;\#93; ) &gt;{
+    $1 . $lnt-&gt;( $2, 'htmlcode' ) . $3
+}xegs;
+
+my $sp= qr/\s|&amp;nbsp;/;
+my $qt= qr/&amp;quot;/;
+# Search for 'getNode( "text", "text" )' and replace
+# the text with a link to the appropriate node:
+$html =~ s{
+    (                          # 1
+      (getNode $sp*[(]$sp*)    # 2
+      ( "[^"]*"
+       |'[^']*'
+       |$qt(?:(?!$qt).)*$qt
+      )                        # 3
+      ($sp*,$sp*)              # 4
+      ( "[^"]*"
+       |'[^']*'
+       |$qt(?:(?!$qt).)*$qt
+      )                        # 5
+      ($sp*[)])                 # 6
+    )
+}{
+    my( $full, $open, $title, $comma, $type, $close )=
+        ( $1, $2, $3, $4, $5, $6 );
+    $title =~ s/^(['"]|$qt)?//;
+    my $q1= $1;
+    $title =~ s/\Q$q1\E$//;
+    $type =~ s/^(['"]|$qt)?//;
+    my $q2= $1;
+    $type =~ s/\Q$q2\E$//;
+    $open . $q1 . $lnt-&gt;( $title, $type ) . $q1
+        . $comma . $q2 . $lnt-&gt;( $type, 'nodetype' ) . $q2 . $close;
+}xegs;
+
+# Search for 'htmlcode( "text", params... )' and replace
+#            'getNode( "text", params... )'
+#            'getType( "text" )'
+# the text with a link to the referenced node:
+$html =~ s{
+    (                            # 1
+      (htmlcode|getNode|getType) # 2
+      ($sp*[(]$sp*)              # 3
+      ( "[^"&lt;&gt;]*"
+       |'[^'&lt;&gt;]*'
+       |$qt(?:(?!$qt)[^&lt;&gt;])*$qt
+      )                          # 4
+      ($sp*[,)])                 # 5
+    )
+}{
+    my( $full, $name, $open, $title, $close )=
+        ( $1, $2, $3, $4, $5 );
+    $title =~ s/^(['"]|$qt)?//;
+    my $quote= $1;
+    $title =~ s/\Q$quote\E$//;
+    my $type= { htmlcode=&gt;'htmlcode', getType=&gt;'nodetype' }-&gt;{$name} || '';
+    $name . $open . $quote . $lnt-&gt;( $title, $type ) . $quote . $close;
+}xegs;
+
+# add line numbers:
+my $count= 1;
+$html =~ s/^/ sprintf "%4d: ",$count++ /meg;
+
+my $FIND= $NODE;
+$FIND= selectNode( $NODE-&gt;{for_node} )
+    if  'patch' eq $NODE-&gt;{type}{title};
+
+$html= join "\n",
+    '&lt;!-- Begin Code View --&gt;',
+    '&lt;div class="listcode"&gt;&lt;pre&gt;',
+    $html,
+    '&lt;/pre&gt;&lt;/div&gt;',
+    '&lt;!--  End Code View  --&gt;',
+    '&lt;p&gt;Search for',
+    genLink(
+        "uses of " . $q-&gt;escapeHTML( $FIND-&gt;{title} ),
+        {
+            # node_id =&gt; 157620,
+            node =&gt; 'search internal code',
+            type =&gt; 'superdoc',
+            searchterms =&gt; $FIND-&gt;{title},
+            sic_dogrep =&gt; 1,
+        },
+    ),
+    '&lt;/p&gt;',
+'';
+
+return $html
+    if  'edit' eq $q-&gt;param('displaytype')
+    ||  'print' eq $q-&gt;param('displaytype')
+    ||  'patch' eq $NODE-&gt;{type}{title};
+
+# Breaks the form on code edit pages and patching a patch
+# may get confusing.
+
+if(  $DB-&gt;isApproved( $USER, 'pmdev' )  ) {
+    $html .= join "\n",
+        "&lt;b&gt;Submit a patch&lt;/b&gt;",
+        htmlcode( 'open_new_patch_form','', $field, "display" ),
+        "&lt;br /&gt;Reason for patch:",
+        $q-&gt;textfield(
+            -name =&gt; 'patch_reason', -size =&gt; 80, -maxlength =&gt; 80 ),
+        '&lt;br /&gt;',
+        $oneline
+            ?   $q-&gt;textfield( 'patch_code', $NODE-&gt;{$field} )
+            :   $q-&gt;textarea( 'patch_code', $NODE-&gt;{$field}, 20, 60 ),
+        '&lt;br /&gt;',
+        htmlcode( 'closeform','', 'Submit Patch' ),
+    '';
+}
+
+return $html;
+</field>
+</data>
+</node>

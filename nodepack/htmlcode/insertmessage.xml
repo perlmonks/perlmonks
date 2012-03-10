@@ -1,0 +1,40 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>182342</node_id>
+  <author_user>929</author_user>
+  <title>insertmessage</title>
+  <createtime>2002-07-17 01:52:21</createtime>
+  <code># used by [chat/msg] and [testmessage]  
+
+   my( $text, $recipient, $author )= @_;
+   $recipient ||= 0;
+   $author ||= getId($USER);
+   return   if  htmlcode( 'chatrepeated', '',
+      $text, $recipient, $author );
+
+   $DB-&gt;sqlInsert( &quot;message&quot;, {
+      msgtext =&gt; $text,
+      author_user =&gt; $author,
+      for_user =&gt; $recipient,
+   } );
+   return   if  $recipient;
+
+   my $msgid= sprintf &quot;%011d&quot;,
+      $DB-&gt;getDatabaseHandle()-&gt;{mysql_insertid};
+   $msgid =~ tr/0123456789/9876543210/; # MySQL optimizer sucks
+   my $code_id= getId( getNode(&quot;message&quot;,&quot;opcode&quot;) );
+   
+   $DB-&gt;sqlInsert( &quot;datacache&quot;, {
+      datacache_id =&gt; $code_id,
+      cachekey =&gt; &quot;html$msgid&quot;,
+      data =&gt; $author . &quot;:&quot;
+         . htmlcode( 'htmlchatter', '', $text ),
+   } );
+   $DB-&gt;sqlInsert( &quot;datacache&quot;, {
+      datacache_id =&gt; $code_id,
+      cachekey =&gt; &quot;xmlraw$msgid&quot;,
+      data =&gt; $author . &quot;:&quot;
+         . htmlcode( 'xmlrawchatter', ' ', $text ),
+   } );</code>
+  <nodeupdated>2004-10-21 11:31:40</nodeupdated>
+</node>

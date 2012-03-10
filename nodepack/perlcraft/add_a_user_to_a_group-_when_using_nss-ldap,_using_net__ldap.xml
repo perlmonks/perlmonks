@@ -1,0 +1,158 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+# by Steve Haslam
+
+# description:
+
+#  adds a user into an LDAP group- where &quot;users&quot; and &quot;groups&quot; are the
+#  objects seen by nss_ldap.
+
+#  would be nice to be able to use pam-ldap here, but I've not got
+#  that to work yet.
+
+# notes:
+#  at least on my machine, Term::Readkey gives loads of &quot;use of
+#  uninitialized value&quot; errors. ymmv.
+
+#  illustrates lots of things, and a resonably nice showcase for some
+#  techniques for working with Net::LDAP (e.g. the ldapassert() sub)
+
+require 5;
+use strict;
+use Net::LDAP;
+use Net::LDAP::Util qw(ldap_error_text);
+use Term::ReadKey;
+use Getopt::Std;
+use vars qw($hostname $basedn $ldap $sr $username $groupname $userdn $groupdn $entry $admindn $adminpw $verbose %opts);
+
+getopts('h:D:b:v', \%opts) &amp;&amp; @ARGV == 2 or die &quot;Syntax: $0 [-v] [-h hostname] [-D binddn] [-b basedn] username groupname&quot;;
+
+($username, $groupname) = (lc($ARGV[0]), lc($ARGV[1]));
+
+$verbose = 1 if ($opts{'v'});
+
+# Print something if the -v switch was given
+sub printv {
+  print(@_) if ($verbose);
+}
+
+# Wrapper for a Net::LDAP call- assert the server message is a &quot;success&quot;
+# code- die with a decoded error message if it isn't
+sub ldapassert {
+  my $mesg = shift;
+  my $op = shift;
+  $mesg-&gt;code &amp;&amp; die &quot;LDAP error&quot;.($op?&quot; during $op&quot;:&quot;&quot;).&quot;: &quot;.ldap_error_text($mesg-&gt;code).&quot;\n&quot;;
+  $mesg;
+}
+
+# Extract a configuration option from the nss-ldap configuration file
+# /etc/libnss-ldap.conf is the Debian conf file location
+# /etc/ldap.conf is an alternative plausible location
+sub confoption {
+  my $optname = lc(shift);
+  my $conffile;
+
+  foreach $conffile (qw|/etc/libnss-ldap.conf /etc/ldap.conf|) {
+    if (-f $conffile) {
+      open(LDAPCONF, $conffile) or die &quot;Unable to open nss-ldap configuration file $conffile: $!\n&quot;;
+      while (&lt;LDAPCONF&gt;) {
+	s/\#.*//;
+	chomp;
+	my($keyword, $value) = split(/ +/, $_, 2);
+	next unless (defined($keyword) &amp;&amp; defined($value));
+	$keyword = lc($keyword);
+	if ($keyword eq $optname) {
+	  close(LDAPCONF);
+	  printv &quot;[ldapconf $conffile] using \&quot;$value\&quot; for \&quot;$optname\&quot;\n&quot;;
+	  return $value;
+	}
+      }
+      return undef;
+    }
+  }
+
+  printv &quot;[ldapconf] no value for \&quot;$optname\&quot;\n&quot;;
+  
+  return undef;
+}
+
+$hostname = $opts{'h'} || confoption('host');
+$basedn = $opts{'b'} || confoption('base');
+
+$ldap = Net::LDAP-&gt;new($hostname) or die &quot;$@&quot;;
+
+# Bind as administrator user
+$admindn = $opts{'D'} || confoption('binddn');
+
+# Get admin password iff a bind dn was specified
+if ($admindn) {
+  print &quot;LDAP password: &quot;;
+  ReadMode('noecho');
+  $adminpw = ReadLine;
+  chomp($adminpw);
+  ReadMode(0);
+  print &quot;\n&quot;;
+}
+
+# Perform bind
+# bind anonymously if no pw given
+if ($adminpw) {
+  printv &quot;Binding as $admindn\n&quot;;
+  ldapassert($ldap-&gt;bind(dn =&gt; $admindn, password =&gt; $adminpw), &quot;bind&quot;);
+}
+else {
+  printv &quot;Binding anonymously\n&quot;;
+  ldapassert($ldap-&gt;bind, &quot;anonymous bind&quot;);
+}
+
+# Find the user- get the user dn
+$sr = ldapassert($ldap-&gt;search(base =&gt; &quot;ou=People, $basedn&quot;, filter =&gt; &quot;(&amp;(objectClass=posixAccount)(uid=$username))&quot;), &quot;user search&quot;);
+
+if ($sr-&gt;count == 0) {
+  die &quot;Unknown user '$username'\n&quot;;
+}
+elsif ($sr-&gt;count &gt; 1) {
+  die &quot;Ambiguous user '$username' (this is really bad)\n&quot;;
+}
+
+$entry = $sr-&gt;shift_entry;
+$userdn = $entry-&gt;dn;
+
+# Find the group- get the group dn
+$sr = ldapassert($ldap-&gt;search(base =&gt; &quot;ou=Group, $basedn&quot;, filter =&gt; &quot;(&amp;(objectClass=posixGroup)(cn=$groupname))&quot;), &quot;group search&quot;);
+
+if ($sr-&gt;count == 0) {
+  die &quot;Unknown group '$groupname'\n&quot;;
+}
+elsif ($sr-&gt;count &gt; 1) {
+  die &quot;Ambiguous group '$groupname' (this is really bad)\n&quot;;
+}
+
+$entry = $sr-&gt;shift_entry;
+$groupdn = $entry-&gt;dn;
+
+# Is the user already in the group?
+foreach (@{$entry-&gt;get('memberuid')}) {
+  if (lc($_) eq lc($username)) {
+    print &quot;$username is already a member of $groupname\n&quot;;
+    exit(0);
+  }
+}
+
+# OK, now update the group entry
+# $entry is the group entry
+printv &quot;Adding [$userdn] to [$groupdn]\n&quot;;
+
+$entry-&gt;add(memberuid =&gt; $username);
+
+ldapassert($entry-&gt;update($ldap), &quot;update&quot;); # Write updated entry to directory server
+
+exit(0);
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>32126</node_id>
+  <author_user>28130</author_user>
+  <title>Add a user to a group- when using nss-ldap, using Net::LDAP</title>
+  <createtime>2000-09-12 16:32:44</createtime>
+  <nodeupdated>2005-08-02 05:22:10</nodeupdated>
+</node>

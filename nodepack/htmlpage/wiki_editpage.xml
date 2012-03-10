@@ -1,0 +1,229 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>editpage</displaytype>
+  <page>&lt;p align=&quot;right&quot;&gt;&lt;font size=&quot;2&quot;&gt;
+   [% linkNode($NODE,&quot;go back to the display view&quot;); %]
+&lt;/font&gt;&lt;/p&gt;
+[{openform:-multipart,1}]
+[{wikipermissionmenu:readers,1}]
+[{wikipermissionmenu:writers,1}]
+[%
+    my $wiki_end= &quot;&lt;!--Wiki End -- Do NOT modify this line&quot;
+        . &quot; or add any text after it --&gt;&quot;;
+    my $wiki_pat= qr/\Q$wiki_end\E\s*\z/;
+
+    return &quot;You don't have edit permission&quot;
+        if  ! htmlcode('hasWikiPermission','writers');
+
+    if(  ! htmlcode('getOrRenewLock','1')  ) {
+        return &quot;Sorry, &quot; . linkNode( $NODE-&gt;{lockedby_user} )
+            . &quot; has a lock on this node right now&quot;;
+    }
+
+    require POSIX;
+    for(  $q-&gt;param('update_doctext')  ) {
+        my $time= POSIX::strftime( &quot;%Y-%m-%d %H:%M:%S&quot;, localtime() );
+        s{(&lt;!--.*?--&gt;)|(&lt;wikihead&gt;)}{
+            $1 || join '',
+                &quot;[$USER-&gt;{title}],&quot;,
+                qq[ &lt;a href=&quot;#$time&quot; name=&quot;$time&quot;&gt;],
+                &quot;[localtime://$time]&lt;/a&gt;&quot;
+        }gies;
+        $q-&gt;param( 'update_doctext', $_ );
+        last;
+    }
+
+    my $html= '';
+    my @fields= grep /^update_(.+)/, $q-&gt;param();
+    my $update= $q-&gt;param('blah') eq &quot;update&quot;;
+    my $doctext_updated= 0;
+
+    require Digest::MD5;
+    if(  $update  ) {
+        my @badfields;
+        foreach(  @fields  ) {
+            my( $field )= /update_(.*)/;
+            my $new_value= $q-&gt;param(&quot;update_$field&quot;);
+            my $old_digest= $q-&gt;param(&quot;digest_$field&quot;);
+            my( $new_digest )= Digest::MD5::md5_hex( $NODE-&gt;{$field} );
+            if(  $new_digest ne $old_digest  ) {
+                push @badfields, $field;
+            } elsif(  $NODE-&gt;{$field} eq $new_value  ) {
+                ;   # No change
+            } elsif(    $field eq 'doctext'
+                    &amp;&amp;  65536 &lt;= length($new_value)
+            ) {
+                $html .= join '',
+                    '&lt;br /&gt;&lt;font color=&quot;red&quot;&gt;',
+                    &quot;Won't update doctext as it is too large. This means&quot;,
+                    &quot; something has probably been chopped off the bottom.&quot;,
+                    &quot;  Please ask a god to rotate the wiki.&quot;,
+                    &quot;&lt;/font&gt;&lt;br /&gt;\n&quot;;
+            } elsif(    $field eq 'doctext'
+                    &amp;&amp;  $new_value !~ s/$wiki_pat//
+            ) {
+                $html .= join '',
+                    '&lt;br /&gt;&lt;font color=&quot;red&quot;&gt;',
+                    &quot;Won't update doctext as it appears the end marker&quot;,
+                    &quot; has been truncated from the text.  This could be&quot;,
+                    &quot; because your browser cannot handle text fields as&quot;,
+                    &quot; large as are needed.&lt;/font&gt;&lt;br /&gt;\n&quot;;
+            } else {
+                $DB-&gt;sqlInsert(
+                    'edithistory',
+                    {
+                        starttext =&gt;    $NODE-&gt;{$field},
+                        endtext =&gt;      $new_value,
+                        editor_user =&gt;  getId($USER),
+                        -edittime =&gt;    &quot;now()&quot;,
+                        fieldname =&gt;    $field,
+                        edithistory_id =&gt; getId($NODE),
+                    },
+                );
+                $NODE-&gt;{$field}= $new_value;
+                $q-&gt;param(
+                    &quot;digest_$field&quot;,
+                    Digest::MD5::md5_hex( $NODE-&gt;{$field} ),
+                );
+                $doctext_updated= 1
+                    if  $field eq 'doctext';
+            }
+        }
+        # Fixup lastedit (hackish; should fix updateNode to not try to
+        #  update it, nor cache it's non-existance if it isn't there)
+        $NODE-&gt;{lastedit}= POSIX::strftime( '%Y%m%d%H%m%S', localtime() );
+        updateNode( $NODE, -1 );
+        $VARS-&gt;{ 'wiki' . getId($NODE) }= $NODE-&gt;{lastedit};
+        if(  @badfields  ) {
+            $html .= join '',
+                '&lt;br /&gt;&lt;font color=&quot;red&quot;&gt;',
+                &quot;The following fields weren't updated because they&quot;,
+                &quot; have been updated since you started editing: &quot;,
+                join( ',', @badfields ),
+                &quot;&lt;/font&gt;&lt;p&gt;\n&quot;;
+        } elsif(  ! $html  ) {
+            $html .= &quot;&lt;b&gt;All Fields Updated OK!&lt;/b&gt;&lt;hr /&gt;\n&quot;;
+        }
+    }
+
+    $html &amp;&amp;= &quot;&lt;hr /&gt;$html&lt;hr /&gt;&lt;p&gt;&quot;;
+    $html ||= &quot;&lt;br /&gt;&quot;
+        if  isGod($USER);
+
+    my $hiddenMD5= sub {
+        my($field)= @_;
+        return $q-&gt;hidden(
+            -name =&gt;    &quot;digest_$field&quot;,
+            -value =&gt;   Digest::MD5::md5_hex( $NODE-&gt;{$field} ),
+        ) . &quot;\n&quot;;
+    };
+
+    # This code generates the form fields and the stuff that
+    # the user sees.
+    my %titletype;
+    {
+        my $tables= $DB-&gt;getNodetypeTables( $NODE-&gt;{type_nodetype} );
+        foreach my $table (  @$tables, 'node'  ) {
+            foreach my $field (  $DB-&gt;getFieldsHash($table)  ) {
+                $titletype{ $field-&gt;{Field} }= $field-&gt;{Type};
+            }
+        }
+        delete @titletype{ qw( core readers writers ) };
+    }
+
+    foreach my $field (  keys %titletype  ) {
+        my $val= $q-&gt;param(&quot;pu_$field&quot;) || $NODE-&gt;{$field};
+        if(  $titletype{$field} =~ /char\((.*)\)/  ) {
+            my $size= $1;
+            $size= 80
+                if  80 &lt; $size;
+            $html .= join '',
+                &quot;&lt;b&gt;$field:&lt;/b&gt;&lt;br /&gt;&quot;,
+                $q-&gt;textfield(
+                    -name =&gt;        &quot;update_$field&quot;,
+                    -default =&gt;     $val,
+                    -size =&gt;        $size,
+                    -maxlength =&gt;   $1,
+                ),
+                &quot;&lt;br /&gt;\n&quot;,
+                $hiddenMD5-&gt;( $field );
+        } elsif(  $titletype{$field} =~ /text/  ) {
+            $val .= &quot;\n&quot; . $wiki_end
+                if  $val !~ /$wiki_pat/;
+            my $inform= $q-&gt;param(&quot;update_$field&quot;) || $val;
+            my $warn= &quot;&quot;;
+            if(  63000 &lt; length($val)  ) {
+                if(  isGod($USER)  ) {
+                    $warn= join '',
+                        '&lt;font color=&quot;red&quot;&gt;',
+                        &quot;Please rotate the wiki as it is&quot;,
+                        &quot; dangerously full.&lt;/font&gt;&lt;br /&gt;\n&quot;;
+                } else {
+                    $warn= join '',
+                        '&lt;font color=&quot;red&quot;&gt;',
+                        &quot;You can't edit this field right now,&quot;,
+                        &quot; the wiki is too full.&quot;,
+                        &quot;&lt;/font&gt;&lt;br /&gt;\n&quot;;
+                }
+            }
+
+            $html .= join '',
+                &quot;&lt;b&gt;$field:&lt;/b&gt;&lt;font size='2pt'&gt;(Current Length: &quot;,
+                length($val),
+                &quot; In Form Length:&quot;,
+                length($inform),
+                &quot;)&lt;/font&gt;&lt;br /&gt;$warn&quot;;
+            $html .= join( '',
+                $q-&gt;textarea(
+                    -name =&gt;    &quot;update_$field&quot;,
+                    -default =&gt; $val,
+                    -rows =&gt;    20,
+                    -cols =&gt;    80,
+                    -wrap =&gt;    &quot;virtual&quot;,
+                ),
+                &quot;&lt;br /&gt;\n&quot;,
+                $hiddenMD5-&gt;( $field ),
+            )
+                if  ! $warn  ||  isGod($USER);
+        }
+    }
+    $html .= join '',
+        $q-&gt;submit('blah','preview'),
+        &quot;&amp;nbsp;&quot;,
+        $q-&gt;submit('blah','update'),
+        &quot;&lt;/form&gt;&lt;hr /&gt;\n&quot;;
+
+    #preview section
+    if(  $q-&gt;param('update_title')  ) {
+        $html .= join '',
+            &quot;&lt;b&gt;Title:&lt;/b&gt;&quot;,
+            $q-&gt;param('update_title'),
+            &quot;&lt;br /&gt;\n&quot;;
+    }
+    foreach(  @fields  ) {
+        my( $field )= /update_(.*)/;
+        next
+            if  $field eq &quot;title&quot;;
+        if(  $field eq 'doctext'  ) {
+            if(  $doctext_updated  ) {
+                $html.=&quot;&lt;strong&gt;Updated &lt;/strong&gt;&quot;;
+            } else {
+                $html.=&quot;&lt;strong&gt;Preview &lt;/strong&gt;&quot;;
+            }
+        }
+        my $val= $q-&gt;param($_);
+        $html .= join '',
+            &quot;&lt;b&gt;$field:&lt;/b&gt;&lt;br /&gt;&quot;,
+            htmlcode( 'parselinksincontent','', $val ),
+            &quot;&lt;br /&gt;\n&quot;;
+    }
+
+    return $html;
+%]
+</page>
+  <author_user>929</author_user>
+  <createtime>2001-03-29 03:58:58</createtime>
+  <node_id>68047</node_id>
+  <title>wiki editpage</title>
+  <nodeupdated>2005-08-11 02:54:13</nodeupdated>
+</node>

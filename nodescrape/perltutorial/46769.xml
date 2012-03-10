@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="46769" title="Common Beginner Mistakes" created="2000-12-14 23:40:10" updated="2005-08-15 16:56:58">
+<type id="956">
+perltutorial</type>
+<author id="1382">
+chromatic</author>
+<data>
+<field name="doctext">
+Beginning programmers face a great learning curve.  Beyond the syntax of their
+starting language, they must master the concepts of algorithms, data
+structures, and the idioms used to accomplish common tasks.  Most of the books
+in my library concentrate on grammar, syntax, and standard libraries, while
+glossing over good practices and common mistakes.
+&lt;p&gt;
+Perl has its own unique set of gotchas and strengths.  Some make it easy for
+beginners to hang themselves, and others could reduce the amount of code and
+heartache needed.  (Perl is fairly unique among languages in that it often lets
+beginners and dabblers succeed despite their lack of formal training.)
+&lt;p&gt;
+Without further ado, here are Common Mistakes of Beginning Programmers (part
+one).
+
+&lt;h2&gt;Variable Variable Names&lt;/h2&gt;
+
+&lt;h3&gt;The mistake:&lt;/h3&gt;
+
+Beginners will often do something like this:
+
+&lt;code&gt;
+foreach ($i = 1; $i &lt; 10; $i++) {
+	${"record$i"} = $i * $i;
+}&lt;/code&gt;
+
+&lt;h3&gt;Why it's a mistake:&lt;/h3&gt;
+
+Symbolic references are a &lt;a href="http://perl.plover.com/varvarname.html"&gt;well documented pitfall&lt;/a&gt;.  Besides that, Perl has built-in and easy-to-use 
+aggregate data types.  That means that it makes a distinction between a thing 
+and a pile of things.  In addition, you will need to keep track of the index 
+variable $i to know how many records you have.
+
+&lt;h3&gt;Why they do it:&lt;/h3&gt;
+
+Beginning programs are often unaware of genericity and aggregation.  They like
+naming variables, and don't realize yet that you don't have to name everything
+that's ever created.
+
+&lt;h3&gt;The solution:&lt;/h3&gt;
+
+Use an array or hash (the aggregate data type) to hold the records.  Not only
+will Perl keep track of the number of records, it's easier to do common
+operations on them.
+
+&lt;code&gt;for (1 .. 10) {
+	push @records, $_ * $_;
+}
+
+foreach my $record (@records) {
+	print $record, "\n";
+}&lt;/code&gt;
+
+&lt;h2&gt;Repetition without Abstraction&lt;/h2&gt;
+
+&lt;h3&gt;The mistake:&lt;/h3&gt;
+&lt;code&gt;my $var1 = $query-&gt;param('var1');
+my $var2 = $query-&gt;param('var2');
+my $var3 = $query-&gt;param('var3');
+my $var4 = $query-&gt;param('var4');
+my $var5 = $query-&gt;param('var5');
+my $var6 = $query-&gt;param('var6');
+my $var7 = $query-&gt;param('var7');
+my $var8 = $query-&gt;param('var8');
+my $var9 = $query-&gt;param('var9');
+my $var10 = $query-&gt;param('var10');&lt;/code&gt;
+Yikes.  At least he used CGI.pm, anyway.  Here's another example:
+&lt;code&gt;$report = generate_report($foo);
+open(FILE, "&gt;&gt;report.txt") or die "blah!";
+print FILE "Report number: $i";
+$i++;
+#
+# three lines to format header nicely
+#
+@report_lines = split(/\n/, $report);
+print FILE $report_lines[0];
+print FILE $report_lines[1];
+print FILE $report_lines[2];
+print FILE $report_lines[3];
+print FILE $report_lines[4];
+close FILE or die "blergh!";
+
+# skip a few
+$report = generate_report($bar);
+open(FILE, "&gt;&gt;report.txt") or die "blah!";
+print FILE "Report number: $i";
+$i++;
+#
+# format the header again
+#
+@report_lines = split(/\n/, $report);
+print FILE $report_lines[0];
+# you see where this is going&lt;/code&gt;
+
+&lt;h3&gt;Why it's a mistake:&lt;/h3&gt;
+Computers are supposed to make our lives easier.  Anonymous data structures,
+objects, loops, modules, macros, and templates are supposed to save effort.
+Why do people not get beyond cutting and pasting?
+&lt;p&gt;
+Problems arise, as they always do, when a throwaway program becomes important
+enough to keep around.  Those programs have a way of attracting deadlines --
+you'll have to add something, but you won't have time to do it right.  Repeat
+that another way.  There's no better time to do a program right than before
+anyone's depending on it.
+
+&lt;h3&gt;Why they do it:&lt;/h3&gt;
+Designing things that have to work just once is easy.  Designing things that
+have to work a few different ways is difficult.  Designing things that are
+flexible, powerful, and easily understood is even worse.  A few extra minutes of
+typing seems like a small price to pay for not having to think too hard under a
+time crunch.
+
+&lt;h3&gt;The solution:&lt;/h3&gt;
+If you find yourself duplicating functionality in different places, stop.
+Factor out the common elements and turn the variables into variables.
+Sometimes this means you've been trying the wrong approach.  Other times,
+you're not approaching the problem the right way.
+&lt;p&gt;
+A literal translation of the first, somewhat better:
+&lt;code&gt;my %vars;
+for (1 .. 10) {
+	$vars{"var$_"} = $query-&gt;param("var$_");
+}&lt;/code&gt;
+A whole lot better:
+&lt;code&gt;# change the form to use multiple selections with the same name
+my @vars = $query-&gt;param('var');
+# valid if you have a combobox or checkbox group&lt;/code&gt;
+
+The second is lots nicer:
+&lt;code&gt;{
+	my $num_displayed = 0;
+
+sub display_report {
+	my $data = shift;
+	my $report = generate_report($data);
+	open(FILE, "&gt;&gt;report.txt") or die "Can't append to report.txt: $!";
+	print FILE "Report number: $num_displayed";
+	$num_displayed++;
+	print FILE $report;
+}
+
+}	# end of enclosing scope for $num_displayed&lt;/code&gt;
+Some items lend themselves to functions more than others.  As you practice, you
+will improve at figuring out which things are important and which are variable.
+
+&lt;h2&gt;Fear of Documentation&lt;/h2&gt;
+
+&lt;h3&gt;The mistake:&lt;/h3&gt;
+Not typing 'perldoc perltoc'.
+
+&lt;h3&gt;Why it's a mistake:&lt;/h3&gt;
+The Camel has a list price of US $49.95.  Getting answers from 
+comp.lang.perl.misc, PerlMonks, and #Perl cost time and sometimes dignity.  If
+you have access to a computer with Perl on it, you have access to the
+documentation -- the source material from which much of the Camel springs.  (If
+you don't have the documentation, you have a more serious problem called "BoFH
+infestation".  You'll have to fumigate.)
+
+&lt;h3&gt;Why they do it:&lt;/h3&gt;
+Some people don't know the documentation is there.  A careful nudge "Hey, it's
+under the ActiveState program group or available by typing perldoc perltoc and
+browsing for a while" is all that's needed.  Others don't have the confidence
+in their own abilities or the laziness necessary to motivate themselves into
+being able to answer their own questions.
+
+&lt;h3&gt;The solution:&lt;/h3&gt;
+Read the FAQ ([perldoc] [perlfaq]).  Read perldoc [perldoc].  Learn how to search for
+builtin function docs (perldoc -f function).  Learn how to search the FAQ by
+keyword (perldoc -q keyword).  If you come across a word you don't know, see
+perldoc perltoc.  Yes, it takes a while.  So does learning to be a basketball
+player, a Bolivian cat herder, or an astroman.  But the documentation is always
+there, even when we're not.  When you don't have time to wait for a response
+from Usenet or the web, and when you're not in the mood to placate the IRC Ops,
+you'll be glad you know how to search your own hard drive for the answers.
+
+&lt;p&gt;&lt;strong&gt;Update:&lt;/strong&gt;  Fixed an unintentional typo in the first beginner code, thanks to [turnstep].  [chipmunk] is right... I'm open to writing a second-parter, so send me your suggestions.  Fixed a second unintentional typo in the second example, thanks to [erix].&lt;/p&gt;</field>
+</data>
+</node>

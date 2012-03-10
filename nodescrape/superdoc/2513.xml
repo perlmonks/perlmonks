@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="2513" title="What's my password?" created="2000-01-27 17:52:37" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+    my $username= $q-&gt;param('username');
+    my $email= $q-&gt;param('email');
+
+    my $form= join "\n",
+        "&lt;p&gt;",
+        "Forgot your username or password?  All we need is &lt;i&gt;one of",
+        "the following blanks&lt;/i&gt; filled in correctly and you should be",
+        "able to find the answers to your most perplexing question.",
+        "&lt;/p&gt;",
+        htmlcode('openform'),
+        $q-&gt;sethidden( 'op', 'lostpasswd' ),
+        "&lt;table&gt;&lt;tr&gt;",
+        "&lt;td&gt;Your username:&lt;/td&gt;&lt;td&gt;",
+        $q-&gt;textfield( 'username', '', '20' ),
+        '&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;',
+        '&lt;td&gt;Your email address:&lt;/td&gt;&lt;td&gt;',
+        $q-&gt;textfield( 'email', '', 20 ),
+        '&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td&gt;',
+        $q-&gt;submit( 'sexisgood', "Mail me my password, Cowboy" ),
+        '&lt;/tr&gt;&lt;/table&gt;',
+        $q-&gt;end_form(),
+    '';
+
+    return $form
+        if  'lostpasswd' ne $query-&gt;param('op')
+        ||      ! $username
+            &amp;&amp;  ! $email;
+
+    my $user;
+    if(  $username  ) {
+        $user= getNode( $username, 'user' );
+    } elsif(  $email  ) {
+        ( $user )= $DB-&gt;getNodeWhere(
+            { email =&gt; $email },
+            $DB-&gt;getType('user'),
+            'user_id',  # order by
+        );
+    }
+
+    my $html= '';
+    my $error= '';
+
+    if(  $user  ) {
+        my $msg= getNode( 'Password Mail', 'mail' );
+        local $msg-&gt;{doctext}= $msg-&gt;{doctext};
+        $msg-&gt;{doctext} =~ s/&lt;name&gt;/$user-&gt;{realname}/;
+        $msg-&gt;{doctext} =~ s/&lt;user&gt;/$user-&gt;{title}/;
+        $msg-&gt;{doctext} =~ s/&lt;passwd&gt;/$user-&gt;{passwd}/;
+        $msg-&gt;{doctext} =~ s/&lt;site_name&gt;/$HTMLVARS{site_name}/;
+        $msg-&gt;{doctext} =~ s/&lt;site_url&gt;/$HTMLVARS{site_url}/;
+
+        use Everything::MAIL;
+        my $error= node2mail( $user-&gt;{email}, $msg );
+
+        $DB-&gt;sqlInsert(
+            'emailpwd',
+            {
+                user_id =&gt; getId($user),
+                ip      =&gt; $ENV{REMOTE_ADDR},
+                email   =&gt; $user-&gt;{email},
+                reason  =&gt; sprintf(
+                    'Password request (%s)%s',
+                    $username ? 'username' : 'email',
+                    $error ? "? $error" : '.',
+                ),
+            }
+        );
+    }
+
+    if(  ! $username  ) {
+        # Don't even give away whether that e-mail is currently in use:
+        $html .= join "\n",
+            "&lt;p&gt;If you entered your e-mail address correctly, then",
+            "the information you seek should be on its way.&lt;/p&gt;",
+        '';
+    } elsif(  ! $user  ) {
+        $html .= join "\n",
+            "&lt;p&gt;We don't have a user by that name (&lt;tt&gt;",
+            $q-&gt;escapeHTML($username),
+            "&lt;/tt&gt;).  Please try again.&lt;/p&gt;",
+        '';
+    } elsif(  ! $error  ) {
+        $html .= join "\n",
+            "&lt;p&gt;Your password should be on its way.&lt;/p&gt;",
+        '';
+    } elsif(  ! Everything::isApproved(
+                    $USER, getNode('pmdev','usergroup')
+                )
+    ) {
+        $html .= join "\n",
+            "&lt;p&gt;Drat!  Something went wrong when we tried to send",
+            "you an e-mail,",
+            $q-&gt;escapeHTML($username).".",
+            "Perhaps try again later?&lt;/p&gt;",
+        '';
+    } else {
+        $error= $q-&gt;escapeHTML( $error );
+        $error =~ s/  /&amp;nbsp; /g;
+        $error =~ s{\n}{\n&lt;br /&gt;}g;
+        $html .= join "\n",
+            "&lt;p&gt;You should fix something because trying to send e-mail",
+            "generated the following error:&lt;/p&gt;&lt;p&gt;&lt;tt&gt;",
+            $error,
+            "&lt;/tt&gt;&lt;/p&gt;",
+        '';
+    }
+
+    return "$html&lt;hr /&gt;$form";
+%]
+</field>
+</data>
+</node>

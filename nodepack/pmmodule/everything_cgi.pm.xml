@@ -1,0 +1,93 @@
+<node>
+  <filetext>package Everything::CGI;
+
+#############################################################################
+#
+#	Everything::CGI.pm
+#
+#		Overrides some features of the standard CGI.pm
+#
+#############################################################################
+
+use strict;
+use base qw( CGI );
+use vars qw( $VERSION );
+$VERSION= '1.002';
+
+
+######################################################################
+#	sub
+#		escapeHTML
+#
+#	purpose
+#		Like CGI::escapeHTML but also escapes [ and ].
+#
+sub escapeHTML {
+  my( $self, $string )= @_;
+  $string= $self-&gt;SUPER::escapeHTML( $string );
+
+  $string =~ s.\[.&amp;#91;.g;
+  $string =~ s.\].&amp;#93;.g;
+
+  return $string;
+}
+
+sub Tr { my $self= shift(@_); return $self-&gt;SUPER::Tr(@_) . &quot;\n&quot; }
+
+sub sethidden {
+    my( $self, $name, @values )= @_;
+    return join &quot;\n&quot;,
+        map(
+            $self-&gt;hidden( -name =&gt; $name, -value =&gt; $_, -force =&gt; 1 ),
+            @values,
+        );
+}
+
+sub tag {
+    my $self= shift @_;
+    my $tag=  shift @_;
+    my $html= &quot;&lt;$tag&quot;;
+    while(  1 &lt; @_  ) {
+        my( $attrib, $value )= splice @_, 0, 2;
+        _tag_usage( &quot;No - on '$attrib'&quot; )
+            if  $attrib !~ /^-/;
+        $html .= join '',
+            &quot; $attrib=\&quot;&quot;,
+            $self-&gt;escapeHTML( $value ),
+            '&quot;';
+    }
+    if(  @_  ) {
+        my $end= shift @_;
+        _tag_usage( &quot;Odd last arg of '$end' not '/'&quot; )
+            if  '/' ne $end;
+        $html .= &quot; /&quot;;
+    }
+    return $html . '&gt;';
+}
+
+sub _tag_usage {
+    _croak(
+        &quot;Usage: \$q-&gt;tag( 'img', -src=&gt;\$url, '/' ): &quot;, @_,
+    )
+}
+
+sub _croak {
+    require Carp;
+    Carp::croak( @_ );
+}
+
+#############################################################################
+# End of package
+#############################################################################
+
+1;
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-05-10 12:14:59</createtime>
+  <node_id>165690</node_id>
+  <filerequired></filerequired>
+  <title>Everything/CGI.pm</title>
+  <nodeupdated>2005-08-13 05:26:11</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

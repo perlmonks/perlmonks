@@ -1,0 +1,156 @@
+<node>
+  <doctext>&lt;p&gt;
+[{openform}]
+[{checkvar:typetree_implicit_node,Node Relationship is Implicit}]&lt;br /&gt;
+[{checkvar:typetree_no_detail,No Detail}]&lt;br /&gt;
+[{closeform}]&lt;br /&gt;
+&lt;/p&gt;
+[%
+
+local *build=sub {
+    my $hash = shift;
+    my $recs = shift || [];
+    my $row  = shift || 0;
+    my $dbtables = shift || [];
+    my $parent_id=shift || 0;
+    my $parent_title=shift || '';
+    unless (ref $hash) {
+        return 1;
+    }
+    my $count=0;
+    my @keys=sort {$a&lt;=&gt;$b} keys %$hash;
+
+    my $no_detail=$VARS-&gt;{typetree_no_detail};
+
+    foreach my $node_id (@keys) {
+        my $node=$hash-&gt;{$node_id};
+
+        my @mytables=map { s/\s+//g; $_ ? $_ : () }
+                         split /,/,$node-&gt;{sqltable};
+        unless ($node-&gt;{extends_nodetype}) {
+          my %dupe;
+          @mytables=grep !$dupe{$_}++,'node',@mytables;
+        }
+        my @alltables=(@mytables,@$dbtables);
+        my @html;
+        unless ($no_detail) {
+            @html=('&lt;table&gt;',
+                 &quot;&lt;tr&gt;&lt;th colspan=2&gt;&lt;a name='nodetype_$node_id'&gt;&lt;/a&gt;&quot;
+                 . linkNode($node).'&lt;/th&gt;&lt;/tr&gt;',
+                 &quot;&lt;tr&gt;&lt;td&gt;&lt;small&gt;ID:&lt;/small&gt;&lt;/td&gt;&lt;td&gt;&lt;small&gt;$node_id&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;&quot;);
+
+            my @tables=((map { linkNode(getNode($_,&quot;dbtable&quot;))||&quot;$_&quot; } @mytables),
+                       (map { &quot;&lt;i&gt;&quot;.(linkNode(getNode($_,&quot;dbtable&quot;))||&quot;$_&quot;).&quot;&lt;/i&gt;&quot; }
+                           @$dbtables));
+            my $pagehash={target=&gt;$node,short=&gt;1,direct=&gt;1};
+            my $display=htmlcode('get_display_types','',$pagehash);
+            if ($display) {
+              push @html,&quot;&lt;tr&gt;&lt;td&gt;&lt;small&gt;Display types:&lt;/small&gt;&lt;/td&gt;&quot;.
+                         &quot;&lt;td&gt;&lt;small&gt;$display&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;&quot;;
+            }
+            if (@tables) {
+                push @html,
+                     '&lt;tr&gt;&lt;td&gt;&lt;small&gt;DB table' .
+                     (@tables&gt;1 ? 's' : '') .
+                     ':&lt;/small&gt;&lt;/td&gt;&lt;td&gt;&lt;small&gt;'.
+                     join( &quot;, &quot;,@tables) .
+                     '&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;';
+            }
+            foreach my $key (sort keys %$node) {
+                next unless $key=~/_user$/ and $node-&gt;{$key};
+                (my $t=$key)=~s/_user$//;
+                $t=~s/_/ /g;
+                $t=ucfirst($t);
+                push @html,&quot;&lt;tr&gt;&lt;td&gt;&lt;small&gt;$t:&lt;/small&gt;&lt;/td&gt;&lt;td&gt;&lt;small&gt;&quot;
+                            . ($node-&gt;{$key}=~/\D/
+                               ? &quot;&lt;b&gt;$node-&gt;{$key}&lt;/b&gt;&quot;
+                               : linkNode($node-&gt;{$key}))
+                            . &quot;&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;&quot;
+            }
+            if ($node-&gt;{grouptable}) {
+                push @html,&quot;&lt;tr&gt;&lt;td&gt;&lt;small&gt;Group table:&lt;/small&gt;&lt;/td&gt;&quot;
+                            . &quot;&lt;td&gt;&lt;small&gt;&quot;
+                            . linkNode(getNode($node-&gt;{grouptable},'dbtable'))
+                            . &quot;&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;&quot;
+            }
+            my ($typecount)=$dbh-&gt;selectrow_array(qq[
+                 select count(*) from node where type_nodetype=?
+              ],{},$node_id);
+
+            push @html,&quot;&lt;tr&gt;&lt;td&gt;&lt;small&gt;Nodes:&lt;/small&gt;&lt;/td&gt;&quot;.
+                 &quot;&lt;td&gt;&lt;small&gt;&quot;.linkNode( getNode( &quot;Node Lister&quot;, &quot;superdoc&quot; ),
+                        $typecount||'None',
+                        { 'whichtype' =&gt; $node_id }
+              ).&quot;&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;&quot;;
+            if ($parent_id) {
+                push @html,&quot;&lt;tr&gt;&lt;td&gt;&lt;small&gt;Parent:&lt;/small&gt;&lt;/td&gt;&quot;.
+                    &quot;&lt;td&gt;&lt;small&gt;&quot;.
+                    &quot;&lt;a href='#nodetype_$parent_id'&gt;$parent_title&lt;/a&gt;&quot;.
+                    &quot;&lt;/small&gt;&lt;/td&gt;&lt;/tr&gt;&quot;;
+            }
+            push @html,'&lt;/table&gt;';
+        } else {
+            push @html,&quot;&lt;a name='nodetype_$node_id'&gt;&lt;/a&gt;&quot;
+                 . linkNode($node);
+        }
+        my $children=build($node-&gt;{children},$recs,$row+$count,
+                           \@alltables,$node_id,$node-&gt;{title});
+
+        unshift @{$recs-&gt;[$row+$count]},
+             &quot;&lt;td valign='top' &quot;
+             . ($children&gt;1 ? &quot; rowspan='$children'&quot; : &quot;&quot;)
+             . &quot;&gt;@html&lt;/td&gt;&quot;;
+        $count+=$children;
+    }
+    $count;
+};
+
+my $implicit_node=$VARS-&gt;{typetree_implicit_node};
+
+my $dbh=$DB-&gt;getDatabaseHandle();
+my $rows=$dbh-&gt;selectall_arrayref(qq[
+  select * from nodetype,node
+    where node_id=nodetype_id
+    order by extends_nodetype,nodetype_id
+],{Slice=&gt;{}});
+my %hash;
+my @roots;
+my %roots;
+foreach my $node (@$rows) {
+  my $node_id=$node-&gt;{nodetype_id};
+  if ($hash{$node_id}) {
+    $hash{$node_id}{$_}=$node-&gt;{$_} for keys %$node;
+    $node=$hash{$node_id};
+  } else {
+     $hash{$node_id}=$node;
+  }
+  my $ext_id=$node-&gt;{extends_nodetype};
+  if ($ext_id and $ext_id!=7) {
+     $hash{$ext_id}{children}{$node_id}=$node;
+  } else {
+     $ext_id=7;
+     if ($implicit_node || $node_id == 7) {
+       push @roots,$node;
+       $roots{$node_id}=$node;
+     } else {
+       $hash{$ext_id}{children}{$node_id}=$node;
+     }
+  }
+}
+
+my @r;
+build(\%roots,\@r);
+join &quot;\n&quot;,
+   &quot;&lt;table border='1'&gt;\n&quot;,
+     (map { &quot;  &lt;tr&gt;&quot;.join(&quot;&quot;,@$_).&quot;&lt;/tr&gt;\n&quot; } @r),
+   &quot;&lt;/table&gt;\n&quot;;
+%]
+
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>386578</node_id>
+  <author_user>106850</author_user>
+  <title>Type Tree</title>
+  <createtime>2004-08-28 04:33:11</createtime>
+  <nodeupdated>2005-08-22 15:40:20</nodeupdated>
+</node>

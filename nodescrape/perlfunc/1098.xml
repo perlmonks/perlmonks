@@ -1,0 +1,1584 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1098" title="perlman:lib:CGI" created="1999-12-22 19:49:23" updated="2005-08-15 06:09:15">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; - Simple Common Gateway Interface Class
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+&lt;p&gt;
+&lt;pre&gt;      use CGI qw/:standard/;
+      print header,
+            start_html('A Simple Example'),
+            h1('A Simple Example'),
+            start_form,
+      # ...
+&lt;/pre&gt;
+</field>
+<field name="description">
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="PROGRAMMING_STYLE"&gt;PROGRAMMING STYLE&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are two styles of programming with CGI.pm, an object-oriented style and a function-oriented style. In the object-oriented style you create one or more 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; objects and then use object methods to create the various elements of the page. Each 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object starts out with the list of named parameters that were passed to your 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script by the server. You can modify the objects, save them to a file or database and recreate them. Because each object corresponds to the ``state'' of the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script, and because each object's parameter list is independent of the others, this allows you to save the state of the script and restore it later.
+&lt;P&gt;
+For example, using the object oriented style, here is now you create a simple ``Hello World'' 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; page:
+&lt;P&gt;
+&lt;PRE&gt;   #!/usr/local/bin/perl
+   use CGI;                             # load CGI routines
+   $q = new CGI;                        # create new CGI object
+   print $q-&amp;gt;header,                    # create the HTTP header
+         $q-&amp;gt;start_html('hello world'), # start the HTML
+         $q-&amp;gt;h1('hello world'),         # level 1 header
+         $q-&amp;gt;end_html;                  # end the HTML
+&lt;/PRE&gt;
+&lt;P&gt;
+In the function-oriented style, there is one default 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object that you rarely deal with directly. Instead you just call functions to retrieve 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; parameters, create 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tags, manage cookies, and so on. This provides you with a cleaner programming interface, but limits you to using one 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object at a time. The following example prints the same page, but uses the function-oriented interface. The main differences are that we now need to import a set of functions into our name space (usually the ``standard'' functions), and we don't need to create the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object.
+&lt;P&gt;
+&lt;PRE&gt;   #!/usr/local/bin/pelr
+   use CGI qw/:standard/;           # load standard CGI routines
+   print header,                    # create the HTTP header
+         start_html('hello world'), # start the HTML
+         h1('hello world'),         # level 1 header
+         end_html;                  # end the HTML
+&lt;/PRE&gt;
+&lt;P&gt;
+The examples in this document mainly use the object-oriented style. See 
+&lt;FONT SIZE=-1&gt;HOW&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;TO&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;IMPORT&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FUNCTIONS&lt;/FONT&gt; for important information on function-oriented programming in CGI.pm
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="CALLING_CGI_PM_ROUTINES"&gt;CALLING CGI.PM ROUTINES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Most CGI.pm routines accept several arguments, sometimes as many as 20
+optional ones! To simplify this interface, all routines use a named
+argument calling style that looks like this:
+
+&lt;P&gt;
+&lt;PRE&gt;   print $q-&amp;gt;header(-type=&amp;gt;'image/gif',-expires=&amp;gt;'+3d');
+&lt;/PRE&gt;
+&lt;P&gt;
+Each argument name is preceded by a dash. Neither case nor order matters in the argument list. -type, -Type, and 
+&lt;FONT SIZE=-1&gt;-TYPE&lt;/FONT&gt; are all acceptable. In fact, only the first argument needs to begin with a dash. If a dash is present in the first argument, CGI.pm assumes dashes for the subsequent ones.
+&lt;P&gt;
+You don't have to use the hyphen at allif you don't want to. After creating a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object, call the
+ &lt;STRONG&gt;use_named_parameters()&lt;/STRONG&gt; method with a nonzero value. This will tell CGI.pm that you intend to use
+named parameters exclusively:
+&lt;P&gt;
+&lt;PRE&gt;   $query = new CGI;
+   $query-&amp;gt;use_named_parameters(1);
+   $field = $query-&amp;gt;radio_group('name'=&amp;gt;'OS',
+                                'values'=&amp;gt;&amp;#091;'Unix','Windows','Macintosh'&amp;#093;,
+                                'default'=&amp;gt;'Unix');
+&lt;/PRE&gt;
+&lt;P&gt;
+Several routines are commonly called with just one argument. In the case of these routines you can provide the single argument without an argument name. 
+&lt;CODE&gt;header()&lt;/CODE&gt; happens to be one of these routines. In this case, the single argument is the document type.
+&lt;P&gt;
+&lt;PRE&gt;   print $q-&amp;gt;header('text/html');
+&lt;/PRE&gt;
+&lt;P&gt;
+Other such routines are documented below.
+&lt;P&gt;
+Sometimes named arguments expect a scalar, sometimes a reference to an array, and sometimes a reference to a hash. Often, you can pass any type of argument and the routine will do whatever is most appropriate. For example, the 
+&lt;CODE&gt;param()&lt;/CODE&gt; routine is used to set a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; parameter to a single or a multi-valued value. The two cases are shown below:
+&lt;P&gt;
+&lt;PRE&gt;   $q-&amp;gt;param(-name=&amp;gt;'veggie',-value=&amp;gt;'tomato');
+   $q-&amp;gt;param(-name=&amp;gt;'veggie',-value=&amp;gt;'&amp;#091;tomato','tomahto','potato','potahto'&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; large number of routines in CGI.pm actually aren't specifically defined in the module, but are generated automatically as needed. These are the 
+&lt;FONT SIZE=-1&gt;``HTML&lt;/FONT&gt; shortcuts,'' routines that generate 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tags for use in dynamically-generated pages. 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tags have both attributes (the attribute=``value'' pairs within the tag itself) and contents (the part between the opening and closing pairs.) To distinguish between attributes and contents, CGI.pm uses the convention of passing 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; attributes as a hash reference as the first argument, and the contents, if any, as any subsequent arguments. It works out like this:
+&lt;P&gt;
+&lt;PRE&gt;   Code                           Generated HTML
+   ----                           --------------
+   h1()                           &amp;lt;H1&amp;gt;
+   h1('some','contents');         &amp;lt;H1&amp;gt;some contents&amp;lt;/H1&amp;gt;
+   h1({-align=&amp;gt;left});            &amp;lt;H1 ALIGN=&amp;quot;LEFT&amp;quot;&amp;gt;
+   h1({-align=&amp;gt;left},'contents'); &amp;lt;H1 ALIGN=&amp;quot;LEFT&amp;quot;&amp;gt;contents&amp;lt;/H1&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tags are described in more detail later.  
+&lt;P&gt;
+Many newcomers to CGI.pm are puzzled by the difference between the calling conventions for the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; shortcuts, which require curly braces around the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag attributes, and the calling conventions for other routines, which manage to generate attributes without the curly brackets. Don't be confused. As a convenience the curly braces are optional in all but the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; shortcuts. If you like, you can use curly braces when calling any routine that takes named arguments. For example:
+&lt;P&gt;
+&lt;PRE&gt;   print $q-&amp;gt;header( {-type=&amp;gt;'image/gif',-expires=&amp;gt;'+3d'} );
+&lt;/PRE&gt;
+&lt;P&gt;
+If you use the &lt;STRONG&gt;-w&lt;/STRONG&gt; switch, you will be warned that some CGI.pm argument names conflict with
+built-in Perl functions. The most frequent of these is the -values
+argument, used to create multi-valued menus, radio button clusters and the
+like. To get around this warning, you have several choices:
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_Use_another_name_for_the_argumen"&gt;Use another name for the argument, if one is available.  For
+example, -value is an alias for -values.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_Change_the_capitalization_e_g_"&gt;Change the capitalization, e.g. -Values&lt;/A&gt;&lt;/STRONG&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_Put_quotes_around_the_argument_n"&gt;Put quotes around the argument name, e.g. '-values'&lt;/A&gt;&lt;/STRONG&gt;
+&lt;/OL&gt;
+&lt;P&gt;
+Many routines will do something useful with a named argument that it doesn't recognize. For example, you can produce non-standard 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header fields by providing them as named arguments:
+&lt;P&gt;
+&lt;PRE&gt;  print $q-&amp;gt;header(-type  =&amp;gt;  'text/html',
+                   -cost  =&amp;gt;  'Three smackers',
+                   -annoyance_level =&amp;gt; 'high',
+                   -complaints_to   =&amp;gt; 'bit bucket');
+&lt;/PRE&gt;
+&lt;P&gt;
+This will produce the following nonstandard 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header:
+
+&lt;P&gt;
+&lt;PRE&gt;   HTTP/1.0 200 OK
+   Cost: Three smackers
+   Annoyance-level: high
+   Complaints-to: bit bucket
+   Content-type: text/html
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice the way that underscores are translated automatically into hyphens.
+HTML-generating routines perform a different type of translation. 
+
+&lt;P&gt;
+This feature allows you to keep up with the rapidly changing 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; ``standards''.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="CREATING_A_NEW_QUERY_OBJECT_OBJ"&gt;CREATING A NEW QUERY OBJECT (OBJECT-ORIENTED STYLE):&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $query = new CGI;
+&lt;/PRE&gt;
+&lt;P&gt;
+This will parse the input (from both 
+&lt;FONT SIZE=-1&gt;POST&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;GET&lt;/FONT&gt; methods) and store it into a perl5 object called $query.
+  
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="CREATING_A_NEW_QUERY_OBJECT_FROM"&gt;CREATING A NEW QUERY OBJECT FROM AN INPUT FILE&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $query = new CGI(INPUTFILE);
+&lt;/PRE&gt;
+&lt;P&gt;
+If you provide a file handle to the 
+&lt;CODE&gt;new()&lt;/CODE&gt; method, it will read parameters from the file (or 
+&lt;FONT SIZE=-1&gt;STDIN,&lt;/FONT&gt; or whatever). The file can be in any of the forms describing below under debugging (i.e. a series of newline delimited 
+&lt;FONT SIZE=-1&gt;TAG=VALUE&lt;/FONT&gt; pairs will work). Conveniently, this type of file is created by the 
+&lt;CODE&gt;save()&lt;/CODE&gt; method (see below). Multiple records can be saved and restored.
+
+&lt;P&gt;
+Perl purists will be pleased to know that this syntax accepts references to
+file handles, or even references to filehandle globs, which is the
+``official'' way to pass a filehandle:
+
+&lt;P&gt;
+&lt;PRE&gt;    $query = new CGI(\*STDIN);
+&lt;/PRE&gt;
+&lt;P&gt;
+You can also initialize the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object with a FileHandle or IO::File object.
+
+&lt;P&gt;
+If you are using the function-oriented interface and want to initialize 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; state from a file handle, the way to do this is
+with
+&lt;STRONG&gt;restore_parameters()&lt;/STRONG&gt;. This will (re)initialize the default 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object from the indicated file handle.
+
+&lt;P&gt;
+&lt;PRE&gt;    open (IN,&amp;quot;test.in&amp;quot;) || die;
+    restore_parameters(IN);
+    close IN;
+&lt;/PRE&gt;
+&lt;P&gt;
+You can also initialize the query object from an associative array
+reference:
+
+&lt;P&gt;
+&lt;PRE&gt;    $query = new CGI( {'dinosaur'=&amp;gt;'barney',
+                       'song'=&amp;gt;'I love you',
+                       'friends'=&amp;gt;&amp;#091;qw/Jessica George Nancy/&amp;#093;}
+                    );
+&lt;/PRE&gt;
+&lt;P&gt;
+or from a properly formatted, URL-escaped query string:
+
+&lt;P&gt;
+&lt;PRE&gt;    $query = new CGI('dinosaur=barney&amp;amp;color=purple');
+&lt;/PRE&gt;
+&lt;P&gt;
+or from a previously existing 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object (currently this clones the parameter list,
+but none of the other object-specific fields, such as autoescaping):
+
+&lt;P&gt;
+&lt;PRE&gt;    $old_query = new CGI;
+    $new_query = new CGI($old_query);
+&lt;/PRE&gt;
+&lt;P&gt;
+To create an empty query, initialize it from an empty string or hash:
+
+&lt;P&gt;
+&lt;PRE&gt;   $empty_query = new CGI(&amp;quot;&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;       -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   $empty_query = new CGI({});
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="FETCHING_A_LIST_OF_KEYWORDS_FROM"&gt;FETCHING A LIST OF KEYWORDS FROM THE QUERY:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     @keywords = $query-&amp;gt;keywords
+&lt;/PRE&gt;
+&lt;P&gt;
+If the script was invoked as the result of an 
+&lt;FONT SIZE=-1&gt;&amp;lt;ISINDEX&amp;gt;&lt;/FONT&gt; search, the parsed keywords can be obtained as an array using the 
+&lt;CODE&gt;keywords()&lt;/CODE&gt; method.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="FETCHING_THE_NAMES_OF_ALL_THE_PA"&gt;FETCHING THE NAMES OF ALL THE PARAMETERS PASSED TO YOUR SCRIPT:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     @names = $query-&amp;gt;param
+&lt;/PRE&gt;
+&lt;P&gt;
+If the script was invoked with a parameter list (e.g. ``name1=value1&amp;amp;name2=value2&amp;amp;name3=value3''), the 
+&lt;CODE&gt;param()&lt;/CODE&gt; method will return the parameter names as a list. If the script was invoked as an 
+&lt;FONT SIZE=-1&gt;&amp;lt;ISINDEX&amp;gt;&lt;/FONT&gt; script, there will be a single parameter named 'keywords'.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NOTE:&lt;/FONT&gt; As of version 1.5, the array of parameter names
+returned will be in the same order as they were submitted by the browser.
+Usually this order is the same as the order in which the parameters are
+defined in the form (however, this isn't part of the spec, and so isn't
+guaranteed).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="FETCHING_THE_VALUE_OR_VALUES_OF_"&gt;FETCHING THE VALUE OR VALUES OF A SINGLE NAMED PARAMETER:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @values = $query-&amp;gt;param('foo');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;              -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $value = $query-&amp;gt;param('foo');
+&lt;/PRE&gt;
+&lt;P&gt;
+Pass the 
+&lt;CODE&gt;param()&lt;/CODE&gt; method a single
+argument to fetch the value of the named parameter. If the parameter is
+multivalued (e.g. from multiple selections in a scrolling list), you can
+ask to receive an array. Otherwise the method will return a single value.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="SETTING_THE_VALUE_S_OF_A_NAMED_"&gt;SETTING THE VALUE(S) OF A NAMED PARAMETER:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $query-&amp;gt;param('foo','an','array','of','values');
+&lt;/PRE&gt;
+&lt;P&gt;
+This sets the value for the named parameter 'foo' to an array of values. This is one way to change the value of a field 
+&lt;FONT SIZE=-1&gt;AFTER&lt;/FONT&gt; the script has been invoked once before. (Another way is with the -override parameter accepted by all methods that generate form elements.)
+
+&lt;P&gt;
+
+&lt;CODE&gt;param()&lt;/CODE&gt; also recognizes a
+named parameter style of calling described in more detail later:
+
+&lt;P&gt;
+&lt;PRE&gt;    $query-&amp;gt;param(-name=&amp;gt;'foo',-values=&amp;gt;&amp;#091;'an','array','of','values'&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                              -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $query-&amp;gt;param(-name=&amp;gt;'foo',-value=&amp;gt;'the value');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="APPENDING_ADDITIONAL_VALUES_TO_A"&gt;APPENDING ADDITIONAL VALUES TO A NAMED PARAMETER:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   $query-&amp;gt;append(-name=&amp;gt;'foo',-values=&amp;gt;&amp;#091;'yet','more','values'&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+This adds a value or list of values to the named parameter. The values are
+appended to the end of the parameter if it already exists. Otherwise the
+parameter is created. Note that this method only recognizes the named
+argument calling syntax.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="IMPORTING_ALL_PARAMETERS_INTO_A_"&gt;IMPORTING ALL PARAMETERS INTO A NAMESPACE:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   $query-&amp;gt;import_names('R');
+&lt;/PRE&gt;
+&lt;P&gt;
+This creates a series of variables in the 
+&lt;FONT SIZE=-1&gt;'R'&lt;/FONT&gt; namespace. For example, $R::foo, @R:foo. For keyword lists, a variable @R::keywords will appear. If no namespace is given, this method will assume 
+&lt;FONT SIZE=-1&gt;'Q'.&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;WARNING:&lt;/FONT&gt; don't import anything into 'main'; this is a major security risk!!!!
+
+&lt;P&gt;
+In older versions, this method was called &lt;STRONG&gt;import()&lt;/STRONG&gt;. As of version 2.20, this name has been removed completely to avoid
+conflict with the built-in Perl module &lt;STRONG&gt;import&lt;/STRONG&gt; operator.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="DELETING_A_PARAMETER_COMPLETELY_"&gt;DELETING A PARAMETER COMPLETELY:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $query-&amp;gt;delete('foo');
+&lt;/PRE&gt;
+&lt;P&gt;
+This completely clears a parameter. It sometimes useful for resetting
+parameters that you don't want passed down between script invocations.
+
+&lt;P&gt;
+If you are using the function call interface, use ``Delete()'' instead to
+avoid conflicts with Perl's built-in delete operator.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="DELETING_ALL_PARAMETERS_"&gt;DELETING ALL PARAMETERS:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   $query-&amp;gt;delete_all();
+&lt;/PRE&gt;
+&lt;P&gt;
+This clears the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object completely. It might be useful to ensure
+that all the defaults are taken when you create a fill-out form.
+
+&lt;P&gt;
+Use 
+&lt;CODE&gt;Delete_all()&lt;/CODE&gt; instead if
+you are using the function call interface.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="DIRECT_ACCESS_TO_THE_PARAMETER_L"&gt;DIRECT ACCESS TO THE PARAMETER LIST:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   $q-&amp;gt;param_fetch('address')-&amp;gt;&amp;#091;1&amp;#093; = '1313 Mockingbird Lane';
+   unshift @{$q-&amp;gt;param_fetch(-name=&amp;gt;'address')},'George Munster';
+&lt;/PRE&gt;
+&lt;P&gt;
+If you need access to the parameter list in a way that isn't covered by the
+methods above, you can obtain a direct reference to it by calling the &lt;STRONG&gt;param_fetch()&lt;/STRONG&gt; method with the name of the . This will return an array reference to the
+named parameters, which you then can manipulate in any way you like.
+
+&lt;P&gt;
+You can also use a named argument style using the &lt;STRONG&gt;-name&lt;/STRONG&gt; argument.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="SAVING_THE_STATE_OF_THE_SCRIPT_T"&gt;SAVING THE STATE OF THE SCRIPT TO A FILE:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $query-&amp;gt;save(FILEHANDLE)
+&lt;/PRE&gt;
+&lt;P&gt;
+This will write the current state of the form to the provided filehandle. You can read it back in by providing a filehandle to the 
+&lt;CODE&gt;new()&lt;/CODE&gt; method. Note that the filehandle can be a file, a pipe, or whatever!
+
+&lt;P&gt;
+The format of the saved file is:
+
+&lt;P&gt;
+&lt;PRE&gt;        NAME1=VALUE1
+        NAME1=VALUE1'
+        NAME2=VALUE2
+        NAME3=VALUE3
+        =
+&lt;/PRE&gt;
+&lt;P&gt;
+Both name and value are 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; escaped. Multi-valued 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; parameters are represented as repeated names. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; session record is delimited by a single = symbol. You can write out multiple records and read them back in with several calls to
+ &lt;STRONG&gt;new&lt;/STRONG&gt;. You can do this across several sessions by opening the file in append
+mode, allowing you to create primitive guest books, or to keep a history of
+users' queries. Here's a short example of creating multiple session
+records:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   open (OUT,&amp;quot;&amp;gt;&amp;gt;test.out&amp;quot;) || die;
+   $records = 5;
+   foreach (0..$records) {
+       my $q = new CGI;
+       $q-&amp;gt;param(-name=&amp;gt;'counter',-value=&amp;gt;$_);
+       $q-&amp;gt;save(OUT);
+   }
+   close OUT;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   # reopen for reading
+   open (IN,&amp;quot;test.out&amp;quot;) || die;
+   while (!eof(IN)) {
+       my $q = new CGI(IN);
+       print $q-&amp;gt;param('counter'),&amp;quot;\n&amp;quot;;
+   }
+&lt;/PRE&gt;
+&lt;P&gt;
+The file format used for save/restore is identical to that used by the
+Whitehead Genome Center's data exchange format ``Boulderio'', and can be
+manipulated and even databased using Boulderio utilities. See &lt;A
+HREF="http://www.genome.wi.mit.edu/genome_software/other/boulder.html"&gt;http://www.genome.wi.mit.edu/genome_software/other/boulder.html&lt;/A&gt;
+
+&lt;P&gt;
+for further details.
+
+&lt;P&gt;
+If you wish to use this method from the function-oriented (non-OO)
+interface, the exported name for this method is &lt;STRONG&gt;save_parameters()&lt;/STRONG&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="USING_THE_FUNCTION_ORIENTED_INTE"&gt;USING THE FUNCTION-ORIENTED INTERFACE&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+To use the function-oriented interface, you must specify which CGI.pm
+routines or sets of routines to import into your script's namespace. There
+is a small overhead associated with this importation, but it isn't much.
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI &amp;lt;list of methods&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+The listed methods will be imported into the current package; you can call them directly without creating a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object first. This example shows how to import the
+ &lt;STRONG&gt;param()&lt;/STRONG&gt; and &lt;STRONG&gt;header()&lt;/STRONG&gt;
+methods, and then use them directly:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI 'param','header';
+   print header('text/plain');
+   $zipcode = param('zipcode');
+&lt;/PRE&gt;
+&lt;P&gt;
+More frequently, you'll import common sets of functions by referring to the gropus by name. All function sets are preceded with a ``:'' character as in ``:html3'' (for tags defined in the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; 3 standard).
+
+&lt;P&gt;
+Here is a list of the function sets you can import:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__cgi"&gt;:cgi&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all CGI-handling methods, such as &lt;STRONG&gt;param()&lt;/STRONG&gt;, &lt;STRONG&gt;path_info()&lt;/STRONG&gt;
+and the like.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__form"&gt;:form&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all fill-out form generating methods, such as &lt;STRONG&gt;textfield()&lt;/STRONG&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__html2"&gt;:html2&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all methods that generate 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; 2.0 standard elements.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__html3"&gt;:html3&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all methods that generate 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; 3.0 proposed elements (such as &amp;lt;table&amp;gt;,
+&amp;lt;super&amp;gt; and &amp;lt;sub&amp;gt;).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__netscape"&gt;:netscape&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all methods that generate Netscape-specific 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; extensions.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__html"&gt;:html&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all HTML-generating shortcuts (i.e. 'html2' + 'html3' +
+'netscape')...
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__standard"&gt;:standard&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import ``standard'' features, 'html2', 'html3', 'form' and 'cgi'.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__all"&gt;:all&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Import all the available methods. For the full list, see the CGI.pm code,
+where the variable &lt;CODE&gt;%TAGS&lt;/CODE&gt; is defined.
+
+&lt;/DL&gt;
+&lt;P&gt;
+If you import a function name that is not part of CGI.pm, the module will treat it as a new 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag and generate the appropriate subroutine. You can then use it like any other 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag. This is to provide for the rapidly-evolving 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; ``standard.'' For example, say Microsoft comes out with a new tag called 
+&lt;FONT SIZE=-1&gt;&amp;lt;GRADIENT&amp;gt;&lt;/FONT&gt; (which causes the user's desktop to be flooded with a rotating gradient fill until his machine reboots). You don't need to wait for a new version of CGI.pm to start using it immeidately:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw/:standard :html3 gradient/;
+   print gradient({-start=&amp;gt;'red',-end=&amp;gt;'blue'});
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that in the interests of execution speed CGI.pm does &lt;STRONG&gt;not&lt;/STRONG&gt; use the standard [perlman:lib:Exporter|Exporter] syntax for specifying load symbols. This may change in the future.
+
+&lt;P&gt;
+If you import any of the state-maintaining 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; or form-generating methods, a default 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object will be created and initialized automatically the first time you use any of the methods that require one to be present. This includes
+ &lt;STRONG&gt;param()&lt;/STRONG&gt;, &lt;STRONG&gt;textfield()&lt;/STRONG&gt;,
+&lt;STRONG&gt;submit()&lt;/STRONG&gt; and the like. (If you need direct access to the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object, you can find it in the global variable &lt;STRONG&gt;$CGI::Q&lt;/STRONG&gt;). By importing CGI.pm methods, you can create visually elegant scripts:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw/:standard/;
+   print 
+       header,
+       start_html('Simple Script'),
+       h1('Simple Script'),
+       start_form,
+       &amp;quot;What's your name? &amp;quot;,textfield('name'),p,
+       &amp;quot;What's the combination?&amp;quot;,
+       checkbox_group(-name=&amp;gt;'words',
+                      -values=&amp;gt;&amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                      -defaults=&amp;gt;&amp;#091;'eenie','moe'&amp;#093;),p,
+       &amp;quot;What's your favorite color?&amp;quot;,
+       popup_menu(-name=&amp;gt;'color',
+                  -values=&amp;gt;&amp;#091;'red','green','blue','chartreuse'&amp;#093;),p,
+       submit,
+       end_form,
+       hr,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if (param) {
+       print 
+           &amp;quot;Your name is &amp;quot;,em(param('name')),p,
+           &amp;quot;The keywords are: &amp;quot;,em(join(&amp;quot;, &amp;quot;,param('words'))),p,
+           &amp;quot;Your favorite color is &amp;quot;,em(param('color')),&amp;quot;.\n&amp;quot;;
+    }
+    print end_html;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="PRAGMAS"&gt;PRAGMAS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In addition to the function sets, there are a number of pragmas that you can import. Pragmas, which are always preceded by a hyphen, change the way that CGI.pm functions in various ways. Pragmas, function sets, and individual functions can all be imported in the same 
+&lt;CODE&gt;use()&lt;/CODE&gt; line. For example, the following use statement imports the standard set of functions and disables debugging mode (pragma -no_debug):
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw/:standard -no_debug/;
+&lt;/PRE&gt;
+&lt;P&gt;
+The current list of pragmas is as follows:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__any"&gt;-any&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+When you &lt;EM&gt;use CGI -any&lt;/EM&gt;, then any method that the query object doesn't recognize will be interpreted as a new 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag. This allows you to support the next
+ &lt;EM&gt;ad hoc&lt;/EM&gt; Netscape or Microsoft 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; extension. This lets you go wild with new and
+unsupported tags:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw(-any);
+   $q=new CGI;
+   print $q-&amp;gt;gradient({speed=&amp;gt;'fast',start=&amp;gt;'red',end=&amp;gt;'blue'});
+&lt;/PRE&gt;
+&lt;P&gt;
+Since using &amp;lt;cite&amp;gt;any&amp;lt;/cite&amp;gt; causes any mistyped method name to be interpreted as an 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag, use it with care or not at all.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__compile"&gt;-compile&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This causes the indicated autoloaded methods to be compiled up front,
+rather than deferred to later. This is useful for scripts that run for an
+extended period of time under FastCGI or mod_perl, and for those destined
+to be crunched by Malcom Beattie's Perl compiler. Use it in conjunction
+with the methods or method familes you plan to use.
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw(-compile :standard :html3);
+&lt;/PRE&gt;
+&lt;P&gt;
+or even
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw(-compile :all);
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that using the -compile pragma in this way will always have the effect of importing the compiled functions into the current namespace. If you want to compile without importing use the 
+&lt;CODE&gt;compile()&lt;/CODE&gt; method instead (see below).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__nph"&gt;-nph&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This makes CGI.pm produce a header appropriate for an 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; (no parsed header) script. You may need to do other things as well to tell the server that the script is 
+&lt;FONT SIZE=-1&gt;NPH.&lt;/FONT&gt; See the discussion of 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; scripts below.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__autoload"&gt;-autoload&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This overrides the autoloader so that any function in your program that is
+not recognized is referred to CGI.pm for possible evaluation. This allows
+you to use all the CGI.pm functions without adding them to your symbol
+table, which is of concern for mod_perl users who are worried about memory
+consumption.  &lt;EM&gt;Warning:&lt;/EM&gt; when
+&lt;EM&gt;-autoload&lt;/EM&gt; is in effect, you cannot use ``poetry mode'' (functions without the
+parenthesis). Use &lt;EM&gt;hr()&lt;/EM&gt; rather than &lt;EM&gt;hr&lt;/EM&gt;, or add something like &lt;EM&gt;use subs qw/hr p header/&lt;/EM&gt; 
+to the top of your script.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__no_debug"&gt;-no_debug&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This turns off the command-line processing features. If you want to run a CGI.pm script from the command line to produce 
+&lt;FONT SIZE=-1&gt;HTML,&lt;/FONT&gt; and you don't want it pausing to request 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; parameters from standard input or the command line, then use this pragma:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw(-no_debug :standard);
+&lt;/PRE&gt;
+&lt;P&gt;
+If you'd like to process the command-line parameters but not standard
+input, this should work:
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI qw(-no_debug :standard);
+   restore_parameters(join('&amp;amp;',@ARGV));
+  
+See the section on debugging for more details.
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__private_tempfiles"&gt;-private_tempfiles&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+CGI.pm can process uploaded file. Ordinarily it spools the uploaded file to a temporary directory, then deletes the file when done. However, this opens the risk of eavesdropping as described in the file upload section. Another 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script author could peek at this data during the upload, even if it is confidential information. On Unix systems, the -private_tempfiles pragma will cause the temporary file to be unlinked as soon as it is opened and before any data is written into it, eliminating the risk of eavesdropping. n =back
+
+&lt;H1&gt;&lt;A NAME="GENERATING_DYNAMIC_DOCUMENTS"&gt;GENERATING DYNAMIC DOCUMENTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Most of CGI.pm's functions deal with creating documents on the fly. Generally you will produce the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header first, followed by the document itself. CGI.pm provides functions for generating 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; headers of various types as well as for generating 
+&lt;FONT SIZE=-1&gt;HTML.&lt;/FONT&gt; For creating 
+&lt;FONT SIZE=-1&gt;GIF&lt;/FONT&gt; images, see the GD.pm module.
+
+&lt;P&gt;
+Each of these functions produces a fragment of 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; which you can print out directly so that it displays in the browser window, append to a string, or save to a file for later use.
+
+&lt;H2&gt;&lt;A NAME="CREATING_A_STANDARD_HTTP_HEADER_"&gt;CREATING A STANDARD HTTP HEADER:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Normally the first thing you will do in any 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script is print out an 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header. This tells the browser what type of document to expect, and gives other optional information, such as the language, expiration date, and whether to cache the document. The header can also be manipulated for special purposes, such as server push and pay per view pages.
+
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;header;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;             -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;header('image/gif');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;             -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;header('text/html','204 No response');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;             -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;header(-type=&amp;gt;'image/gif',
+                             -nph=&amp;gt;1,
+                             -status=&amp;gt;'402 Payment required',
+                             -expires=&amp;gt;'+3d',
+                             -cookie=&amp;gt;$cookie,
+                             -Cost=&amp;gt;'$2.00');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;CODE&gt;header()&lt;/CODE&gt; returns the Content-type: header. You can provide your own 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type if you choose, otherwise it defaults to text/html. An optional second parameter specifies the status code and a human-readable message. For example, you can specify 204, ``No response'' to create a script that tells the browser to do nothing at all.
+&lt;P&gt;
+The last example shows the named argument style for passing arguments to the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; methods using named parameters. Recognized parameters are
+&lt;STRONG&gt;-type&lt;/STRONG&gt;, &lt;STRONG&gt;-status&lt;/STRONG&gt;, &lt;STRONG&gt;-expires&lt;/STRONG&gt;, and &lt;STRONG&gt;-cookie&lt;/STRONG&gt;. Any other named parameters will be stripped of their initial hyphens and turned into header fields, allowing you to specify any 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header you desire. Internal underscores will be turned into hyphens:
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;header(-Content_length=&amp;gt;3002);
+&lt;/PRE&gt;
+&lt;P&gt;
+Most browsers will not cache the output from 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts. Every time the browser reloads the page,
+the script is invoked anew. You can change this behavior with the &lt;STRONG&gt;-expires&lt;/STRONG&gt; parameter. When you specify an absolute or relative expiration interval
+with this parameter, some browsers and proxy servers will cache the
+script's output until the indicated expiration date. The following forms
+are all valid for the -expires field:
+
+&lt;P&gt;
+&lt;PRE&gt;        +30s                              30 seconds from now
+        +10m                              ten minutes from now
+        +1h                               one hour from now
+        -1d                               yesterday (i.e. &amp;quot;ASAP!&amp;quot;)
+        now                               immediately
+        +3M                               in three months
+        +10y                              in ten years time
+        Thursday, 25-Apr-1999 00:40:33 GMT  at the indicated time &amp;amp; date
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;STRONG&gt;-cookie&lt;/STRONG&gt; parameter generates a header that tells the browser to provide a ``magic cookie'' during all subsequent transactions with your script. Netscape cookies have a special format that includes interesting attributes such as expiration time. Use the 
+&lt;CODE&gt;cookie()&lt;/CODE&gt; method to create and retrieve session cookies.
+&lt;P&gt;
+The &lt;STRONG&gt;-nph&lt;/STRONG&gt; parameter, if set to a true value, will issue the correct headers to work with a 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; (no-parse-header) script. This is important to use with certain servers, such as Microsoft Internet Explorer, which expect all their scripts to be 
+&lt;FONT SIZE=-1&gt;NPH.&lt;/FONT&gt;
+&lt;H2&gt;&lt;A NAME="GENERATING_A_REDIRECTION_HEADER"&gt;GENERATING A REDIRECTION HEADER&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;redirect('&lt;A HREF="http://somewhere.else/in/movie/land"&gt;http://somewhere.else/in/movie/land&lt;/A&gt;');
+&lt;/PRE&gt;
+&lt;P&gt;
+Sometimes you don't want to produce a document yourself, but simply redirect the browser elsewhere, perhaps choosing a 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; based on the time of day or the identity of the user.
+&lt;P&gt;
+The 
+&lt;CODE&gt;redirect()&lt;/CODE&gt; function redirects the browser to a different 
+&lt;FONT SIZE=-1&gt;URL.&lt;/FONT&gt; If you use redirection like this, you should
+ &lt;STRONG&gt;not&lt;/STRONG&gt; print out a header as well. As of version 2.0, we produce both the unofficial Location: header and the official 
+&lt;FONT SIZE=-1&gt;URI:&lt;/FONT&gt; header. This should satisfy most servers and browsers.
+&lt;P&gt;
+One hint 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; can offer is that relative links may not work correctly when you generate a redirection to another document on your site. This is due to a well-intentioned optimization that some servers use. The solution to this is to use the full 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; (including the http: part) of the document you are redirecting to.
+&lt;P&gt;
+You can also use named arguments:
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;redirect(-uri=&amp;gt;'&lt;A HREF="http://somewhere.else/in/movie/land"&gt;http://somewhere.else/in/movie/land&lt;/A&gt;',
+                           -nph=&amp;gt;1);
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;STRONG&gt;-nph&lt;/STRONG&gt; parameter, if set to a true value, will issue the correct headers to work with a 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; (no-parse-header) script. This is important to use with certain servers, such as Microsoft Internet Explorer, which expect all their scripts to be 
+&lt;FONT SIZE=-1&gt;NPH.&lt;/FONT&gt;
+
+&lt;H2&gt;&lt;A NAME="CREATING_THE_HTML_DOCUMENT_HEADE"&gt;CREATING THE HTML DOCUMENT HEADER&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;start_html(-title=&amp;gt;'Secrets of the Pyramids',
+                            -author=&amp;gt;'fred@capricorn.org',
+                            -base=&amp;gt;'true',
+                            -target=&amp;gt;'_blank',
+                            -meta=&amp;gt;{'keywords'=&amp;gt;'pharaoh secret mummy',
+                                    'copyright'=&amp;gt;'copyright 1996 King Tut'},
+                            -style=&amp;gt;{'src'=&amp;gt;'/styles/style1.css'},
+                            -BGCOLOR=&amp;gt;'blue');
+&lt;/PRE&gt;
+&lt;P&gt;
+After creating the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header, most 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts will start writing out an 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; document. The 
+&lt;CODE&gt;start_html()&lt;/CODE&gt; routine creates the top of the page, along with a lot of optional information that controls the page's appearance and behavior.
+
+&lt;P&gt;
+This method returns a canned 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; header and the opening 
+&lt;FONT SIZE=-1&gt;&amp;lt;BODY&amp;gt;&lt;/FONT&gt; tag. All parameters are optional. In the named parameter form, recognized parameters are -title, -author, -base, -xbase and -target (see below for the explanation). Any additional parameters you provide, such as the Netscape unofficial 
+&lt;FONT SIZE=-1&gt;BGCOLOR&lt;/FONT&gt; attribute, are added to the 
+&lt;FONT SIZE=-1&gt;&amp;lt;BODY&amp;gt;&lt;/FONT&gt; tag. Additional parameters must be proceeded by a hyphen.
+
+&lt;P&gt;
+The argument &lt;STRONG&gt;-xbase&lt;/STRONG&gt; allows you to provide an 
+&lt;FONT SIZE=-1&gt;HREF&lt;/FONT&gt; for the 
+&lt;FONT SIZE=-1&gt;&amp;lt;BASE&amp;gt;&lt;/FONT&gt; tag different from the current location, as in
+
+&lt;P&gt;
+&lt;PRE&gt;    -xbase=&amp;gt;&amp;quot;&lt;A HREF="http://home.mcom.com/&amp;quot"&gt;http://home.mcom.com/&amp;quot&lt;/A&gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+All relative links will be interpreted relative to this tag.
+
+&lt;P&gt;
+The argument &lt;STRONG&gt;-target&lt;/STRONG&gt; allows you to provide a default target frame for all the links and fill-out
+forms on the page. See the Netscape documentation on frames for details of
+how to manipulate this.
+
+&lt;P&gt;
+&lt;PRE&gt;    -target=&amp;gt;&amp;quot;answer_window&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+All relative links will be interpreted relative to this tag. You add
+arbitrary meta information to the header with the &lt;STRONG&gt;-meta&lt;/STRONG&gt;
+argument. This argument expects a reference to an associative array containing name/value pairs of meta information. These will be turned into a series of header 
+&lt;FONT SIZE=-1&gt;&amp;lt;META&amp;gt;&lt;/FONT&gt; tags that look something like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;lt;META NAME=&amp;quot;keywords&amp;quot; CONTENT=&amp;quot;pharaoh secret mummy&amp;quot;&amp;gt;
+    &amp;lt;META NAME=&amp;quot;description&amp;quot; CONTENT=&amp;quot;copyright 1996 King Tut&amp;quot;&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+There is no support for the 
+&lt;FONT SIZE=-1&gt;HTTP-EQUIV&lt;/FONT&gt; type of &amp;lt;
+&lt;FONT SIZE=-1&gt;META&amp;gt;&lt;/FONT&gt; tag. This is because you can modify the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header directly with the
+ &lt;STRONG&gt;header()&lt;/STRONG&gt;
+method. For example, if you want to send the Refresh: header, do it in the 
+&lt;CODE&gt;header()&lt;/CODE&gt; method:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $q-&amp;gt;header(-Refresh=&amp;gt;'10; URL=&lt;A HREF="http://www.capricorn.com"&gt;http://www.capricorn.com&lt;/A&gt;');
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;STRONG&gt;-style&lt;/STRONG&gt; tag is used to incorporate cascading stylesheets into your code. See the section on 
+&lt;FONT SIZE=-1&gt;CASCADING&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STYLESHEETS&lt;/FONT&gt; for more information.
+
+&lt;P&gt;
+You can place other arbitrary 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; elements to the &amp;lt;
+&lt;FONT SIZE=-1&gt;HEAD&amp;gt;&lt;/FONT&gt; section with the
+&lt;STRONG&gt;-head&lt;/STRONG&gt; tag. For example, to place the rarely-used 
+&lt;FONT SIZE=-1&gt;&amp;lt;LINK&amp;gt;&lt;/FONT&gt; element in the head section, use this:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $q-&amp;gt;start_html(-head=&amp;gt;Link({-rel=&amp;gt;'next',
+                                  -href=&amp;gt;'[perlman:lib:s2|s2]'}));
+&lt;/PRE&gt;
+&lt;P&gt;
+To incorporate multiple 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; elements into the 
+&lt;FONT SIZE=-1&gt;&amp;lt;HEAD&amp;gt;&lt;/FONT&gt; section, just pass an array reference:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $q-&amp;gt;start_html(-head=&amp;gt;&amp;#091; 
+                              Link({-rel=&amp;gt;'next',
+                                    -href=&amp;gt;'[perlman:lib:s2|s2]'}),
+                              Link({-rel=&amp;gt;'previous',
+                                    -href=&amp;gt;'[perlman:lib:s1|s1]'})
+                             &amp;#093;
+                     );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; The &lt;STRONG&gt;-script&lt;/STRONG&gt;, &lt;STRONG&gt;-noScript&lt;/STRONG&gt;, &lt;STRONG&gt;-onLoad&lt;/STRONG&gt;,
+&lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt; and &lt;STRONG&gt;-onUnload&lt;/STRONG&gt; parameters are used to add Netscape JavaScript calls to your pages.  &lt;STRONG&gt;-script&lt;/STRONG&gt; should point to a block of text containing JavaScript function definitions. This block will be placed within a 
+&lt;FONT SIZE=-1&gt;&amp;lt;SCRIPT&amp;gt;&lt;/FONT&gt; block inside the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; (not 
+&lt;FONT SIZE=-1&gt;HTTP)&lt;/FONT&gt; header. The block is placed in the header in order to give your page a fighting chance of having all its JavaScript functions in place even if the user presses the stop button before the page has loaded completely. CGI.pm attempts to format the script in such a way that JavaScript-naive browsers will not choke on the code: unfortunately there are some browsers, such as Chimera for Unix, that get confused by it nevertheless.
+&lt;P&gt;
+The &lt;STRONG&gt;-onLoad&lt;/STRONG&gt; and &lt;STRONG&gt;-onUnload&lt;/STRONG&gt; parameters point to fragments of JavaScript code to execute when the page
+is respectively opened and closed by the browser. Usually these parameters
+are calls to functions defined in the
+&lt;STRONG&gt;-script&lt;/STRONG&gt; field:
+&lt;P&gt;
+&lt;PRE&gt;      $query = new CGI;
+      print $query-&amp;gt;header;
+      $JSCRIPT=&amp;lt;&amp;lt;END;
+      // Ask a silly question
+      function riddle_me_this() {
+         var r = prompt(&amp;quot;What walks on four legs in the morning, &amp;quot; +
+                       &amp;quot;two legs in the afternoon, &amp;quot; +
+                       &amp;quot;and three legs in the evening?&amp;quot;);
+         response(r);
+      }
+      // Get a silly answer
+      function response(answer) {
+         if (answer == &amp;quot;man&amp;quot;)
+            alert(&amp;quot;Right you are!&amp;quot;);
+         else
+            alert(&amp;quot;Wrong!  Guess again.&amp;quot;);
+      }
+      END
+      print $query-&amp;gt;start_html(-title=&amp;gt;'The Riddle of the Sphinx',
+                               -script=&amp;gt;$JSCRIPT);
+&lt;/PRE&gt;
+&lt;P&gt;
+Use the &lt;STRONG&gt;-noScript&lt;/STRONG&gt; parameter to pass some 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; text that will be displayed on browsers that do
+not have JavaScript (or browsers where JavaScript is turned off).
+&lt;P&gt;
+Netscape 3.0 recognizes several attributes of the &amp;lt;
+&lt;FONT SIZE=-1&gt;SCRIPT&amp;gt;&lt;/FONT&gt; tag, including 
+&lt;FONT SIZE=-1&gt;LANGUAGE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;SRC.&lt;/FONT&gt; The latter is particularly interesting, as it allows you to keep the JavaScript code in a file or 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script rather than cluttering up each page with the source. To use these attributes pass a 
+&lt;FONT SIZE=-1&gt;HASH&lt;/FONT&gt; reference in the
+ &lt;STRONG&gt;-script&lt;/STRONG&gt; parameter containing one or more of -language, -src, or -code:
+&lt;P&gt;
+&lt;PRE&gt;    print $q-&amp;gt;start_html(-title=&amp;gt;'The Riddle of the Sphinx',
+                         -script=&amp;gt;{-language=&amp;gt;'JAVASCRIPT',
+                                   -src=&amp;gt;'/javascript/sphinx.js'}
+                         );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $q-&amp;gt;(-title=&amp;gt;'The Riddle of the Sphinx',
+               -script=&amp;gt;{-language=&amp;gt;'PERLSCRIPT'},
+                         -code=&amp;gt;'print &amp;quot;hello world!\n;&amp;quot;'
+               );
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; final feature allows you to incorporate multiple 
+&lt;FONT SIZE=-1&gt;&amp;lt;SCRIPT&amp;gt;&lt;/FONT&gt; sections into the header. Just pass the list of script sections as an array reference. this allows you to specify different source files for different dialects of JavaScript. Example:
+     
+
+&lt;P&gt;
+&lt;PRE&gt;     print $q-&amp;amp;gt;start_html(-title=&amp;amp;gt;'The Riddle of the Sphinx',
+                          -script=&amp;amp;gt;&amp;#091;
+                                    { -language =&amp;amp;gt; 'JavaScript1.0',
+                                      -src      =&amp;amp;gt; '/javascript/utilities10.js'
+                                    },
+                                    { -language =&amp;amp;gt; 'JavaScript1.1',
+                                      -src      =&amp;amp;gt; '/javascript/utilities11.js'
+                                    },
+                                    { -language =&amp;amp;gt; 'JavaScript1.2',
+                                      -src      =&amp;amp;gt; '/javascript/utilities12.js'
+                                    },
+                                    { -language =&amp;amp;gt; 'JavaScript28.2',
+                                      -src      =&amp;amp;gt; '/javascript/utilities219.js'
+                                    }
+                                 &amp;#093;
+                             );
+     &amp;lt;/pre&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+If this looks a bit extreme, take my advice and stick with straight 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripting.  
+
+&lt;P&gt;
+See
+
+&lt;P&gt;
+&lt;PRE&gt;   &lt;A HREF="http://home.netscape.com/eng/mozilla/2.0/handbook/javascript/"&gt;http://home.netscape.com/eng/mozilla/2.0/handbook/javascript/&lt;/A&gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+for more information about JavaScript.
+
+&lt;P&gt;
+The old-style positional parameters are as follows:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Parameters"&gt;Parameters:&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item__"&gt;.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+The title
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The author's e-mail address (will create a 
+&lt;FONT SIZE=-1&gt;&amp;lt;LINK&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;REV=``MADE''&amp;gt;&lt;/FONT&gt; tag if present
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 'true' flag if you want to include a 
+&lt;FONT SIZE=-1&gt;&amp;lt;BASE&amp;gt;&lt;/FONT&gt; tag in the header. This helps resolve relative addresses to absolute ones when the document is moved, but makes the document hierarchy non-portable. Use with care!
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item__5_6_"&gt;, 5, 6...&lt;/A&gt;&lt;/STRONG&gt;
+
+Any other parameters you want to include in the 
+&lt;FONT SIZE=-1&gt;&amp;lt;BODY&amp;gt;&lt;/FONT&gt; tag. This is a good place to put Netscape
+extensions, such as colors and wallpaper patterns.
+
+&lt;/DL&gt;
+&lt;H2&gt;&lt;A NAME="ENDING_THE_HTML_DOCUMENT_"&gt;ENDING THE HTML DOCUMENT:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;end_html
+&lt;/PRE&gt;
+&lt;P&gt;
+This ends an 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; document by printing the 
+&lt;FONT SIZE=-1&gt;&amp;lt;/BODY&amp;gt;&amp;lt;/HTML&amp;gt;&lt;/FONT&gt; tags.
+
+&lt;H2&gt;&lt;A NAME="CREATING_A_SELF_REFERENCING_URL_"&gt;CREATING A SELF-REFERENCING URL THAT PRESERVES STATE INFORMATION:&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $myself = $query-&amp;gt;self_url;
+    print &amp;quot;&amp;lt;A HREF=$myself&amp;gt;I'm talking to myself.&amp;lt;/A&amp;gt;&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;self_url()&lt;/CODE&gt; will return a 
+&lt;FONT SIZE=-1&gt;URL,&lt;/FONT&gt; that, when selected, will reinvoke this script with all its state information intact. This is most useful when you want to jump around within the document using internal anchors but you don't want to disrupt the current contents of the 
+&lt;CODE&gt;form(s).&lt;/CODE&gt; Something like this will do the trick.
+
+&lt;P&gt;
+&lt;PRE&gt;     $myself = $query-&amp;gt;self_url;
+     print &amp;quot;&amp;lt;A HREF=$myself#table1&amp;gt;See table 1&amp;lt;/A&amp;gt;&amp;quot;;
+     print &amp;quot;&amp;lt;A HREF=$myself#table2&amp;gt;See table 2&amp;lt;/A&amp;gt;&amp;quot;;
+     print &amp;quot;&amp;lt;A HREF=$myself#yourself&amp;gt;See for yourself&amp;lt;/A&amp;gt;&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you want more control over what's returned, using the &lt;STRONG&gt;url()&lt;/STRONG&gt;
+method instead.
+
+&lt;P&gt;
+You can also retrieve the unprocessed query string with 
+&lt;CODE&gt;query_string():&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    $the_string = $query-&amp;gt;query_string;
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME="OBTAINING_THE_SCRIPT_S_URL"&gt;OBTAINING THE SCRIPT'S URL&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $full_url      = $query-&amp;gt;url();
+    $full_url      = $query-&amp;gt;url(-full=&amp;gt;1);  #alternative syntax
+    $relative_url  = $query-&amp;gt;url(-relative=&amp;gt;1);
+    $absolute_url  = $query-&amp;gt;url(-absolute=&amp;gt;1);
+    $url_with_path = $query-&amp;gt;url(-path_info=&amp;gt;1);
+    $url_with_path_and_query = $query-&amp;gt;url(-path_info=&amp;gt;1,-query=&amp;gt;1);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;url()&lt;/STRONG&gt; returns the script's 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; in a variety of formats. Called without any arguments, it returns the full form of the 
+&lt;FONT SIZE=-1&gt;URL,&lt;/FONT&gt; including host name and port number
+
+&lt;P&gt;
+&lt;PRE&gt;    &lt;A HREF="http://your.host.com/path/to/script.cgi"&gt;http://your.host.com/path/to/script.cgi&lt;/A&gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+You can modify this format with the following named arguments:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__absolute"&gt;-absolute&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If true, produce an absolute 
+&lt;FONT SIZE=-1&gt;URL,&lt;/FONT&gt; e.g.
+
+&lt;P&gt;
+&lt;PRE&gt;    /path/to/script.cgi
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__relative"&gt;-relative&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Produce a relative 
+&lt;FONT SIZE=-1&gt;URL.&lt;/FONT&gt; This is useful if you want to reinvoke your
+script with different parameters. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    script.cgi
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__full"&gt;-full&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Produce the full 
+&lt;FONT SIZE=-1&gt;URL,&lt;/FONT&gt; exactly as if called without any arguments. This
+overrides the -relative and -absolute arguments.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__path"&gt;-path (-path_info)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Append the additional path information to the 
+&lt;FONT SIZE=-1&gt;URL.&lt;/FONT&gt; This can be combined with &lt;STRONG&gt;-full&lt;/STRONG&gt;, &lt;STRONG&gt;-absolute&lt;/STRONG&gt; or &lt;STRONG&gt;-relative&lt;/STRONG&gt;.  &lt;STRONG&gt;-path_info&lt;/STRONG&gt;
+is provided as a synonym.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__query"&gt;-query (-query_string)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Append the query string to the 
+&lt;FONT SIZE=-1&gt;URL.&lt;/FONT&gt; This can be combined with
+&lt;STRONG&gt;-full&lt;/STRONG&gt;, &lt;STRONG&gt;-absolute&lt;/STRONG&gt; or &lt;STRONG&gt;-relative&lt;/STRONG&gt;.  &lt;STRONG&gt;-query_string&lt;/STRONG&gt; is provided as a synonym.
+
+&lt;/DL&gt;
+&lt;H1&gt;&lt;A NAME="CREATING_STANDARD_HTML_ELEMENTS_"&gt;CREATING STANDARD HTML ELEMENTS:&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+CGI.pm defines general 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; shortcut methods for most, if not all of the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; 3 and 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; 4 tags. 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; shortcuts are named after a single 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; element and return a fragment of 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; text that you can then print or manipulate as you like. Each shortcut returns a fragment of 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; code that you can append to a string, save to a file, or, most commonly, print out so that it displays in the browser window.
+
+&lt;P&gt;
+This example shows how to use the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; methods:
+
+&lt;P&gt;
+&lt;PRE&gt;   $q = new CGI;
+   print $q-&amp;gt;blockquote(
+                     &amp;quot;Many years ago on the island of&amp;quot;,
+                     $q-&amp;gt;a({href=&amp;gt;&amp;quot;&lt;A HREF="http://crete.org/&amp;quot"&gt;http://crete.org/&amp;quot&lt;/A&gt;;},&amp;quot;Crete&amp;quot;),
+                     &amp;quot;there lived a minotaur named&amp;quot;,
+                     $q-&amp;gt;strong(&amp;quot;Fred.&amp;quot;),
+                    ),
+       $q-&amp;gt;hr;
+&lt;/PRE&gt;
+&lt;P&gt;
+This results in the following 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; code (extra newlines have been added for
+readability):
+
+&lt;P&gt;
+&lt;PRE&gt;   &amp;lt;blockquote&amp;gt;
+   Many years ago on the island of
+   &amp;lt;a HREF=&amp;quot;&lt;A HREF="http://crete.org/&amp;quot"&gt;http://crete.org/&amp;quot&lt;/A&gt;;&amp;gt;Crete&amp;lt;/a&amp;gt; there lived
+   a minotaur named &amp;lt;strong&amp;gt;Fred.&amp;lt;/strong&amp;gt; 
+   &amp;lt;/blockquote&amp;gt;
+   &amp;lt;hr&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you find the syntax for calling the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; shortcuts awkward, you can import them into your
+namespace and dispense with the object syntax completely (see the next
+section for more details):
+
+&lt;P&gt;
+&lt;PRE&gt;   use CGI ':standard';
+   print blockquote(
+      &amp;quot;Many years ago on the island of&amp;quot;,
+      a({href=&amp;gt;&amp;quot;&lt;A HREF="http://crete.org/&amp;quot"&gt;http://crete.org/&amp;quot&lt;/A&gt;;},&amp;quot;Crete&amp;quot;),
+      &amp;quot;there lived a minotaur named&amp;quot;,
+      strong(&amp;quot;Fred.&amp;quot;),
+      ),
+      hr;
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME="PROVIDING_ARGUMENTS_TO_HTML_SHOR"&gt;PROVIDING ARGUMENTS TO HTML SHORTCUTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; methods will accept zero, one or multiple
+arguments. If you provide no arguments, you get a single tag:
+
+&lt;P&gt;
+&lt;PRE&gt;   print hr;    #  &amp;lt;HR&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you provide one or more string arguments, they are concatenated together
+with spaces and placed between opening and closing tags:
+
+&lt;P&gt;
+&lt;PRE&gt;   print h1(&amp;quot;Chapter&amp;quot;,&amp;quot;1&amp;quot;); # &amp;lt;H1&amp;gt;Chapter 1&amp;lt;/H1&amp;gt;&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+If the first argument is an associative array reference, then the keys and values of the associative array become the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag's attributes:
+
+&lt;P&gt;
+&lt;PRE&gt;   print a({-href=&amp;gt;'fred.html',-target=&amp;gt;'_new'},
+      &amp;quot;Open a new frame&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;            &amp;lt;A HREF=&amp;quot;fred.html&amp;quot;,TARGET=&amp;quot;_new&amp;quot;&amp;gt;Open a new frame&amp;lt;/A&amp;gt;
+   
+You may dispense with the dashes in front of the attribute names if
+you prefer:
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print img {src=&amp;gt;'fred.gif',align=&amp;gt;'LEFT'};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;           &amp;lt;IMG ALIGN=&amp;quot;LEFT&amp;quot; SRC=&amp;quot;fred.gif&amp;quot;&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+Sometimes an 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tag attribute has no argument. For example, ordered lists can be marked as 
+&lt;FONT SIZE=-1&gt;COMPACT.&lt;/FONT&gt; The syntax for this is an argument that that points to an undef string:
+
+&lt;P&gt;
+&lt;PRE&gt;   print ol({compact=&amp;gt;undef},li('one'),li('two'),li('three'));
+&lt;/PRE&gt;
+&lt;P&gt;
+Prior to CGI.pm version 2.41, providing an empty ('') string as an attribute argument was the same as providing undef. However, this has changed in order to accomodate those who want to create tags of the form 
+&lt;FONT SIZE=-1&gt;&amp;lt;IMG&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ALT=``''&amp;gt;.&lt;/FONT&gt; The difference is shown in these two pieces of code: 
+&lt;FONT SIZE=-1&gt;CODE&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;RESULT&lt;/FONT&gt; 
+&lt;CODE&gt;img({alt=&amp;gt;undef})&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;&amp;lt;IMG&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ALT&amp;gt;&lt;/FONT&gt; 
+&lt;CODE&gt;img({alt=&amp;gt;''})&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;&amp;lt;IMT&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ALT=``''&amp;gt;&lt;/FONT&gt;
+
+&lt;H2&gt;&lt;A NAME="THE_DISTRIBUTIVE_PROPERTY_OF_HTM"&gt;THE DISTRIBUTIVE PROPERTY OF HTML SHORTCUTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+One of the cool features of the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; shortcuts is that they are distributive. If you
+give them an argument consisting of a
+&lt;STRONG&gt;reference&lt;/STRONG&gt; to a list, the tag will be distributed across each element of the list. For
+example, here's one way to make an ordered list:
+
+&lt;P&gt;
+&lt;PRE&gt;   print ul(
+             li({-type=&amp;gt;'disc'},&amp;#091;'Sneezy','Doc','Sleepy','Happy'&amp;#093;);
+           );
+&lt;/PRE&gt;
+&lt;P&gt;
+This example will result in 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; output that looks like this:
+
+&lt;P&gt;
+&lt;PRE&gt;   &amp;lt;UL&amp;gt;
+     &amp;lt;LI TYPE=&amp;quot;disc&amp;quot;&amp;gt;Sneezy&amp;lt;/LI&amp;gt;
+     &amp;lt;LI TYPE=&amp;quot;disc&amp;quot;&amp;gt;Doc&amp;lt;/LI&amp;gt;
+     &amp;lt;LI TYPE=&amp;quot;disc&amp;quot;&amp;gt;Sleepy&amp;lt;/LI&amp;gt;
+     &amp;lt;LI TYPE=&amp;quot;disc&amp;quot;&amp;gt;Happy&amp;lt;/LI&amp;gt;
+   &amp;lt;/UL&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is extremely useful for creating tables. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;   print table({-border=&amp;gt;undef},
+           caption('When Should You Eat Your Vegetables?'),
+           Tr({-align=&amp;gt;CENTER,-valign=&amp;gt;TOP},
+           &amp;#091;
+              th(&amp;#091;'Vegetable', 'Breakfast','Lunch','Dinner'&amp;#093;),
+              td(&amp;#091;'Tomatoes' , 'no', 'yes', 'yes'&amp;#093;),
+              td(&amp;#091;'Broccoli' , 'no', 'no',  'yes'&amp;#093;),
+              td(&amp;#091;'Onions'   , 'yes','yes', 'yes'&amp;#093;)
+           &amp;#093;
+           )
+        );
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME="HTML_SHORTCUTS_AND_LIST_INTERPOL"&gt;HTML SHORTCUTS AND LIST INTERPOLATION&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Consider this bit of code:
+
+&lt;P&gt;
+&lt;PRE&gt;   print blockquote(em('Hi'),'mom!'));
+&lt;/PRE&gt;
+&lt;P&gt;
+It will ordinarily return the string that you probably expect, namely:
+
+&lt;P&gt;
+&lt;PRE&gt;   &amp;lt;BLOCKQUOTE&amp;gt;&amp;lt;EM&amp;gt;Hi&amp;lt;/EM&amp;gt; mom!&amp;lt;/BLOCKQUOTE&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+Note the space between the element ``Hi'' and the element ``mom!''. CGI.pm
+puts the extra space there using array interpolation, which is controlled
+by the magic $`` variable. Sometimes this extra space is not what you want,
+for example, when you are trying to align a series of images. In this case,
+you can simply change the value of $'' to an empty string.
+
+&lt;P&gt;
+&lt;PRE&gt;   {
+      local($&amp;quot;) = '';
+      print blockquote(em('Hi'),'mom!'));
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; suggest you put the code in a block as shown here.
+Otherwise the change to $`` will affect all subsequent code until you
+explicitly reset it.
+
+&lt;H2&gt;&lt;A NAME="NON_STANDARD_HTML_SHORTCUTS"&gt;NON-STANDARD HTML SHORTCUTS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; few 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; tags don't follow the standard pattern for various reasons.
+  
+
+&lt;P&gt;
+&lt;STRONG&gt;comment()&lt;/STRONG&gt; generates an 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; comment (&amp;lt;!-- comment --&amp;gt;). Call it like
+
+&lt;P&gt;
+&lt;PRE&gt;    print comment('here is my comment');
+&lt;/PRE&gt;
+&lt;P&gt;
+Because of conflicts with built-in Perl functions, the following functions
+begin with initial caps:
+
+&lt;P&gt;
+&lt;PRE&gt;    Select
+    Tr
+    Link
+    Delete
+&lt;/PRE&gt;
+&lt;P&gt;
+In addition, 
+&lt;CODE&gt;start_html(),&lt;/CODE&gt; 
+&lt;CODE&gt;end_html(),&lt;/CODE&gt; 
+&lt;CODE&gt;start_form(),&lt;/CODE&gt; 
+&lt;CODE&gt;end_form(),&lt;/CODE&gt; 
+&lt;CODE&gt;start_multipart_form()&lt;/CODE&gt; and all the fill-out form tags are special. See their respective sections.
+
+&lt;H1&gt;&lt;A NAME="CREATING_FILL_OUT_FORMS_"&gt;CREATING FILL-OUT FORMS:&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;EM&gt;General note&lt;/EM&gt;  The various form-creating methods all return strings to the caller,
+containing the tag or tags that will create the requested form element. You
+are responsible for actually printing out these strings. It's set up this
+way so that you can place formatting tags around the form elements.
+
+&lt;P&gt;
+&lt;EM&gt;Another note&lt;/EM&gt; The default values that you specify for the forms are only used the &lt;STRONG&gt;first&lt;/STRONG&gt; time the script is invoked (when there is no query string). On subsequent
+invocations of the script (when there is a query string), the former values
+are used even if they are blank.  
+
+&lt;P&gt;
+If you want to change the value of a field from its previous value, you
+have two choices:
+
+&lt;P&gt;
+(1) call the 
+&lt;CODE&gt;param()&lt;/CODE&gt; method to set it.
+
+&lt;P&gt;
+(2) use the -override (alias -force) parameter (a new feature in version
+2.15). This forces the default value to be used, regardless of the previous
+value:
+
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;textfield(-name=&amp;gt;'field_name',
+                           -default=&amp;gt;'starting value',
+                           -override=&amp;gt;1,
+                           -size=&amp;gt;50,
+                           -maxlength=&amp;gt;80);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;EM&gt;Yet another note&lt;/EM&gt; By default, the text and labels of form elements are escaped according to 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; rules. This means that you can safely use 
+&lt;FONT SIZE=-1&gt;``&amp;lt;CLICK&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ME&amp;gt;''&lt;/FONT&gt; as the label for a button. However, it also interferes with your ability to incorporate special 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; character sequences, such as &amp;amp;Aacute;, into your fields. If you wish to turn off automatic escaping, call the 
+&lt;CODE&gt;autoEscape()&lt;/CODE&gt; method with a false value immediately after creating the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object:
+
+&lt;P&gt;
+&lt;PRE&gt;   $query = new CGI;
+   $query-&amp;gt;autoEscape(undef);
+                             
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME="CREATING_AN_ISINDEX_TAG"&gt;CREATING AN ISINDEX TAG&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;isindex(-action=&amp;gt;$action);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;         -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;isindex($action);
+&lt;/PRE&gt;
+&lt;P&gt;
+Prints out an 
+&lt;FONT SIZE=-1&gt;&amp;lt;ISINDEX&amp;gt;&lt;/FONT&gt; tag. Not very exciting. The parameter -action specifies the 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; of the script to process the query. The default is to process the query with the current script.
+
+&lt;H2&gt;&lt;A NAME="STARTING_AND_ENDING_A_FORM"&gt;STARTING AND ENDING A FORM&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;startform(-method=&amp;gt;$method,
+                            -action=&amp;gt;$action,
+                            -encoding=&amp;gt;$encoding);
+      &amp;lt;... various form stuff ...&amp;gt;
+    print $query-&amp;gt;endform;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;startform($method,$action,$encoding);
+      &amp;lt;... various form stuff ...&amp;gt;
+    print $query-&amp;gt;endform;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;startform()&lt;/CODE&gt; will return a 
+&lt;FONT SIZE=-1&gt;&amp;lt;FORM&amp;gt;&lt;/FONT&gt; tag with the optional method, action and form encoding that you specify. The defaults are: method: 
+&lt;FONT SIZE=-1&gt;POST&lt;/FONT&gt; action: this script encoding: application/x-www-form-urlencoded
+
+&lt;P&gt;
+
+&lt;CODE&gt;endform()&lt;/CODE&gt; returns the closing 
+&lt;FONT SIZE=-1&gt;&amp;lt;/FORM&amp;gt;&lt;/FONT&gt; tag.
+  
+
+&lt;P&gt;
+
+&lt;CODE&gt;Startform()'s&lt;/CODE&gt; encoding
+method tells the browser how to package the various fields of the form
+before sending the form to the server. Two values are possible:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_application"&gt;application/x-www-form-urlencoded&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the older type of encoding used by all browsers prior to Netscape 2.0. It is compatible with many 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts and is suitable for short fields containing text data. For your convenience, CGI.pm stores the name of this encoding type in
+ &lt;STRONG&gt;$CGI::URL_ENCODED&lt;/STRONG&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_multipart"&gt;multipart/form-data&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the newer type of encoding introduced by Netscape 2.0. It is
+suitable for forms that contain very large fields or that are intended for
+transferring binary data. Most importantly, it enables the ``file upload''
+feature of Netscape 2.0 forms. For your convenience, CGI.pm stores the name
+of this encoding type in &lt;STRONG&gt;&amp;CGI::MULTIPART&lt;/STRONG&gt;
+
+&lt;P&gt;
+Forms that use this type of encoding are not easily interpreted by 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts unless they use CGI.pm or another library
+designed to handle them.
+
+&lt;/DL&gt;
+&lt;P&gt;
+For compatibility, the 
+&lt;CODE&gt;startform()&lt;/CODE&gt; method uses
+the older form of encoding by default. If you want to use the newer form of
+encoding by default, you can call &lt;STRONG&gt;start_multipart_form()&lt;/STRONG&gt; instead of
+&lt;STRONG&gt;startform()&lt;/STRONG&gt;.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; The &lt;STRONG&gt;-name&lt;/STRONG&gt; and &lt;STRONG&gt;-onSubmit&lt;/STRONG&gt; parameters are provided for use with JavaScript. The -name parameter gives
+the form a name so that it can be identified and manipulated by JavaScript
+functions. -onSubmit should point to a JavaScript function that will be
+executed just before the form is submitted to your server. You can use this
+opportunity to check the contents of the form for consistency and
+completeness. If you find something wrong, you can put up an alert box or
+maybe fix things up yourself. You can abort the submission by returning
+false from this function.  
+
+&lt;P&gt;
+Usually the bulk of JavaScript functions are defined in a 
+&lt;FONT SIZE=-1&gt;&amp;lt;SCRIPT&amp;gt;&lt;/FONT&gt; block in the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; header and -onSubmit points to one of these function call. See 
+&lt;CODE&gt;start_html()&lt;/CODE&gt; for details.
+
+&lt;H2&gt;&lt;A NAME="CREATING_A_TEXT_FIELD"&gt;CREATING A TEXT FIELD&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;textfield(-name=&amp;gt;'field_name',
+                            -default=&amp;gt;'starting value',
+                            -size=&amp;gt;50,
+                            -maxlength=&amp;gt;80);
+        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;textfield('field_name','starting value',50,80);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;textfield()&lt;/CODE&gt; will return a
+text input field.  
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Parameters"&gt;Parameters&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first parameter is the required name for the field (-name).  
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional second parameter is the default starting value for the field
+contents (-default).  
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third parameter is the size of the field in characters
+(-size).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth parameter is the maximum number of characters the field
+will accept (-maxlength).
+
+&lt;/DL&gt;
+&lt;P&gt;
+As with all these methods, the field will be initialized with its previous
+contents from earlier invocations of the script. When the form is
+processed, the value of the text field can be retrieved with:
+
+&lt;P&gt;
+&lt;PRE&gt;       $value = $query-&amp;gt;param('foo');
+&lt;/PRE&gt;
+&lt;P&gt;
+If you want to reset it from its initial value after the script has been
+called once, you can do so like this:
+
+&lt;P&gt;
+&lt;PRE&gt;       $query-&amp;gt;param('foo',&amp;quot;I'm taking over this value!&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NEW&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;AS&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;OF&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; 2.15: If you don't want the field to take on its previous value, you can force its current value by using the -override (alias -force) parameter:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;textfield(-name=&amp;gt;'field_name',
+                            -default=&amp;gt;'starting value',
+                            -override=&amp;gt;1,
+                            -size=&amp;gt;50,
+                            -maxlength=&amp;gt;80);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; You can also provide &lt;STRONG&gt;-onChange&lt;/STRONG&gt;, &lt;STRONG&gt;-onFocus&lt;/STRONG&gt;,
+&lt;STRONG&gt;-onBlur&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt; and &lt;STRONG&gt;-onSelect&lt;/STRONG&gt;
+parameters to register JavaScript event handlers. The onChange handler will
+be called whenever the user changes the contents of the text field. You can
+do text validation if you like. onFocus and onBlur are called respectively
+when the insertion point moves into and out of the text field. onSelect is
+called when the user changes the portion of the text that is selected.
+
+&lt;H2&gt;&lt;A NAME="CREATING_A_BIG_TEXT_FIELD"&gt;CREATING A BIG TEXT FIELD&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;textarea(-name=&amp;gt;'foo',
+                          -default=&amp;gt;'starting value',
+                          -rows=&amp;gt;10,
+                          -columns=&amp;gt;50);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;textarea('foo','starting value',10,50);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;CODE&gt;textarea()&lt;/CODE&gt; is just like
+textfield, but it allows you to specify rows and columns for a multiline
+text entry box. You can provide a starting value for the field, which can
+be long and contain multiple lines.
+&lt;P&gt;
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; The &lt;STRONG&gt;-onChange&lt;/STRONG&gt;, &lt;STRONG&gt;-onFocus&lt;/STRONG&gt;, &lt;STRONG&gt;-onBlur&lt;/STRONG&gt; ,
+&lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt;, and &lt;STRONG&gt;-onSelect&lt;/STRONG&gt; parameters are recognized. See 
+&lt;CODE&gt;textfield().&lt;/CODE&gt;
+
+&lt;H2&gt;&lt;A NAME="CREATING_A_PASSWORD_FIELD"&gt;CREATING A PASSWORD FIELD&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;password_field(-name=&amp;gt;'secret',
+                                -value=&amp;gt;'starting value',
+                                -size=&amp;gt;50,
+                                -maxlength=&amp;gt;80);
+        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;password_field('secret','starting value',50,80);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;CODE&gt;password_field()&lt;/CODE&gt; is identical to 
+&lt;CODE&gt;textfield(),&lt;/CODE&gt; except that its contents will be starred out on the web page.
+&lt;P&gt;
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; The &lt;STRONG&gt;-onChange&lt;/STRONG&gt;, &lt;STRONG&gt;-onFocus&lt;/STRONG&gt;, &lt;STRONG&gt;-onBlur&lt;/STRONG&gt;,
+&lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt; and &lt;STRONG&gt;-onSelect&lt;/STRONG&gt; parameters are recognized. See 
+&lt;CODE&gt;textfield().&lt;/CODE&gt;
+[perlman:lib:CGI:2|More]</field>
+</data>
+</node>

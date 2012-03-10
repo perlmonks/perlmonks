@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1609" title="Past Polls" created="1999-12-30 17:16:28" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[{get_sitedoclet}]
+[%
+   my $pollster = Everything::isApproved($USER, getNode('pollsters', 'usergroup'));
+
+   my $type= getId( getType('poll') );
+   my $N;
+
+   my $from = ! $pollster ? "node" :
+      "node left join polls on node_id = polls_id left join repliesinfo on node_id = parent";
+   my $csr= $DB-&gt;sqlSelectMany(
+      "*",
+      $from,
+      "type_nodetype=$type",
+      "ORDER BY createtime DESC"
+   );
+   my $str= "&lt;table&gt;\n";
+   while(  $N= $csr-&gt;fetchrow_hashref()  ) {
+      $str .= "&lt;tr&gt;&lt;td&gt;" . linkNode($N) . "&lt;/td&gt;&lt;td&gt;by "
+           . linkNode( $N-&gt;{author_user} ) . "&lt;/td&gt;&lt;td&gt;"
+           . htmlcode( 'parsetimeinstring','', $N-&gt;{createtime}, '', '', 'short' )
+           . "&lt;/td&gt;";
+
+      if ($pollster) {
+         my $votes = 0;
+         $votes += $_ for split /\r*\n/, $N-&gt;{numbers};
+         $str .= sprintf( "&lt;td&gt;votes: %d replies: %d/%d&lt;/td&gt;",
+            $votes, $N-&gt;{directreplies}, $N-&gt;{repliesbelow} );
+      }
+
+      $str .= "&lt;/tr&gt;\n";
+   }
+   return $str . "&lt;/table&gt;\n";
+%]
+</field>
+</data>
+</node>

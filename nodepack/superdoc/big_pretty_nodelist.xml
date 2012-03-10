@@ -1,0 +1,256 @@
+<node>
+  <doctext>[%
+
+my %id2class;
+my %id2type;
+my %auths;
+
+my $parsetime=sub{&quot;&quot;};
+htmlcode('reusable_code','','parsetimeinstring',\$parsetime);
+
+local *make_link= sub {
+  my ( $id, $title, $tid, $fc )= @_;
+  my $extra;
+  if ( ref $id ) {
+    $fc=$title;
+    $auths{$id-&gt;{author_user}}||=$id-&gt;{author_user}&gt;0 
+                                 ? getNodeById($id-&gt;{author_user})-&gt;{title}
+                                 : $id-&gt;{author_user};
+    my $updated=$parsetime-&gt;($id-&gt;{nodeupdated});
+    $updated=~s/&lt;[^&gt;]+&gt;//g;
+    $extra=$q-&gt;escapeHTML( join &quot; - &quot;,
+            &quot;by $auths{$id-&gt;{author_user}}&quot;,
+            $id2type{$id-&gt;{type_nodetype}}{title},
+            $id-&gt;{hits}.&quot; hits&quot;,
+            &quot;updated &quot;.$updated,
+    );
+    ($id,$title,$tid)=@{$id}{qw(node_id title type_nodetype)};
+    $tid= $id if $tid == 1;
+  } else {
+    $extra=$id2type{$tid}{title};
+  }
+  my @line=(&quot;&quot;);
+  $title=$q-&gt;escapeHTML( $title );
+  while ($title=~/\G(([a-z]{1,25})|(&amp;[a-z]+;|[^a-z\s]+)|(\s+))/gi) {
+    if ( length($line[-1]) + length($1) &lt;= 25 ) {
+      $line[-1].=$1;
+    } elsif ($4) {
+      push @line,&quot;&quot;;
+    } else {
+      push @line,$1;
+    }
+  }
+  sprintf &quot;%s&lt;a href='?node_id=%s' title='%s' class='%s'&gt;%s&lt;/a&gt;&quot;,
+           $fc, $id, $extra, $id2class{$tid}, join(&quot;&lt;br/&gt;&quot;,@line);
+};
+
+
+local *make_cols=sub {
+  my ( $ary, $numcols )= @_;
+  $numcols ||= 3;
+  $numcols= @$ary if $numcols&gt;@$ary;
+
+  my $depth= int( @$ary / $numcols + 0.5 );
+  my @depths= (
+                ($depth) x ($numcols-1),
+                # If a column will be short it will
+                # always be the last.
+                @$ary- ($depth *  ($numcols-1))
+              );
+  my ( $lc, $cur, @cols )= ( &quot;&quot;, 0, );
+
+  foreach my $row (@$ary) {
+    my $cell= &quot;&amp;nbsp;&quot;;
+    if (ref $row) {
+      $cell= make_link($row,&quot;&amp;bull;&quot;);
+    } else {
+      $cell= $row;
+    }
+    push @{$cols[$cur]}, $cell;
+    $cur++ if ! --$depths[$cur];
+  }
+  return $q-&gt;table( join &quot;&quot;,
+    &quot;&lt;colgroup span='$numcols' width='&quot;
+    . int(100/$numcols)
+    . &quot;%'&gt;&lt;/colgroup&gt;&quot;,
+    map {
+      my $y= $_;
+      $q-&gt;Tr(
+        $q-&gt;td(
+          [ map { $cols[$_][$y] || &quot;&amp;nbsp;&quot; }
+            (0..$numcols-1) ]
+        )
+      )
+    } (0..$depth-1)
+  );
+};
+
+my $dbh=$DB-&gt;getDatabaseHandle();
+
+
+my %type_count;
+{
+  my $sth=$dbh-&gt;prepare(
+    'select type_nodetype, count(node_id) num from node group by type_nodetype'
+  );
+  $sth-&gt;execute;
+  while ( my @rec=$sth-&gt;fetchrow_array ) {
+    $type_count{$rec[0]}=$rec[1];
+  }
+}
+
+my $NN= getVars(getNode('Newest Nodes Setting','setting'));
+my %ignore_type= map { $_ =&gt; !!1 }
+                     qw(patch pmdevnote pmdevtopic zombie_user 
+                        bug scratchpad rawdata),
+                     split /,/,$NN-&gt;{nodetypes_all};
+
+
+my %user_choice;
+my $allbut;
+my @sel;
+my $numcols;
+
+my $allbut_param= 'allbut';
+my $seltype_param= 'sel-type';
+my $cols_param= 'numcols';
+
+if (  grep { $q-&gt;param($_) } 'sexisgood',
+      $allbut_param, $seltype_param, $cols_param )
+{
+  ($numcols)= $q-&gt;param($cols_param)=~/^([1-9])$/;
+  $allbut= $q-&gt;param($allbut_param);
+  @sel= $q-&gt;param($seltype_param);
+} else {
+  $numcols=$VARS-&gt;{bpnl_numcols};
+  $allbut=$VARS-&gt;{bpnl_allbut};
+  @sel= ($VARS-&gt;{bpnl_types});
+}
+use Data::Dumper;
+$numcols||=3;
+foreach my $n ( grep { $type_count{$_} }
+                map { split /,/, $_ }  @sel )
+{
+  $user_choice{$n}= !!1;
+}
+my @debug;#=(&quot;&lt;code&gt;&quot;.Dumper($allbut,\@sel,\%user_choice,\%type_count).&quot;&lt;/code&gt;&quot;);
+if ($numcols==3) {
+  delete $VARS-&gt;{bpnl_numcols};
+} else {
+  $VARS-&gt;{bpnl_numcols}=$numcols;
+}
+if ($allbut) {
+  $allbut=!!1;
+  $VARS-&gt;{bpnl_allbut}=1;
+} else {
+  $allbut=!!0;
+  delete $VARS-&gt;{bpnl_allbut};
+}
+if (%user_choice) {
+  $VARS-&gt;{bpnl_types}=join &quot;,&quot;, keys %user_choice;
+} else {
+  delete $VARS-&gt;{bpnl_types};
+}
+
+my @css;
+my @typeid;
+my @legal;
+foreach my $type (
+   sort { lc($a-&gt;{title}) cmp lc($b-&gt;{title}) }
+   $DB-&gt;getAllTypes()
+){
+  my ($title,$id)=@{$type}{qw(title node_id)};
+  next if $ignore_type{ $title } || ! $type_count{ $id };
+
+  push @legal,$id;
+  push @css, &quot;nodetype-$id&quot;;
+  $id2class {$id }= &quot;nodetype-$id&quot;;
+  $id2type{ $id }= $type;
+
+  next if $allbut == !!$user_choice{ $id };
+
+  push @typeid, $id;
+}
+
+@typeid=(4) if !@typeid;
+
+my $intype= &quot;type_nodetype in (&quot;
+          . join( &quot;,&quot;, @typeid )
+          . &quot;)&quot;;
+
+my ($lc,@ary,@anch)=(&quot;&quot;);
+{
+  my $sth= $dbh-&gt;prepare(
+    &quot;select * from node where $intype order by title&quot;,
+  );
+  $sth-&gt;execute();
+
+
+  while (my $row= $sth-&gt;fetchrow_hashref) {
+    my ( $fc )= lc($row-&gt;{title})=~/^([a-z])/;
+    if ( $fc &amp;&amp; $fc ne $lc ) {
+      $lc= $fc;
+      push @anch,&quot;&lt;a href='#listpos-$fc'&gt;\U$fc\E&lt;/a&gt;&quot;;
+      push @ary, &quot;&lt;table&gt;&lt;tr&gt;&lt;td align='center' width='70%'&gt;&quot;
+         . &quot;&lt;big&gt;&lt;big&gt;&lt;b&gt;&lt;a name='listpos-$fc'&gt;\U$fc\E&lt;/a&gt;&lt;/b&gt;&lt;/big&gt;&lt;/big&gt;&lt;/td&gt;&quot;
+         . &quot;&lt;td align='right'&gt;&lt;sub&gt;&lt;a href='#top'&gt;(top)&lt;/a&gt;&lt;/sub&gt;&lt;/td&gt;&lt;/tr&gt;&quot;
+         . &quot;&lt;/table&gt;&quot;;
+    }
+    push @ary,{ %$row };
+  }
+}
+
+join &quot;\n&quot;,
+  htmlcode( 'colorblend', '', 0 + @css,
+               \my @colors, $THEME, \@css, q[] ),
+  qq(&lt;p align=&quot;right&quot;&gt;&lt;a href=&quot;?node_id=787964&quot;&gt;&lt;b&gt;Help for this page&lt;/b&gt;&lt;/a&gt;&lt;/p&gt;),
+  &quot;&lt;p align='center'&gt;&lt;a name='top'&gt;&lt;/a&gt;&quot;
+  . join(&quot; | &quot;,@anch)
+  . &quot;&lt;br /&gt;&lt;small&gt;&lt;a href='#config'&gt;config&lt;/a&gt; - (&quot;
+  . ( 0+@ary )
+  . &quot; : &quot;
+  . ( join &quot;, &quot;,map { make_link($id2type{$_}) } @typeid )
+  . &quot;)&lt;/small&gt;&lt;/p&gt;&lt;hr/&gt;&quot;,
+  &quot;&lt;center&gt;&quot;,
+  make_cols( \@ary, $numcols),
+  &quot;&lt;/center&gt;&quot;,
+  &quot;&lt;hr/&gt;&lt;a name='config'&gt;&lt;/a&gt;&lt;center&gt;&lt;small&gt;&lt;a href='#top'&gt;(top)&lt;/a&gt;&lt;br/&gt;&quot;,
+  htmlcode('openform'),
+  $q-&gt;checkbox(
+        -name=&gt;$allbut_param,
+        -checked=&gt;0,
+        -value=&gt;1,
+        -force=&gt;1,
+        -label=&gt;'Show all but selected types?',
+   ),
+   &quot;&lt;br /&gt;&quot;,
+   $q-&gt;checkbox_group(
+        -name =&gt; $seltype_param,
+        -values =&gt; \@legal,
+        -default =&gt; \@typeid,
+        -force =&gt;1,
+        -labels =&gt; { map {
+                    $_ =&gt; make_link($id2type{$_})
+                          . &quot; (&quot; . $type_count{$_} . &quot;)&quot;
+                   } @legal },
+        -cols =&gt; $numcols+1,
+   ),
+   &quot;&lt;br/&gt;Number of columns to show:&quot;,
+   $q-&gt;popup_menu(-name=&gt;$cols_param,
+                  -values=&gt;[1..9],
+                  -force=&gt;1,
+                  -default=&gt;$numcols),
+   &quot;&lt;br/&gt;&quot;,
+   htmlcode('closeform'),
+   '&lt;/small&gt;&lt;/center&gt;',
+  @debug
+;
+
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>56885</node_id>
+  <author_user>106850</author_user>
+  <title>Big Pretty Nodelist</title>
+  <createtime>2001-02-07 01:54:53</createtime>
+  <nodeupdated>2005-08-22 16:26:05</nodeupdated>
+</node>

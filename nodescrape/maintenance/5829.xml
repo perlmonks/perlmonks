@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="5829" title="note maintenance create" created="2000-03-21 21:08:03" updated="2005-07-15 02:02:29">
+<type id="868">
+maintenance</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my ($NODE)=@_;
+getRef $NODE;
+my($parent,$child);
+my $N;
+$child||=$NODE-&gt;{note_id};
+$child||=$NODE-&gt;{document_id};
+
+#$$USER{experience}++ unless getId($USER)==$HTMLVARS{guest_user};
+$VARS-&gt;{numwriteups}++;
+
+$parent||=$query-&gt;param(($query-&gt;param('type')||'note').'_parent_node');
+$parent||=$query-&gt;param('parent_node');
+$parent||=$query-&gt;param('parent');
+
+unless ($parent) {
+  printLog("Parentless node: $NODE-&gt;{node_id}. Params:".join(",",$q-&gt;param()));
+  return
+}
+
+htmlcode('msgonreplytopost','',$parent,$NODE-&gt;{node_id});
+
+#add entry into notepointers table;
+my $csr=$DB-&gt;getDatabaseHandle()
+           -&gt;prepare("insert into notepointers (parent,child,createtime) ".
+                     "VALUES($parent,$child,now())");
+$csr-&gt;execute();
+
+$csr = $DB-&gt;getDatabaseHandle()
+          -&gt;prepare("SELECT * FROM repliesinfo WHERE parent=$parent");
+$csr-&gt;execute;
+
+if($N=$csr-&gt;fetchrow_hashref){
+   $N-&gt;{directreplies}++;
+   $N-&gt;{repliesbelow}++;
+   $csr=$DB-&gt;getDatabaseHandle()
+           -&gt;prepare("update repliesinfo set directreplies=$N-&gt;{directreplies},".
+                     " repliesbelow=$N-&gt;{repliesbelow} where parent=$parent");
+   $csr-&gt;execute;
+}
+else{
+   $csr=$DB-&gt;getDatabaseHandle()
+           -&gt;prepare("INSERT into repliesinfo (parent,directreplies,repliesbelow) 
+                                       VALUES($parent,1,0)");
+   $csr-&gt;execute;
+}
+while($parent){
+   $csr=$DB-&gt;getDatabaseHandle
+           -&gt;prepare("select repliesbelow from repliesinfo info 
+                      where parent=$parent");
+   $csr-&gt;execute;
+   $N=$csr-&gt;fetchrow_hashref;
+   #$csr-&gt;finish;
+   $N-&gt;{repliesbelow}++;
+   $csr=$DB-&gt;getDatabaseHandle
+           -&gt;prepare("update repliesinfo set repliesbelow=$N-&gt;{repliesbelow} 
+                      where parent=$parent");
+   $csr-&gt;execute;
+   $csr=$DB-&gt;getDatabaseHandle
+           -&gt;prepare("select * from notepointers where child=$parent");
+   $csr-&gt;execute;
+   $N=$csr-&gt;fetchrow_hashref;
+   #$csr-&gt;finish;
+   last if $parent==$N-&gt;{parent};
+   $parent=$N-&gt;{parent};
+}
+
+</field>
+</data>
+</node>

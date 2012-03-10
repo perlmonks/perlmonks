@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="137399" title="Pod::Stripper" created="2002-01-09 05:58:38" updated="2005-07-21 01:30:34">
+<type id="121">
+perlcraft</type>
+<author id="10277">
+crazyinsomniac</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+## This thing is on CPAN RIGHT NOW (well finished product)
+
+use strict;
+use Pod::Parser;
+
+package Pod::Stripper; # this one is a little more stylish (see perlstyle)
+
+use vars qw/ @ISA $VERSION/;
+
+$VERSION = 0.2;
+
+sub Version { $VERSION };
+
+@ISA = qw(Pod::Parser); # Pod'Parser is also legal
+
+sub begin_input {
+    my ($Stripper) = @_;
+
+## SUPER cause I override parseopts, so the user can't mess w/it
+    $Stripper-&gt;SUPER::parseopts('-want_nonPODs'    =&gt; 1,
+                                '-process_cut_cmd' =&gt; 9,
+                              ,);
+
+    return undef;
+}
+
+sub cutting {
+   my ($Stripper, $cutting) = @_;
+
+   $Stripper-&gt;{_CUTTING} = $cutting  if defined $cutting;
+
+   return $$Stripper{_CUTTING};
+}
+
+sub begin_pod {
+    my ($Stripper) = @_;
+
+    $Stripper-&gt;cutting(1);
+
+    return undef;
+}
+
+sub end_pod {
+    my ($Stripper) = @_;
+
+    $Stripper-&gt;cutting(0);
+
+    return;
+}
+
+sub preprocess_paragraph
+{
+    my ($Stripper, $text) = @_;
+
+    if( $Stripper-&gt;cutting() ) {
+        my $out_fh = $Stripper-&gt;output_handle();
+        print $out_fh $text;
+    }
+    else {
+        return $text;
+    }
+}
+
+sub command
+{
+    my ($Stripper, $command, $paragraph) = @_;
+
+    if ($command =~ /cut/i) {
+        $Stripper-&gt;cutting(1);
+    }
+    else {
+        $Stripper-&gt;cutting(0);
+    }
+}
+
+sub verbatim {undef}
+sub textblock {undef}
+sub parseopts {undef}
+1;
+################################################################################
+################################################################################
+################################################################################
+
+package main;
+
+unless ( caller() ) {
+    ## if you say perl Stripper.pm
+    ## Create a Stripper object and have it parse from \*DATA
+
+    my $Stripper = new Pod::Stripper();
+
+    seek DATA,0,0;
+
+    $Stripper-&gt;parse_from_filehandle(\*DATA);
+}
+
+"here we go again";
+__END__
+
+=head1 NAME
+
+Pod::Stripper - strip all pod, and output what's left
+
+=head1 SYNOPSIS
+
+    $&gt;perl Stripper.pm
+
+or
+
+    #!/usr/bin/perl -w
+
+    use strict;
+    use Pod::Stripper;
+
+    my $Stripper = new Pod::Stripper();
+
+    $Stripper-&gt;parse_from_filehandle(\*STDIN) unless (@ARGV);
+
+    for my $ARGV (@ARGV) {
+        $Stripper-&gt;parse_from_file($ARGV);
+    }
+
+=head1 DESCRIPTION
+
+This be C&lt;Pod::Stripper&gt;, a subclass of C&lt;Pod::Parser&gt;.  It parses perl files,
+stripping out the pod, and dumping the rest (presumably code) to wherever
+you point it to (like you do with C&lt;Pod::Parser&gt;).
+
+You could probably subclass it, but I don't see why.
+
+=head2 MOTIVATION
+
+I basically re-wrote C&lt;Pod::Stripper&gt; on two separate occasions, and I know
+at least 2 other people who'd use it, and thought It'd make a nice addition.
+
+C&lt;perl -MPod::Stripper -e"Pod::Stripper-E&lt;gt&gt;new()-E&lt;gt&gt;parse_from_file(shift)"&gt;
+C&lt;  Stripper.pm&gt;
+
+=head2 EXPORTS
+
+None.
+This one be object oriented (at least I'm under the impression that it is).
+
+=head2 SEE ALSO
+
+C&lt;Pod::Parser&gt; and L&lt;Pod::Parser&gt;, esp. the C&lt;input_*&gt; and C&lt;output_*&gt; methods
+
+=head1 AUTHOR
+
+D.H. aka crazyinsomniac|at|yahoo.com.
+http://crazyinsomniac.perlmonk.org/perl/
+
+=head1 LICENSE
+
+Copyright (c) 2002 by D.H. aka crazyinsomniac|at|yahoo.com.
+All rights reserved.
+
+This module is free software;
+you can redistribute it and/or modify it under
+the same terms as Perl itself.
+
+=head1 PROPS
+
+props to all the perlmonks at perlmonks.org, and especially danger, jmcnamara, and gmax (they squash bugs)
+
+=cut</field>
+</data>
+</node>

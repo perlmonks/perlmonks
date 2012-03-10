@@ -1,0 +1,1109 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="861966" title="Far More than Everything You've Ever Wanted to Know about Prototypes in Perl -- by Tom Christiansen" created="2010-09-25 11:29:11" updated="2010-09-25 11:29:11">
+<type id="956">
+perltutorial</type>
+<author id="465654">
+liverpole</author>
+<data>
+<field name="doctext">
+This excellent article, by Tom Christiansen, seems to get harder and harder to find on the Internet (all the links I found to it were broken).&amp;nbsp;&amp;nbsp;I'm posting it here to preserve it in an easy-to-reference location, as I'm always recommending it to cow-orkers and friends.
+&lt;/p&gt;&lt;p&gt;Thanks to [moritz] and [Limbic~Region] for locating a copy of it!&amp;nbsp;&amp;nbsp;([http://web.archive.org/web/20080421062920/http://library.n0i.net/programming/perl/articles/fm_prototypes/]).
+&lt;/p&gt;&lt;p&gt;I'm hoping it's okay to publish this here, and that Tom wouldn't mind, since it is available on the Internet (albeit with some serious searching).&amp;nbsp;&amp;nbsp;Please /msg me if anyone knows a reason it would be better &lt;i&gt;NOT&lt;/i&gt; to post it here (thanks!).
+&lt;/p&gt;&lt;p&gt;&lt;b&gt;Update&lt;/b&gt;:&amp;nbsp;&amp;nbsp;Converted characters '&amp;#91;' and '&amp;#93;' to '&amp;amp;#91;' and '&amp;amp;#93;'.
+&lt;hr&gt;
+&lt;P&gt;
+&lt;H1 ALIGN=CENTER&gt;&lt;A NAME="FMTEYEWTK_about_Prototypes_in_Pe"&gt;Far More Than
+Everything You've Ever Wanted to Know about &lt;BR&gt;Prototypes in Perl&lt;/A&gt;&lt;/H1&gt;
+&lt;P ALIGN=CENTER&gt;&lt;I&gt;by &lt;A HREF="mailto:tchrist@perl.com"&gt;Tom Christiansen&lt;/A&gt;&lt;/i&gt;
+
+&lt;P ALIGN=CENTER&gt; (Originally written for the perl5-porters mailing list.)
+&lt;SMALL&gt;
+&lt;P ALIGN=CENTER&gt;ABSTRACT
+&lt;P&gt;
+&lt;BLOCKQUOTE&gt;
+The major issue with ``prototypes'' in Perl is
+that the experienced programmer comes to Perl bearing a pre-conceived but
+nevertheless completely rational notion of what a ``prototype'' is and how
+it works, yet this notion has shockingly little in common with what they
+really do in Perl.
+&lt;/BLOCKQUOTE&gt;
+&lt;/SMALL&gt;
+
+&lt;!--  INDEX BEGIN  --&gt;
+
+&lt;UL&gt;
+
+	&lt;LI&gt;&lt;A HREF="#Great_Expectations"&gt;Great Expectations&lt;/A&gt;
+
+	&lt;UL&gt;
+
+		&lt;LI&gt;&lt;A HREF="#How_Prototypes_Really_Work_in_Pe"&gt;How Prototypes Really Work in Perl &lt;/A&gt;
+		&lt;LI&gt;&lt;A HREF="#Reference_Prototypes"&gt;Reference Prototypes &lt;/A&gt;
+	&lt;/UL&gt;
+
+	&lt;LI&gt;&lt;A HREF="#Prototype_Bugs"&gt;Prototype Bugs&lt;/A&gt;
+	&lt;LI&gt;&lt;A HREF="#Prototype_Problems"&gt;Prototype Problems &lt;/A&gt;
+
+	&lt;UL&gt;
+
+		&lt;LI&gt;&lt;A HREF="#Problems_with_Regular_Prototypes"&gt;Problems with Regular Prototypes&lt;/A&gt;
+		&lt;LI&gt;&lt;A HREF="#Problems_with_Reference_Prototyp"&gt;Problems with Reference Prototypes&lt;/A&gt;
+	&lt;/UL&gt;
+
+	&lt;LI&gt;&lt;A HREF="#Appraising_Prototypes"&gt;Appraising Prototypes&lt;/A&gt;
+	&lt;LI&gt;&lt;A HREF="#Summary"&gt;Summary&lt;/A&gt;
+
+&lt;/UL&gt;
+&lt;!--  INDEX END  --&gt;
+
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Great_Expectations"&gt;Great Expectations&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Nearly any programmer you encounter will, when asked what function
+prototypes are for, report the standard text-book answer that function
+prototypes are mainly used to catch usage errors at compile time in
+functions called with an unexpected type or number of parameters. This is
+what programmers are expecting of prototypes, and what Perl does not give
+them. In some ways, it can't.
+
+&lt;P&gt;
+A few respondents might further observe that prototypes in some
+circumstances may permit the compiler to generate better code, or even code
+that is more correct. The classic example of the latter situation is &lt;CODE&gt;float f = sqrt(2)&lt;/CODE&gt;. Without the prototype of &lt;CODE&gt;double
+sqrt(double n)&lt;/CODE&gt; in scope, the compiler not only thinks that &lt;CODE&gt;sqrt()&lt;/CODE&gt; returns an
+int, it also thinks that that ``2'' above should be passed into the
+function as an int rather than as a double, thereby generating incorrect
+machine code. The prototype quietly fixes this, and probably forbids or at
+least complains about passing in anything other than a single number, such
+as two strings or nothing at all.
+
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;h1&gt;&lt;A NAME="How_Prototypes_Really_Work_in_Pe"&gt;How Prototypes Really Work in Perl&lt;/A&gt;&lt;/h1&gt;
+&lt;P&gt;
+With that in mind, let's look at Perl's ``prototypes''. One can argue that
+rather less misunderstanding might have arisen had Larry historically
+chosen to call these ``parameter context templates'' rather than
+``prototypes''.
+
+&lt;P&gt;
+These mostly do nothing more that provide an implicit context coercion in
+order to spare the caller from having to sprinkle the code with calls to
+&lt;CODE&gt;scalar()&lt;/CODE&gt; or to supply backslashes in order to pass aggregates
+by reference. They do comparatively little in the way of checking the type
+or number of arguments. So just what good are they, anyway?
+
+&lt;P&gt;
+They're good for creating user-defined functions that behave in much the
+same way that Perl's own built-in functions behave with respect to their
+effects upon the parser and upon implicit contexts. This has two benefits:
+one to allow you to omit parentheses; the other to allow you, nay &lt;STRONG&gt;require&lt;/STRONG&gt; you, to omit a backslash.
+
+&lt;P&gt;
+
+For example, the built-in function &lt;CODE&gt;time()&lt;/CODE&gt; is one that, unlike
+most new functions devised by members of this august body, brooks no
+argument. That means that writing
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = time + 20_000_000;
+&lt;/PRE&gt;
+&lt;P&gt;
+is really the same as writing
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = time() + 20_000_000;
+&lt;/PRE&gt;
+&lt;P&gt;
+The parser itself knows not to look for arguments. Perl gained support for
+``prototypes'' for precisely this very situation. The results of
+translating C preprocessor code via &lt;EM&gt;h2ph&lt;/EM&gt; was wont to take something like
+
+
+&lt;P&gt;
+&lt;PRE&gt;    #define NATALITY 31203691 
+&lt;/PRE&gt;
+&lt;P&gt;
+and convert that C preprocessor code into Perl as:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub NATALITY { 31203691 }
+&lt;/PRE&gt;
+&lt;P&gt;
+The catastrophic problem is that this no longer behaves as simple
+token-for-token replacement where one terminal is replaced by a different
+one without any effect on the surrounding code. Instead what happens is
+that NATALITY becomes a Perl function, which, like all user-defined Perl
+functions in the absence of ``prototypes'', is by nature a variadic one.
+This produces a significantly different parse:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = NATALITY + 1;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+silently becomes not
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = NATALITY() + 1;
+&lt;/PRE&gt;
+&lt;P&gt;
+but rather
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = NATALITY(+1);
+&lt;/PRE&gt;
+&lt;P&gt;
+Another untidy consequence of not supplying the parentheses is that the
+compiler now isn't always sure about whether it should be expecting a
+terminal (in the grammar) or not. That means that several tokens, such as
+``&amp;lt;'', ``&amp;lt;&amp;lt;'', and ``/'', all become ambiguous. The ``&amp;lt;'' could
+be the binary infix numeric less-than operator, or it could be the
+left-hand component of the circumfix readline operator. The ``&amp;lt;&amp;lt;''
+could be the binary infix bitwise left-shift operator, or it could be the
+start of here-document. The ``/'' could be the binary infix numeric
+division operator, or it could be the left-hand component of a pattern
+match quote operation. When you had something like this, you couldn't do
+simple things in simple ways, and it confused people. They aren't used to
+having
+
+
+&lt;P&gt;
+&lt;PRE&gt;    if (NATALITY &amp;lt; 10) 
+&lt;/PRE&gt;
+&lt;P&gt;
+be a syntax error. (The fact that it is still a problem in innumerable
+other situations, such as &lt;CODE&gt;print()&lt;/CODE&gt; or &lt;CODE&gt;length(),&lt;/CODE&gt; is
+little consolation.)
+
+&lt;P&gt;
+So that's why Larry introduced ``prototypes'' into Perl. In particular, the
+void ``prototype''
+
+&lt;P&gt;
+
+&lt;PRE&gt;    sub NATALITY() { 31203691 }
+&lt;/PRE&gt;
+&lt;P&gt;
+cures this unpleasantry.  
+
+&lt;P&gt;
+You see, ``prototypes'' were really a bug fix. Since Larry had already
+started down this path--or, if you would, slope--he kept on going by
+permitting user-defined functions to have (some of) the sorts of parameter
+context templates long enjoyed by built-in functions.
+
+&lt;P&gt;
+Besides functions of no parameters--I'd call them void functions but that
+risks confusion between the input values and the output values--the other
+two main flavors of parameter context templates are those that take one
+input and those that can take many. Built-in functions that manifest these
+two different behaviours are &lt;CODE&gt;rand()&lt;/CODE&gt; and &lt;CODE&gt;unlink()&lt;/CODE&gt;
+respectively. Sometimes these are called ``named unary operators'' and
+``named list operators''.
+
+&lt;P&gt;
+So now we can classify all user-defined functions and most built-ins into
+one of three possible sorts, depending on their parameter context
+templates. There is a certain elegance here. The subroutine can through its
+``prototype'' tell its callers (and the compiler) whether it wants zero,
+one, or any number of input values. The caller can communicate its desire
+to receive as output zero, one, or any number of output values back from
+the subroutine, if that subroutine consults the value of
+
+&lt;CODE&gt;wantarray()&lt;/CODE&gt; at run-time. Since zero, one, and
+as-many-as-I-want are the three nice numbers in programming, this holds
+substantial aesthetic appeal.
+
+&lt;P&gt;
+These parameter context templates have both compile-time effects and
+run-time effects. The compile-time effect of ``void input'' functions has
+already been shown using &lt;CODE&gt;time().&lt;/CODE&gt; The monadic functions--that
+is, the named unary operators--also affect the parse. This code
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (rand 10, 20);
+&lt;/PRE&gt;
+&lt;P&gt;
+will put two elements into the array, because it implicitly parses as
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (rand(10), 20);
+
+&lt;/PRE&gt;
+&lt;P&gt;
+That's because somewhere (opcode.pl, ultimately) there's a parameter
+context template for &lt;CODE&gt;rand()&lt;/CODE&gt; that sets up the function to act
+like
+
+&lt;P&gt;
+&lt;PRE&gt;    sub rand($);
+&lt;/PRE&gt;
+&lt;P&gt;
+The parser knows that this function is expecting one and only one argument.
+That means that
+
+&lt;P&gt;
+&lt;PRE&gt;    @nums = (rand 10, rand 10, rand 10);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+is really
+
+&lt;P&gt;
+&lt;PRE&gt;    @nums = (rand(10), rand(10), rand(10));
+&lt;/PRE&gt;
+&lt;P&gt;
+rather than 
+
+&lt;P&gt;
+&lt;PRE&gt;    @nums = (rand(10, rand(10, rand(10))));
+&lt;/PRE&gt;
+&lt;P&gt;
+which is what it would have been if &lt;CODE&gt;rand()&lt;/CODE&gt; had been a variadic
+function instead of a monadic one.
+
+&lt;P&gt;
+
+A scalar context template has another effect. It causes an expression
+evaluated to supply the monadic function's input value to be evaluated in
+scalar context. That means that at run-time, &lt;CODE&gt;wantarray()&lt;/CODE&gt; will
+now return false. This way this code:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = rand fn();
+&lt;/PRE&gt;
+&lt;P&gt;
+is really 
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = rand(scalar(fn()));
+&lt;/PRE&gt;
+&lt;P&gt;
+but only because of the scalar ``prototype''.  
+
+&lt;P&gt;
+
+Is this kind of thing is of any practical use? Perhaps. One example would
+be:
+
+&lt;P&gt;
+&lt;PRE&gt;   socket(Sock, PF_INET, SOCK_STREAM, getprotobyname('tcp'))
+&lt;/PRE&gt;
+&lt;P&gt;
+The built-in &lt;CODE&gt;socket()&lt;/CODE&gt; function is not a variadic one. It has a
+particular parameter context template (a.k.a. ``prototype'') that assures
+that &lt;CODE&gt;getprotobyname()&lt;/CODE&gt; &lt;STRONG&gt;shall&lt;/STRONG&gt; be called in scalar context, not list context. This makes
+&lt;CODE&gt;getprotobyname()&lt;/CODE&gt; return a single value instead of a list of
+values.
+
+
+&lt;P&gt;
+As with &lt;CODE&gt;socket(),&lt;/CODE&gt; which takes four scalar (I'm fudging a bit;
+the first is a handle) arguments, you yourself can create functions that
+take several scalar arguments. For example, the built-in dyadic function
+&lt;CODE&gt;atan2()&lt;/CODE&gt; (or prefix named binary operator, I suppose) has an
+effective ``prototype'' of:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub atan2($$);
+&lt;/PRE&gt;
+&lt;P&gt;
+However, unlike monadic functions where the parser only gobbles as many
+arguments as the function wants, such a ``prototype'' here will &lt;STRONG&gt;not&lt;/STRONG&gt;
+cause the parser to only grab two arguments. That means that
+
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (atan2 1, 2, 3);
+&lt;/PRE&gt;
+&lt;P&gt;
+does not become
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (atan2(1, 2), 3);
+&lt;/PRE&gt;
+&lt;P&gt;
+as one would be likely to infer upon learning how &lt;CODE&gt;rand()&lt;/CODE&gt;
+works. Instead, it is a syntax error at compile time. However, there is a
+run-time effect. Something like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = atan2(fy(), fx())
+
+&lt;/PRE&gt;
+&lt;P&gt;
+calls both those functions in scalar context, supplying their two single
+return values as input to &lt;CODE&gt;atan2().&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Reference_Prototypes"&gt;Reference Prototypes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+I said that ``prototypes'' can do two things: one, to allow you to dispense
+with parentheses, and two, to allow you on occasion to dispense with a
+backslash. Let's now look at the second case.
+
+&lt;P&gt;
+When you specify a ``prototype'' of $, @, or %, you may also precede that
+with a backslash. (There are also ``prototype'' possibilities of &amp;amp; or
+*, but they are not necessary for this discussion.) This parameter context
+template means that the programmer must use that exact symbol, and Perl
+will then supply the backslash to pass that argument by reference.
+
+&lt;P&gt;
+
+For example, suppose you wanted a function that stuck key-value pairs into
+a hash, somewhat reminiscent of the way &lt;CODE&gt;push()&lt;/CODE&gt; places
+additional elements into an array. Here's how you'd do that:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub hpush(\%@) {
+        my $href = shift;       # NB: not %
+        while ( my ($k, $v) = splice(@_, 0, 2) ) {
+            $href-&amp;gt;{$k} = $v;
+        } 
+    } 
+    hpush(%pieces, &amp;quot;queen&amp;quot; =&amp;gt; 9, &amp;quot;rook&amp;quot; =&amp;gt; 5);
+
+&lt;/PRE&gt;
+&lt;P&gt;
+This works out rather nicely. As you see, here as in so many other areas,
+Perl's ``prototypes'' work out well when they are used for what they were
+designed to do--that is, to emulate built-in functions by allowing calls to
+a user-defined subroutine to be subject to the same implicit parameter
+context conversions as built-ins are.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Prototype_Bugs"&gt;Prototype Bugs&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+So what's the problem? It's not just one, actually. There are rather more
+than you probably realize. There are definitely more than someone who
+simply hears that Perl has ``prototypes'' is likely to imagine. I know of a
+few bugs, which I'll get out of the way first. These can be fixed. The
+design issues are the important matters, and those are discussed in the
+next section..
+
+&lt;P&gt;
+One bug with ``prototypes'' is that if you call:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = fn(@a);
+    sub fn(\@) { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+then you get no warning to the effect that Perl already assumed that
+
+&lt;CODE&gt;fn()&lt;/CODE&gt; was just a standard variadic function; that is, one whose
+parameter context template is simply &lt;CODE&gt;sub fn(@)&lt;/CODE&gt;. This should be reported, much as when C complains when it catches you
+using a function without declaring its return type and thus making the
+compiler guess the function's return type to be int, but then you go off
+and later on in the source declare the function to be of some other return
+type.  
+
+&lt;P&gt;
+Another bug is that you can at compile time declare ``prototypes'' with
+multiple backslashes, such as &lt;CODE&gt;fn(\\@).&lt;/CODE&gt; These are accepted at
+compile-time, but at run-time, raise an exception.
+
+&lt;P&gt;
+That's not the only thing that is silently accepted but completely useless.
+Consider 
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn(@@) { ... }
+    sub fn(%%) { ... }
+    sub fn(%$) { ... }
+    sub fn($%) { ... }
+    sub fn(@$) { ... }
+    sub fn($@) { ... }
+    sub fn(%@) { ... }
+    sub fn(@%) { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+What do those do? They don't raise an exception, but neither will they do
+anything useful for you. This will be explained more in the text below.
+
+&lt;P&gt;
+Finally, there have historically been bugs related to the * and &amp;amp;
+``prototypes''. I know that Sarathy has worked on at least some of them,
+and I am unsure on their exact status.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Prototype_Problems"&gt;Prototype Problems&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This section, I imagine, is what you've all been waiting for, and I commend
+you for having read everything up to this point. I know people hate to
+read, but I felt that without the proper background that I attempted to
+provide above, I would not reach many of you when it came time to
+explaining the grave problems inherent in Perl's implementation of
+``prototypes''.
+
+&lt;P&gt;
+That time is now.
+
+&lt;P&gt;
+I suppose you could class all these problems into two groups, one
+comprising those cases where Perl doesn't do what you want it to, and the
+other comprising those cases where Perl does what you don't want it to.
+Both are highly annoying.
+
+&lt;P&gt;
+The problems that arise from ``prototypes'' are many. Some are due to
+inappropriate expectations on the part of the users, who for quite obvious
+reasons expect Perl's ``prototypes'' to work like prototypes instead of
+like implicit context coercion templates for input parameters to the
+function.
+
+
+&lt;P&gt;
+Sometimes users ask for support of exact prototypes for strings or numbers
+or integers or floats or booleans. These requests are reasonably easy to
+fend off. You just tell them that a scalar can happily hold any of these at
+any time. You can't know from one moment to the next whether
+&lt;CODE&gt;$x&lt;/CODE&gt; contains one or the other of these. Go on to point out that
+some things just &lt;STRONG&gt;have&lt;/STRONG&gt; to be done through run-time assertions or contract-validations. Like what?
+Well, such as, oh, a dyadic function whose arguments should be two integers
+representing two opposing sides of a right triangle whose hypotenuse is
+also an integral number of units. Or a function that requires a 47-digit
+prime number as input. :-) Some things you just have to check at run-time.
+
+&lt;P&gt;
+You might find yourself on slightly shakier ground when they ask how to
+ensure and enforce that arguments be of particular object types. It's
+shakier because strict typing is often more important to those whose first
+stab at any problem is to throw an object at it (and you wouldn't want them
+to think you the problem). But you can still work your way out of this
+squeeze if you just remind them that first of all, Perl is dynamically
+typed (that's what we did for the previous paragraph) and that secondly,
+you should be using method-call dispatch to get polymorphism. If the OO
+folks continue to object, try redirecting them to the documentation for
+Damian Conway's Class::MultiMethod module. This should suffice to give you
+enough breathing room to make your escape. Plus it might even solve their
+problem directly or inspire them to approach the problem from a completely
+different direction.
+
+&lt;P&gt;
+But you can only dodge the more horrific issues for so long. These are the
+ones that just seem broken as designed, at least if you're coming from
+certain cultural prejudices. And there may not really be much we can do
+about these matters, either, because they may be inevitable consequences of
+how the Perl language works. These ``surprises'', or brokennesses if you
+would, are side-effects of Perl's design and the initial purpose of
+``prototypes''. This puts them somewhere between difficult and impossible
+to ``fix''.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Problems_with_Regular_Prototypes"&gt;Problems with Regular Prototypes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+The first surprise is that when Perl programmers see ``$'', ``@'', and
+``%'', they usually think ``scalar'', ``array'', and ``hash'' respectively.
+This isn't completely accurate in all cases, but it is, nevertheless, what
+they often think.
+
+&lt;P&gt;
+So when the user sees a ``prototype'' of ``$'', the primrose programming
+path leads them to believe, lamentably, that the compiler will complain if
+they pass something in that's not a scalar. Nothing could be further from
+the truth!  
+
+&lt;P&gt;
+The built-in function &lt;CODE&gt;length()&lt;/CODE&gt; has a ``$'' prototype. That
+doesn't mean that you can hope for an error if you don't pass in a single
+scalar value. It means that whatsoever you pass in &lt;STRONG&gt;shall&lt;/STRONG&gt; be subtly converted into a scalar behind your back and under your nose
+(yes, these sorts of sordid shenanigans get you both coming and going).
+This isn't what could even charitably be referred to as error checking.
+This is implicit casting between incompatible types.
+
+&lt;P&gt;
+&lt;PRE&gt;    @array = (1 .. 10);
+    print length(@array);
+&lt;/PRE&gt;
+&lt;P&gt;
+You might think that would be an error, but it's not, because there exists
+an implicit coercion rule for arrays taken in scalar context: it's the
+number of elements in that array. That number, in this case, is 10. Now
+then, what do you imagine the length of 10 to be? That question doesn't
+really make much sense as stated (neither did the last one, though), but it
+just so happens that you've lucked out again: there's another implicit
+coercion rule for treating a number like a string. That yields ``10'', a
+string which you will note is two bytes long. Thus the answer is 2.
+
+
+&lt;P&gt;
+Nifty, eh?
+
+&lt;P&gt;
+If you think that's bizarre, consider this:
+
+&lt;P&gt;
+&lt;PRE&gt;    print length(%ENV)
+&lt;/PRE&gt;
+&lt;P&gt;
+Surely that's a compilation error? Silly programmer, of course it's not!
+This is Perl. You would be astonished at just how much &lt;EM&gt;Sturm und Drang&lt;/EM&gt;
+the Perl compiler will put up with--and come to think of it, you probably
+are, and on a regular basis. Since you gave Perl a ridiculous request, Perl
+dutifully provides you in return a ridiculous response--but not an error;
+oh no, not that! The scalar sense of a hash is a string representing its
+internal fullness. This might be, for example, ``29/64''. Noting that this
+is a string of five bytes, you can probably by now surmise the printed
+value: 5.
+
+&lt;P&gt;
+Nifty, eh?
+
+&lt;P&gt;
+That means that a function with a scalar prototype does not complain if
+something is passed to it that's not a scalar. It simply silently coerces
+into something it never was, and in all likelihood, was never meant to be
+in the first place.
+
+
+&lt;P&gt;
+Now, there are a few rare places where the ``$'' prototype will actually
+catch you making a mistake. Not many, but some. One is when you pass it a
+list. Remember that lists and arrays aren't the same; this distinction is
+critical in later examples. This
+
+&lt;P&gt;
+&lt;PRE&gt;    print length(&amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot;)
+&lt;/PRE&gt;
+&lt;P&gt;
+will raise a compile-time exception, because you've passed two arguments to
+&lt;CODE&gt;length(),&lt;/CODE&gt; but it wanted only one.
+
+&lt;P&gt;
+However, not all lists are so fortunate.  
+
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn1 { return (&amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot;) }
+    print length fn1();
+&lt;/PRE&gt;
+&lt;P&gt;
+The answer there is 6. Why is that? Because you returned a list, which in
+scalar context ended up being just the last element, ``barney'', whose
+length was 6.
+
+&lt;P&gt;
+But now try this:
+
+&lt;P&gt;
+&lt;PRE&gt;    @names = (&amp;quot;fred&amp;quot;, &amp;quot;barney&amp;quot;)
+    sub fn2 { return @names } 
+
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print length fn2();
+&lt;/PRE&gt;
+&lt;P&gt;
+This time the answer is 1. Why? Because &lt;CODE&gt;fn2()&lt;/CODE&gt; was called in
+scalar context, and thus &lt;CODE&gt;@names&lt;/CODE&gt; is in scalar context when it's
+returned. There are two elements. The length of ``2'' is, of course, 1
+byte.
+
+&lt;P&gt;
+So although a literal list can't be brazenly given to &lt;CODE&gt;length()&lt;/CODE&gt;
+
+directly, placing a list in a function call whose result is passed to
+&lt;CODE&gt;length()&lt;/CODE&gt; is, unavoidably, ok--for surprising values of ``ok''.
+And notice also how putting an array in the return is completely different
+from putting a list there.
+
+&lt;P&gt;
+But even some literal lists are permitted if supplied as arguments to
+&lt;CODE&gt;length().&lt;/CODE&gt; Here's one:
+
+&lt;P&gt;
+&lt;PRE&gt;    print length(@names&amp;#91;1,0&amp;#93;)
+&lt;/PRE&gt;
+&lt;P&gt;
+This is not a compiler error. What's the answer? It's 4, because a slice is
+just a list, and a list in scalar context is the last thing, which in this
+case is ``fred'', whose length is 4. You might think that the compiler
+would catch this, but it doesn't. And it certainly wouldn't know what to do
+with
+
+&lt;P&gt;
+&lt;PRE&gt;    print length(@names&amp;#91;@indices&amp;#93;)
+
+&lt;/PRE&gt;
+&lt;P&gt;
+Because there's no way--at least at compile time--to know whether
+&lt;CODE&gt;@indices&lt;/CODE&gt; might contain just one thing, the compiler isn't
+completely certain that you're doing something nutty. The maintainers of
+your code might be, but the compiler is more, well, permissive.
+
+&lt;P&gt;
+It's especially important not to add prototypes later to existing function.
+If you do, you may change the parse. Imagine a function like this
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn {
+        my $n = shift;
+        ...
+    } 
+&lt;/PRE&gt;
+&lt;P&gt;
+And then called it these ways:
+
+&lt;P&gt;
+&lt;PRE&gt;    fn($x)
+    @a = ($x);
+    fn(@a);
+    fn(fy());
+
+&lt;/PRE&gt;
+&lt;P&gt;
+All would be well. If you then added a &lt;CODE&gt;sub fn($)&lt;/CODE&gt;
+``prototype'', existing code above would break. If your function were
+expecting two arguments:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn {
+        my ($i,$j) = @_;
+        ...
+    } 
+&lt;/PRE&gt;
+&lt;P&gt;
+And you called it these ways:
+
+&lt;P&gt;
+&lt;PRE&gt;    fn($x, $y)
+    @a = ($x, $y);
+    fn(@a);
+    fn(fy());
+&lt;/PRE&gt;
+&lt;P&gt;
+
+Then later adding a &lt;CODE&gt;sub fn($$)&lt;/CODE&gt; ``prototype'' would really be bad news. In fact, it would be a compilation
+error, because you can't just pass in &lt;CODE&gt;@a&lt;/CODE&gt; anymore, even if
+you're sure it contains two elements.
+
+&lt;P&gt;
+As you see, this scalar ``prototype'' is in no way useful for checking the
+types or number of arguments, which is the thing virtually everyone expects
+a prototype to be useful for. And if you think ``$'' is bad, there's no
+silver lining in the clouds coming over the horizon. The rest of the
+``prototypes'' aren't any better.
+
+&lt;P&gt;
+Let's examine the ``@'' ``prototype''. What's that? Is it an array? No,
+it's not. It just looks like that. It's merely a list. Is it a required
+list? Why no, it's not. You're welcome to supply a list of no elements;
+that is, omit it altogether.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn(@) { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+Can be called not only as
+
+
+&lt;P&gt;
+&lt;PRE&gt;    fn(@array)
+&lt;/PRE&gt;
+&lt;P&gt;
+but also as
+
+&lt;P&gt;
+&lt;PRE&gt;    fn()
+    fn($scalar)
+    fn($scalar1, $scalar2)
+    fn(%hash)
+    fn(zyx())
+&lt;/PRE&gt;
+&lt;P&gt;
+and so on and so forth. The ``@'' really just says that this is a normal
+Perl function, which means it's variadic. It pretty much means the same as
+if you had used no ``prototype'' at all.
+
+&lt;P&gt;
+You could, if you were careful, use this in conjunction with ``$'', and
+then it might have a tiny bit of meaning. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn($@) {
+        my ($scalar, @array) = @_;
+        print &amp;quot;Got $scalar and @array\n&amp;quot;;
+    } 
+
+&lt;/PRE&gt;
+&lt;P&gt;
+This isn't really much fun, either. It doesn't help you with the number or
+types of arguments very much. Oh, calling it with nothing at all is flagged
+at compile time, but that's it. The following crazinesses are all
+permitted, despite the ``$@'' prototype. The first part in all the calls
+below will be cast into the scalar abyss.
+
+&lt;P&gt;
+&lt;PRE&gt;    fn( xyz() )
+    fn( xyz(), xyz() )
+    fn( xyz(), xyz(), xyz() )
+    fn($scalar)
+    fn(@array)
+    fn($scalar, @array)
+    fn(@array, @array)
+    fn(@array, @array, @array)
+    fn($scalar, %hash)
+    fn(%hash)
+    fn(%hash, %hash)
+    fn($scalar, @array, %hash)
+&lt;/PRE&gt;
+&lt;P&gt;
+It sure looks like that ``$@'' signature there is more trouble than it's
+worth, now doesn't it? There's also the issue ``@@'' is accepted as a
+``prototype'', but actually means nothing. Or the one that ``@$'' is
+accepted, but means the same thing as ``@''. You aren't going to get
+anything evaluated in a scalar context that way.
+
+&lt;P&gt;
+Since we're having so much fun, let's move on to ``%''. This ``prototype''
+means what? That we're expecting a hash? Not at all! In fact, it is
+completely identical to a ``prototype'' of just ``@''. Everything I said
+about ``@'' is true for ``%'', because they are the same! You can't get any
+type checking here. It doesn't even bother to check whether you have an
+even number of arguments. Given a ``prototype'' of
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fn(%) { } 
+&lt;/PRE&gt;
+&lt;P&gt;
+these are all still licentiously permitted:
+
+
+&lt;P&gt;
+&lt;PRE&gt;    fn()
+    fn($scalar)
+    fn($scalar1, $scalar2)
+    fn(@array)
+    fn(@array1, @array2)
+    fn(%hash)
+    fn(%hash1, %hash2)
+    fn(zyx())
+&lt;/PRE&gt;
+&lt;P&gt;
+You get the same issues with ``%%'', ``%$'', and ``$%'' as we saw earlier
+with ``@'' instead of ``%''.
+
+&lt;P&gt;
+So you see, just like ``$'' and ``@'', ``%'' cannot be used for checking
+the type or number of arguments, since it doesn't care about these matters.
+In fact, it really doesn't care about anything at all. It's even worse than
+the already useless ``@''. The ``%'' is just sitting there as though it had
+no other purpose in life but to confuse you. I suspect it may have
+succeeded. This is not your fault, though.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Problems_with_Reference_Prototyp"&gt;Problems with Reference Prototypes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+What about the reference ``prototypes''? At some level, they're more
+predictable than ``$'', ``@'', ``%'', which please remember meant scalar,
+list, and um, well, list, respectively. You can also use ``\$'', ``\@'',
+and ``\%'' to indicate references to scalars, arrays, and hashes,
+respectively. (Why ``&amp;amp;'' really means reference to function instead of
+using ``\&amp;amp;'' for that, I leave as a meditation for the reader.) But I'm
+afraid that these, too, may often be more trouble than they're worth.
+
+&lt;P&gt;
+
+You see, those symbols don't actually say that you must pass in a scalar
+reference, an array reference, and a hash reference. Rather, they say you
+must pass in a scalar &lt;STRONG&gt;variable&lt;/STRONG&gt;, an array &lt;STRONG&gt;variable&lt;/STRONG&gt;, and a hash &lt;STRONG&gt;variable&lt;/STRONG&gt;. That means that the compiler insists upon seeing a properly notated
+variable of the given type, complete with ``$'', ``@'', or ``%'' in that
+slot. You must not use a backslash. The compiler silently supplies the
+backslash for you. The &lt;CODE&gt;hpush()&lt;/CODE&gt; function shown above
+demonstrates this kind of thing in action.
+
+&lt;P&gt;
+To see how this works when you use ``\@'' in the ``prototype'', you haven't
+declared a function as taking a reference to an array. Rather, you've
+declared one that takes an array, which the compiler will pass by
+(implicit) reference to you.
+
+&lt;P&gt;
+There are times when this is annoying. Consider the good old
+&lt;CODE&gt;push()&lt;/CODE&gt; function. Its ``prototype'' is ``\@@'', which means
+that it takes one array and an optional list as arguments, and that that
+array shall be passed by reference. Think of how often you've been forced
+to do something like
+
+
+&lt;P&gt;
+&lt;PRE&gt;    push @{ $hash{$string} }, $value;
+&lt;/PRE&gt;
+&lt;P&gt;
+Why can't you just do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    push $hash{$string}, $value;
+&lt;/PRE&gt;
+&lt;P&gt;
+It's because of the ``prototype''. You &lt;STRONG&gt;must&lt;/STRONG&gt; use the ``@'' sign. Yes, I know there's probably a reference to an array
+there, but that's not what the prototype says. The compiler doesn't want a
+reference to an array (contrary to popular misunderstanding). It wants an
+array, and you haven't given it one with a real ``@'' sign.
+
+&lt;P&gt;
+Passing in more than one aggregate into a Perl function is a problem,
+because aggregates interpolate into parameter lists. For example,
+
+&lt;CODE&gt;add_vecpair(@these, @those)&lt;/CODE&gt; will not normally be able to distinguish between the first array and the
+second one.
+
+&lt;P&gt;
+Let's make a function that takes two arrays of numbers and returns a new
+list where each element is the sum of the corresponding elements of the two
+input lists. That subroutine definition would look like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub add_vecpair( \@ \@ ) { ....
+&lt;/PRE&gt;
+&lt;P&gt;
+Make sure that that definition is seen by the compiler before it compiles
+any calls to the function. Once this is done, the function can (and &lt;STRONG&gt;must&lt;/STRONG&gt;) then be called this way:
+
+&lt;P&gt;
+&lt;PRE&gt;        @c = add_vecpair(@a, @b);   
+&lt;/PRE&gt;
+
+&lt;P&gt;
+Technically, once any function's definition has been seen by the compiler,
+you don't need to use the parentheses on the call. This is the same thing:
+
+&lt;P&gt;
+&lt;PRE&gt;    @c = add_vecpair @a, @b;    
+&lt;/PRE&gt;
+&lt;P&gt;
+Neither of these calls looks as though it's passing array references in,
+but because of the prototype, they are. The compiler adds the backslashes
+for you. This can be annoying when one of the elements isn't a literal
+array. For example, under the prototype, this call is technically illegal,
+even though it would appear fine:
+
+&lt;P&gt;
+&lt;PRE&gt;    @c = add_vecpair(@a, &amp;#91; values %hash &amp;#93;);   # prototype conflict      
+&lt;/PRE&gt;
+&lt;P&gt;
+This is where you find yourself fighting with the fastidious prototype.
+Here's how to make it shut up:
+
+&lt;P&gt;
+&lt;PRE&gt;    @c = add_vecpair(@a, @{ &amp;#91; values %hash &amp;#93; } );       
+
+&lt;/PRE&gt;
+&lt;P&gt;
+This is the same kind of thing you have to do when you use a prototyped
+built-in in ways it's not expecting. For example,
+
+&lt;P&gt;
+&lt;PRE&gt;    if ($x &amp;gt; 10) {
+        push @a, $value;
+    } else {
+        push @b, $value;
+    } 
+&lt;/PRE&gt;
+&lt;P&gt;
+That cannot be written as
+
+&lt;P&gt;
+&lt;PRE&gt;    push $x &amp;gt; 10 ? @a : @b , $value;
+&lt;/PRE&gt;
+
+&lt;P&gt;
+It instead requires a rather less obvious indirect approach. The extra
+backslash and ``@{}'' dereferencing are there to keep the
+&lt;CODE&gt;push()&lt;/CODE&gt; function's formal prototype from complaining
+unnecessarily.
+
+&lt;P&gt;
+&lt;PRE&gt;    push @{ $x &amp;gt; 10 ? \@a : \@b }, $value;
+&lt;/PRE&gt;
+&lt;P&gt;
+If the function in question is user-defined instead of built-in, you can
+disable the compiler's meddlesome prototype checking just by prefixing the
+function call with an ampersand. You'll just have to make sure the types on
+the call are right yourself then. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    @c = &amp;amp;add_vecpair(\@a, &amp;#91; values %hash &amp;#93;);   # `&amp;amp;' ignores prototype
+
+&lt;/PRE&gt;
+&lt;P&gt;
+If the preceding sequence isn't enough to convince you to avoid prototypes
+in most if not all situations, think about this: by enforcing prototypes,
+you've broken the beautiful model of functions built to take or return any
+number of arguments. It would have been more robust to have written the
+function to accept any number of array references, and sum up the
+corresponding elements of each. The extra backslash and ``@{}''
+dereferencing are there to keep the persnickety prototype checks from
+carping unnecessarily. But what will you do without prototypes? You'll just
+have to make sure the types on the call are right yourself then, just as
+you always have.
+
+&lt;P&gt;
+For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub add_vecs {
+        my($vec, @result);
+        foreach $vec (@_) {
+            for (my $i = 0; $i &amp;lt; @$vec; $i++) {
+                $result&amp;#91;$i&amp;#93; += $vec-&amp;gt;&amp;#91;$i&amp;#93;
+            }
+        }
+        return @result;
+    }
+    @sumvec = add_vecs  \@a, \@b, \@c, \@d;
+    @sumvec = add_vecs \(@a,  @b,  @c,  @d);   # same thing
+&lt;/PRE&gt;
+&lt;P&gt;
+Now you can pass in &lt;CODE&gt;\@foo&lt;/CODE&gt;, &lt;CODE&gt;[ whatever ]&lt;/CODE&gt;, or $aref, where that scalar variable contains a reference to an array.
+What happens if you pass in the wrong thing? You take an exception at run
+time. But this is the same situation if you were forced to pass in &lt;CODE&gt;@$aref&lt;/CODE&gt;
+
+instead under a prototype.  
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Appraising_Prototypes"&gt;Appraising Prototypes&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+So, have Perl's ``prototypes'' worked out ok? If the goal is to provide
+something like what other languages call prototypes, something to let the
+compiler catch errors of type and number occurring in calls to subroutines,
+then the answer is certainly that they have not.
+
+&lt;P&gt;
+Of course, you could try to argue that that's not a fair question, since
+``prototypes'' were really supposed to be context coercion templates,
+something to let you emulate a built-in function. This dodges the fact that
+Perl's ``prototypes'' violate the principle of least surprise, but so be
+it. Even in this limited capacity, their success has been no more than
+limited.
+
+&lt;P&gt;
+That's because there are still a lot of built-in functions that cannot be
+emulated, even given prototypes. There are odd-ball functions, like
+&lt;CODE&gt;defined()&lt;/CODE&gt; and &lt;CODE&gt;exists()&lt;/CODE&gt; and &lt;CODE&gt;undef(),&lt;/CODE&gt;
+
+all of which impose a type of context on their arguments that you cannot
+begin to emulate with existing Perl ``prototypes''. You also cannot use
+these to prototype new pseudo-quoting functions like m//, s///, tr///,
+y///, q//, qq//, qx//, qw//, and qr//.
+
+&lt;P&gt;
+Of greater importance are the functions that you cannot use Perl to
+prototype, because they include indirect objects in their signatures.
+&lt;CODE&gt;sprint()&lt;/CODE&gt; and &lt;CODE&gt;printf()&lt;/CODE&gt; are a bit annoying,
+although not for just the insurmountable reason. For example, consider this
+famous pair's true prototype definitions from opcode.pl:
+
+&lt;P&gt;
+&lt;PRE&gt;    sprintf       sprintf        ck_fun_locale   mfst@   S L
+    prtf          printf         ck_listiob      ims@    F? L
+&lt;/PRE&gt;
+&lt;P&gt;
+The first nastiness is that while 
+
+&lt;P&gt;
+&lt;PRE&gt;    printf @args
+
+&lt;/PRE&gt;
+&lt;P&gt;
+is ok, that 
+
+&lt;P&gt;
+&lt;PRE&gt;    sprintf @args
+&lt;/PRE&gt;
+&lt;P&gt;
+is not. Why? Because the &lt;CODE&gt;sprintf()&lt;/CODE&gt; function has the compiler
+enforcing a scalar context, so it gets passed the number of elements in
+&lt;CODE&gt;@args&lt;/CODE&gt; as the format, leaving the list empty. But
+&lt;CODE&gt;printf()&lt;/CODE&gt; doesn't do that. It takes the format from the first
+element of the list.
+
+
+&lt;P&gt;
+In the case of &lt;CODE&gt;printf(),&lt;/CODE&gt; the compiler is busy doing something
+else, anyway. It's considering whether you supplied the optional
+filehandle. You can in theory (modulo bugs) specify a filehandle in a
+``prototype'' (or at least a typeglob) using the ``*'' symbol. And you can
+also specify optional trailing arguments. But you cannot specify an
+optional leading argument, the way &lt;CODE&gt;print(),&lt;/CODE&gt;
+&lt;CODE&gt;printf(),&lt;/CODE&gt; &lt;CODE&gt;sort(),&lt;/CODE&gt; &lt;CODE&gt;system(),&lt;/CODE&gt; and
+&lt;CODE&gt;exec()&lt;/CODE&gt; all tolerate.
+
+
+&lt;P&gt;
+Even if an optional leading argument were permitted, this would just
+increase the potential for confusion. That's because this comma-less
+argument is really the one that falls in the indirect object slot. Indirect
+objects are pretty wicked. They are restricted to BAREWORDS, unsubscripted
+scalar variables, or {BLOCKS}. That's why you can't say:
+
+&lt;P&gt;
+&lt;PRE&gt;    printf $FH{$some_name} $some_fmt, @some_data;
+&lt;/PRE&gt;
+&lt;P&gt;
+And no, the bloated and silly IO::Handle module doesn't ``fix'' this in any
+way.
+
+&lt;P&gt;
+If you encourage a prototype for the indirect object, you'll get more
+people who will be writing code that uses indirect objects, and more people
+whom this will confuse. And let's not even begin to talk about the problems
+of stacking indirect object calls. It's not a pretty picture.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Summary"&gt;Summary&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+In summary, it should be no surprise to you who've read this complete note
+that I myself do not use prototypes. I hope that now you'll realize why.
+
+&lt;P&gt;
+
+A larger and more pressing question is whether we should create named
+parameters. That is, something like
+
+&lt;P&gt;
+&lt;PRE&gt;    sub func ($this, $that) { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+or perhaps even 
+
+&lt;P&gt;
+&lt;PRE&gt;    sub func (@these, @those) { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+or more likely
+
+&lt;P&gt;
+&lt;PRE&gt;    sub func (\@these, \@those) { ... }
+&lt;/PRE&gt;
+
+&lt;P&gt;
+My conclusion is that just adding names to Perl's existing ``prototypes'',
+which are really mostly just parameter context templates for implicit
+coercions, would be a mistake. It would encourage the use of something
+that's extremely confusing at best, and at worst, fundamentally broken by
+design. This document is really called &lt;EM&gt;Prototypes Considered Harmful&lt;/EM&gt;, but I don't think you would have believed me if I had said that right at
+the start.
+
+&lt;P&gt;--tom
+&lt;div class="pmsig"&gt;&lt;div class="pmsig-465654"&gt;
+&lt;hr /&gt;
+&lt;font size="1"&gt;
+s''(q.S:$/9=(T1';s;(..)(..);$..=substr+crypt($1,$2),2,3;eg;print$..$/
+&lt;/font&gt;
+&lt;/div&gt;&lt;/div&gt;</field>
+</data>
+</node>

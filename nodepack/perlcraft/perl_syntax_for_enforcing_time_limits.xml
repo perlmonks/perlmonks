@@ -1,0 +1,155 @@
+<node>
+  <doctext>=head1 NAME
+
+TimeLimit - limit execution time
+
+=head1 SYNOPSIS
+
+  use TimeLimit
+  time_limit {
+      # Some code which might take a long time
+  } or warn &quot;Timeout&quot;;
+
+=head1 DESCRIPTION
+
+Provides time_limit for adding easy to use timeouts to your programs.
+
+=head1 FUNCTIONS
+
+=cut
+
+############################################################
+
+package TimeLimit;
+
+use strict;
+use Carp;
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
+
+require Exporter;
+
+@ISA = qw(Exporter);
+@EXPORT_OK = ( );
+@EXPORT = qw(
+    time_limit
+);
+$VERSION = '1.00';
+
+############################################################
+
+=head2 time_limit
+
+Time out the subroutine or subroutine block using alarm, being careful
+to save and restore the alarm properly.
+
+You may nest this function inside other time_limits or alarm calls.
+Inside a nested time_limit the outer time_limit is turned off for the
+duration of the inner timeout, and restored when the inner time_limit
+exits.
+
+Input:
+
+    { subroutine block }
+    timeout - optional defaults to 30 seconds
+
+Output:
+
+    $ok  - returns 1 for OK or undef for false
+
+Use like this
+
+    time_limit
+    {
+        long_function();
+        more_stuff();
+    } 60
+    or die &quot;Stuff timedout after 60 seconds&quot;;
+
+Or this where the 'or do { }' block acts like an 'else' block.
+
+    time_limit
+    {
+        long_function(1);
+        long_function(2);
+    } or do
+    {
+        something_on_timeout();
+    };
+
+=cut
+
+############################################################
+
+my $time_limit_invocation = 0;
+
+sub time_limit (&amp;;$)
+{
+    my ($sub, $timeout) = @_;
+    my $die_text = &quot;time_limit: &quot; . $time_limit_invocation++ . &quot;\n&quot;;
+    $timeout ||= 30;
+    my $old_alarm = alarm(0);        # turn alarm off and read old value
+    {
+        local $SIG{ALRM} = 'IGNORE'; # ignore alarms in this scope
+
+        eval
+        {
+            local $SIG{__DIE__};     # turn die handler off in eval block
+            local $SIG{ALRM} = sub { die $die_text };
+            alarm($timeout);         # set alarm
+            $sub-&gt;();                # do the user's code
+        };
+
+        # Note the alarm is still active here - however we assume that
+        # if we got here without an alarm the user's code succeeded -
+        # hence the IGNOREing of alarms in this scope
+
+        alarm 0;                     # kill off alarm
+    }
+
+    alarm $old_alarm;                # restore alarm
+
+    if ($@)
+    {
+        # the eval returned an error
+        return 0 if $@ eq $die_text; # show we timed out ($@ is set)
+        die $@;                      # propagate error
+    }
+
+    return 1;                        # all ok
+}
+    
+############################################################
+
+=head1 EXPORT
+
+    time_limit
+
+=head1 AUTHOR
+
+Nick Craig-Wood
+
+=head1 CHANGES
+
+=head2 2001-04-21 ncw
+
+Release 1.00
+
+Created
+
+=head1 SEE ALSO
+
+perl(1).
+
+=cut
+
+############################################################
+1;
+__END__
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>74429</node_id>
+  <author_user>19340</author_user>
+  <title>Perl syntax for enforcing time limits</title>
+  <createtime>2001-04-21 15:39:12</createtime>
+  <nodeupdated>2005-07-21 01:26:44</nodeupdated>
+</node>

@@ -1,0 +1,90 @@
+<node>
+  <doctext>[%
+  my( $usergroup, $list_type, @other_types );
+
+  for ( $q-&gt;param('section') || '' ) {
+    if ( /faq/i ) {
+      ( $usergroup, $list_type, @other_types ) = qw( SiteDocClan faqlist faqstring alphafaqlet sitefaqlet sitedoclet );
+    }
+    elsif ( /tut/i ) {
+      ( $usergroup, $list_type, @other_types ) = qw( Pedagogues tutlist tutstring perltutorial );
+    }
+    else {
+      return &quot;Missing/invalid parameter 'section'.&quot;;
+    }
+  }
+
+   return &quot;This node is for [god]s or [$usergroup] only. Sorry.&quot; 
+    unless isGod($USER) or Everything::isApproved($USER, getNode($usergroup,'usergroup'));
+
+  my $dbh=$DB-&gt;getDatabaseHandle();
+  my $sel=$dbh-&gt;prepare('select node_id from node where type_nodetype=? order by node_id asc');
+  my $del=$dbh-&gt;prepare('delete from nodegroup where nodegroup_id=?');
+  my $ins=$dbh-&gt;prepare('insert into nodegroup (nodegroup_id,rank,node_id,orderby) values (?,?,?,?)');  
+  my $chg=$dbh-&gt;prepare('update nodegroup set nodegroup_id=? where nodegroup_id=?');
+
+  my $name2id = sub { getId( getNode( @_ ) ) };
+
+  my %ignore;
+  if ( my $oubliette = getNode( &quot;oubliette $list_type&quot;, $list_type ) ) {
+    @ignore{ @{ $oubliette-&gt;{group} || [] } } = ();
+  }
+
+  my $tmp_id=$NODE-&gt;{node_id};
+  my @ret;
+  for ( $list_type, @other_types ) {
+     my $list_id = $name2id-&gt;( &quot;master $_ $list_type&quot;, $list_type );
+     my $type_id = $name2id-&gt;( $_, 'nodetype' );
+
+     # clear tmp
+     $del-&gt;execute($tmp_id);  
+     # get nodes of type
+     $sel-&gt;execute($type_id); 
+     my $p=0;
+     while (my @row = $sel-&gt;fetchrow_array()) {
+        # insert them into the tmp list
+        $ins-&gt;execute($tmp_id,$p,$row[0],$p)
+           unless exists $ignore{$row[0]};
+        $p++;
+     }
+     # clear the target list
+     my $old = $del-&gt;execute($list_id);         
+     # reassign the temp list
+     my $count=$chg-&gt;execute($list_id,$tmp_id);
+     push @ret,&quot;&lt;p&gt;Updated &quot;
+              .linkNode($list_id)
+              .&quot; with $count nodes of type &quot;
+              .linkNode($type_id)
+              .&quot; replacing $old nodes that were previously referenced.&quot;
+              .&quot;&lt;/p&gt;&quot;;
+     my $n=getNodeById($list_id);
+     require POSIX;
+     my $time=POSIX::strftime('%Y-%m-%d %H:%M:%S',localtime);
+     my $m1=&quot;[$USER-&gt;{title}] using [id://$NODE-&gt;{node_id}] at [localtime://$time]&quot;;
+     my $m2=&quot;&lt;p&gt;Last updated by $m1&lt;/p&gt;&quot;;
+     if ($n-&gt;{doctext}!~/&lt;!--\s*auto\s*--&gt;/) {
+       $n-&gt;{doctext}=&quot;&lt;p&gt;This is an automatically generated list of &quot;
+                    .linkNode($type_id)
+                    .&quot; nodes.&lt;/p&gt;\n&quot;
+                    .&quot;&lt;!-- auto --&gt;\n&quot;
+                    .$m2
+                    .&quot;\n&lt;!-- end-auto --&gt;&quot;;
+     } else {
+       $n-&gt;{doctext}=~s{&lt;!--\s*auto\s*--&gt;.*?&lt;!--\s*end-auto\s*--&gt;}
+                       {&lt;!-- auto --&gt;\n$m2\n&lt;!-- end-auto --&gt;\n}is;
+     }
+     updateNode($n,-1);
+  }
+
+  push @ret,&quot;&lt;p&gt;&lt;i&gt;Return to &quot;.linkNodeTitle(&quot;master $list_type $list_type&quot;).&quot;&lt;/i&gt;&lt;/p&gt;&quot;;
+  
+  return join &quot;\n&quot;,@ret;
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>483040</node_id>
+  <author_user>485628</author_user>
+  <title>Update Master Faqlists</title>
+  <createtime>2005-08-11 13:04:14</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

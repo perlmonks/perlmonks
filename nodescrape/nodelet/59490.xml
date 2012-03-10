@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="59490" title="Editors Nodelet" created="2001-02-19 20:57:02" updated="1245996763">
+<type id="9">
+nodelet</type>
+<author id="929">
+developers</author>
+<data>
+<field name="nlcode">
+[%
+  my $nid = getId($NODE);
+  my %converter = (
+      snippet =&gt; sub {
+          linkNode( getNode("Snippet Mover", 'superdoc'),
+                            "resection",
+                    { snippet_id =&gt; $nid , -title =&gt; 'Move snippet' } );
+      },
+
+      sourcecode =&gt; sub {
+          linkNode( getNode("Sourcecode Mover", 'superdoc'),
+                            "resection",
+                    { sourcecode_id =&gt; $nid , -title =&gt; 'Move sourcecode' } );
+      },
+
+      modulereview =&gt; sub {
+          linkNode( getNode("Review Mover", 'superdoc'),
+                            "resection",
+                    { review_id =&gt; $nid , -title =&gt; 'Move review' } );
+      },
+
+      note =&gt; sub {
+          linkNode( getNode("Reply Promoter", 'superdoc'),
+                            "promote",
+                    { note_id =&gt; $nid , -title =&gt; 'Promote to root node' } )
+      },
+  );
+  $converter{bookreview} = $converter{modulereview};
+
+  my $is_janitorable = htmlcode('isJanitorable', '', $NODE);
+  my $dt= $q-&gt;param("displaytype") || '';
+
+  my $str = join( "\n",
+    ( 'display' eq $dt ? "re" : "" ),
+    linkNode( $nid, "display", { displaytype =&gt; 'display' } ),
+
+    $is_janitorable
+      ? ( 'editors' eq $dt ? "re" : "" )
+        . linkNode( $nid, "edit", { displaytype =&gt; 'editors' } )
+      : "edit",
+    " | ",
+
+    $is_janitorable
+      ? linkNode( getNode('Thread Retitler','superdoc'), "retitle",
+                  { node_tr =&gt; $nid , -title =&gt; 'Thread Retitler' } )
+      : "retitle",
+
+    htmlcode('isNoteWorthy', '', $NODE)
+      ? linkNode( getNode("The editors' hall of mirrors and trickery",'superdoc'),
+                  "reparent",
+                  { mnode =&gt; $nid , -title =&gt; 'Reply Mover' } )
+      : "reparent",
+
+    exists $converter{ $NODE-&gt;{type}{title} }
+      ? $converter{ $NODE-&gt;{type}{title} }-&gt;()
+      : '',
+
+    ' | ',
+    htmlcode( 'linkWiki', "editors' wiki", 'wiki', '(*)' ),
+    htmlcode( 'toInbox','', 'janitors', '/msgs', '(%d)' ),
+    ' | ',
+    linkNode(getNode('Nodes to consider','superdoc'),
+             'ntc', {-title =&gt; 'Nodes to consider'}),
+    linkNode(getNode('nodes requiring editing','superdoc'),
+             'nre', {-title =&gt; 'Nodes requiring editing'}),
+    linkNode(getNode('Editor Requests','superdoc'),
+             'er',  {-title =&gt; 'Editor requests'}),
+    htmlcode('linkRJE','rje'),
+    ' | ',
+    linkNode(getNode("Janitors' Guidelines",'sitefaqlet'),
+             'guide', {-title =&gt; 'Janitorial guidelines'}),
+    linkNode(getNode("Janitor Tools", 'sitefaqlet'),
+             'tools', {-title =&gt; 'Janitor Tools'}),
+
+  );
+
+  require Everything::WebServerId;
+  $str .= qq[
+    &lt;!-- HTTPd PID = $$($Everything::WebServerId::short) --&gt;];
+
+  my %move_types = map {$_ =&gt; 1} qw/perltutorial perlnews offtopicroot/;
+  my $mover;
+  if( $move_types{ $NODE-&gt;{type}{title} }
+      and $mover = htmlcode('writeupmover')
+  )
+  {
+    $str .= qq[
+      ] . htmlcode('openform') . qq[
+      Move to:&lt;br /&gt;
+      $mover
+      ] . htmlcode('closeform') . qq[&lt;br /&gt;
+      ];
+  }
+
+  return join "&lt;br /&gt;\n", grep $_,
+    $str,
+    htmlcode('removelinks'),
+    htmlcode( 'editor_vote','', getId($NODE), 'd', 'Delete' );
+%]
+</field>
+<field name="parent_container">
+1058</field>
+</data>
+</node>

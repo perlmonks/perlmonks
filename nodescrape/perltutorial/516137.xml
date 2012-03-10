@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="516137" title="Creating COM and DCOM objects with Perl" created="2005-12-12 15:11:31" updated="2005-12-12 10:11:31">
+<type id="956">
+perltutorial</type>
+<author id="220129">
+JamesNC</author>
+<data>
+<field name="doctext">
+Ok, you have a written a really cool perl program and you would like to use if from MSExcel or MSWord or from a WSH or VB script.  Perhaps it is an interface to DBI or some other really great perl module.  How do you do it?  &lt;br&gt;
+This short tutorial for Win32 users explains how and give examples of how to share perl $scalars, @arrays and %hashes using a WSC - Windows Scripting Component to local and networked users.  The documentation shows much more info. This tutorial is a just a quick and dirty how to get it working along with some stuff I have learned that is NOT in the documentation like how to do hashes( mimicked )&lt;br&gt;
+This tutorial also assumes that you know some VBA and how to open up the VB Editor in Excel.
+&lt;br&gt;
+Helpful links:
+&lt;li&gt; &lt; a href="http://www.microsoft.com/downloads/details.aspx?FamilyId=408024ED-FAAD-4835-8E68-773CCC951A6B&amp;displaylang=en " &gt;WSC Wizard&lt;/a&gt; &lt;i&gt;Technically optional, but I would get this free tool that generates a .wsc framework for you.&lt;/i&gt;
+&lt;li&gt; &lt; a href="http://www.microsoft.com/downloads/details.aspx?familyid=C717D943-7E4B-4622-86EB-95A22B832CAA&amp;displaylang=en" &gt;WSH &lt;/a&gt; &lt;i&gt;Optional on W2K/XP&lt;/i&gt;
+&lt;li&gt;&lt;a href="http://www.microsoft.com/downloads/details.aspx?familyid=01592C48-207D-4BE1-8A76-1C4099D7BBB9&amp;displaylang=en" &gt; WSC and WSH Documentation &lt;/a&gt;
+&lt;p&gt;
+The process is fairly simple.
+&lt;ol&gt;
+&lt;li&gt; Create a .WSC file ( recommend using the Wizard )
+&lt;li&gt; Add Perl and/or Perlscript code to the .WSC file
+&lt;li&gt; Register the .WSC COM object with windows
+&lt;li&gt; In your VB code, use CreateObject to create a instance of the COM object
+&lt;/ol&gt;
+Now on to the examples!
+&lt;/p&gt;
+&lt;i&gt;Copy and paste the following code into a file named "pcom.WSC" ( Note: do not alter the classid in this file! )&lt;/i&gt;
+&lt;code&gt;
+&lt;?xml version="1.0"?&gt;
+&lt;component&gt;
+&lt;?component debug="true" ?&gt;
+&lt;registration
+	description="pcom"
+	progid="pcom.WSC"
+	version="1.00"
+	classid="{e91a2a76-18bc-4ab0-8b1c-06d6d0442287}"
+&gt;
+&lt;/registration&gt;
+
+&lt;public&gt;
+	&lt;method name="sortList"&gt;
+        &lt;parameter name="vbArray"/&gt;
+	&lt;/method&gt;
+	&lt;method name="getHash"&gt;
+	&lt;/method&gt;
+	&lt;method name="getScalar"&gt;
+	&lt;parameter name="scalar"/&gt;
+	&lt;/method&gt;
+&lt;/public&gt;
+&lt;script language="PerlScript"&gt;
+&lt;![CDATA[
+# Author: James Moosmann
+# Copyright 2005
+use Win32::OLE::Variant;
+
+sub sortList
+{
+	my @list = @_;
+	@list = sort @list;
+	my $ary = convertArrayToVBArray( \@list );
+	return $ary;
+}
+
+sub getHash
+{
+	my @input = @_;
+	my %dog = ( "buddy" =&gt; "dog" , "georgie", "dog" );
+	my $hash = convertHashToDict(\%dog);
+	return $hash;
+}
+
+sub getScalar
+{
+	my $scalar = $_[0];
+	if( $scalar =~/^[\d\.]+$/g ){ return $scalar+1; }
+	return $scalar = "perl_saw:$scalar";
+}
+
+sub convertHashToDict
+{
+	my $hash_ref = $_[0];
+	my $dict = Win32::OLE-&gt;CreateObject("Scripting.Dictionary") or die $!;
+	foreach my $key ( keys %{$hash_ref} ){  $dict-&gt;add( $key, ${$hash_ref}{$key} ); }
+	return $dict;
+}
+
+sub convertArrayToVBArray
+{
+	my $array_ref = $_[0];
+	my $ary = Variant( VT_ARRAY|VT_VARIANT, $#{$array_ref}+1);
+	$ary-&gt;Put(\@{$array_ref});
+	return $ary;
+}
+
+]]&gt;
+&lt;/script&gt;
+
+&lt;/component&gt;
+
+&lt;/code&gt;
+After you create the above file on your system.  Then you just need to Register it with windows. In windows this is simple.
+&lt;ol&gt;
+&lt;li&gt; Right click on the file
+&lt;li&gt; Select -&gt; Register
+&lt;/ol&gt;
+Whew!  That was tough.&lt;br&gt;
+&lt;i&gt;**You may also notice the "Generate Type Library" and wonder what it does.  If it worked, it would help open up the api to your COM object and things like autocomplete in the VB editor would work for you. It kind of works in that if you were to create the typelib and then go to Excel and create a refrence to it, things would seem to work.  But at run time when the COM object gets created, it is always the wrong type (Variant/Object) vs the Object that you created. So, don't even bother.  Microsoft knows about this error and just hasn't fixed the documentation.&lt;/i&gt;
+&lt;p&gt;
+Ok, we have Registered our COM object.  Now, we need to use it!  Here's how using Excel:&lt;br&gt;
+&lt;i&gt;Open a blank Excel sheet and add the following code to a module or sheet using the vba editor (aka Alt-F11 for newbies)&lt;/i&gt;
+&lt;code&gt;
+Sub sortList_test()
+
+Set obj = CreateObject("pcom.WSC")
+
+Dim l() As Variant
+
+l = obj.sortList("fox", "dog", "moose", "cat", "fish")
+ 
+For Each li In l
+    Debug.Print li
+    Next li
+End
+
+End Sub
+
+Sub getHash_test()
+
+Set obj = CreateObject("pcom.WSC")
+Dim hash As Scripting.Dictionary
+
+Set hash = obj.getHash("dogHash")
+
+Debug.Print "Buddy is my " &amp; hash.Item("buddy")
+
+End Sub
+
+Sub getScalar_test()
+Set obj = CreateObject("pcom.WSC")
+
+scalar = obj.getScalar(1)
+Debug.Print scalar
+scalar = obj.getScalar("a string! from VB")
+Debug.Print scalar
+
+End Sub
+&lt;/code&gt;
+&lt;p&gt;
+&lt;i&gt;Make sure that you have References to "Microsoft Scriptlet Library" and "Microsoft Scripting Runtime" selected. &lt;/i&gt;
+Call the subs and that's it for the fast track intro. I will elaborate more below on DCOM and a few more selected details. 
+&lt;/p&gt;
+&lt;br&gt;
+&lt;p&gt;What about DCOM?  Why use it? &lt;br&gt;
+Your office mate on the same network doesn't have Perl installed on his box, but he wants to use your nifty perl object.  DCOM comes to the rescue!  Here are the steps needed to allow a user on another computer have access to the object. (Since this is documented in the above links I am only going to give an outline, search the docs for more details.)
+&lt;ol&gt;
+&lt;li&gt; You need to modify the pcom.WSC file and add remotable
+attribute (be careful of the spelling! it is NOT remoteable) to the &lt;registration ... &gt; section like so:&lt;br&gt;
+&lt;code&gt;
+&lt;registration
+	description="pcom"
+	progid="pcom.WSC"
+	version="1.00"
+	classid="{e91a2a76-18bc-4ab0-8b1c-06d6d0442287}"
+        remotable="true"
+&gt;
+&lt;/registration&gt;
+&lt;/code&gt;&lt;/li&gt;
+
+&lt;/ol&gt;
+
+Now, you can call the object by using the the 2 argument form of CreateObject in your VB like so...
+&lt;code&gt;
+Set hash = obj.getHash("dogHash", "127.0.0.1")
+&lt;/code&gt;
+If you tried this, it would fail on your friends computer because you have to first register your object on his machine AND you need to give him permission to use that object from your computer. 
+&lt;br&gt;
+&lt;p&gt;How to register your COM object on his computer
+&lt;ol&gt; 
+&lt;li&gt; Open up regedit and search for pcom.WSC
+&lt;li&gt; Right-click on the "{e91a2a76-18bc-4ab0-8b1c-06d6d0442287}" entry (pcom.WSC's classid ) and then select Export from the popup menu.
+&lt;li&gt; Save this registry entry as pcom.reg
+&lt;/ol&gt;
+&lt;p&gt;Now, you just can use this file to add the needed information to his registry.  Copy the file to your friends computer and Merge the file with his registry. ( You can do that with a Right-click and select Merge )
+&lt;p&gt;You are 1/2 way there.  Now, you need to give him permission to access the object on your machine.  You do that with "dcomcnfg.exe". This utility has a different interface for W2K and XP, so I will let you figure this part out.  Basically, after you add the remotable entry, you will need to re-register the pcom.WSC file again, then open dcomcnfg.exe &lt;i&gt;(on your machine)&lt;/i&gt; and browse the the pcom object and set the permissions for that object as appropriate. &lt;i&gt;See the documentation for more details on how to run the object with different credentials.  You can set security on the objects and more with the utility!&lt;/i&gt;
+&lt;p&gt; What about debugging?&lt;br&gt;
+The docs again.  But my take on it is obviously debug your perl separately or in a .vb script where you can see the output more easily.
+&lt;p&gt;Well, that's it.  Hope it will open the world of amazing things perl can do with great ease and power to spread sheets and and other Windows applications for you.  &lt;br&gt;Other options I did not talk about include some solutions from ActiveState. They have some commercially available tools that can turn your scripts into stand alone controls and services, system tray utilities, apps and more.  I don't work for them, but their PDK - Perl Dev Kit is worth the money IMHO if you want more robust features of doing these types of things.
+&lt;p&gt;Cheers, &lt;br&gt;
+JamesNC</field>
+</data>
+</node>

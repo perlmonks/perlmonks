@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="94007" title="The difference between my and local" created="2001-07-05 04:12:20" updated="2005-08-15 01:43:35">
+<type id="956">
+perltutorial</type>
+<author id="61104">
+cLive ;-)</author>
+<data>
+<field name="doctext">
+Well, this confused the hell out of me, so I thought I'd spend some time getting my head around it.
+&lt;P&gt;Probably best to show by example (apologies to Joseph Hall and [merlyn] for borrowing heavily here from &lt;A HREF="http://www.amazon.com/exec/obidos/ASIN/0201419750/102-5465082-9004914"&gt;Effective Perl Programming&lt;/A&gt;)
+
+&lt;P&gt;Quick summary: &lt;I&gt;'my' creates a new variable, 'local' temporarily amends the value of a variable&lt;/I&gt;
+&lt;P&gt;There is a subtle difference.
+&lt;P&gt;In the example below, $::a refers to $a in the 'global' namespace.
+&lt;CODE&gt;
+$a = 3.14159;
+{
+  local $a = 3;
+  print "In block, \$a = $a\n";
+  print "In block, \$::a = $::a\n";
+}
+print "Outside block, \$a = $a\n";
+print "Outside block, \$::a = $::a\n";
+
+# This outputs
+In block, $a = 3
+In block, $::a = 3
+Outside block, $a = 3.14159
+Outside block, $::a = 3.14159
+&lt;/CODE&gt;
+&lt;P&gt;ie, 'local' &lt;B&gt;temporarily changes the value of the variable&lt;/B&gt;, but &lt;I&gt;only within the scope it exists in&lt;/I&gt;.
+&lt;P&gt;so how does that differ from 'my'? 'my' creates a variable that does not appear in the symbol table, and does not exist outside of the scope that it appears in. So using similar code:
+&lt;CODE&gt;
+$a = 3.14159;
+{
+  my $a = 3;
+  print "In block, \$a = $a\n";
+  print "In block, \$::a = $::a\n";
+}
+print "Outside block, \$a = $a\n";
+print "Outside block, \$::a = $::a\n";
+
+# This outputs
+In block, $a = 3
+In block, $::a = 3.14159
+Outside block, $a = 3.14159
+Outside block, $::a = 3.14159
+&lt;/CODE&gt;
+&lt;P&gt;ie, 'my' has no effect on the global $a, even inside the block.
+&lt;H4&gt;But in real life, they work virtually the same?&lt;/H4&gt;
+&lt;P&gt;Yes. Sort of. So when should you use them? 
+&lt;UL&gt;
+  &lt;LI&gt;use 'my' when you can (it's faster than local)
+  &lt;LI&gt;use local when:
+  &lt;UL&gt;
+    &lt;LI&gt;you're amending code written in Perl 4, unless you are sure that changing 'local' to 'my' will not cause any lexical problems
+    &lt;LI&gt;you want to amend a special Perl variable, eg $/ when reading in a file. &lt;B&gt;my $/;&lt;/B&gt; throws a compile-time error
+  &lt;/UL&gt;
+&lt;/UL&gt;
+
+&lt;P&gt;If you use Perl 5 and strict (and I know you do :), you probably haven't noticed any difference between using 'my' and 'local', but will hopefully only use 'local' in the second instance above.
+
+&lt;P&gt;EPP also suggests you use 'local' when messing with variables in another module's namespace, but I can't think of a RL situation where that could be justified - why not just scope a local variable? Perhaps someone could enlighten me?
+
+&lt;P&gt;But, if you ever end up amending some old Perl 4 code that uses local, you need to be aware of the issues and not just do a &lt;CODE&gt;s/\blocal\b/my/gs&lt;/CODE&gt; on the script :) - sometimes people use the 'features' of local in unusual ways...
+&lt;P&gt;Hope that's cleared a few things up.
+&lt;P&gt;cLive ;-)</field>
+</data>
+</node>

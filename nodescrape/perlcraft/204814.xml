@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="204814" title="Ping Stress Test" created="2002-10-12 16:47:37" updated="2005-07-21 05:19:13">
+<type id="121">
+perlcraft</type>
+<author id="193644">
+foxops</author>
+<data>
+<field name="doctext">
+###########################
+##Ping Stress Test
+##desertfoxps@earthlink.net
+##
+## This is my first script, so it isn't as good as it could be,
+## but its still pretty solid.
+##
+## The purpose is simply to ping a host with larger and larger
+## pings until it fails.  It can be used to stress test any device
+## that accepts ICMP, for fragment DOS.  Relevant information is
+## dumped into a log file named after the host.
+##
+## An unmodified PING.EXE is required for Windows users (as Microsoft
+## modified PING.EXE so that it cannot send large buffers), I don't know
+## if *nix's PING.EXE will work /shrug.
+
+use strict;
+my ($size,$RAW,@INFO,$TIME,$host,$fails);
+
+$fails = 0; #Zero the var
+$size = 0; #Zero the var, of change to resume tests
+$host = '10.10.10.1'; #IP address of test subject
+
+
+while ($size = $size + 1) { #Increment buffer size
+open (DATA,"ssping -n 1 -l $size -w 1000 $host |"); #Call ping (I use SSPING.EXE
+@INFO = &lt;DATA&gt;;
+$RAW = join "", @INFO;
+$RAW =~ /time[&lt;|=](.....)/gm; #Grab latency
+$TIME = $1;
+ if ($RAW =~ /Request/gs) { #Search for Request (as in Request timed out)
+
+ open (DATA,"ssping -n 1 -l $size -w 2000 $host |"); #Double check the host
+ @INFO = &lt;DATA&gt;;
+	$RAW = join "", @INFO;
+  if ($RAW =~ /Request/gs) { #Yup, it bit off to much
+  print "$host Failed at $size\n";
+  open LOG, "&gt;&gt;$host.log" or die $!;
+  print LOG "$host Failed at $size\n";
+  close LOG;
+  $fails = $fails + 1; #Increment fails
+
+   if ($fails&gt;=20) { #If to many consecutive fails...
+   print "Encountered Maximum amount of consecutive fails.\n";
+   exit;
+   }
+   goto END;
+			
+  }
+  $fails = 0; #Zero the fails, as this was only a hiccup in traffic
+  print "$size    $TIME *Hiccup*\n"; #Host responded to second attempt
+  goto END;
+		
+ }
+ print "$size    $TIME\n"; #Print good reply to screen
+ END:
+}</field>
+</data>
+</node>

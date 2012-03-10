@@ -1,0 +1,224 @@
+<node>
+  <doctext>=head1 NAME
+
+XML::TokeParser::Simple - pretty much like HTML::TokeParser::Simple
+
+=head1 DESCRIPTION
+
+Get the benefits of L&lt;XML::TokeParser::TOKEN|&quot;What is XML::TokeParser::TOKEN&quot;&gt;.
+
+use XML::TokeParser::Simple and get the blessing ;)
+
+Hopefully XML::TokeParser will add this in the next version.
+
+
+=head1 SYNOPSIS
+
+    # file: printComments.pl
+    # desc: prints all the comments from an xml file
+    use XML::TokeParser::Simple;
+    my $p = new XML::TokeParser::Simple('file.xml');
+    while(defined( my $t = $p-&gt;get_token )) {
+        print $t-&gt;text,&quot;\n&quot; if $t-&gt;is_comment;
+    }
+
+See L&lt;&quot;What is XML::TokeParser::TOKEN&quot;&gt;
+
+=cut
+ 
+package XML::TokeParser::Simple;
+use XML::TokeParser();
+use vars qw/ @ISA $VERSION /;
+$VERSION = '0.01';
+@ISA = qw/ XML::TokeParser /;
+
+sub get_token {
+	my $self = shift;
+	my $token = $self-&gt;SUPER::get_token( @_ );
+	return unless defined $token;
+	bless $token, 'XML::TokeParser::Token';
+}
+
+sub get_tag {
+	my $self = shift;
+	my $token = $self-&gt;SUPER::get_tag( @_ );
+	return unless defined $token;
+	bless $token, 'XML::TokeParser::Token';
+}
+
+package XML::TokeParser::Token;
+use strict;
+
+=head1 What is XML::TokeParser::TOKEN
+
+A token is a blessed array reference,
+that you acquire using $p-&gt;get_token,
+and that might look like:
+
+    [&quot;S&quot;,  $tag, $attr, $attrseq, $raw]
+    [&quot;E&quot;,  $tag, $raw]
+    [&quot;T&quot;,  $text, $raw]
+    [&quot;C&quot;,  $text, $raw]
+    [&quot;PI&quot;, $target, $data, $raw]
+
+If you don't like remembering array indices,
+you may access the attributes of a token like:
+
+    $p-&gt;get_token-&gt;tag,  $t-&gt;attr, $t-&gt;attrseg, $t-&gt;raw ...
+
+=head2 Methods
+
+Tokens  may be inspected using any of these is_* methods
+
+    is_text
+    is_comment
+    is_pi
+    is_process_instruction
+    is_start_tag
+    is_end_tag
+    is_tag
+
+like:
+
+    print $t-&gt;target if $t-&gt;is_pi;
+    print &quot;The comment says &quot;, $t-&gt;text if $t-&gt;is_comment;
+
+=cut
+
+# for PI
+sub target  { return $_[0]-&gt;[1] if $_[0]-&gt;is_pi; }
+sub data    { return $_[0]-&gt;[2] if $_[0]-&gt;is_pi; }
+sub raw     { return $_[0]-&gt;[-1]; }
+
+#for S
+sub attr    { return $_[0]-&gt;[2] if $_[0]-&gt;is_start_tag(); }
+sub attrseq { return $_[0]-&gt;[3] if $_[0]-&gt;is_start_tag(); }
+
+#for S|E
+sub tag     { return $_[0]-&gt;[1] if $_[0]-&gt;is_tag; }
+
+#for C|T
+sub text    { return $_[0]-&gt;[1] if $_[0]-&gt;is_text or $_[0]-&gt;is_comment; }
+
+# test your token
+sub is_text                { return 1 if $_[0]-&gt;[0] eq 'T'; }
+sub is_comment             { return 1 if $_[0]-&gt;[0] eq 'C'; }
+sub is_pi                  { return 1 if $_[0]-&gt;[0] eq 'PI'; }
+sub is_process_instruction { goto &amp;is_pi; }
+sub is_start_tag           { return $_[0]-&gt;_is( S =&gt; $_[1] ); }
+sub is_end_tag             { return $_[0]-&gt;_is( E =&gt; $_[1] ); }
+sub is_tag                 { return $_[0]-&gt;_is( S =&gt; $_[1] )
+                                 || $_[0]-&gt;_is( E =&gt; $_[1] ); }
+
+sub _is {
+    if($_[0]-&gt;[0] eq $_[1]){
+        if(defined $_[2]){
+            return 1 if $_[0]-&gt;[1] eq $_[2];
+        }else{
+            return 1;
+        }
+    }
+    return 0;
+}
+
+1;
+
+=head1 DEMO
+
+execute this file as if it were a script, as in C&lt;perl WhateverYouSavedItAs&gt;,
+and you'll see how/that this module works.
+
+=cut
+
+package main;
+
+unless(caller()){  
+    use Data::Dumper;
+    my $file = 'REC-xml-19980210.xml';
+       $file = \ q[&lt;p&gt;
+&lt;scrap lang='ebnf' id='document'&gt;
+&lt;head&gt;Document&lt;/head&gt;
+&lt;prod id='NT-document'&gt;&lt;lhs&gt;document&lt;/lhs&gt;
+&lt;rhs&gt;&lt;nt def='NT-prolog'&gt;prolog&lt;/nt&gt; 
+&lt;nt def='NT-element'&gt;element&lt;/nt&gt; 
+&lt;nt def='NT-Misc'&gt;Misc&lt;/nt&gt;*&lt;/rhs&gt;&lt;/prod&gt;
+&lt;/scrap&gt;
+&lt;/p&gt;];
+## Cause chances are you won't have
+## http://www.w3.org/TR/1998/REC-xml-19980210.xml
+## as referenced in 
+## http://www.xmltwig.com/article/ways_to_rome/ways_to_rome.html
+## in the current directory
+
+
+
+    my $i = 0;
+    my $p = XML::TokeParser::Simple-&gt;new($file);
+
+    my $Ret = &quot;&quot;;
+
+    while(defined(my $t = $p-&gt;get_token() )){
+    
+        if( $t-&gt;is_start_tag('lhs') ){
+            $i++;
+            $Ret = join '', &quot;[$i] &quot;, $p-&gt;get_text('/lhs'), &quot; ::= &quot;;
+        }elsif( $t-&gt;is_start_tag('rhs') ){
+            $Ret .= $p-&gt;get_text('/rhs');
+        }elsif( $t-&gt;is_end_tag('prod') ){
+            print clean($Ret),&quot;\n&quot;;
+            $Ret = &quot;&quot;;
+        }
+    }
+    
+    undef $Ret;
+    undef $p;
+    
+    ## mirod already did this, so I'm borrowing
+    
+    sub prod {
+        my( $twig, $prod)= @_;
+        my $lhs= $prod-&gt;field( 'lhs');
+        my $rhs= join '', map {$_-&gt;text} $prod-&gt;children( 'rhs');
+    
+        $i++;
+        my $prod_text = &quot;[$i] $lhs ::= $rhs&quot;;
+        print clean( $prod_text) . &quot;\n&quot;;
+    }
+    
+    
+    sub clean { 
+            my( $string)= @_;
+            $string =~ s/\xc2\xa0/ /sg;
+            $string =~ s/\s+/ /g; $string=~ s{\s$}{}g;
+            return $string;
+    }
+}
+
+1;
+
+=head1 SEE ALSO
+
+L&lt;XML::TokeParser&gt;, L&lt;HTML::TokeParser&gt;, L&lt;HTML::TokeParser::Simple&gt;,
+L&lt;XML::Twig&gt;
+
+=head1 AUTHOR
+
+D.H. &lt;PodMaster@cpan.org&gt;
+
+=head1 LICENSE
+
+copyright (c) D.H. 2002 All rights reserved.
+
+This program is released under the same terms as perl itself.
+If you don't know what that means, visit http://perl.com
+or execute &quot;perl -v&quot; at a commandline (assuming you have perl installed).
+
+=cut
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>214158</node_id>
+  <author_user>107642</author_user>
+  <title>XML::TokeParser::Simple - pretty much like HTML::TokeParser::Simple</title>
+  <createtime>2002-11-19 10:47:57</createtime>
+  <nodeupdated>2005-07-04 12:35:14</nodeupdated>
+</node>

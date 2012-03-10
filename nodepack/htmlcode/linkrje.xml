@@ -1,0 +1,52 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>774789</node_id>
+  <author_user>518801</author_user>
+  <title>linkRJE</title>
+  <createtime>2009-06-25 14:12:38</createtime>
+  <code>my( $title, $flag, $targetnodeid )= @_;
+$title ||= 'RJE';
+$flag ||= '(&lt;b&gt;%d&lt;/b&gt;)';
+$targetnodeid= ''
+    if  $targetnodeid =~ /\D/; # bad value
+
+if(  $VARS-&gt;{'rje_lastchecked'}  ) {
+    my( $newcount )= $DB-&gt;sqlSelect(
+        'count(*)',
+        'edithistory',
+        join( ' AND ',
+            $DB-&gt;quote( $VARS-&gt;{'rje_lastchecked'} ) . '&lt; edittime',
+            ! $targetnodeid
+                ? () : &quot;edithistory_id = $targetnodeid&quot;,
+        ),
+    );
+    $flag= !$newcount ? '' : sprintf $flag, $newcount;
+} else {
+    $flag= '';
+}
+
+my $link= genLink(
+    $title,
+    {   ! $targetnodeid
+            ? ( node_id =&gt; 434853 )
+            : ( node_id =&gt; $targetnodeid,
+                displaytype =&gt; 'edithistory',
+                limit =&gt; 25,
+              ),
+    },
+    { title =&gt; 'Recent Janitorial Edits' }
+);
+
+my $class = 'rjelink';
+
+if ( $flag ) {
+    $link .= $q-&gt;span( { class =&gt; 'rjeupdate' }, $flag );
+    $class .= ' updated';
+}
+
+return qq(&lt;span class=&quot;$class&quot;&gt;$link&lt;/span&gt;);
+
+
+</code>
+  <nodeupdated>2009-06-25 14:12:38</nodeupdated>
+</node>

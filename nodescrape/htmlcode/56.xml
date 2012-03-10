@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="56" title="varmenu" created="1999-10-04 18:35:01" updated="2005-06-05 02:20:05">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+my ($var, @TYPES) = @_;
+return if(getId($USER)==$HTMLVARS{guest_user});
+$var or return;
+
+my ($name) = "set$var";
+
+@TYPES or return;  #if no explicit types, quit
+
+foreach (@TYPES) { $_ = $DB-&gt;getType($_); }  #replace w/ node refs
+my $NODELIST = $DB-&gt;selectNodeWhere ({ type_nodetype =&gt; \@TYPES },
+  "", "title");
+
+my $str;
+
+my (@titlelist, %items);
+$items{"0"} = "(default)";
+	
+push (@titlelist, "0");
+       foreach my $N (@$NODELIST) {
+                $N = $DB-&gt;getNodeById($N, 'light');
+                my $id = getId $N;
+		push @titlelist, $id;
+		$items{$id} = $$N{title};
+        }
+
+my $SELECT = $$VARS{$var};
+
+if (defined(my $q = $query-&gt;param("set$var"))) {$$VARS{$var} = $q;}
+elsif ($query-&gt;param("sexisgood")){ $$VARS{$var}=""; } 
+
+$query-&gt;popup_menu($name, \@titlelist, $SELECT, \%items);</field>
+</data>
+</node>

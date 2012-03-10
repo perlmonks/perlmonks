@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="116877" title="Multi-format Log Parser" created="2001-10-05 01:07:23" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="115954">
+cjensen</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+
+#############################
+#
+# A simple multi-format log parser which is intended to
+# to be used as a filter.  Could be faster, but it does
+# allow you to define a pretty output format.
+#
+# Author: Chris Jensen
+#
+
+use Getopt::Long;
+
+my %optctl;
+GetOptions (\%optctl, "type|t=s", "pattern|p=s");
+
+
+my $log_formats = {
+
+  'common'   =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+)},
+                 [ qw( _ h l u t r c b ) ] ],
+
+
+  'virtual'  =&gt; [ qr{(\S+) (\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+)},
+                 [ qw( _ v h l u t r c b ) ] ],
+
+  'combined' =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+) \"([^\"]*)\" \"([^\"]*)\"},
+                 [ qw( _ h l u t r c b R A ) ] ],
+
+  'referer'  =&gt; [ qr{(\S+) \-\&gt; (\S+)},
+                 [ qw( _ R r ) ] ],
+
+  'agent'    =&gt; [ qr{(\S+)},
+                 [ qw( _ A ) ] ],
+
+  'extended' =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+) \"([^\"]*)\" \"([^\"]*)\" (\d+) (\d+)},
+                 [ qw( _ h l u t r c b R A P T ) ] ],
+
+  'custom'   =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+) \"([^\"]*)\" \"([^\"]*)\" (\d+)},
+                 [ qw( _ h l u t r c b A R T ) ] ],
+
+};
+
+
+my $type = $optctl{type} || 'common';
+my $pattern = $optctl{pattern} or usage();
+
+my ($format, $access) = @{$log_formats-&gt;{$type}};
+
+
+foreach my $pat (split(/\%/, $pattern)) {
+    if ($pat =~ /^([^a-zA-Z\_\%]*)(.)/) {
+       push(@pats, $2);
+    }
+}
+
+my $outpat = $pattern;
+$outpat =~ s/(\%[^a-zA-Z\_\%]*)([a-zA-Z\_])/$1s/g;
+
+
+my $qrtime    = qr{(\d+)\/(\w+)\/(\d+)\:(\d+)\:(\d+)\:(\d+)\s};
+my $qruri     = qr{(\w+)\s([^\?]*)\??([^\s]*)?\s(.*)};
+my $qrsession = qr{(\w*)\-(\w*)};
+my $qrref     = qr{.*\:\/\/([^\/]+)(\/.*)};
+
+
+while(&lt;STDIN&gt;) {
+    my @vals;
+    my %info;
+    if (/$format/) {
+	for ($x = 0; $x &lt;= $#{$access}; $x++) {
+            $info{$access-&gt;[$x]} = $$x;
+	    if ($access-&gt;[$x] eq "r") {
+                $info{$access-&gt;[$x]} =~ /$qruri/;
+                $info{'a'} = $1;
+                $info{'f'} = $2;
+ 		$info{'q'} = $3;
+                $info{'p'} = $4;
+            }
+	    if ($access-&gt;[$x] eq "t") {
+		$info{$access-&gt;[$x]} =~ /$qrtime/;
+		$info{'d'} = $1;
+		$info{'m'} = $2;
+		$info{'y'} = $3;
+		$info{'H'} = $4;
+		$info{'M'} = $5;
+		$info{'S'} = $6;
+	    }
+	    if ($access-&gt;[$x] eq "u") {
+		$info{$access-&gt;[$x]} =~ /$qrsession/;
+		$info{'s'} = $1;
+		$info{'i'} = $2;
+	    }
+	    if ($access-&gt;[$x] eq "R") {
+		$info{$access-&gt;[$x]} =~ /$qrref/;
+		$info{'o'} = $1;
+		$info{'F'} = $2;
+	    }
+	}
+
+	foreach my $pat (@pats) {
+	   push(@vals, $info{$pat}) if exists($info{$pat});
+	}
+
+	printf $outpat, @vals;
+        print "\n";
+    }
+}
+
+sub usage {
+
+print qq{
+usage: logparse [-t=&lt;type&gt;] -p=&lt;pattern&gt;
+
+example: tail -50 access_log | logparse -t=extended -p="%H:%M  %-15o  %f"
+
+Formatting characters:
+
+  _   - The name of this filter script
+  v   - The virtual host name/address
+  h   - The host IP name/address
+  l   - The remote logname
+  u   - Remote User/Session
+  t   - The time of the request
+  r   - The full request
+  c   - The HTTP code (302, 200, etc)
+  b   - Bytes
+  R   - Referrer string
+  A   - User Agent string
+  P   - Process ID
+  T   - Time taken in seconds
+
+Request string breakdown:
+
+  a   - Action/Method (GET, POST, etc)
+  f   - File path
+  q   - Query string
+  p   - HTTP protocol version
+
+Time of request breakdown:
+
+  d   - Day of the month
+  m   - Month (Apr, May, etc)
+  y   - Year
+  H   - Hour
+  M   - Minute
+  S   - Second
+
+User Session breakdown:
+
+  s   - Session ID
+  i   - User ID
+
+Referrer string breakdown:
+
+  o   - Host of referrer
+  F   - File path of referrer
+
+};
+
+   exit(0);
+
+}
+</field>
+</data>
+</node>

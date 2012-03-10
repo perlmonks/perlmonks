@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3557" title="Our Best Users" created="2000-01-04 20:25:51" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+These are our most cherished users... quantitatively speaking.
+Work hard and you will receive the recognition you deserve.&lt;BR&gt;&lt;BR&gt;
+..and remember there are a lot of things monks are supposed to be
+but lazy is &lt;I&gt;not&lt;/I&gt; one of them&lt;BR&gt;&lt;BR&gt;
+
+&lt;TABLE border=0 width=70% align=center&gt;
+&lt;tr&gt;&lt;th&gt;User&lt;/th&gt;&lt;th&gt;# of Nodes Owned&lt;/th&gt;&lt;/tr&gt;
+[% 
+
+my $csr = $Everything::dbh-&gt;prepare(
+  "select DISTINCT author_user, count(author_user)"
+ ." from node"
+ ." group by author_user"
+);
+$csr-&gt;execute;
+my %usrHash;
+my %hide;
+
+# Remove these users from the list
+$hide{getId(getNode("root", "user"))} = 1;
+$hide{getId(getNode("gods", "usergroup"))} = 1;
+$hide{getId(getNode("Anonymous Monk", "user"))} = 1;
+$hide{getId(getNode("faq_monk", "user"))} = 1;
+#$hide{getId(getNode("NodeReaper", "user"))} = 1;
+$hide{$HTMLVARS{NodeReaperID}} = 1;
+
+while (my ($user, $count) = $csr-&gt;fetchrow) {
+  # skip these users
+  next if(exists $hide{$user});
+  $usrHash{$user} = $count;
+}
+$csr-&gt;finish;
+delete $usrHash{''};
+my @author = sort {$usrHash{$b} &lt;=&gt; $usrHash{$a}} (keys (%usrHash));
+
+my ($min, $max, $steps) = (160, 255, 50);
+ 
+my $count = 0;
+my $num;
+my $str = '';
+while ($count &lt; $steps) { 
+  unless($author[$count]) {
+    $count++;
+    next;
+  }
+  $num = sprintf "%lx", ($max-((($max-$min)*$count) / $steps));
+  my ($u) = getNodeWhere({node_id=&gt;$author[$count]},getType('user'));
+  $str .= (1 &amp; $count) ? '&lt;tr class="highlight"&gt;' : '&lt;tr&gt;';
+  $str .= '&lt;td&gt;'
+    . linkNode($author[$count], $$u{title})
+    ."&lt;/td&gt;&lt;td align=center&gt;$usrHash{$author[$count]}&lt;/td&gt;&lt;/tr&gt;\n"; 
+  $count++; 
+}
+
+if (getId($USER) ne $HTMLVARS{guest_user} and  
+  $usrHash{getId($USER)}&lt;$usrHash{$author[$count-1]}
+) {
+  $str .= (1 &amp; $count) ? '&lt;tr class="highlight"&gt;' : '&lt;tr&gt;';
+  $str .= '&lt;td&gt;'
+    .linkNode($USER)
+    ."&lt;/td&gt;&lt;td align=center&gt;$usrHash{getId($USER)}&lt;/td&gt;&lt;/tr&gt;"; 
+}
+$str;
+%]
+&lt;/TABLE&gt;</field>
+</data>
+</node>

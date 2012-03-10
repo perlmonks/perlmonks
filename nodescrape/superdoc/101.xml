@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="101" title="Create A New User" created="1999-10-04 18:35:08" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+  my $str;
+
+  my $loginForm= &lt;&lt;"END";
+    &lt;form action="?" method="post"&gt;
+      &lt;input type="hidden" name="node_id" value="@{[ getId($NODE) ]}" /&gt;
+      &lt;input type="hidden" name="op" value="newuser" /&gt;
+
+      &lt;table&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Preferred username:&lt;/td&gt;
+          &lt;td&gt;&lt;input type="text" name="nu_name" size="20" maxlength="20" /&gt;
+          (See above for helpful advice.)&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Real&amp;#153; Name:&lt;/td&gt;
+          &lt;td&gt;&lt;input type="text" name="nu_realname" size="20" maxlength="40" /&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Email Address&lt;/td&gt;
+          &lt;td&gt;&lt;input type="text" name="nu_email" size="20" maxlength="255" /&gt;
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;&lt;/td&gt;
+          &lt;td&gt;&lt;input type="submit" name="sexisgood" value="submit" /&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+
+    &lt;/form&gt;
+END
+
+  if(  'newuser' ne $query-&gt;param('op')  ) {
+    return &lt;&lt;"END";
+    @{[ htmlcode('get_sitedoclet','Choosing a username') ]}
+    &lt;p&gt;
+      To create a new user on PerlMonks, we need a smattering of information:
+    &lt;/p&gt;
+    $loginForm
+    &lt;p&gt;
+      When your account has been created, you will receive an email at your
+      given address, from &lt;tt&gt;vroom\@perlmonks.org&lt;/tt&gt;, containing your
+      randomly-generated eight-character password.  When you have logged in
+      with this password, you may proceed to your Profile and change it to
+      something else.
+    &lt;/p&gt;
+    &lt;p&gt;
+      &lt;b&gt;Please note:&lt;/b&gt;
+    &lt;/p&gt;
+    &lt;p&gt;
+      We are not going to send you junk email "member updates", sell your
+      address to spammers, or display your email address for people to see.
+      This email exists so that you can receive your password, and/or retrieve
+      it if you forget.  There may be future email functionality, which
+      you will have the option to turn on from your user settings page.
+    &lt;/p&gt;
+    &lt;p&gt;
+      Once you have a PerlMonks account, there are some rules you should
+      be aware of; please read [id://538727].
+    &lt;/p&gt;
+END
+  }
+
+  my $realname  = $query-&gt;param("nu_realname");
+  my $email     = $query-&gt;param("nu_email");
+  my $name      = $query-&gt;param("nu_name");
+
+  if(  $email =~ /^email1?l?\@gmail[.]com$/x  ) {
+    Everything::printLog(
+      "Blocked spam: Invalid registration email address '$email'" );
+    return join '', &lt;&lt;'END', $loginForm;
+    &lt;p&gt;
+      Sorry, this email address does not seem valid.
+      Please use a valid email address.
+    &lt;/p&gt;
+END
+  }
+
+  my @pass;
+  $name =~ s/\s*$//;
+  if ( $name =~ /[_ ][_ ]/  ) {
+    return join '', &lt;&lt;'END', $loginForm;
+    &lt;p&gt;
+      Sorry, you can't have a space or underscore next to another.
+      Try another name...
+    &lt;/p&gt;
+END
+  }
+  if ( my $olduser = $DB-&gt;getNode($name,'user') ) {
+    return join '', &lt;&lt;'END', $loginForm;
+    &lt;p&gt;
+      Sorry, @{[linkNode($olduser)]} already exists.  Try another name...
+    &lt;/p&gt;
+END
+  }
+
+  # Check if we have any '_' vs ' ' clashing
+  # that could lead to chatterbox conflicts.
+
+  # Deny people the power of _ and ' ' at the beginning of usernames
+  if ( $name =~ /^[_ ]/ ) {
+
+    return join '', &lt;&lt;"END", $loginForm;
+    &lt;p&gt;
+      Sorry, ' ' and '_' are not allowed at the beginning of usernames.
+      Try again, do not pass Go, and do not collect \$200.
+    &lt;/p&gt;
+END
+
+  }
+
+  if( $name =~ /[\[\]&lt;&gt;|]/ ) {
+
+    return join '', &lt;&lt;"END", $loginForm;
+    &lt;p&gt;
+      Sorry, &amp;lt;, &amp;gt;, |, &amp;#091;, and &amp;#093; are not allowed in
+      usernames.  Try again.
+    &lt;/p&gt;
+END
+
+  }
+  if( $name =~ /[\x00-\x1f]/ ) {
+
+    return join '', &lt;&lt;"END", $loginForm;
+    &lt;p&gt;
+      Sorry, low-byte characters are not allowed in usernames.  Try again.
+    &lt;/p&gt;
+END
+
+  }
+
+  if( $name !~ /\D/ ) {
+
+    return join '', &lt;&lt;"END", $loginForm;
+    &lt;p&gt;
+      Sorry usernames can no longer be just digits.  Try again.
+    &lt;/p&gt;
+END
+
+  }
+
+  my $match = quotemeta( lc($name) ); # Have regex treat all chars as literals
+  # $match =~ s/([a-z])/'['.$1.uc($1).']'/eg; # MySQL regex already ignore case
+  $match =~ s/_|\\ /[_ ]/g;  # Have "_" and " " match each other
+  $match =~ s/([\\'])/\\$1/g; # Survive quoting
+  $match = q('^).$match.q($');   # Anchor and quote regex
+
+  my ($closeuser) = $DB-&gt;sqlSelect(
+    "node_id,title",
+    "node",
+    "title rlike $match
+     and type_nodetype in(" .
+     join( ",", map
+       getId(getType($_)), qw( user usergroup )
+     ) . ")"
+  );
+  if($closeuser) {
+    return "Sorry, your username clashes with " . linkNode($closeuser)
+    . " which already exists.  Pick a variation, or try another name...&lt;p&gt;\n"
+    . $loginForm;
+  }
+
+  if( getNode($name,'superdoc') || getNode($name,'usergroup')
+    || getNode($name,'sitefaqlet') || getNode($name,'sitedoclet')
+    || getNode($name,'faqlist') || getNode($name,'faqstring')
+    || getNode($name,'catqalist') || getNode($name,'catqastring')
+    || getNode($name,'tutlist') || getNode($name,'tutstring')
+    || getNode($name,'fullpage') || getNode($name,'htmlpage')
+    || getNode($name,'htmlcode') || getNode($name,'nodelet')
+    || getNode($name,'setting') || getNode($name,'dbtable')
+    || getNode($name,'wiki')
+    || getNode($name,'perlman') || getNode("perlman:$name", 'perlman')
+    || getNode($name,'perlfunc') || getNode("perlfunc:$name", 'perlfunc') ) {
+    return join '', &lt;&lt;"END", $loginForm;
+    &lt;p&gt;
+      Sorry there is already a system document or usergroup with that name.
+      Pick a name that doesn't clash with important system documents.
+    &lt;/p&gt;
+END
+
+  }
+
+  # Generate the passwd and send it out on email.
+  my @chars = ( 'A'..'Z', 'a'..'k', 2..9 );
+  my $passwd = join('', @chars[ map { rand @chars } 1 .. 8 ]);
+
+  my $NEWUSER = {
+    realname  =&gt; $realname,
+    email     =&gt; $email,
+    passwd    =&gt; $passwd,
+    title     =&gt; $name,
+    lastupdate =&gt; undef,
+  };
+
+  # if they already tried to register, update the password and timestamp
+  $DB-&gt;getDatabaseHandle()-&gt;do(
+    join( '',
+      "REPLACE INTO newuser (title, passwd, realname, email, lastupdate)",
+      "VALUES (?,?,?,?,?)",
+    ),
+    undef, @$NEWUSER{qw/title passwd realname email lastupdate/},
+  );
+
+  # Send some email;
+  my $msg = getNode('New User Mail', 'mail');
+  local $msg-&gt;{doctext} = $msg-&gt;{doctext};
+  $msg-&gt;{doctext} =~ s/&lt;name&gt;/$NEWUSER-&gt;{realname}/;
+  $msg-&gt;{doctext} =~ s/&lt;user&gt;/$NEWUSER-&gt;{title}/;
+  $msg-&gt;{doctext} =~ s/&lt;passwd&gt;/$NEWUSER-&gt;{passwd}/;
+  $msg-&gt;{doctext} =~ s/&lt;site_name&gt;/$HTMLVARS{site_name}/;
+  $msg-&gt;{doctext} =~ s/&lt;homenode&gt;/
+    "$HTMLVARS{site_url}index.pl?node=$NEWUSER-&gt;{title}&amp;type=user"
+  /e;
+  $msg-&gt;{doctext} =~ s/&lt;site_url&gt;/$HTMLVARS{site_url}/;
+  $msg-&gt;{doctext} =~ s/&lt;login&gt;/
+    "$HTMLVARS{site_url}index.pl?node_id=$HTMLVARS{login_node}"
+  /e;
+
+  use Everything::MAIL;
+  node2mail( $NEWUSER-&gt;{email}, $msg );
+  $HTMLVARS{mailsent} = 1;
+
+  # Record sign-up information for later reference.
+  # $DB-&gt;sqlInsert('emailpwd', { user_id =&gt; getId($NEWUSER),
+  # ip =&gt; $ENV{REMOTE_ADDR}, email =&gt; $email, reason =&gt; 'New user' });
+
+  return &lt;&lt;END,
+  &lt;p&gt;
+    Your new user account ($NEWUSER-&gt;{title}) has been created.
+    You ($NEWUSER-&gt;{email};) should be getting an email soon telling
+    you your generated password.
+  &lt;/p&gt;
+END
+
+%]
+[%
+  return unless exists $HTMLVARS{newuser}
+          and not exists $HTMLVARS{mailsent};
+
+  my $NU = getNodeById( $HTMLVARS{newuser} );
+
+  return join '', "Our mail server isn't working right now.",
+    "  Sorry.  You get your password now: $NU-&gt;{passwd}";
+%]
+</field>
+</data>
+</node>

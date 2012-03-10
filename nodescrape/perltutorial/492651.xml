@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="492651" title="How A Function Becomes Higher Order" created="2005-09-16 11:51:42" updated="2005-09-16 07:51:42">
+<type id="956">
+perltutorial</type>
+<author id="180961">
+Limbic~Region</author>
+<data>
+<keywords>
+<keyword rating="">
+HOP</keyword>
+<keyword rating="">
+higher-order</keyword>
+<keyword rating="">
+function</keyword>
+<keyword rating="">
+callbacks</keyword>
+<keyword rating="">
+factories</keyword>
+<keyword rating="">
+closures</keyword>
+<keyword rating="">
+List::Util</keyword>
+</keywords>
+<field name="doctext">
+All:
+&lt;br /&gt;
+[isbn://1558607013|Higher Order Perl], by [Dominus], has become a very popular book.  It was written to teach programmers how to transform programs with programs.  Many of us who do not have familiarity with Functional Programming are not aware of what a [http://en.wikipedia.org/wiki/Higher-order_function|Higher Order] function is.  It is a function that does at least one of the two following things:
+&lt;ul&gt;
+&lt;li&gt;Accepts a function as input&lt;/li&gt;
+&lt;li&gt;Returns a function as output&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;
+For some, you can stop reading here because you already know what Higher Order functions are - you just didn't know that's what they were called.  In Perl terminology, we often refer to them as callbacks, factories, and functions that return code refs (usually closures).  Even if you are familiar with those terms, you may not be familiar with how to use them.
+&lt;/p&gt;
+&lt;p&gt;
+This tutorial is an illustration of how a simple every day function may become higher order, increasing its usefulness in the process.  Along the way we will pick up other tricks that can make our code more flexible.
+&lt;/p&gt;
+&lt;H4&gt;Problem: We have a file containing a list of scores and we need to determine the highest score.&lt;/H4&gt;
+&lt;p&gt;
+Using the principal of code reuse and not reinventing the wheel, we turn to our trusty [cpan://List::Util].
+&lt;/p&gt;
+&lt;CODE&gt;
+use List::Util 'max';
+my @scores = &lt;FH&gt;;
+my $high_score = max(@scores);
+&lt;/CODE&gt;
+&lt;p&gt;
+Unfortunately, this requires all of the scores to be held in memory at one time and our file is really big.  Just this once, we decide to break the rules and roll our own.
+&lt;/p&gt;
+&lt;CODE&gt;
+my $high_score;
+while ( &lt;FH&gt; ) {
+    chomp;
+    $high_score = $_ if ! defined $high_score || $_ &gt; $high_score;
+}
+&lt;/CODE&gt;
+&lt;p&gt;
+As time goes by "just this once" has happened many times and we decide to make our version reuseable. 
+&lt;/p&gt;
+&lt;CODE&gt;
+sub gen_max {
+    # Create an initial default value (or undef)
+    my $max = $_[0];
+
+    # Create an anonymous sub that can be
+    # dereferenced and called externally
+    # but will still have access to $max
+    return sub {
+
+        # Process 1 or more values
+        for ( @_ ) {
+            $max = $_ if ! defined $max || $_ &gt; $max;
+        }
+        return $max;
+    };
+}
+
+my $max = gen_max();
+while ( &lt;FH&gt; ) {
+    chomp;
+
+    # Dereference and call the anonymous sub
+    # Passing in 1 value at a time
+    $max-&gt;($_);
+}
+
+# Get the return value of the anonymous sub
+my $high_score = $max-&gt;();
+&lt;/CODE&gt;
+&lt;p&gt;
+This is our first step into Higher Order functions as we have returned a function as the output for the sake of reusability.  We also have a few advantages over the original [cpan://List::Util] &lt;i&gt;max&lt;/i&gt; function.
+&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Does not require all values to be present at once&lt;/li&gt;
+&lt;li&gt;Ability to define a starting value&lt;/li&gt;
+&lt;li&gt;Ability to process one or more values at a time&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;
+Unfortunately, our function breaks the second we start comparing strings instead of numbers.  We could make &lt;i&gt;max()&lt;/i&gt; and &lt;i&gt;maxstr()&lt;/i&gt; functions like [cpan://List::Util] but we want to use the concept of Higher Order functions to increase the versatility of our single function.
+&lt;/p&gt;
+&lt;CODE&gt;
+sub gen_reduce {
+    my $usage = 'Usage: gen_reduce("initial" =&gt; $val, "compare" =&gt; $code_ref)';
+
+    # Hashes need even number of arguments
+    die $usage if @_ % 2;
+    my %opt = @_;
+
+    # Verify that compare defined and a code reference
+    die $usage if ! defined $opt{compare} || ref $opt{compare} ne 'CODE';
+    my $compare = $opt{compare};
+    my $val = $opt{initial};
+
+    return sub {
+        for ( @_ ) {
+
+            # Call the user defined anonymous sub
+            # Passing in two parameters using the return
+            $val = $_ if ! defined $val || $compare-&gt;($_,  $val);
+        }
+        return $val;
+    };
+}
+
+# Create an anonymous sub that takes two arguments
+# A true value is returned if the first is longer 
+my $comp = sub {
+    return length($_[0]) &gt; length($_[1]);
+}
+
+my $maxstr = gen_reduce(compare =&gt; $comp );
+while ( &lt;FH&gt; ) {
+    chomp;
+    $maxstr-&gt;($_);
+}
+my $long_str = $maxstr-&gt;();
+&lt;/CODE&gt;
+&lt;p&gt;
+Now our function takes a function as input and returns a function as output.  In addition to the previous functionality, we have added a few more features.
+&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Named parameters - allows flexibility in ordering and presence of arguments as well as ease in extensibility&lt;/li&gt;
+&lt;li&gt;User defined comparator - our max function has now become a reduce function&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;
+This does not have to be the end of the journey into Higher Order functions, though it is the end of the tutorial.  Whenever you encounter a situation where two programs do nearly identical things but their differences are enough to make using a single function impossible - consider Higher Order functions to bridge the gap.  Remember - it is important to always document your interface and assumptions well!
+&lt;/p&gt;
+&lt;p&gt;
+I open the floor to comments both on the advantages and disadvantages of Higher Order functions.  As they say, there is no such thing as a free lunch and there are always cases in which it makes sense to use distinct routines for distinct problems.
+&lt;/p&gt;
+Cheers,
+[Limbic~Region|L~R]
+&lt;p&gt;
+&lt;b&gt;Updates:&lt;/b&gt;  The second paragraph regarding terminology was added at the suggestion of [diotalevi] in the CB.  Comments have been added to the code at the suggestion of several monks in the CB.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;small&gt;
+Note:  [cpan://List::Util] is a great module and the limitation of requiring all the values to be present at once is usually made up for by the fact that it also provides a &lt;i&gt;reduce()&lt;/i&gt; function, has both C and Perl implementations, and syntactic sugar.  The limitations were highlighted here for illustration purposes though I recommend using it when and where it does the job you need it to.
+&lt;/small&gt;
+&lt;/p&gt;</field>
+</data>
+</node>

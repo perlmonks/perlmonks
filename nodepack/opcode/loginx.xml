@@ -1,0 +1,39 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>489563</node_id>
+  <author_user>474174</author_user>
+  <title>loginx</title>
+  <createtime>2005-09-06 11:45:34</createtime>
+  <code>my $user= $q-&gt;param(&quot;user&quot;);
+return   if  ! $user;
+my $passwd= $q-&gt;param(&quot;passwd&quot;);
+return   if  ! $passwd; # This also disallows &quot;0&quot; as a password.
+my $salt= join '', map(
+    ('a'..'z','A'..'Z',0..9,'.','/')[rand 64],
+     1,2 );
+my $U= getNode( $user, 'user' );
+if(  ! $U  ) {
+    htmlcode( 'verifyNewUser','',
+        $user, $passwd, $salt, \$U );
+}
+return
+    if  ! $U
+    ||  ! confirmUser(
+            $U,
+            $salt,
+            $q-&gt;param('ticker') eq 'yes',
+            $passwd,
+        );
+
+$USER-&gt;{cookie}= $q-&gt;cookie(
+    -name =&gt; &quot;userpass&quot;,
+    -value =&gt; $q-&gt;escape( join '|',
+        $user,
+        crypt( $passwd, $salt ),
+        $q-&gt;param('ticker') eq &quot;yes&quot;,
+    ),
+    -expires =&gt; $q-&gt;param(&quot;expires&quot;)
+);
+</code>
+  <nodeupdated>2005-09-06 07:45:35</nodeupdated>
+</node>

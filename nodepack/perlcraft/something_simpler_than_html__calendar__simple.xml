@@ -1,0 +1,134 @@
+<node>
+  <doctext>#!/usr/bin/perl
+
+# I wanted something VERY SIMPLE for generating an
+# HTML calendar.  I didn't want to wade through the interface
+# for  HTML::Calendar::Simple, or worry about Entities.
+
+# This script looks at the time, backtracks to the first of
+# the month, and then prints out an HTML calendar for this 
+# month.  You can manipulate the month being printed by fiddling
+# with the $now variable and you can put information into the 
+# calendar easily where commented.
+
+# Oakbox Productions - Richard Still (oakbox)
+
+use strict;
+
+my $message;  # variable to hold output
+
+my $now = time;
+
+my @wday = localtime($now);
+
+my %dayrev = (  &quot;0&quot; =&gt; &quot;Sun&quot;,
+	        &quot;1&quot; =&gt; &quot;Mon&quot;,
+		&quot;2&quot; =&gt; &quot;Tue&quot;,
+		&quot;3&quot; =&gt; &quot;Wed&quot;,
+		&quot;4&quot; =&gt; &quot;Thu&quot;,
+		&quot;5&quot; =&gt; &quot;Fri&quot;,
+		&quot;6&quot; =&gt; &quot;Sat&quot;);
+
+my %monrev = (  &quot;0&quot; =&gt; &quot;Jan&quot;,
+	        &quot;1&quot; =&gt; &quot;Feb&quot;,
+		&quot;2&quot; =&gt; &quot;Mar&quot;,
+		&quot;3&quot; =&gt; &quot;Apr&quot;,
+		&quot;4&quot; =&gt; &quot;May&quot;,
+		&quot;5&quot; =&gt; &quot;Jun&quot;,
+		&quot;6&quot; =&gt; &quot;Jul&quot;,
+		&quot;7&quot; =&gt; &quot;Aug&quot;,
+		&quot;8&quot; =&gt; &quot;Sep&quot;,
+		&quot;9&quot; =&gt; &quot;Oct&quot;,
+		&quot;10&quot; =&gt; &quot;Nov&quot;,
+		&quot;11&quot; =&gt; &quot;Dec&quot;);
+
+
+use Time::Local;
+
+$message.=qq(&lt;span class=&quot;big&quot;&gt; $monrev{$wday[4]} &lt;/span&gt;
+        &lt;br&gt; &lt;table border=&quot;1&quot; cellspacing=&quot;0&quot; cellpadding&quot;3&quot; width=&quot;100%&quot;&gt;
+               &lt;tr bgcolor=&quot;#679cd3&quot; class=&quot;big&quot;&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{0} &lt;/td&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{1} &lt;/td&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{2} &lt;/td&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{3} &lt;/td&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{4} &lt;/td&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{5} &lt;/td&gt;
+                 &lt;td align=&quot;center&quot;&gt; $dayrev{6} &lt;/td&gt;
+               &lt;/tr&gt;);
+
+# I have to move the start date a little bit to get Sunday
+# over to the first position
+
+my $fday = timelocal(0,0,0,1,$wday[4],$wday[5]);
+my @ltime = localtime($fday);
+if($ltime[6] ne &quot;0&quot;){
+    $message.=qq(&lt;tr&gt;);
+
+  foreach my $cl (0...($ltime[6] - 1)){
+    $message.=qq(&lt;td&gt; &amp;nbsp; &lt;/td&gt; );
+  }
+}else{
+
+    $message.=qq(&lt;tr&gt;);
+
+}
+
+my $endm;
+
+foreach my $daycount (1...31){
+   my $thisday;
+   eval {   $thisday = timelocal(0,0,0,$daycount,$wday[4],$wday[5]);  }; 
+   if( $@ ){ next; }
+   my @ltime = localtime($thisday);
+   $endm = $ltime[6]; # signal to next section about what day we ended on
+
+   my $color = qq();
+
+## This is where you want to put stuff INTO your calendar
+## but that's optional :)
+
+   $message.=qq(&lt;td $color&gt; $daycount&lt;p&gt; &amp;nbsp; &lt;/td&gt;\n);
+
+   if($ltime[6] eq &quot;6&quot;){ $message.=qq(&lt;/tr&gt;&lt;tr&gt;\n); }
+}
+
+# close up the table by filling in any missing days
+
+if($endm ne &quot;6&quot;){
+  foreach my $cl (($endm+1)...6){
+    $message.=qq(&lt;td&gt; &amp;nbsp; &lt;/td&gt; );
+  }
+}
+    $message.=qq(&lt;/tr&gt;&lt;/table&gt;);
+
+
+# little html out template
+
+ my $html_frame=qq(&lt;html&gt;
+			&lt;head&gt;
+&lt;style type=&quot;text/css&quot;&gt;
+&lt;!--
+td, body, p {  font-family: Arial, Helvetica, sans-serif; font-size: 12px}
+.big {  font-family: Arial, Helvetica, sans-serif; font-size: 14px}
+--&gt;
+&lt;/style&gt;
+&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=iso-8859-1&quot;&gt;
+&lt;/head&gt;
+
+&lt;body bgcolor=&quot;#FFFFFF&quot; text=&quot;#000000&quot;&gt;
+&lt;p&gt;$message&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;);
+	
+print &quot;Content-type: text/html\n\n&quot;;
+print &quot;$html_frame&quot;;
+
+exit;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>268176</node_id>
+  <author_user>82627</author_user>
+  <title>Something simpler than HTML::Calendar::Simple</title>
+  <createtime>2003-06-23 10:27:45</createtime>
+  <nodeupdated>2005-06-21 01:30:38</nodeupdated>
+</node>

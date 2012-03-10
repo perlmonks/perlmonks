@@ -1,0 +1,115 @@
+<node>
+  <doctext>[%
+return if $q-&gt;param('fromanno');
+my $str = '';
+
+$str .= htmlcode('openform');
+$str .= &quot;Search for module:&quot;;
+$str .= $q-&gt;textfield('module', '', 25, 250);
+$str .= &quot;&lt;br&gt;and show me &quot;.$q-&gt;popup_menu('pivot', [0, 1], 0, { 0 =&gt; 'Conversations', 1 =&gt; 'Other Modules' });
+$str .= $q-&gt;submit(&quot;sexisgood&quot;, 'search');
+$str .= &quot;&lt;/form&gt;&quot;;
+$str;
+%]
+
+
+[%
+  
+my $modulename = $q-&gt;param('module');
+if (!$modulename) {
+  return &quot;&quot;;
+}
+
+my $count = 0;
+my $limit = 50;
+if ($q-&gt;param('nolimit')) {
+  $limit = 1000;
+}
+
+
+
+my $str = '';
+my $rsstitle ='';
+my $description = '';
+my $rsslink = '';
+if ($q-&gt;param('pivot')) {
+  $rsstitle = &quot;Other Modules Mentioned in Conversations that Mention $modulename&quot;;
+  $description = &quot;These are other modules which are mentioned in the same discussions that mention $modulename.  The number next to each module is the count of discussions that mention both modules&quot;;
+  $rsslink = '&lt;a href=&quot;/?node=cpan+module+feed&amp;module='.CGI::escape($modulename).'&amp;xmlstyle=rss&quot;&gt;&lt;img src=&quot;http://zeno.si.umich.edu/feed-icon-14x14.png&quot; border=0&gt;&lt;/a&gt;';
+} else {
+  $rsstitle = &quot;Conversations related to module $modulename&quot;;
+  $description = &quot;These are conversations which mention the module $modulename, most recent first.  If a module was mentioned multiple times in a conversation, the highest-level message in that conversation is listed&quot;;
+  $rsslink = '&lt;a href=&quot;/?node=cpan+module+feed&amp;pivot=1&amp;module='.CGI::escape($modulename).'&amp;xmlstyle=rss&quot;&gt;&lt;img src=&quot;http://zeno.si.umich.edu/feed-icon-14x14.png&quot; border=0&gt;&lt;/a&gt;';
+}
+
+$str .= &quot;&lt;h2&gt;$rsstitle&lt;/h2&gt;&lt;p&gt;$description&lt;/p&gt;$rsslink&quot;;
+
+my $csr = $DB-&gt;sqlSelectMany(&quot;root_node, min(node_id) as node_id&quot;,  &quot;moduleindex&quot;,  &quot;modulename=&quot;.$dbh-&gt;quote($modulename), &quot;group by root_node order by node_id desc&quot;);
+
+if ($q-&gt;param('pivot')) {
+
+my @rootnodes = ();
+while (my $n = $csr-&gt;fetchrow_hashref()) {
+  push @rootnodes, $n-&gt;{root_node};
+}
+$csr-&gt;finish();
+
+if (!@rootnodes) {
+    return &quot;No related modules for &quot;.$q-&gt;escape($modulename).&quot; were found&quot;;
+}
+
+$csr = $DB-&gt;sqlSelectMany(&quot;modulename, count(*) as modcount&quot;,  &quot;moduleindex&quot;,  &quot;root_node IN (&quot;.join(',', @rootnodes).&quot;)&quot;, &quot;group by modulename order by modcount desc&quot;);
+
+my $position = 1;
+while (my $m =  $csr-&gt;fetchrow_hashref()) {
+
+       next if lc($modulename) eq lc($m-&gt;{modulename});
+        last if $count++ &gt; $limit;
+       my $link;
+       if ($q-&gt;param('fromanno')) {
+          $link = 'http://zeno.si.umich.edu/perlmonkpivot.cgi?op=clicktrack&amp;position='.$position.'&amp;clicktype=perlmonks&amp;module='.CGI::escape($modulename).'&amp;targetmodule='.CGI::escape($m-&gt;{modulename});
+       } else {
+          $link = 'http://annocpan.org/?mode=search&amp;field=Module&amp;name='.CGI::escape($m-&gt;{modulename});
+       }
+
+       $str .= '&lt;li&gt;&lt;a href=&quot;'.$link.'&quot;&gt;'
+       .$m-&gt;{modulename}.'&lt;/a&gt; ('.$m-&gt;{modcount}.')&lt;/li&gt;';
+       $position++;
+}
+
+
+} else {
+
+my $position = 1;
+while (my $n = $csr-&gt;fetchrow_hashref()) {
+        last if $count++ &gt; $limit;
+        my $node = getNode($n-&gt;{node_id});
+
+        my $link = '';
+        if ($q-&gt;param('fromanno')) {
+            $link = '&lt;a href=&quot;http://zeno.si.umich.edu/perlmonkpivot.cgi?op=clicktrack&amp;position='.$position.'&amp;clicktype=perlmonks&amp;module='.CGI::escape($modulename).'&amp;node_id='.$node-&gt;{node_id}.'&quot;&gt;'.$node-&gt;{title}.'&lt;/a&gt;';
+        } else {
+            $link = linkNode($node);
+        }
+
+         my ($usertime)= split &quot; &quot;, $node-&gt;{createtime};
+        $str .= &quot;&lt;li&gt;$usertime $link by &quot;. linkNode($node-&gt;{author_user}).&quot;&lt;/li&gt;&quot;;
+        $position++;
+}
+}
+
+if ($count &gt; $limit) {
+  $str.= &quot;&lt;br&gt;$limit results shown, &quot;.linkNode($NODE, &quot;show all&quot;, {module =&gt; $modulename, pivot =&gt; $q-&gt;param(&quot;pivot&quot;), nolimit =&gt; 1, fromanno =&gt; $q-&gt;param(&quot;fromanno&quot;)});
+}
+
+  return $str;
+
+
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>649885</node_id>
+  <author_user>485628</author_user>
+  <title>cpan module search</title>
+  <createtime>2007-08-22 08:32:53</createtime>
+  <nodeupdated>2007-11-09 11:55:02</nodeupdated>
+</node>

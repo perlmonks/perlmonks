@@ -1,0 +1,77 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+IPC::Open3, open3 - open a process for reading, writing, and error handling
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+Extremely similar to 
+&lt;CODE&gt;open2(),&lt;/CODE&gt; 
+&lt;CODE&gt;open3()&lt;/CODE&gt; spawns the given &lt;CODE&gt;$cmd&lt;/CODE&gt; and connects 
+&lt;FONT SIZE=-1&gt;RDRFH&lt;/FONT&gt; for reading, 
+&lt;FONT SIZE=-1&gt;WTRFH&lt;/FONT&gt; for writing, and 
+&lt;FONT SIZE=-1&gt;ERRFH&lt;/FONT&gt; for errors. If 
+&lt;FONT SIZE=-1&gt;ERRFH&lt;/FONT&gt; is '', or the same as 
+&lt;FONT SIZE=-1&gt;RDRFH,&lt;/FONT&gt; then 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;STDERR&lt;/FONT&gt; of the child are on the same file handle. The 
+&lt;FONT SIZE=-1&gt;WTRFH&lt;/FONT&gt; will have autoflush turned on.
+
+&lt;P&gt;
+If 
+&lt;FONT SIZE=-1&gt;WTRFH&lt;/FONT&gt; begins with ``&amp;lt;&amp;amp;'', then 
+&lt;FONT SIZE=-1&gt;WTRFH&lt;/FONT&gt; will be closed in the parent, and the child will read from it directly. If 
+&lt;FONT SIZE=-1&gt;RDRFH&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;ERRFH&lt;/FONT&gt; begins with ``&amp;gt;&amp;amp;'', then the child will send output directly to that file handle. In both cases, there will be a 
+&lt;CODE&gt;dup(2)&lt;/CODE&gt; instead of a 
+&lt;CODE&gt;pipe(2)&lt;/CODE&gt; made.
+
+&lt;P&gt;
+If you try to read from the child's stdout writer and their stderr writer, you'll have problems with blocking, which means you'll want to use 
+&lt;CODE&gt;select(),&lt;/CODE&gt; which means you'll have to use 
+&lt;CODE&gt;sysread()&lt;/CODE&gt; instead of normal stuff.
+
+&lt;P&gt;
+
+&lt;CODE&gt;open3()&lt;/CODE&gt; returns the process 
+&lt;FONT SIZE=-1&gt;ID&lt;/FONT&gt; of the child process. It doesn't return on failure: it just raises an exception matching
+ &lt;CODE&gt;/^open3:/&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;WARNING&quot;&gt;WARNING&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+It will not create these file handles for you. You have to do this
+yourself. So don't pass it empty variables expecting them to get filled in
+for you.
+
+&lt;P&gt;
+Additionally, this is very dangerous as you may block forever. It assumes
+it's going to talk to something like &lt;STRONG&gt;bc&lt;/STRONG&gt;, both writing to it and reading from it. This is presumably safe because
+you ``know'' that commands like &lt;STRONG&gt;bc&lt;/STRONG&gt; will read a line at a time and output a line at a time. Programs like &lt;STRONG&gt;sort&lt;/STRONG&gt; that read their entire input stream first, however, are quite apt to cause
+deadlock.
+
+&lt;P&gt;
+The big problem with this approach is that if you don't have control over
+source code being run in the child process, you can't control what it does
+with pipe buffering. Thus you can't just open a pipe to
+&lt;CODE&gt;cat -v&lt;/CODE&gt; and continually read and write a line from it.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:52:28</createtime>
+  <node_id>1224</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    $pid = open3(\*WTRFH, \*RDRFH, \*ERRFH,
+                    'some cmd and args', 'optarg', ...);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlman:IPC::Open3</title>
+  <nodeupdated>2005-08-13 01:10:35</nodeupdated>
+</node>

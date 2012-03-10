@@ -1,0 +1,348 @@
+<node>
+  <doctext>This node is being developed to help you get your CGI script working. It is not a Perl tutorial and focuses on CGI issues. 
+It owes much to Tom Christiansen's terse but informative &lt;a href=&quot;http://language.perl.com/CPAN/doc/FAQs/cgi/idiots-guide.html&quot;&gt;The Idiot's Guide to Solving Perl CGI Problems&lt;/a&gt;. I recommend you check this out if you can not find the answers you need here.
+&lt;p&gt;What follows is a sort of checklist to help you solve the problem quickly yourself. It is divided into
+four parts:
+&lt;p&gt;&lt;a href=&quot;#A&quot;&gt;A. Before uploading to the Server&lt;/a&gt;
+&lt;p&gt;&lt;a href=&quot;#B&quot;&gt;B. Uploading to the Server&lt;/a&gt;
+&lt;p&gt;&lt;a href=&quot;#C&quot;&gt;C. Setting Up on the Server&lt;/a&gt;
+&lt;p&gt;&lt;a href=&quot;#D&quot;&gt;D. Debugging&lt;/a&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;h2&gt;&lt;a name=&quot;A&quot;&gt;&lt;/a&gt;A: Before Uploading to the Server&lt;/h2&gt;
+&lt;h3&gt;1. Does your script compile?&lt;/h3&gt;
+&lt;p&gt;Like any Perl program a CGI script needs to successfully compile before it will run. Until it does this you can forget everything else. To test this you need a command prompt and a working
+Perl interpreter. If you have *nix you are probably already there. If you have DOS/Windows or a Mac you will probably need to install
+Perl. You can get a binary copy of Perl, ready to install, for almost any platform &lt;a href=&quot;http://www.cpan.org/ports/index.html&quot;&gt;here&lt;/a&gt;. If you want to compile the source yourself go &lt;a href=&quot;http://www.cpan.org/src/&quot;&gt;here&lt;/a&gt;.
+&lt;p&gt;Once you have a copy of perl you can access from a command prompt ( C:\&gt; in this example under Windows) type:&lt;/p&gt;
+&lt;pre&gt;
+C:\&amp;gt;perl -c myscript.pl
+&lt;/pre&gt;
+&lt;p&gt;What this does is compile (but not run) your script. You should see this:
+&lt;pre&gt;C:\&amp;gt;perl -c myscript.pl
+myscript.pl syntax OK
+&lt;/pre&gt;
+&lt;p&gt;Here are some common errors and solutions:
+&lt;h4&gt;No Perl!&lt;/h4&gt;
+&lt;pre&gt;
+C:\&amp;gt;perl -c test.pl
+Bad command or file name
+C:\&amp;gt;
+&lt;/pre&gt;
+&lt;p&gt;This is telling you that your operating system can not find the Perl executable. 
+Either it is not installed and/or it is not included in your path environment variable. 
+So install perl and either include it in your path or type the full path to the executable. 
+How you find perl depends on your system. On *nix type 'which perl' at the command prompt to get the path (usually /usr/bin/perl). 
+On Windows use Start|Find|perl.exe to get the path (probably C:\PERL\BIN). 
+&lt;p&gt;A bit of background: the PATH environment variable is a list of directories separated by colons (*nix) or semicolons (Dos/Win).  When you type a command name without giving an explicit path your shell searches each directory in the PATH list in order, looking for an executable file by that name, and the shell will run the first matching program it finds. 
+&lt;pre&gt;
+To check the path on Win32 use:
+
+C:\&amp;gt;PATH
+C:\;C:\WINDOWS;C:\WINDOWS\COMMAND;
+C:\&amp;gt;
+
+To add to the path use:
+
+C:\&amp;gt;C:\PATH %PATH%C:\PERL\BIN;
+C:\&amp;gt;
+
+To check the path on *nix use:
+
+$ echo $PATH
+/bin:/usr/bin:
+
+For csh users use something like:
+setenv PATH :/bin:/usr/bin
+For sh or ksh users:
+PATH=:/bin:/usr/bin export PATH
+&lt;/pre&gt;
+&lt;h4&gt;Syntax Errors&lt;/h4&gt;
+&lt;pre&gt;
+C:\&amp;gt;perl -c test.pl
+String found where operator expected at test.pl line 1, 
+near &amp;quot;printt &amp;quot;Hello World!&amp;quot;&amp;quot;
+(Do you need to predeclare printt?)
+syntax error at test.pl line 1, near &amp;quot;printt &amp;quot;Hello World!&amp;quot;&amp;quot;
+test.pl had compilation errors.
+C:\&amp;gt;
+&lt;/pre&gt;
+&lt;p&gt;This is a simple syntax error typo problem. Perl can not find the function 'printt'. You need to fix all these.
+&lt;h4&gt;Missing Modules&lt;/h4&gt;
+&lt;p&gt;Modules are Perl's versions of libraries. There are modules available to do everything from read in CGI data to 
+allowing you to write your script in Latin! To use them they need to be installed.
+&lt;pre&gt;
+C:\&amp;gt;perl -c test.pl
+Can't locate Some/Module.pm in @INC (@INC contains: 
+C:/Perl/lib C:/Perl/site/lib .) at test.pl line 1.
+BEGIN failed--compilation aborted at test.pl line 1.
+C:\&amp;gt;
+&lt;/pre&gt;
+&lt;p&gt;This is telling you that the module Some::Module required by a 'use Some::Module;&quot; directive is not installed. 
+You will probably need to install the module. To install a module see [A detailed How-To for locally installing modules|a detailed How-To for locally installing modules] and [Installing modules on Win32|installing modules on Win32]. 
+You *may* be able to get away with commenting out the 'use Some::Module;' directive to test compile you script but this will fail if you have code like 'print
+Some::Module-&amp;gt;Cool_Function;' later on.
+
+&lt;h3&gt;2. Are you using strict and warnings?&lt;/h3&gt;
+&lt;pre&gt;#!/usr/bin/perl [use warnings vs. perl -w|-w] # &amp;quot;-w&amp;quot; turns on all sorts of warnings about probable errors. 
+
+[perlman:lib:diagnostics|use diagnostics;] &amp;nbsp;&amp;nbsp;# optional; causes warnings to be explained in greater detail.
+
+[perlman:lib:strict|use strict;] &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;# generates compile and run-time errors for certain unsafe constructs.
+&lt;/pre&gt;
+&lt;p&gt;While use strict and warnings are not required for any perl script to run (including CGI) they can help you sort out all manner of problems and are highly recommended. For a complete discussion of this see [Use strict warnings and diagnostics or die]  
+
+&lt;/pre&gt;
+&lt;h3&gt;3. Are you using CGI.pm to parse your CGI input data?&lt;/h3&gt;
+The leading block of reusable code for CGI purposes is &lt;a href=&quot;http://www.genome.wi.mit.edu/ftp/pub/software/WWW/cgi_docs.html&quot;&gt;CGI.pm&lt;/a&gt;. In a nutshell there is a lot more to parsing CGI data than first meets the eye - both from the functionality and security point of view. If you can't give ten good reasons not to use CGI.pm then *use it*. It is part of the standard perl distribution so should be available on any system that has
+Perl. Using it to get your form parameters is as easy as:
+&lt;pre&gt;
+use CGI;            # use CGI.pm
+my $q = new CGI;    # create new CGI object
+
+# now get value of a form parameter named 'name'
+my $name     = $q-&amp;gt;param('name');
+
+# now get an array of values of all form parameters named 'option'
+my @options  = $q-&amp;gt;param('option');  
+&lt;/pre&gt;
+&lt;p&gt;As you can see it is very easy to use CGI.pm. Good entry points to all things CGI.pm, and why you should be using it are: [use CGI or die;|use CGI or die] and [No excuses about not using CGI.pm|no excuses for not using CGI.pm].
+&lt;h2&gt;&lt;a name=&quot;B&quot;&gt;&lt;/a&gt;B. Uploading to the Server&lt;/h2&gt;
+&lt;h3&gt;1. Did you upload in ASCII mode?&lt;/h3&gt;
+&lt;p&gt;Assuming all has gone to plan so far we are ready to upload the script to the
+server. The server is the computer that is actually connected to the WWW and
+whose job it is the serve up HTML documents and process CGI scripts. A Perl
+script is just a text file. Unfortunately different computer operating systems
+handle text files differently. On *nix the line ending is a line feed (\n). On
+Dos/Win it is a carriage return line feed (\r\n). On Macs it is a carriage
+return (\r). Clearly some conversion will be in order when sending files from
+one system type to another. Never fear the problem has been solved for you. All
+you need to do is to make the transfer (usually by FTP) in ASCII mode. In this
+mode the line endings will be automatically converted for you.
+&lt;p&gt;Where you can strike problems is when you transfer a file in *BINARY* mode.
+In this mode the file is sent exactly as is so line endings are not converted.
+This can and does lead to problems. Make sure you transfer in ASCII mode.&lt;h3&gt;2.
+Did you upload to the correct directory?&lt;/h3&gt;
+&lt;p&gt;Most
+servers have a specific directory used to store Perl CGI scripts. Typically this
+will be something like: 
+&lt;pre&gt;
+/www.mydomain.com/cgi-bin/
+&lt;/pre&gt;
+&lt;p&gt;It makes sense that you will want to get your script
+into this directory. You may need to confer with your systems administrator
+about this. BTW I can personally recommend Cute FTP for Win32 as very easy to use for this task.&lt;h2&gt;&lt;a name=&quot;C&quot;&gt;&lt;/a&gt;C.
+Setting Up on the Server&lt;/h2&gt;
+&lt;p&gt;OK so now we have our script in the cgi-bin. We need to set it up so that it
+can be executed by the server when it is called. Here is how CGI works in a
+nutshell:
+&lt;blockquote&gt;
+  &lt;p&gt;(i). Browser requests a resource via a URL that is aimed at a CGI script, say via a
+link like:
+&lt;pre&gt;
+&amp;lt;a href=&amp;quot;http://www.mydomain.com/cgi-bin/myscript.cgi&amp;quot;&amp;gt;Run my script&amp;lt;/a&amp;gt;
+&lt;/pre&gt;
+
+  &lt;p&gt;(ii). The server receives the request and goes &amp;quot;Ah ha this is a cgi script that I need to run!&amp;quot;&lt;/p&gt;
+  &lt;p&gt;(iii). The server executes the script passing it data via the environment variables in the
+$ENV hash and via STDIN. The script can access this data and process it. The
+script generates output on STDOUT&lt;/p&gt;
+  &lt;p&gt;(iv). The server takes the output of the CGI script from STDOUT and returns it to the
+browser pretending it received a request for a static HTML document.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;We can have problems in any of these areas. Of course! 
+&lt;/p&gt;
+
+&lt;h3&gt;1. Is the HTML document that calls the script pointed at the correct place? 
+&lt;/h3&gt;
+
+&lt;p&gt;In order to execute the script you need to ask for it to be executed. If you
+link to the URL above and your cgi-bin happens to be called localcgi (like mine)
+then you will get a 404 Document not found error. Of course the server can not
+find the document in /www.mydomain.com/cgi-bin/, it is after all somewhere else! 
+&lt;/p&gt;
+
+&lt;h3&gt;2. Is the server configured to execute the script, and are the permissions
+set? 
+&lt;/h3&gt;
+
+&lt;p&gt;You can't execute an HTML document, well at least Perl can't compile it! You
+also don't want to return the code in your script to the browser when it is
+requested. So it is obvious that the server needs some way of deciding if it
+needs to return the requested document of execute it. As you might expect there
+are many ways to achieve this result. Your systems administrator should know the
+exact details for your system but here is a general guide. 
+&lt;/p&gt;
+
+&lt;p&gt;Under *nix all files have permissions. They have permissions for the owner,
+the group, and everybody else. The permissions are 4=read, 2=write, 1=execute.
+Thus a permission of 7 means that the file can be read , written and executed as
+4+2+1=7. A permission of 5 means the file can be read and executed as 4+1=5. As
+a general rule you will want permissions of 755 for your file which grants you
+read, write and execute permission and everyone else read and execute
+permission. You set this using the command chmod 755. Directories also have
+permissions which need to be correct but they should be fine if this is a
+standard cgi-bin. 
+&lt;/p&gt;
+
+&lt;p&gt;Some servers are configured to recognise any file that ends in .pl, .pm, .cgi
+as a Perl executable (especially WIN32) and act accordingly. You will need to
+use one of these extensions if that is the case so the server knows to execute
+the file. Still other servers assume that all files in certain directories (ie
+cgi-bin) are executable. The bottom line is is all else fails then check with your
+sysadmin. 
+&lt;/p&gt;
+
+&lt;h3&gt;3. Is the shebang line pointed at the Perl interpreter? 
+&lt;/h3&gt;
+
+&lt;p&gt;Under *nix if a request for a&amp;nbsp; file&amp;nbsp; marked as executable is made
+then the first 2 bytes are examined for the #! shebang sequence. If this is
+found then the shell executes that file using the executable file it finds at
+the path following the #! Thus what this line: 
+&lt;/p&gt;
+
+&lt;pre&gt;#!/usr/bin/perl&lt;/pre&gt; 
+&lt;p&gt;&amp;nbsp;actually says is: &amp;quot;Dear shell, if this file is called and it has
+read and execute permission please execute it using the executable file in the
+/usr/bin/ dir called perl&amp;quot;. If the Perl executable is not in the /usr/bin/
+directory then the shell will complain about not being able to find Perl. Unless
+the script has permissions of at least 5 (read and execute) the shell/Perl will
+not be able to read it (as it must) in order to execute it (as we want) 
+&lt;/p&gt;
+
+&lt;p&gt;A common Win32 -&gt; *nix problem is \r chars from the Win32 line ending \r\n (CRLF) remaining. 
+This is usually due to uploading in binary mode. Anyway a typical error is 'bad interpreter'. You get this message 
+because the *nix shell is looking for /usr/bin/perl\r and the executable &quot;perl\r&quot; does not exist. The usual fix is:
+
+&lt;code&gt;
+perl -pi -e 's/\r//' script.pl
+&lt;/code&gt;
+&lt;p&gt;This does an implace edit that removes all \r chars. Alternatively you could do a symlink from perl to perl\r but if you 
+were root and knew how to do that you wouldn't be reading this.
+
+&lt;p&gt;Some servers are configured not to allow the execution of CGI scripts for
+security reasons, once again talk to ye sysadmin. 
+&lt;/p&gt;
+
+&lt;h2&gt;&lt;a name=&quot;D&quot;&gt;&lt;/a&gt;D. Debugging 
+&lt;/h2&gt;
+
+&lt;h3&gt;1. Before doing anything else add this code to the top of your script.&amp;nbsp; 
+&lt;/h3&gt;
+
+
+&lt;p&gt;
+If you add this code your script will run for long enough that any errors appear in the browser window making it easy
+to see the problem, presuming of course that you have followed the advice above!
+This will avoid you getting the less than useful 500
+Internal Server Error&amp;nbsp; or Premature end of script headers/Malformed script
+headers messages. You add
+this code just below the shebang line and
+before everything else. That's &lt;u&gt;everything else&lt;/u&gt;. The reason for this is to minimise the 
+lines which can cause problems before we reliably direct output (including syntax errors) to the browser 
+&lt;/p&gt;
+
+
+&lt;pre&gt;
+#!/usr/bin/perl -wT
+
+# ensure all fatals go to browser during debugging and set-up
+# comment this BEGIN block out on production code for security
+BEGIN {
+    $|=1;
+    print &amp;quot;Content-type: text/html\n\n&amp;quot;;
+    use CGI::Carp('fatalsToBrowser');
+}
+
+# all the rest of the code goes here
+&lt;/pre&gt;
+&lt;p&gt;Because this code is in a BEGIN block it is executed before everything else.
+Even before most of the script is compiled. In it we do three vital things to
+ensure that all errors from this point on will appear in the browser window thus
+making debugging *much* easier. You could look in the server logs to get the
+same information but as you may or may not have access to them and they can be
+anywhere on the server it is easier to use this instead.&lt;p&gt;The $|=1; forces buffer flushing.
+This ensures that output from the script goes immediately to STDOUT. Let's just
+say trust me on this or read &lt;a href=&quot;http://perl.plover.com/FAQs/Buffering.html&quot;&gt;Suffering from Buffering&lt;/a&gt; for all the gory
+details.;
+&lt;p&gt;Next we print a complete valid header. In the HyperText
+Transport Protocol (the http bit in &lt;a href=&quot;http://www.mydomain.com&quot;&gt;http://www.mydomain.com&lt;/a&gt;)
+every request and response needs a valid header. It may or may not include a
+body but it must have a header. The end of the header is recognised by the \n\n
+sequence. This prints one blank line. If, for any reason, a blank line is printed
+*before* the &amp;quot;Content-type: text/html\n\n&amp;quot; you will get a
+premature end of script header error. By printing a valid header we avoid this.
+Note that I have presumed you want to output HTML but you can also output GIFs,
+JPEGs etc using a different header that specifies these different data types. The
+headers our script generates without this block will appear in the top left of the browser
+window where we can check that they are as expected.&amp;nbsp;If you don't see them
+and your script now works your problem is that you are not outputting any valid
+header info.
+&lt;p&gt;Finally we add CGI::Carp which essentially does the same as lines 1 and
+2 but in my experience is not as reliable as desired. Combined with the two
+lines above virtually all errors appear in the browser window with an
+explanation. 
+&lt;p&gt;While we are in this topic the -w switch on the shebang line
+provides heaps of free help. If you want more detail add the line use diagnostics; as shown:
+&lt;pre&gt;#!/usr/bin/perl -wT
+
+# comment this out on production code as it uses a lot
+# of memory and you won't have any errors left anyway :-)
+use diagnostics;&lt;/pre&gt;
+You may be wondering about the -T switch. Or you may not be. Regardless you want
+to use it. The -T switch switches on taint checking which is Perl's unique anti
+hacker mode which warns you if you are doing dangerous stuff that makes it easy
+to hack your server via your script. See &lt;a href=&quot;http://www.w3.org/Security/Faq/www-security-faq.html&quot;&gt;The World Wide Web Security FAQ&lt;/a&gt; for more details.
+
+&lt;h3&gt;2. Are you checking the return values from the functions built in to perl?&lt;/h3&gt; 
+Most of the file and system functions set $! and have return values that you can test thus: 
+&lt;pre&gt;open(FILE, &amp;quot;&amp;lt;/file.txt&amp;quot;) or die &amp;quot;Error opening /file.txt Perl says: $!\n&amp;quot;;&lt;/pre&gt;
+$! will contain an error message that will give you more information on where your program is going wrong. The [perlman:perlfunc|perlfunc man page] will give you more information on the return values from functions.
+It is very handy to know that the reason your script is not working is because
+you can not find/open/write to a file for instance.&lt;h3&gt;3. Are the modules
+required by your script actually installed on the server? 
+&lt;/h3&gt;
+
+&lt;p&gt;As we saw earlier if you script uses modules they need to be installed. Some
+modules come with perl (like CGI.pm) but others need to be installed. If you
+have followed the advice so far you will get the typical: 
+&lt;pre&gt;
+Can't locate Some/Module.pm in @INC (@INC contains:&amp;nbsp;
+C:/Perl/lib C:/Perl/site/lib .) at test.pl line 12.
+&lt;/pre&gt;
+&lt;p&gt;error message in your browser window. Get you sysadmin to install them. Or
+see the installing modules links above.&lt;/p&gt;
+&lt;h3&gt;4. Looking at the program as it runs.&lt;/h3&gt;
+&lt;p&gt;Like any program a CGI may run but not produce the output you expect because of logic errors. Provided you have already printed a valid header you can add temporary debugging print statements within your code to print out variable values and flags to allow you to follow the progress of your code as it runs. My code often looks like this:
+&lt;pre&gt;
+...
+my $debug = 0;  # set to true for debugging
+...
+print &quot;Variable \$my_var contains '$my_var'\n&quot; if $debug;
+...
+sub foo {
+    print &quot;Running sub foo!\n&quot; if $debug;
+    ...
+}
+&lt;/pre&gt;
+&lt;p&gt;The $debug variable makes switching the debugging prints on and off easy - that way I can leave them in my code. The often come in handy again when you make changes.
+&lt;h4&gt;Firing up the Debugger (*nix only)&lt;/h4&gt;
+&lt;p&gt;For details on how to get a Perl CGI script to fire up a debugging window under X Windows on your local machine see [Debugging a CGI] by [toma]
+&lt;h3&gt;5. Don't be afraid to Ask&amp;nbsp;&lt;/h3&gt;
+&lt;p&gt;If you have tried all the stuff above and have an error you can't fix then [Seekers of Perl Wisdom|Ask the Monks]. Many Monks do this stuff for a living so can probably help. In fact you
+will often find that if you show you can help yourself people will fall over
+themselves trying to help you. Good luck and enjoy the journey.&lt;/p&gt;
+&lt;h3&gt;Credits&lt;/h3&gt;
+&lt;p&gt;The following monks have contributed to this document [Albannach], [sierrathedog04], [converter]
+&lt;p&gt;tachyon
+&lt;p&gt;s&amp;amp;&amp;amp;rsenoyhcatreve&amp;amp;&amp;amp;&amp;amp;s&amp;amp;n\w+t&amp;amp;&quot;$'$`$\&quot;$\&amp;amp;&quot;&amp;amp;ee&amp;amp;&amp;amp;y&amp;amp;srve&amp;amp;&amp;amp;d&amp;amp;&amp;amp;print
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>165253</node_id>
+  <author_user>80749</author_user>
+  <title>CGI Help Guide</title>
+  <createtime>2002-05-09 01:11:16</createtime>
+  <nodeupdated>2005-08-12 23:57:25</nodeupdated>
+</node>

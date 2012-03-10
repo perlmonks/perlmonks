@@ -1,0 +1,533 @@
+<node>
+  <doctext>#!/usr/bin/perl -w 
+
+ 
+##  
+## pmchat by Nicholas J. Leon ala mr.nick (nicholas@binary9.net) 
+##                                    http://www.mrnick.binary9.net 
+
+## A text mode client for the Chatter Box of Perl Monks 
+## this is not an attempt to be complete, but small and useful 
+## Use it or not. No guaranteee, no warranty, blah blah 
+
+## Now supports Win32 installations with a different ReadLine
+## call.
+
+## Autoupdate now actually autoupdates
+
+## Oh, and it has no error checking :) 
+
+
+my $ID='$Id: pmchat,v 1.42 2001/06/03 17:49:22 nicholas Exp $'; #'
+ 
+use strict; 
+use XML::Simple; 
+use LWP::Simple; 
+use LWP::UserAgent; 
+use HTTP::Cookies; 
+use HTTP::Request::Common; 
+use Data::Dumper; 
+use Text::Wrap qw($columns wrap); 
+use Term::ReadLine; 
+use Term::ReadKey qw(GetTerminalSize); 
+use HTML::Parser;
+use File::Copy;
+ 
+$|++; 
+
+my $pm='http://www.perlmonks.org/index.pl'; 
+my $cookie=&quot;$ENV{HOME}/.pmcookie&quot;; 
+my $cffile=&quot;$ENV{HOME}/.pmconfig&quot;; 
+my %config=( 
+            timestamp =&gt; 0, 
+            colorize =&gt; 1, 
+            browser =&gt; '/usr/bin/lynx %s',
+            newnodes =&gt; 25,
+            updateonlaunch =&gt; 0,
+            timeout =&gt; 15,
+           ); 
+ 
+my %seenmsg; 
+my %seenprv; 
+my %xp;
+my $ua;
+ 
+## some color stuff (if you want) 
+my %colormap= 
+  (  
+   node =&gt; [ &quot;\e[33m&quot;, &quot;\e[0m&quot; ], 
+   user =&gt; [ &quot;\e[1m&quot;, &quot;\e[0m&quot; ], 
+   code =&gt; [ &quot;\e[32m&quot;, &quot;\e[0m&quot; ], 
+   me =&gt; [ &quot;\e[36m&quot;, &quot;\e[0m&quot; ], 
+   private =&gt; [ &quot;\e[35m&quot;,&quot;\e[0m&quot; ],
+   important =&gt; [ &quot;\e[1;34m&quot;,&quot;\e[0m&quot; ],
+  ); 
+
+## &lt;readmore&gt;
+##############################################################################
+##############################################################################
+
+sub writeconfig { 
+  unless (open(OUT,&quot;&gt;$cffile&quot;)) { 
+    warn &quot;Couldn't open '$cffile' for writing: $!\n&quot;; 
+    return; 
+  } 
+
+  print OUT &quot;$_ $config{$_}\n&quot; for keys %config; 
+
+  close OUT; 
+} 
+sub readconfig { 
+  unless (open(IN,$cffile)) { 
+    warn &quot;Couldn't open '$cffile' for reading: $!\n&quot;; 
+    return; 
+  } 
+  
+  %config=(%config,(map /^([^\s]+)\s+(.+)$/,&lt;IN&gt;));
+  
+  close IN; 
+} 
+
+## testing ... autoupdate
+sub autoupdate {
+  my $quiet=shift;
+  my $r=$ua-&gt;request(GET &quot;http://www.mrnick.binary9.net/pmchat/version&quot;);
+  my($ver)=$r-&gt;content=~/^([\d\.]+)$/;
+  my($this)=$ID=~/,v\s+([\d\.]+)/;
+  
+  print &quot;This version is $this, the current version is $ver.\n&quot; unless $quiet;
+
+  if ($this &gt;= $ver) {
+    print &quot;There is no need to update.\n&quot; unless $quiet;
+    return;
+  }
+
+  print &quot;A new version is available, $ver.\n&quot;;
+
+  $r=$ua-&gt;request(GET &quot;http://www.mrnick.binary9.net/pmchat/pmchat&quot;);
+
+  my $tmp=$ENV{TMP} || $ENV{TEMP} || &quot;/tmp&quot;;
+  my $fn=&quot;$tmp/pmchat-$ver&quot;;
+
+  unless (open (OUT,&quot;&gt;$fn&quot;)) {
+    print &quot;Unable to save newest version to $fn\n&quot;;
+    return;
+  }
+
+  print OUT $r-&gt;content;
+  close OUT;
+
+  ## okay, a couple checks here: we can autoupdate IF the following
+  ## are true
+  if ($^O=~/win32/i) {
+    print &quot;Sorry, autoupdate not available for Windows installations.\n&quot;;
+    print &quot;The newest version has been saved in $tmp/pmchat.$ver.\n&quot;;
+    return;
+  }
+
+  ## moving the old version someplace else 
+  if (!move($0,&quot;$0.bak&quot;)) {
+    print &quot;Couldn't move $0 to $0.bak, aborting.\n&quot;;
+    print &quot;The newest version has been saved in $fn.\n&quot;;
+    return;
+  }
+  ## moving the new version to the old's location
+  if (!move($fn,$0)) {
+    print &quot;Couldn't move $fn to $0, aborting $!.\n&quot;;
+    move(&quot;$0.bak&quot;,$0);
+    print &quot;The newest version has been saved in $fn.\n&quot;;
+    return;
+  }
+  ## okay! Reload!
+  chmod 0755,$0;
+  writeconfig;
+  exec $0;
+}
+  
+
+##############################################################################
+##############################################################################
+
+sub colorize {
+  my $txt=shift;
+  my $type=shift;
+
+  return $txt unless $config{colorize};
+  return $txt if $^O=~/win32/i;
+
+  &quot;$colormap{$type}[0]$txt$colormap{$type}[1]&quot;;
+}
+
+sub user {
+  colorize(shift,&quot;user&quot;);
+}
+sub imp {
+  colorize(shift,&quot;important&quot;);
+}  
+sub content {
+  my $txt=shift;
+
+  return $txt unless $config{colorize};
+  return $txt if $^O=~/win32/i;
+
+  unless ($txt=~s/\&lt;code\&gt;(.*)\&lt;\/code\&gt;/$colormap{code}[0]$1$colormap{code}[1]/mig) {
+    $txt=~s/\[([^\]]+)\]/$colormap{node}[0]$1$colormap{node}[1]/g;
+  }
+
+  $txt;
+}
+##############################################################################
+##############################################################################
+
+sub cookie {
+  $ua-&gt;cookie_jar(HTTP::Cookies-&gt;new());
+  $ua-&gt;cookie_jar-&gt;load($cookie);
+}
+
+sub login {
+  my $user; 
+  my $pass; 
+  
+  ## fixed &lt;&gt; to &lt;STDIN&gt; via merlyn
+  print &quot;Enter your username: &quot;; chomp($user=&lt;STDIN&gt;); 
+  print &quot;Enter your password: &quot;; chomp($pass=&lt;STDIN&gt;); 
+  
+  $ua-&gt;cookie_jar(HTTP::Cookies-&gt;new(file =&gt; $cookie, 
+                                     ignore_discard =&gt; 1, 
+                                     autosave =&gt; 1, 
+                                    ) 
+                 ); 
+  
+  my $r=$ua-&gt;request( POST ($pm,[  
+                                 op=&gt; 'login',  
+                                 user=&gt; $user,  
+                                 passwd =&gt; $pass, 
+                                 expires =&gt; '+1y',  
+                                 node_id =&gt; '16046'  
+                                ])); 
+}
+
+sub xp { 
+    my $r=$ua-&gt;request(GET(&quot;$pm?node_id=16046&quot;)); 
+    my $xml=XMLin($r-&gt;content); 
+    
+    $config{xp}=$xml-&gt;{XP}-&gt;{xp} unless defined $config{xp};
+    $config{level}=$xml-&gt;{XP}-&gt;{level} unless defined $config{level};
+
+
+    print &quot;\nYou are logged in as &quot;.user($xml-&gt;{INFO}-&gt;{foruser}).&quot;.\n&quot;; 
+    print &quot;You are level $xml-&gt;{XP}-&gt;{level} ($xml-&gt;{XP}-&gt;{xp} XP).\n&quot;; 
+    if ($xml-&gt;{XP}-&gt;{level} &gt; $config{level}) {
+      print imp &quot;You have gained a level!\n&quot;;
+    }
+    print &quot;You have $xml-&gt;{XP}-&gt;{xp2nextlevel} XP left until the next level.\n&quot;; 
+
+    if ($xml-&gt;{XP}-&gt;{xp} &gt; $config{xp}) {
+      print imp &quot;You have gained &quot;.($xml-&gt;{XP}-&gt;{xp} - $config{xp}).&quot; experience!\n&quot;;
+    }
+    elsif ($xml-&gt;{XP}-&gt;{xp} &lt; $config{xp}) { 
+      print imp &quot;You have lost &quot;.($xml-&gt;{XP}-&gt;{xp} - $config{xp}).&quot; experience!\n&quot;; 
+    }                               
+
+    ($config{xp},$config{level})=($xml-&gt;{XP}-&gt;{xp},$xml-&gt;{XP}-&gt;{level});
+
+    print &quot;\n&quot;; 
+  } 
+ 
+sub who { 
+  my $req=GET(&quot;$pm?node_id=15851&quot;); 
+  my $res=$ua-&gt;request($req); 
+  my $ref=XMLin($res-&gt;content,forcearray=&gt;1); 
+ 
+  print &quot;\nUsers current online (&quot;;
+  print $#{$ref-&gt;{user}} + 1;
+  print &quot;):\n&quot;;
+
+  print wrap &quot;\t&quot;,&quot;\t&quot;,map { user($_-&gt;{username}).&quot; &quot; } @{$ref-&gt;{user}};
+
+  print &quot;\n&quot;;
+} 
+ 
+sub newnodes { 
+  my $req=GET(&quot;$pm?node_id=30175&quot;); 
+  my $res=$ua-&gt;request($req); 
+  my $ref=XMLin($res-&gt;content,forcearray=&gt;1); 
+  my $cnt=1; 
+  my %users=map { ($_-&gt;{node_id},$_-&gt;{content}) } @{$ref-&gt;{AUTHOR}}; 
+  
+  print &quot;\nNew Nodes:\n&quot;;
+  
+  if ($ref-&gt;{NODE}) {
+    for my $x (sort { $b-&gt;{createtime} &lt;=&gt; $a-&gt;{createtime} } @{$ref-&gt;{NODE}}) { 
+      print wrap &quot;\t&quot;,&quot;\t\t&quot;, 
+      sprintf(&quot;%d. [%d] %s by %s (%s)\n&quot;,$cnt,
+              $x-&gt;{node_id},$x-&gt;{content},
+              user(defined $users{$x-&gt;{author_user}} ? $users{$x-&gt;{author_user}}:&quot;Anonymous Monk&quot;),
+              $x-&gt;{nodetype});
+      last if $cnt++==$config{newnodes}; 
+    } 
+  }
+  print &quot;\n&quot;;
+  
+} 
+
+##############################################################################
+##############################################################################
+
+sub showmessage {
+  my $msg=shift;
+  my $type=shift || '';
+  
+  for my $k (keys %$msg) {
+    $msg-&gt;{$k}=~s/^\s+|\s+$//g
+  }
+
+  print &quot;\r&quot;;
+  
+  if ($type eq 'private') {
+    print wrap('',&quot;\t&quot;,
+               ($config{timestamp}?sprintf &quot;%02d:%02d:%02d/&quot;,(unpack(&quot;A8A2A2A2&quot;,$msg-&gt;{time}))[1..3]:'').
+               colorize(&quot;$msg-&gt;{author} says $msg-&gt;{content}&quot;,&quot;private&quot;).
+               &quot;\n&quot;);
+  }
+  else {
+    if ($msg-&gt;{content}=~s/^\/me\s+//) {
+      print wrap('',&quot;\t&quot;,
+                 ($config{timestamp}?sprintf &quot;%02d:%02d:%02d/&quot;,(unpack(&quot;A8A2A2A2&quot;,$msg-&gt;{time}))[1..3]:'').
+                 colorize(&quot;$msg-&gt;{author} $msg-&gt;{content}&quot;,&quot;me&quot;),
+                 &quot;\n&quot;);
+    }
+    else {
+      print wrap('',&quot;\t&quot;,
+                 ($config{timestamp}?sprintf &quot;%02d:%02d:%02d/&quot;,(unpack(&quot;A8A2A2A2&quot;,$msg-&gt;{time}))[1..3]:'').
+                 colorize($msg-&gt;{author},&quot;user&quot;).
+                 &quot;: &quot;.
+                 content($msg-&gt;{content}).
+                 &quot;\n&quot;);
+    }
+  }
+}
+             
+
+sub getmessages { 
+  my $req=GET(&quot;$pm?node_id=15834&quot;); 
+  my $res=$ua-&gt;request($req); 
+  my $ref=XMLin($res-&gt;content, forcearray=&gt;1 ); 
+  
+  if (defined $ref-&gt;{message}) { 
+    for my $mess (@{$ref-&gt;{message}}) { 
+      ## ignore this message if we've already printed it out 
+      next if $seenmsg{&quot;$mess-&gt;{user_id}:$mess-&gt;{time}&quot;}++; 
+
+      showmessage $mess; 
+    } 
+  } 
+  else { 
+    ## if there is nothing in the list, reset ours 
+    undef %seenmsg; 
+  } 
+} 
+
+sub getprivatemessages { 
+  my $req=GET(&quot;$pm?node_id=15848&quot;); 
+  my $res=$ua-&gt;request($req); 
+  my $ref=XMLin($res-&gt;content,forcearray=&gt;1); 
+  
+  if (defined $ref-&gt;{message}) { 
+    for my $mess (@{$ref-&gt;{message}}) { 
+      ## ignore this message if we've already printed it out 
+      next if $seenprv{&quot;$mess-&gt;{user_id}:$mess-&gt;{time}&quot;}++; 
+ 
+      showmessage $mess,&quot;private&quot;; 
+    } 
+  } 
+  else { 
+    undef %seenprv; 
+  } 
+} 
+
+sub postmessage { 
+  my $msg=shift; 
+  my $req=POST ($pm,[ 
+                     op=&gt;'message', 
+                     message=&gt;$msg, 
+                     node_id=&gt;'16046', 
+                    ]); 
+  
+  $ua-&gt;request($req); 
+} 
+
+sub node {
+  my $id=shift;
+
+  system(sprintf($config{browser},&quot;$pm?node_id=$id&quot;));
+}
+
+sub help {
+  print &lt;&lt;EOT
+The following commands are available:
+    /help         :: Shows this message
+    /newnodes     :: Displays a list of the newest nodes (of all types)
+                     posted. The number of nodes displayed is limited by
+                     the &quot;newnodes&quot; user configurable variable.
+    /node ID      :: Retrieves the passed node and launches your user
+                     configurable browser (&quot;browser&quot;) to view that node.
+    /reload       :: UNIX ONLY. Restarts pmchat.
+    /set          :: Displays a list of all the user configurable
+                     variables and their values.
+    /set X Y      :: Sets the user configurable variable X to
+                     value Y.
+    /update       :: Checks for a new version of pmchat, and if it
+                     exists, download it into a temporary location.
+                     This WILL NOT overwrite your current version.
+    /quit         :: Exits pmchat
+    /who          :: Shows a list of all users currently online
+    /xp           :: Shows your current experience and level.
+EOT
+  ;
+}
+
+##############################################################################
+##############################################################################
+my $old;
+my $term=new Term::ReadLine 'pmchat';
+
+sub getlineUnix {
+  my $message;
+
+  eval {
+    local $SIG{ALRM}=sub { 
+      $old=$readline::line; 
+      die 
+    };
+    
+    ## I don't use the version of readline from ReadKey (that includes a timeout)
+    ## because this version stores the interrupted (what was already typed when the
+    ## alarm() went off) text in a variable. I need that so I can restuff it 
+    ## back in.
+
+    alarm($config{timeout}) unless $^O=~/win32/i;
+    $message=$term-&gt;readline(&quot;Talk: &quot;,$old);
+    $old=$readline::line='';
+    alarm(0) unless $^O=~/win32/i;
+  };    
+
+  $message;
+}
+
+sub getlineWin32 {
+  my $message=ReadLine($config{timeout});
+
+  ## unfortunately, there is no way to preserve what was already typed
+  ## when the timeout occured. If you are typing when it happens,
+  ## you lose your text.
+
+  $message;
+}
+
+## initialize our user agent
+$ua=LWP::UserAgent-&gt;new;
+$ua-&gt;agent(&quot;pmchat-mrnick&quot;); 
+
+## trap ^C's
+## for clean exit
+$SIG{INT}=sub { 
+  writeconfig;
+  exit 
+};
+
+## load up our config defaults
+readconfig;
+
+## for text wrapping
+$columns=(Term::ReadKey::GetTerminalSize)[0] || $ENV{COLS} || $ENV{COLUMNS} || 80;
+
+if (-e $cookie) {
+  cookie;
+}
+else {
+  login;
+}
+
+my($this)=$ID=~/,v\s+([\d\.]+)/;
+
+print &quot;This is pmchat version $this.\n&quot;;
+
+autoupdate(1) if $config{updateonlaunch};
+xp();
+print &quot;Type /help for help.\n&quot;;
+who();
+newnodes();
+getprivatemessages;
+getmessages();
+
+
+while (1) {
+  my $message;
+
+  getprivatemessages;
+  getmessages;
+  
+  if ($^O=~/win32/i) {
+    $message=getlineWin32;
+  }
+  else {
+    $message=getlineUnix;
+  }
+
+  if (defined $message) {
+    ## we understand a couple of commands
+    if ($message=~/^\/who/i) {
+      who;
+    }
+    elsif ($message=~/^\/quit/i) {
+      writeconfig;
+      exit;
+    }
+    elsif ($message=~/^\/set\s+([^\s]+)\s+(.+)$/) {
+      $config{$1}=$2;
+      print &quot;$1 is now $2\n&quot;;
+    }
+    elsif ($message=~/^\/set$/) {
+      for my $k (sort keys %config) {
+        printf &quot;\t%-10s %s\n&quot;,$k,$config{$k};
+      }
+    }
+    elsif ($message=~/^\/new\s*nodes/) {
+      newnodes;
+    }
+    elsif ($message=~/^\/xp/) {
+      xp;
+    }
+    elsif ($message=~/^\/node\s+(\d+)/) {
+      node($1);
+    }
+    elsif ($message=~/^\/help/) {
+      help;
+    }
+    elsif ($message=~/^\/reload/) {
+      print &quot;Reloading $0!\n&quot;;
+      writeconfig;
+      exec $0;
+    }
+    elsif ($message=~/^\/update/) {
+      autoupdate;
+    }
+    elsif ($message=~/^\/me/ || $message=~/^\/msg/) {
+      postmessage($message);
+    }
+    elsif ($message=~/^\//) {
+      print &quot;Unknown command '$message'.\n&quot;;
+    }
+    else {
+      postmessage($message);
+    }
+  }
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>82809</node_id>
+  <author_user>47599</author_user>
+  <title>Unix text-mode CB Client</title>
+  <createtime>2001-05-24 03:57:11</createtime>
+  <nodeupdated>2005-08-14 20:49:27</nodeupdated>
+</node>

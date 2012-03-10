@@ -1,0 +1,35 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>20895</node_id>
+  <author_user>979</author_user>
+  <title>shownodesoftypesince</title>
+  <createtime>2000-01-13 17:11:47</createtime>
+  <code>my ($type,$days,$descon,$authoron)=@_;
+$days||=1;
+my $str;
+$str.=&quot;&lt;TR COLSPAN=2&gt;&lt;TD&gt;$type&lt;/TD&gt;&lt;/TR&gt;&quot; if $descon;
+my $type=getId(getType($type));
+my $N;
+my $time_condition =
+  $$VARS{lastviewednewestnodes}
+    ? &quot;&gt;= $$VARS{lastviewednewestnodes}&quot;
+    : &quot;&gt; (unix_timestamp(now())-86400*$days)&quot;;
+
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;
+    SELECT * FROM node
+    WHERE type_nodetype=$type
+      and unix_timestamp(createtime) $time_condition
+    ORDER BY createtime DESC
+&quot;);
+
+$csr-&gt;execute or return &quot;SHIT&quot;;
+while($N = $csr-&gt;fetchrow_hashref){
+   $str.=&quot;&lt;TR&gt;&lt;TD&gt;&quot;.linkNode($N).&quot;&lt;/TD&gt;&quot;;
+   $str.=&quot;&lt;TD&gt;by &quot;.linkNode($$N{author_user}).&quot;&lt;/TD&gt;&quot; if($authoron);
+   $str.=&quot;&lt;/TR&gt;&quot;;
+}
+return &quot;&lt;TABLE&gt;$str&lt;/TABLE&gt;&quot; if $str;
+&quot;&quot;;
+</code>
+  <nodeupdated>2003-01-20 12:33:01</nodeupdated>
+</node>

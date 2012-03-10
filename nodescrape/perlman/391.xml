@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="391" title="perlman:perlsec" created="1999-08-25 02:31:08" updated="2005-08-14 12:52:53">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME="NAME"&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlsec - Perl security
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DESCRIPTION"&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Perl is designed to make it easy to program securely even when running with
+extra privileges, like setuid or setgid programs. Unlike most command line
+shells, which are based on multiple substitution passes on each line of the
+script, Perl uses a more conventional evaluation scheme with fewer hidden
+snags. Additionally, because the language has more builtin functionality,
+it can rely less upon external (and possibly untrustworthy) programs to
+accomplish its purposes.
+
+&lt;P&gt;
+Perl automatically enables a set of special security checks, called &lt;EM&gt;taint
+mode&lt;/EM&gt;, when it detects its program running with differing real and effective
+user or group IDs. The setuid bit in Unix permissions is mode 04000, the
+setgid bit mode 02000; either or both may be set. You can also enable taint
+mode explicitly by using the &lt;STRONG&gt;-T&lt;/STRONG&gt; command line flag. This flag is
+&lt;EM&gt;strongly&lt;/EM&gt; suggested for server programs and any program run on behalf of someone else, such as a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script. Once taint mode is on, it's on for the remainder of your script.
+
+&lt;P&gt;
+While in this mode, Perl takes special precautions called &lt;EM&gt;taint
+checks&lt;/EM&gt; to prevent both obvious and subtle traps. Some of these checks are reasonably simple, such as verifying that path directories aren't writable by others; careful programmers have always used checks like these. Other checks, however, are best supported by the language itself, and it is these checks especially that contribute to making a set-id Perl program more secure than the corresponding 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; program.
+
+&lt;P&gt;
+You may not use data derived from outside your program to affect something
+else outside your program--at least, not by accident. All command line
+arguments, environment variables, locale information (see
+[perlman:perllocale|the perllocale manpage]), results of certain system calls (readdir, readlink, the gecos field of
+getpw* calls), and all file input are marked as ``tainted''. Tainted data
+may not be used directly or indirectly in any command that invokes a
+sub-shell, nor in any command that modifies files, directories, or
+processes. (&lt;STRONG&gt;Important exception&lt;/STRONG&gt;: If you pass a list of arguments to either [perlfunc:system|system] or [perlfunc:exec|exec], the elements of that list are &lt;STRONG&gt;NOT&lt;/STRONG&gt; checked for taintedness.) Any variable set to a value derived from tainted
+data will itself be tainted, even if it is logically impossible for the
+tainted data to alter the variable. Because taintedness is associated with
+each scalar value, some elements of an array can be tainted and others not.
+
+&lt;P&gt;
+For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $arg = shift;               # $arg is tainted
+    $hid = $arg, 'bar';         # $hid is also tainted
+    $line = &amp;lt;&amp;gt;;                 # Tainted
+    $line = &amp;lt;STDIN&amp;gt;;            # Also tainted
+    open FOO, &amp;quot;/home/me/bar&amp;quot; or die $!;
+    $line = &amp;lt;FOO&amp;gt;;              # Still tainted
+    $path = $ENV{'PATH'};       # Tainted, but see below
+    $data = 'abc';              # Not tainted
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    system &amp;quot;echo $arg&amp;quot;;         # Insecure
+    system &amp;quot;/bin/echo&amp;quot;, $arg;   # Secure (doesn't use sh)
+    system &amp;quot;echo $hid&amp;quot;;         # Insecure
+    system &amp;quot;echo $data&amp;quot;;        # Insecure until PATH set
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $path = $ENV{'PATH'};       # $path now tainted
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $ENV{'PATH'} = '/bin:/usr/bin';
+    delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $path = $ENV{'PATH'};       # $path now NOT tainted
+    system &amp;quot;echo $data&amp;quot;;        # Is secure now!
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    open(FOO, &amp;quot;&amp;lt; $arg&amp;quot;);        # OK - read-only file
+    open(FOO, &amp;quot;&amp;gt; $arg&amp;quot;);        # Not OK - trying to write
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    open(FOO,&amp;quot;echo $arg|&amp;quot;);     # Not OK, but...
+    open(FOO,&amp;quot;-|&amp;quot;)
+        or exec 'echo', $arg;   # OK
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $shout = `echo $arg`;       # Insecure, $shout now tainted
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    unlink $data, $arg;         # Insecure
+    umask $arg;                 # Insecure
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    exec &amp;quot;echo $arg&amp;quot;;           # Insecure
+    exec &amp;quot;echo&amp;quot;, $arg;          # Secure (doesn't use the shell)
+    exec &amp;quot;sh&amp;quot;, '-c', $arg;      # Considered secure, alas!
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @files = &amp;lt;*.c&amp;gt;;             # Always insecure (uses csh)
+    @files = glob('*.c');       # Always insecure (uses csh)
+&lt;/PRE&gt;
+&lt;P&gt;
+If you try to do something insecure, you will get a fatal error saying something like ``Insecure dependency'' or ``Insecure 
+&lt;FONT SIZE=-1&gt;$ENV{PATH}''.&lt;/FONT&gt; Note that you can still write an insecure
+ &lt;STRONG&gt;system&lt;/STRONG&gt; or &lt;STRONG&gt;exec&lt;/STRONG&gt;, but only by explicitly doing something like the ``considered secure''
+example above.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Laundering_and_Detecting_Tainted"&gt;Laundering and Detecting Tainted Data&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+To test whether a variable contains tainted data, and whose use would thus trigger an ``Insecure dependency'' message, check your nearby 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; mirror for the
+ &lt;EM&gt;Taint.pm&lt;/EM&gt; module, which should become available around November 1997. Or you may be
+able to use the following &lt;EM&gt;is_tainted()&lt;/EM&gt; function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub is_tainted {
+        return ! eval {
+            join('',@_), kill 0;
+            1;
+        };
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+This function makes use of the fact that the presence of tainted data
+anywhere within an expression renders the entire expression tainted. It
+would be inefficient for every operator to test every argument for
+taintedness. Instead, the slightly more efficient and conservative approach
+is used that if any tainted value has been accessed within the same
+expression, the whole expression is considered tainted.
+
+&lt;P&gt;
+But testing for taintedness gets you only so far. Sometimes you have just
+to clear your data's taintedness. The only way to bypass the tainting
+mechanism is by referencing subpatterns from a regular expression match.
+Perl presumes that if you reference a substring using $1, $2, etc., that
+you knew what you were doing when you wrote the pattern. That means using a
+bit of thought--don't just blindly untaint anything, or you defeat the
+entire mechanism. It's better to verify that the variable has only good
+characters (for certain values of ``good'') rather than checking whether it
+has any bad characters. That's because it's far too easy to miss bad
+characters that you never thought of.
+
+&lt;P&gt;
+Here's a test to make sure that the data contains nothing but ``word''
+characters (alphabetics, numerics, and underscores), a hyphen, an at sign,
+or a dot.
+
+&lt;P&gt;
+&lt;PRE&gt;    if ($data =~ /^(&amp;#091;-\@\w.&amp;#093;+)$/) {
+        $data = $1;                     # $data now untainted
+    } else {
+        die &amp;quot;Bad data in $data&amp;quot;;        # log this somewhere
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+This is fairly secure because &lt;CODE&gt;/\w+/&lt;/CODE&gt; doesn't normally match shell metacharacters, nor are dot, dash, or at going
+to mean something special to the shell. Use of &lt;CODE&gt;/.+/&lt;/CODE&gt; would have been insecure in theory because it lets everything through, but
+Perl doesn't check for that. The lesson is that when untainting, you must
+be exceedingly careful with your patterns. Laundering data using regular
+expression is the &lt;EM&gt;ONLY&lt;/EM&gt; mechanism for untainting dirty data, unless you use the strategy detailed
+below to fork a child of lesser privilege.
+
+&lt;P&gt;
+The example does not untaint &lt;CODE&gt;$data&lt;/CODE&gt; if &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, because the characters matched by &lt;CODE&gt;\w&lt;/CODE&gt; are determined by the locale. Perl considers that locale definitions are
+untrustworthy because they contain data from outside the program. If you
+are writing a locale-aware program, and want to launder data with a regular
+expression containing &lt;CODE&gt;\w&lt;/CODE&gt;, put &lt;CODE&gt;no locale&lt;/CODE&gt; ahead of the expression in the same block. See [perlman:perllocale] for further discussion and examples.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Switches_On_the_Line"&gt;Switches On the "#!" Line&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When you make a script executable, in order to make it usable as a command,
+the system will pass switches to perl from the script's #! line. Perl
+checks that any command line switches given to a setuid (or setgid) script
+actually match the ones set on the #! line. Some Unix and Unix-like
+environments impose a one-switch limit on the #! line, so you may need to
+use something like &lt;CODE&gt;-wU&lt;/CODE&gt; instead of &lt;CODE&gt;-w -U&lt;/CODE&gt;
+under such systems. (This issue should arise only in Unix or Unix-like
+environments that support #! and setuid or setgid scripts.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Cleaning_Up_Your_Path"&gt;Cleaning Up Your Path&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+For ``Insecure &lt;CODE&gt;$ENV{PATH}&lt;/CODE&gt;'' messages, you need to set &lt;CODE&gt;$ENV{'PATH'}&lt;/CODE&gt; to a known value, and each directory in the path must be non-writable by
+others than its owner and group. You may be surprised to get this message
+even if the pathname to your executable is fully qualified. This is &lt;EM&gt;not&lt;/EM&gt;
+generated because you didn't supply a full path to the program; instead, it's generated because you never set your 
+&lt;FONT SIZE=-1&gt;PATH&lt;/FONT&gt; environment variable, or you didn't set it to something that was safe. Because Perl can't guarantee that the executable in question isn't itself going to turn around and execute some other program that is dependent on your 
+&lt;FONT SIZE=-1&gt;PATH,&lt;/FONT&gt; it makes sure you set the 
+&lt;FONT SIZE=-1&gt;PATH.&lt;/FONT&gt;
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;PATH&lt;/FONT&gt; isn't the only environment variable which can cause problems. Because some shells may use the variables 
+&lt;FONT SIZE=-1&gt;IFS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CDPATH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ENV,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;BASH_ENV,&lt;/FONT&gt; Perl checks that those are either empty or untainted when starting subprocesses. You may wish to add something like this to your setid and taint-checking scripts.
+
+&lt;P&gt;
+&lt;PRE&gt;    delete @ENV{qw(IFS CDPATH ENV BASH_ENV)};   # Make %ENV safer
+&lt;/PRE&gt;
+&lt;P&gt;
+It's also possible to get into trouble with other operations that don't
+care whether they use tainted values. Make judicious use of the file tests
+in dealing with any user-supplied filenames. When possible, do opens and
+such &lt;STRONG&gt;after&lt;/STRONG&gt; properly dropping any special user (or group!) privileges. Perl doesn't
+prevent you from opening tainted filenames for reading, so be careful what
+you print out. The tainting mechanism is intended to prevent stupid
+mistakes, not to remove the need for thought.
+
+&lt;P&gt;
+Perl does not call the shell to expand wild cards when you pass &lt;STRONG&gt;system&lt;/STRONG&gt;
+and &lt;STRONG&gt;exec&lt;/STRONG&gt; explicit parameter lists instead of strings with possible shell wildcards
+in them. Unfortunately, the &lt;STRONG&gt;open&lt;/STRONG&gt;, &lt;STRONG&gt;glob&lt;/STRONG&gt;, and backtick functions provide no such alternate calling convention, so
+more subterfuge will be required.
+
+&lt;P&gt;
+Perl provides a reasonably safe way to open a file or pipe from a setuid or
+setgid program: just create a child process with reduced privilege who does
+the dirty work for you. First, fork a child using the special
+&lt;STRONG&gt;open&lt;/STRONG&gt; syntax that connects the parent and child by a pipe. Now the child resets its 
+&lt;FONT SIZE=-1&gt;ID&lt;/FONT&gt; set and any other per-process attributes, like environment variables, umasks, current working directories, back to the originals or known safe values. Then the child process, which no longer has any special permissions, does the
+ &lt;STRONG&gt;open&lt;/STRONG&gt; or other system call. Finally, the child passes the data it managed to
+access back to the parent. Because the file or pipe was opened in the child
+while running under less privilege than the parent, it's not apt to be
+tricked into doing something it shouldn't.
+
+&lt;P&gt;
+Here's a way to do backticks reasonably safely. Notice how the &lt;STRONG&gt;exec&lt;/STRONG&gt; is not called with a string that the shell could expand. This is by far the
+best way to call something that might be subjected to shell escapes: just
+never call the shell at all.  
+
+&lt;P&gt;
+&lt;PRE&gt;    use English;
+    die &amp;quot;Can't fork: $!&amp;quot; unless defined $pid = open(KID, &amp;quot;-|&amp;quot;);
+    if ($pid) {           # parent
+        while (&amp;lt;KID&amp;gt;) {
+            # do something
+        }
+        close KID;
+    } else {
+        my @temp = ($EUID, $EGID);
+        $EUID = $UID;
+        $EGID = $GID;    #      initgroups() also called!
+        # Make sure privs are really gone
+        ($EUID, $EGID) = @temp;
+        die &amp;quot;Can't drop privileges&amp;quot; 
+                unless $UID == $EUID  &amp;amp;&amp;amp; $GID eq $EGID; 
+        $ENV{PATH} = &amp;quot;/bin:/usr/bin&amp;quot;;
+        exec 'myprog', 'arg1', 'arg2' 
+            or die &amp;quot;can't exec myprog: $!&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; similar strategy would work for wildcard expansion
+via [perlfunc:glob|glob], although you can use [perlfunc:readdir|readdir] instead.
+
+&lt;P&gt;
+Taint checking is most useful when although you trust yourself not to have written a program to give away the farm, you don't necessarily trust those who end up using it not to try to trick it into doing something bad. This is the kind of security checking that's useful for set-id programs and programs launched on someone else's behalf, like 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; programs.
+
+&lt;P&gt;
+This is quite different, however, from not even trusting the writer of the
+code not to try to do something evil. That's the kind of trust needed when
+someone hands you a program you've never seen before and says, ``Here, run
+this.'' For that kind of safety, check out the Safe module, included
+standard in the Perl distribution. This module allows the programmer to set
+up special compartments in which all system operations are trapped and
+namespace access is carefully controlled.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Security_Bugs"&gt;Security Bugs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Beyond the obvious problems that stem from giving special privileges to
+systems as flexible as scripts, on many versions of Unix, set-id scripts
+are inherently insecure right from the start. The problem is a race
+condition in the kernel. Between the time the kernel opens the file to see
+which interpreter to run and when the (now-set-id) interpreter turns around
+and reopens the file to interpret it, the file in question may have
+changed, especially if you have symbolic links on your system.
+
+&lt;P&gt;
+Fortunately, sometimes this kernel ``feature'' can be disabled.
+Unfortunately, there are two ways to disable it. The system can simply
+outlaw scripts with any set-id bit set, which doesn't help much.
+Alternately, it can simply ignore the set-id bits on scripts. If the latter
+is true, Perl can emulate the setuid and setgid mechanism when it notices
+the otherwise useless setuid/gid bits on Perl scripts. It does this via a
+special executable called &lt;STRONG&gt;suidperl&lt;/STRONG&gt; that is automatically invoked for you if it's needed.
+
+&lt;P&gt;
+However, if the kernel set-id script feature isn't disabled, Perl will complain loudly that your set-id script is insecure. You'll need to either disable the kernel set-id script feature, or put a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; wrapper around the script. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; wrapper is just a compiled program that does nothing except call your Perl program. Compiled programs are not subject to the kernel bug that plagues set-id scripts. Here's a simple wrapper, written in 
+&lt;FONT SIZE=-1&gt;C:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    #define REAL_PATH &amp;quot;/path/to/script&amp;quot;
+    main(ac, av)
+        char **av;
+    {
+        execv(REAL_PATH, av);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Compile this wrapper into a binary executable and then make &lt;EM&gt;it&lt;/EM&gt; rather than your script setuid or setgid.
+
+&lt;P&gt;
+See the program &lt;STRONG&gt;wrapsuid&lt;/STRONG&gt; in the &lt;EM&gt;eg&lt;/EM&gt; directory of your Perl distribution for a convenient way to do this
+automatically for all your setuid Perl programs. It moves setuid scripts
+into files with the same name plus a leading dot, and then compiles a
+wrapper like the one above for each of them.
+
+&lt;P&gt;
+In recent years, vendors have begun to supply systems free of this inherent
+security bug. On such systems, when the kernel passes the name of the
+set-id script to open to the interpreter, rather than using a pathname
+subject to meddling, it instead passes &lt;EM&gt;/dev/fd/3&lt;/EM&gt;. This is a special file already opened on the script, so that there can be
+no race condition for evil scripts to exploit. On these systems, Perl
+should be compiled with &lt;CODE&gt;-DSETUID_SCRIPTS_ARE_SECURE_NOW&lt;/CODE&gt;. The &lt;STRONG&gt;Configure&lt;/STRONG&gt;
+program that builds Perl tries to figure this out for itself, so you should never have to specify this yourself. Most modern releases of SysVr4 and 
+&lt;FONT SIZE=-1&gt;BSD&lt;/FONT&gt; 4.4 use this approach to avoid the kernel race condition.
+
+&lt;P&gt;
+Prior to release 5.003 of Perl, a bug in the code of &lt;STRONG&gt;suidperl&lt;/STRONG&gt; could introduce a security hole in systems compiled with strict 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; compliance.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Protecting_Your_Programs"&gt;Protecting Your Programs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are a number of ways to hide the source to your Perl programs, with
+varying levels of ``security''.
+
+&lt;P&gt;
+First of all, however, you &lt;EM&gt;can't&lt;/EM&gt; take away read permission, because the source code has to be readable in order to be compiled and interpreted. (That doesn't mean that a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script's source is readable by people on the web, though.) So you have to leave the permissions at the socially friendly 0755 level. This lets people on your local system only see your source.
+
+&lt;P&gt;
+Some people mistakenly regard this as a security problem. If your program
+does insecure things, and relies on people not knowing how to exploit those
+insecurities, it is not secure. It is often possible for someone to
+determine the insecure things and exploit them without viewing the source.
+Security through obscurity, the name for hiding your bugs instead of fixing
+them, is little security indeed.
+
+&lt;P&gt;
+You can try using encryption via source filters (Filter::* from 
+&lt;FONT SIZE=-1&gt;CPAN).&lt;/FONT&gt; But crackers might be able to decrypt it. You
+can try using the byte code compiler and interpreter described below, but
+crackers might be able to de-compile it. You can try using the native-code
+compiler described below, but crackers might be able to disassemble it.
+These pose varying degrees of difficulty to people wanting to get at your
+code, but none can definitively conceal it (this is true of every language,
+not just Perl).
+
+&lt;P&gt;
+If you're concerned about people profiting from your code, then the bottom line is that nothing but a restrictive licence will give you legal security. License your software and pepper it with threatening statements like ``This is unpublished proprietary software of 
+&lt;FONT SIZE=-1&gt;XYZ&lt;/FONT&gt; Corp. Your access to it does not give you permission to use it blah blah blah.'' You should see a lawyer to be sure your licence's wording will stand up in court.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:perlrun|the perlrun manpage] for its description of cleaning up environment variables.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="172942" title="STDOUT::Capture - manipulate STDOUT" created="2002-06-09 15:20:44" updated="2005-07-21 01:31:46">
+<type id="121">
+perlcraft</type>
+<author id="141348">
+Dog and Pony</author>
+<data>
+<field name="doctext">
+package STDOUT::Capture;
+use strict;
+use Carp qw(confess);
+
+# Read ze POD, ze POD! :)
+#
+# A complete tarball with some examples and a
+# HTML version of the POD can currently be found at:
+#
+# http://dogandpony.perlmonk.org
+# /downloads/perl/STDOUT-Capture-0.01.tar.gz
+#
+# Comments, suggestions, previous art etc.
+# is very welcome.
+
+use vars qw($VERSION $stdout %callbacks);
+$VERSION     = 0.01;
+
+sub TIEHANDLE
+{
+    bless {}, shift;
+}
+
+# Capture all that is printed, and do callbacks etc.
+sub PRINT
+{
+    shift; # Throw away.
+
+    my $input = join '', @_;
+    if(exists $callbacks{'on_print'})
+    {
+        $callbacks{'on_print'}-&gt;(\$input);
+    }
+    $stdout .= $input;
+}
+
+sub BINMODE
+{
+    # Finish all such manipluation before tieing STDOUT:
+    confess "Too late for binmode. If you are using CGI.pm, "
+          . "try to use it before you use this module.";
+}
+
+# Tie STDOUT, and set up any callbacks:
+sub import
+{
+    my $self = shift;
+
+    %callbacks = @_;
+    tie *STDOUT, __PACKAGE__;
+}
+
+# Lastly, flush the output we do have:
+END
+{
+    if(exists $callbacks{'on_finish'})
+    {
+        $callbacks{'on_finish'}-&gt;(\$stdout);
+    }
+
+    untie *STDOUT;
+    print $stdout;
+}
+
+=head1 NAME
+
+STDOUT::Capture - Simple base package for capturing
+the output of STDOUT from your programs.
+
+
+=head1 SYNOPSIS
+
+ # In MyCapture.pm:
+
+ package MyCapture;
+
+ use STDOUT::Capture on_finish =&gt; \&amp;on_finish;
+
+ sub on_finish
+ {
+     my $stdout_ref = shift;
+
+     # Insert a stylesheet link last in the head section
+     $$stdout_ref =~
+         s{(&lt;/head&gt;)}
+          {&lt;link rel="stylesheet" type="text/css" href="/css/style.css" /&gt;\n$1}i;
+ }
+ 1;
+
+ # In your program:
+
+ use CGI qw(:standard); # import CGI.pm first!
+ use MyCapture;         # import your callbacks, capture STDOUT
+
+ print header;
+ print start_html(-title =&gt; 'Cool CGI program');
+ print h1('Welcome to my cool CGI!');
+ print p('This is just a test page.');
+ print end_html;
+
+
+See the examples/ directory of this distribution for other,
+and non-CGI related examples.
+
+
+=head1 DESCRIPTION
+
+STDOUT::Capture is a base package for creating packages that can be
+used to manipulate the output of your programs.
+
+Typical usage might be if you already have some CGI scripts that you
+want to use on your site, but do not want to code the layout into
+them. Examples of this could be if you want to be able to display
+the raw code for them easily (without the layout stuff), if you want
+to use the same program on several sites or if you just are lazy or
+want a quick and dirty solution.
+
+You could also use it if you have a normal, non-CGI program that you
+want to display the output of, as CGI,  without recoding the program
+itself.
+
+Other uses include mailing the output of your program somewhere, or
+look for certain patterns in a resuable way, and without having to
+set up "complex" commands in cron or the like.
+
+STDOUT::Capture works by capturing all prints to STDOUT and providing
+callbacks for each one, or for all of it at once. You get a reference
+to the current (or all) text that is to be printed, and can manipulate
+it before it is finally sent out.
+
+I started writing this because I considered redesigning a web site a
+little, and figured I could get away with a little CSS, and simple
+output for most things, and maybe use HTML::Template for the extras.
+But I didn't really want to go in and prod inside all my CGI programs
+to add this new look, even though it wasn't much, and figured that
+maybe I could write a wrapper instead.
+
+That way, all my CGI:s have just one extra line of code, which is the
+use statement for my redesign module. So the scripts are still very
+movable, and clean, plus I need only change something in one place.
+
+Had I used HTML::Template or some such in the beginning, I could have
+avoided this, but with this, I can even switch HTML::Template out and
+in, with almost no hassle at all. Depending on how much rework of the
+output one does, however, it may be too much overhead.
+
+Then I realized this module could be used for all sorts of other things
+too, preferably when something is already in place and tough to change,
+so I renamed it STDOUT::Capture, from CGI::Capture which was the
+intended name.
+
+
+=head1 USAGE
+
+Your package, that contains your callbacks, extends STDOUT::Capture.
+Depending on which callbacks you choose, you will get the chance to
+modify the output from prints on STDOUT before they are actually
+printed.
+
+Current callbacks are B&lt;on_print&gt;, which is called on each print,
+and B&lt;on_finish&gt; that is called upon exit of the program, with
+all output. You set them up in your package that inherits from
+STDOUT::Capture as you call use, like so:
+
+ use STDOUT::Capture on_finish =&gt; \&amp;on_finish,
+                     on_print  =&gt; \&amp;on_print;
+
+ sub on_print
+ {
+     my $$stdout_ref = shift;
+     # Do stuff on the current print
+ }
+
+ sub on_finish
+ {
+     my $$stdout_ref = shift;
+     # Do stuff on all output
+ }
+
+Input to these subs is a scalar reference that holds the contents
+of either the current print (B&lt;on_print&gt;) or the total output upon
+finish of the program (B&lt;on_finish&gt;). You can prod, look at and
+manipulate the contents of this scalar as you wish.
+
+The callbacks expect no return value, you only modify the scalar
+reference in place.
+
+
+=head2 Using STDOUT::Capture together with CGI.pm
+
+CGI.pm wants to do some things to STDOUT upon initialize, in
+particular it wants to set binmode on certain platforms. So when
+you are using CGI.pm together with this, you should use CGI.pm
+I&lt;before&gt; your own derived class, like so:
+
+ use CGI;
+ use MyCapture;
+
+ # Rest of program...
+
+This will let CGI set up all things it wants to to do STDOUT
+before we tie it down.
+
+=head2 Using STDOUT::Capture together with CGI::Carp
+
+CGI::Carp, when "fatalsToBrowser" is imported, will emit the
+warnings on STDOUT, so you can (and will) capture that just
+as any other output and display it nicely formatted.
+
+There are some caveats though, since the output from
+fatalsToBrowser is pretty terse - for instance, in the normal
+case it is probably likely that you would like to seach for
+everything inside the body tags, but CGI::Carp does not emit
+any body tags. So you will have to compensate for that, if
+you wish this information to still be printed (maybe check
+for the event of no body tag present?).
+
+
+=head1 CAVEATS
+
+STDOUT::Capture prevents autoflushing, since it captures all
+the output and flushes it all when it exits.
+
+
+=head1 AUTHOR
+
+    Kristoffer Lundén
+    kung.stoffe@home.se
+
+
+=head1 COPYRIGHT
+
+Copyright (c) 2002 Kristoffer Lundén. All rights reserved.
+This program is free software; you can redistribute
+it and/or modify it under the same terms as Perl itself.
+
+The full text of the license can be found in the
+LICENSE file included with this module.
+
+
+=head1 SEE ALSO
+
+L&lt;perltie&gt;, L&lt;CGI.pm&gt;, L&lt;CGI::Carp&gt;
+
+
+=cut
+
+1;
+</field>
+</data>
+</node>

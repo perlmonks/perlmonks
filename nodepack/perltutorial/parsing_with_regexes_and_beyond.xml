@@ -1,0 +1,549 @@
+<node>
+  <doctext>&lt;p&gt;The topic of parsing comes up regularly. Most texts on parsing are 
+either very theoretical or bound to a particular tool. I'll try to introduce
+parsing techniques that are well suited to be used with perl, and give just a 
+bit of theoretical background.&lt;/p&gt;
+
+&lt;p&gt;Intended audience: Perl hackers that can already work with regular 
+expressions, but don't have any formal Computer Science eduction, and
+want to learn a bit more about the computer scientist's view on parsing, and
+how to parse simple, recursively defined structures.&lt;/p&gt;
+
+&lt;p&gt;&lt;em&gt;This tutorial was [id://678119|first posted here], and since then has
+been slightly improved based on the great feedback in that
+discussion.&lt;/em&gt;&lt;/p&gt;
+
+&lt;readmore&gt;
+&lt;h2&gt;Theoretical background: Parsing&lt;/h2&gt;
+
+&lt;p&gt;Parsing is the process of matching a text against a formal
+specification.&lt;/p&gt;
+
+&lt;p&gt;In computer science the most important question is if the text can be
+derived from the specification.&lt;/p&gt;
+
+&lt;p&gt;In practice it is equally important to extract information according to 
+the formal specification, like capturing part of a regex, or building a parse
+tree from a grammar.&lt;/p&gt;
+
+
+&lt;h2&gt;Theoretical background: Regular Expressions&lt;/h2&gt;
+
+&lt;p&gt; The name &quot;Regular Expression&quot; comes from computer science (I'll call it
+CS-Regex for disambiguation), and in CS it has a different meaning than in
+Perl.&lt;/p&gt;
+
+&lt;p&gt;CS-Regexes consists of concatenation, alternation, repetition (with *) and
+grouping. Perl regexes add many features that don't fit into the computer
+scientist's view on Regexes, like lookaround, capturing groups and
+backreferences, zero width assertions (like \b) and so on.&lt;/p&gt;
+
+&lt;p&gt;So CS-Regexes are not as powerful as Perl Regexes, but they have a big
+advantage: it's easy to build a machine that performs a CS-Regex match.&lt;/p&gt;
+
+&lt;p&gt;Regular expressions are well suited to match strings with short, fixed
+patterns, but they can't be used for any type of contstructs that uses
+nesting, like parentheis in arithmetic expressions, nested XML tags and the
+like. (You can do this with &lt;c&gt;(??{ .. })&lt;/c&gt; constructs in 5.8 and with
+recursive regexes in 5.10, but both are hard to write and maintain and
+generally a pain.)&lt;/p&gt;
+
+&lt;p&gt;CS-Regexes can be matched with a simple state machine called DFA
+(deterministic finite automaton), which consists of a bunch of states, and for
+each character from the input it is decided which state should be the
+next. So matching a string against a regex takes linear time (compared to the
+length of the string).&lt;/p&gt;
+
+
+&lt;h2&gt;Context Free Languages&lt;/h2&gt;
+
+&lt;p&gt;If you want to parse something like arithmetic expressions or a programming
+language, you need one more feature in your description language:
+recursion.&lt;/p&gt;
+
+&lt;p&gt;With recursion you can formulate grammars like this:&lt;/p&gt;
+
+&lt;code&gt;
+term        -&gt; atom operator term
+term        -&gt; '(' term ')'
+term        -&gt; atom
+operator    -&gt; '*' | '/'| '+' | '-' 
+atom        -&gt; \d+
+&lt;/code&gt;
+
+&lt;p&gt;The first two definitions are recursive, so they are not &quot;regular&quot; any
+more. The computer scientist calls this a CFL, a &quot;context free language&quot;.&lt;/p&gt;
+
+&lt;p&gt;Symbols like &lt;c&gt;term&lt;/c&gt; are called &lt;em&gt;non-terminals&lt;/em&gt;, while
+&lt;c&gt;'*'&lt;/c&gt; represents a &lt;em&gt;terminal&lt;/em&gt; symbol, i.e. one that appears
+verbatimely in the input.&lt;/p&gt;
+
+&lt;p&gt;Suppose our input string is '2*3+4', the derivation goes like this:&lt;/p&gt;
+
+&lt;code&gt;
+term    -&gt;
+atom operator term
+'2'  operator term
+'2'  '*'      term
+'2'  '*'      (atom operator term)
+'2'  '*'      ('3'  operator term)
+'2'  '*'      ('3'  '+'      term)
+'2'  '*'      ('3'  '+'      (atom))
+'2'  '*'      ('3'  '+'      ('4'))
+&lt;/code&gt;
+
+&lt;p&gt;You can see that our short grammar matches the given expression, but not
+quite the way we'd like to have it. In normal notation '*' has tighter
+precedence than '+', if we would evaluate our parse tree it would first
+evaluate 3+4, and then multiply the result by 2.&lt;/p&gt;
+
+&lt;p&gt;That's not very surprising because our grammar didn't contain any
+precedence information. We can fix this:&lt;/p&gt;
+
+&lt;code&gt;
+expression  -&gt; (term add_op)* term
+term        -&gt; (factor mul_op)* factor
+factor      -&gt; atom | '(' expression ')'
+add_op      -&gt; '+' | '-'
+mul_op      -&gt; '*' | '/'
+atom        -&gt; \d+
+&lt;/code&gt;
+
+&lt;p&gt;Now we can derive '2*3+4' this way:&lt;/p&gt;
+
+&lt;code&gt;
+expression
+term                   add_op term
+term                   '+'    (factor)
+term                   '+'    ('4')
+(factor  mulop factor) '+'    ('4')
+((atom)  mulop (atom)) '+'    ('4')
+(('2')   '*'   ('3') ) '+'    ('4')
+&lt;/code&gt;
+
+&lt;p&gt;(Some lines contain a few derivations in parallel, just to save space. Each
+production that doesn't result in a terminal symbol produces a pair of
+parentheses to emphasize the resulting tree structure.)&lt;/p&gt;
+
+&lt;p&gt;The introduction of separate precedence levels for addition and
+multiplication leads to a correctly nested parse tree.&lt;/p&gt;
+
+&lt;h3&gt;Lexing&lt;/h3&gt;
+
+&lt;p&gt;Most compilers don't parse their input in one pass, but first break it up
+into smaller pieces called &quot;tokens&quot;. The process is called &quot;lexing&quot; or
+&quot;scanning&quot;.&lt;/p&gt;
+
+&lt;p&gt;There are two important reasons for that:&lt;/p&gt;
+
+&lt;ol&gt;
+    &lt;li&gt;Efficiency. Parsing CFLs takes O(n&#179;) time in the worst case,
+    scanning is done in linear
+    time. By reducing parsing to tokens instead of characters the n 
+    decreases.&lt;/li&gt;
+    &lt;li&gt;Handling whitespaces and comments: The lexer can just throw away
+    whitespaces and comments, that way we don't have to clutter up the grammar
+    with rules with whitespace handling.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Lexing is normally done with a DFA, but since we're focusing on perl we can
+just as well use regular expressions:&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Data::Dumper;
+
+my @token_def = (
+    [Whitespace =&gt; qr{\s+},     1],
+    [Comment    =&gt; qr{#.*\n?$}m,   1],
+    [AddOp      =&gt; qr{[+-]}      ],   
+    [MulOp      =&gt; qr{[*/]}      ],
+    [Number     =&gt; qr{\d+}       ],
+    [OpenParen  =&gt; qr{\(}        ],
+    [CloseParen =&gt; qr{\)}        ],
+);
+
+my $input = $ARGV[0] || &quot;2 * 3 + 4 # and a comment\n&quot;;
+
+my @tokens;
+
+pos($input) = 0;
+
+while(pos($input) &lt; length $input){
+    my $matched = 0;
+    for my $t (@token_def){
+        my ($name, $re, $ignore_flag) = @$t;
+        if ($input =~ m/\G($re)/gc){
+            $matched = 1;
+            next if $ignore_flag;
+            push @tokens, [$name, $1];
+            next;
+        }
+    }
+    die &quot;Syntax error at postion &quot; . pos($input) unless $matched
+}
+
+print Dumper \@tokens;
+__END__
+# output reformatted for brevity:
+$VAR1 = [
+          [ 'Number', '2' ],
+          [ 'MulOp', '*'  ],
+          [ 'Number', '3' ],
+          [ 'AddOp', '+'  ],
+          [ 'Number', '4' ]
+        ];
+&lt;/code&gt;
+
+&lt;p&gt;The token definition consits of a name for the token, a regular expression
+and optionally a flag that indicates that the token shouldn't appear in the
+output.&lt;/p&gt;
+
+&lt;p&gt;The program loops while the end of the string is reached, trying to match
+all regexes in turn. As soon as a match is found, the token is pushed onto the
+&lt;c&gt;@tokens&lt;/c&gt; array. (In a real compiler it would also store the current
+position to allow better error messages on wrong input).&lt;/p&gt;
+
+&lt;p&gt;The &lt;c&gt;/c&lt;/c&gt; modifier on the regex takes care that a failed match doesn't
+reset &lt;c&gt;pos($input)&lt;/c&gt;. The &lt;c&gt;\G&lt;/c&gt; assertion anchors the regex to the end
+of the previous match.&lt;/p&gt;
+
+&lt;h3&gt;Implementing the parser&lt;/h3&gt;
+
+&lt;p&gt;For the parser we need two utility functions:&lt;/p&gt;
+
+&lt;code&gt;
+sub match {
+    my $expected_token = shift;
+    if ($tokens[0][0] eq $expected_token){
+        my $current = shift @tokens;
+        return $current-&gt;[1];
+    } else {
+        die &quot;Syntax error: expected $expected_token, got $tokens[0][0]\n&quot;;
+    }
+}
+
+sub lookahead {
+    my @expected = @_;
+    no warnings 'uninitialized';
+    for (0 .. $#expected){
+        return 0 if $tokens[$_][0] ne $expected[$_];
+    }
+    return 1;
+}
+&lt;/code&gt;
+
+&lt;p&gt;The production rules can be translated very easily to functions:&lt;/p&gt;
+
+&lt;code&gt;
+sub expression {
+    my @res = (term());
+    while (lookahead('AddOp')){
+        push @res, match('AddOp');
+        push @res, term();
+    }
+    return \@res;
+}
+
+sub term {
+    my @res = (factor());
+    while (lookahead('MulOp')){
+        push @res, match('MulOp');
+        push @res, factor();
+    }
+    return \@res;
+}
+
+sub factor {
+    if (lookahead('OpenParen')){
+        match('OpenParen');
+        my $res = expression();
+        match('CloseParen');
+        return $res;
+    } else {
+        atom();
+    }
+} 
+
+sub atom {
+    match('Number');
+}
+&lt;/code&gt;
+
+&lt;p&gt;You can see that branches (like in factor) and repetition (in expression
+and term) use a lookahead of one token to decide which branch to take.
+Fortunately we never have to backtrack, we're always in the right branch.&lt;/p&gt;
+
+&lt;p&gt;Enough talking, let's test it:&lt;/p&gt;
+
+&lt;code&gt;
+my $parse_tree = expression();
+print Dumper $parse_tree;
+__END__
+# again output reformatted
+$VAR1 = [
+          [ '2', '*', '3' ],
+          '+',
+          [ '4' ]
+        ];
+&lt;/code&gt;
+
+&lt;p&gt;Woot, that looks good!&lt;/p&gt;
+
+&lt;p&gt;The only annoying thing is that the 4 at the end is
+embedded into a list of its own, instead of being just a number. But that is
+easily fixed. Replace &lt;c&gt;return \@res;&lt;/c&gt; with &lt;c&gt;return @res &gt; 1 ? \@res : $res[0];&lt;/c&gt;, in both &lt;c&gt;expression&lt;/c&gt;  and &lt;c&gt;term&lt;/c&gt;, and the tree is as
+shallow as we want it to be.&lt;/p&gt;
+
+&lt;p&gt;If you input a string with parenthesis, like &lt;c&gt;&quot;2*(3+4)&quot;&lt;/c&gt; you'll notice
+that our parse tree doesn't contain any parenthesis, but the structure of the
+parse tree reflects the stucture they enforced:&lt;/p&gt;
+
+&lt;code&gt;
+# parse tree for '2 * (3+4)':
+[
+    '2',
+    '*',
+    [ '3', '+', '4' ],
+];
+&lt;/code&gt;
+
+&lt;p&gt;One minor gotcha still remains: suppose you parse the string &lt;c&gt;1 2&lt;/c&gt; - oddly it doesn't throw a syntax error. That's because the parser recognizes the &lt;c&gt;1&lt;/c&gt; as a valid expression, and then stops. So what it also has to do is recognize the end of input (traditionally called &quot;EOF&quot;, &quot;end of file&quot;), and parses until it finds EOF.&lt;/p&gt;
+
+&lt;p&gt;To get that working, simply add the line &lt;c&gt;push @tokens, ['EOF', ''];&lt;/c&gt; after the while-loop of the lexer, and then parse the input string like this:&lt;/p&gt;
+
+&lt;code&gt;
+my $parse_tree = expression();
+match('EOF');
+&lt;/code&gt;
+
+&lt;p&gt;Now we you run it again with &lt;c&gt;1 2&lt;/c&gt; as input, it tells you &lt;c&gt;Syntax error: expected EOF, got Number&lt;/c&gt;.&lt;/p&gt;
+
+&lt;p&gt;Since we nearly wrote a calculator by now, we can just as well finish it by
+writing a short sub that evaluates the parse tree:&lt;/p&gt;
+
+&lt;code&gt;
+sub execute {
+    my $tree = shift;
+    return $tree unless ref $tree;
+    my %ops = (
+            '*'     =&gt; sub { $_[0] * $_[1] },
+            '/'     =&gt; sub { $_[0] / $_[1] },
+            '+'     =&gt; sub { $_[0] + $_[1] },
+            '-'     =&gt; sub { $_[0] - $_[1] },
+    );
+
+    my ($val, @rest) = @$tree;
+    $val = execute($val);
+    while (@rest){
+        my $op   = shift @rest;
+        my $next = execute(shift @rest);
+        $val     = $ops{$op}-&gt;($val, $next);
+    }
+    return $val;
+}
+
+print execute($parse_tree), &quot;\n&quot;;
+&lt;/code&gt;
+
+&lt;h3&gt;A bit more theory&lt;/h3&gt;
+
+&lt;p&gt;This parser is called a &quot;recursive descending&quot; parser, because it uses
+recursion to descent into the rules that finally match terminal symbols.&lt;/p&gt;
+
+&lt;p&gt;It is a predictive, i.e. it guesses what the next token is, and it's a 
+top down parser.&lt;/p&gt;
+
+&lt;p&gt;Recursive descending parsers can't parse all context free languages, only a
+subset called LL(k), where k is the number of lookahead tokens (1 in our
+case).&lt;/p&gt;
+
+&lt;p&gt;Instead of predicting the next token, we could read all the tokens and push
+them onto a stack. When the top items on the stack correspond to the right
+hand side of a grammar rule we can remove them, and push the rule (annoted
+with the match tokens, of course) onto the stack.&lt;/p&gt;
+
+&lt;p&gt;That technique is bottom up parsing (or LR parsing), and the languages that
+can be parsed are called &quot;deterministic context free languages&quot;, short DCFL.
+It is more flexible, but also more complicated.&lt;/p&gt;
+
+&lt;p&gt;Parser generators like yacc or bison usually produce such LR parsers.&lt;/p&gt;
+
+
+&lt;h3&gt;More on Recursive Descending Parsers&lt;/h3&gt;
+
+&lt;p&gt;You will have noticed that the subs &lt;c&gt;expression&lt;/c&gt; and &lt;c&gt;term&lt;/c&gt; have
+the same structure, and only differ in the operator and the next function to
+be called.&lt;/p&gt;
+
+&lt;p&gt;One way around that duplicate code is a function factory (you'll notice
+that I've started to read &quot;Higher Order Perl&quot; ;-). Very good stuff!):&lt;/p&gt;
+
+&lt;code&gt;
+sub make_rule {
+    my ($operator, $next) = @_;
+    return sub {
+        my @res = ($next-&gt;());
+        while (lookahead($operator)){
+            push @res, match($operator);
+            push @res, $next-&gt;();
+        }
+        return @res &gt; 1 ? \@res : $res[0];
+    };
+}
+
+*term       = make_rule('MulOp', \&amp;factor);
+*expression = make_rule('AddOp', \&amp;term);
+&lt;/code&gt;
+
+&lt;p&gt;Since you need such a rule for every precedence level, that can save save
+you a lot of typing.&lt;/p&gt;
+
+&lt;p&gt;But if you write more parsers, you'll notice that a lot of work will still
+be duplicated.&lt;/p&gt;
+
+&lt;p&gt;A good alternative is a module like [mod://Parse::RecDescent] which does
+all the work that you normally duplicate (though I admit that I've never used
+it myself).&lt;/p&gt;
+
+&lt;p&gt;Perl 6 Rules, the replacement for regular expressions, are another
+alternative. And don't start screaming &quot;but it's not there yet&quot; - it is. You
+can use the Parrot Grammar Engine (PGE) to write Perl 6-like rules.&lt;/p&gt;
+
+&lt;p&gt;A Perl 6 Rule comes in three flavours: &quot;regex&quot;, &quot;rule&quot; and &quot;token&quot;.
+A regex is just what you think it is: a regex, but not very regular. A &quot;token&quot;
+is a regex that doesn't backtrack, and a &quot;rule&quot; is a regex that doesn't
+backtrack and that treats every whitespace in the rule body as an optional
+whitespace in the input.&lt;/p&gt;
+
+&lt;p&gt;So this is what our grammar would look like in Perl 6, with the old one as
+a comparsion:&lt;/p&gt;
+
+&lt;code&gt;
+grammar Arithmetic {
+
+    # expression  -&gt; (term add_op)* term
+    rule expression {
+        [ &lt;term&gt; &lt;mul_op&gt; ]* 
+        &lt;term&gt;
+    }
+
+    # term        -&gt; (factor mul_op)* factor
+    rule term {
+        [ &lt;factor&gt; &lt;mul_op&gt; ]*
+        &lt;factor&gt;
+    }
+
+    # factor      -&gt; atom | '(' expression ')'
+    rule factor {
+        | &lt;atom&gt;
+        | '(' &lt;expression&gt; ')'
+    }
+
+    # add_op      -&gt; '+' | '-'
+    token add_op {
+        &lt;[+-]&gt;  # that's a char class
+    }
+
+    # mul_op      -&gt; '*' | '/'
+    token mul_op {
+        &lt;[*/]&gt;
+    }
+
+    token atom {
+        \d+
+    }
+}
+
+# match it:
+$input ~~ Grammar.expression;
+&lt;/code&gt;
+
+&lt;p&gt;Note that &lt;c&gt;[...]&lt;/c&gt; are non-capturing groups, while char classes are
+&lt;c&gt;&lt;[...]&gt;&lt;/c&gt; now. &lt;c&gt;&lt;name&gt;&lt;/c&gt; is a call to another rule, and it's result
+is stored in a named capture with the name of the rule (which can be change
+with &lt;c&gt;&lt;capturename=rulename&gt;&lt;/c&gt;).&lt;/p&gt;
+
+&lt;p&gt;In case of a syntax error this regex will just not match, which is usually
+not the desired result. You can add a bit of error handling code:&lt;/p&gt;
+
+&lt;code&gt;
+    rule factor {
+        | &lt;atom&gt;
+        | '(' &lt;expression&gt; [ ')' || &lt;panic: Expected ')'&gt; ]
+    }
+&lt;/code&gt;
+
+&lt;p&gt;Now when a closing parenthesis is missing you'll get a nice error
+message.&lt;/p&gt;
+
+&lt;p&gt;Perl 6 will have an even better mechanism for parsing arithmetic
+expressions: you can specify what an operator and a what an atom is, and
+specify the precedence and associativity of each operator. Then Perl uses a
+bottom-up parser to does what you want:&lt;/p&gt;
+
+&lt;code&gt;
+# this example mixes official Perl 6 syntax an PGE syntax,
+# I don't really know if they are 100% compatible
+# see https://svn.perl.org/parrot/trunk/docs/pct/pct_optable_guide.pod
+# and http://perlcabal.org/syn/S05.html
+rule factor {
+    | &lt;atom&gt;
+    | '(' &lt;expression&gt; ')'
+}
+
+token infix:&lt;*&gt; { &lt;sym&gt; };  # &lt;sym&gt;  stands for a literal * here
+token infix:&lt;/&gt; is equiv('infix:*')  { &lt;sym&gt; };
+
+token infix:&lt;+&gt; is looser('infix:*') { &lt;sym&gt; };
+token infix:&lt;-&gt; is equiv('inifx:+')  { &lt;sym&gt; };
+
+# put parser in bottom-up mode:
+rule expression is optable { ... }; # yes, '...' is valid Perl 6 ;-)
+proto 'term:' is tighter('infix:*')
+              is parsed(&amp;factor) { ... };
+&lt;/code&gt;
+
+&lt;p&gt;We write a rule for each infix operator so that one can simply inherit from
+the grammar (like from a class) and override one rule without having to worry
+about the rest:&lt;/p&gt;
+
+&lt;code&gt;
+ModernArithmetic is Arithmetc {
+    token infix:&lt;/&gt; { '&#247;' } # different symbol, same rule name
+}
+&lt;/code&gt;
+
+
+&lt;h2&gt;Summary&lt;/h2&gt;
+&lt;p&gt;You've seen that parsing isn't magic, and while it takes a little while to
+get use it, it's not all that hard if you can stick to simple grammars.&lt;/p&gt;
+
+&lt;p&gt;In practice a recursive descending parser will get you very far, and it's
+not hard to write one. You can either do it manually, or use a module
+or Perl 6's fabolous rules.&lt;/p&gt;
+
+&lt;p&gt;There's much more to say about parsing, for example about error handling
+and recovery, associativity and many other topics, but it's a start ;-)&lt;/p&gt;
+&lt;/readmore&gt;
+
+&lt;readmore&gt;
+&lt;p&gt;(And as usual I couldn't resist to introduce some Perl 6 stuff. You can see
+that from Perl 5 to Perl 6 we jump from &quot;regular&quot; to context free languages,
+which is quite a step in the Chomsky hierarchy.)
+&lt;/readmore&gt;
+
+&lt;readmore&gt;
+&lt;p&gt;Update: incorporate [ikegami]'s suggestion on how to handle EOF detection, and to do it at all.
+&lt;p&gt;Second update: added missing tokens for ( and ), hopefully clarified placement of EOF pushing
+&lt;/readmore&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>690624</node_id>
+  <author_user>616540</author_user>
+  <title>Parsing with Regexes and Beyond</title>
+  <createtime>2008-06-06 03:02:27</createtime>
+  <nodeupdated>2008-06-05 23:02:27</nodeupdated>
+</node>

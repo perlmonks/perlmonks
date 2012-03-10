@@ -1,0 +1,562 @@
+<node>
+  <doctext>&lt;h2&gt;References&lt;/h2&gt;
+This is a translation of [id://127521]&lt;p&gt;
+&lt;small&gt;(ASCII Graphics in style of &lt;a href=http://web.archive.org/web/20031011161713/http://www.effectiveperl.com/pegs/&gt;PEGS&lt;/a&gt; (PErl Graphical Structures) by Joseph Hall)&lt;/small&gt;
+&lt;br&gt;
+&lt;br&gt;
+&lt;b&gt;What is a reference?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+There are two kinds of references 'hard references' and 'soft references'. The 'soft' ones are sometimes called 'symbolic' and are not part of this tutorial.&lt;br&gt;
+&lt;br&gt;
+A reference is &lt;b&gt;something like&lt;/b&gt; a pointer to a value (I know there are no pointers in Perl like there are in C):
+&lt;code&gt;
++-----------+      +-----------+
+|     O-----+-----&gt;|   12345   |
++-----------+      +-----------+
+&lt;/code&gt;
+&lt;br&gt;
+References are often stored in variables:
+&lt;code&gt;
++----------\       +----------\
+|     a     &gt;      |     b     &gt;
++----------/       +----------/
+      |                  |
++-----------+      +-----------+
+|     O-----+-----&gt;|   12345   |
++-----------+      +-----------+
+&lt;/code&gt;
+&lt;br&gt;
+The variable $a contains a reference pointing to the value of variable $b.&lt;br&gt;
+&lt;br&gt;
+&lt;br&gt;
+References are not restricted to pointing to values, they can also point to arrays and hashes. Here some examples:&lt;code&gt;
++----------\
+|     b     &gt;      +----------\
++----------/       |     a     &gt;
+      |            +----------/
++-----------+            |
+|     O-----+-----&gt;+###########+
++-----------+      +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+                   |    Foo    |
++----------\       +-----------+
+|     c     &gt;      |    Bar    |
++----------/       +-----------+
+      |            |    Baz    |
++-----------+      +-----------+
+|     O-----+-----&gt;|    Qux    |
++-----------+      +-----------+
+&lt;/code&gt;
+&lt;br&gt;
+Reference $b points to array @a, reference $c points to the fourth element of @a, $a&amp;#091;3&amp;#093;.&lt;br&gt;
+&lt;br&gt;
+This way you can construct datastructures of arbitrary complexity:
+&lt;code&gt;
++----------\
+|     a     &gt;                      +--&gt;+###########+
++----------/                       |   +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+      |                            |   |    Foo    |
++-----------+                      |   +-----------+
+|     O-----+-----&gt;+###########+   |   |    Bar    |
++-----------+      +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+   |   +-----------+
+                   |     O-----+---+
+                   +-----------+
+                   |     O-----+------&gt;+###########+
+                   +-----------+       +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+                   |     O-----+---+   |    Baz    |
+                   +-----------+   |   +-----------+
+                                   |   |    Qux    |
+                                   |   +-----------+
+                                   |
+                                   |
+                                   +--&gt;+###########+
+                                       +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+                                       |    Baz    |
+                                       +-----------+
+
+&lt;/code&gt;
+A reference to a list containing references to several lists.&lt;br&gt;
+&lt;br&gt;
+&lt;br&gt;
+&lt;code&gt;
++----------\
+|     a     &gt;                 +--&gt;+###########+
++----------/                  |   +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+      |                       |   |    Foo    |
++#########################+   |   +-----------+
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+   |   |    Bar    |
++-----------\ +-----------+   |   +-----------+
+|    aaa     &gt;|     O-----+---+
++-----------&lt; +-----------+
+|    bbb     &gt;|     O-----+------&gt;+###########+
++-----------&lt; +-----------+       +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+|    ccc     &gt;|     O-----+---+   |    Baz    |
++-----------/ +-----------+   |   +-----------+
+                              |   |    Qux    |
+                              |   +-----------+
+                              |
+                              |
+                              +--&gt;+###########+
+                                  +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+                                  |    Baz    |
+                                  +-----------+
+
+&lt;/code&gt;
+A hash containing references to lists.&lt;br&gt;
+&lt;br&gt;
+&lt;br&gt;
+&lt;b&gt;How to create references?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+The backslash operator creates a reference to a value:&lt;br&gt;
+&lt;br&gt;
+                   
+&lt;table cellpadding=&quot;2&quot; cellspacing=&quot;2&quot; border=&quot;0&quot;&gt;
+  &lt;tr&gt;
+    &lt;td valign=&quot;Top&quot;&gt;&lt;tt&gt;$cref = \12345&lt;/tt&gt;&lt;/td&gt;
+    &lt;td valign=&quot;Top&quot;&gt;Reference to a constant&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td valign=&quot;Top&quot;&gt;&lt;tt&gt;$sref = \$s&lt;/tt&gt;&lt;/td&gt;
+    &lt;td valign=&quot;Top&quot;&gt;Reference to the value of $s&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td valign=&quot;Top&quot;&gt;&lt;tt&gt;$aref = \@a&lt;/tt&gt;&lt;/td&gt;
+    &lt;td valign=&quot;Top&quot;&gt;Reference to the array @a&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td valign=&quot;Top&quot;&gt;&lt;tt&gt;$href = \%h&lt;/tt&gt;&lt;/td&gt;
+    &lt;td valign=&quot;Top&quot;&gt;Reference to the hash %h&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td valign=&quot;Top&quot;&gt;&lt;tt&gt;$fref = \&amp;amp;f&lt;/tt&gt;&lt;/td&gt;
+    &lt;td valign=&quot;Top&quot;&gt;Reference to the subroutine &amp;amp;f&lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+&lt;br&gt;
+A reference to an anonymous array is created like this:
+&lt;code&gt;
+        $aref = [123, 456, 789];
+&lt;/code&gt;
+
+A reference to an anonymous hash:
+&lt;code&gt;
+        $href = {NAME =&gt; 'Bernd', EMAIL =&gt; 'bdulfer@sybase.com'};
+&lt;/code&gt;
+
+A reference to an anonymous subroutine:
+&lt;code&gt;
+        $fref = sub { print &quot;AnonSub\n&quot; };
+&lt;/code&gt;
+&lt;br&gt;
+&lt;b&gt;What are references good for?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+Case 1, arguments of subroutines:&lt;br&gt;
+When several arrays are given to a subroutine, Perl creates &lt;b&gt;one&lt;/b&gt; list of values named @_.
+There is no possibility to determine which elements are from which array.
+If you need these informations, you can pass references to the arrays.
+The references can then be dereferenced via @_ and the values can be related to the arrays.
+&lt;p&gt;
+(useless :-) example:
+&lt;br&gt;
+&lt;code&gt;
+use Data::Dumper;
+
+sub make_hash_from_arrays {
+  my ($aref1, $aref2) = @_;
+  
+  my %hash;
+
+  $hash{$_} = shift @$aref2 foreach (@$aref1);
+
+  print Dumper(\%hash);
+}
+
+my @a = ('a', 'b', 'c', 'd');
+my @b = (1, 2, 3, 4);
+
+make_hash_from_arrays(\@a, \@b);
+&lt;/code&gt;
+The meaning of @$ is explained later.&lt;p&gt;
+
+Case 2. complex datastructures:&lt;br&gt;
+A datastructure containing an addressbook.&lt;br&gt;
+Without references there are the following possibilities:&lt;br&gt;&lt;br&gt;
+
+1. The addresses are put into a hash, the values of each address are separated by a delimiter. To get distinct values, &lt;code&gt;split&lt;/code&gt; is used:
+&lt;code&gt;
+    $address{Bernd} = 'Bernd Dulfer|Kapellenstr. 1|bdulfer@sybase.com';
+    $email = (split(/\|/, $address{bernd}))[2];
+&lt;/code&gt;
+
+2. The address is distributed over several hashes. To display an address elements are fetched from those hashes:
+&lt;code&gt;
+    $name{Bernd}  = 'Bernd Dulfer';
+    $str{Bernd}   = 'Kapellenstr. 1';
+    $email{Bernd} = 'bdulfer@sybase.com';
+
+    print_address($name{Bernd}, $str{Bernd});
+&lt;/code&gt;
+&lt;br&gt;
+Both methods are inelegant and unwieldy. Here the solution with references:&lt;br&gt;
+A hash containing references to the addresses, each address is a hash on its own.
+&lt;code&gt;
++----------\
+| address   &gt;           
++----------/             
+      |
++#######################+
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+ 
++-----------\ +---------+  
+|   Bernd    &gt;|    O----+-----&gt;+##################################+
++-----------/ +---------+      +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+ 
+                               +-----------\ +--------------------+ 
+                               |   Name     &gt;|  Bernd Dulfer      |
+                               +-----------&lt; +--------------------+
+                               |   Str      &gt;|  Kapellenstr. 1    |
+                               +-----------&lt; +--------------------+ 
+                               |   EMail    &gt;|  bdulfer@sybase.com|
+                               +-----------/ +--------------------+ 
+
+
+$address{Bernd} = {
+                      Name    =&gt;  'Bernd Dulfer',
+                      Str     =&gt;  'Kapellenstr. 1',
+                      EMail   =&gt;  'bdulfer@sybase.com'
+                  };
+
+$email = $address{Bernd}-&gt;{EMail};
+print_address($address{Bernd});
+&lt;/code&gt;
+You want to store in addition to the addresse, for instance, a list of lended books.
+It is almost impossible to do this without references, with references it's like this:
+&lt;code&gt;
++----------\
+| address   &gt;
++----------/
+      |
++##########+
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
++----\ +---+
+|Bernd&gt;| O-+-&gt;+###########################+
++----/ +---+  +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+              +------\ +------------------+
+              |Name   &gt;|Bernd Dulfer      |
+              +------&lt; +------------------+
+              |Str    &gt;|Kapellenstr. 1    |
+              +------&lt; +------------------+
+              |EMail  &gt;|bdulfer@sybase.com|
+              +------&lt; +------------------+
+              |Books  &gt;|        O---------+-&gt;+#####################+
+              +------/ +------------------+  +&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;+
+                                             |Lord of the Rings    |
+                                             +---------------------+
+                                             |Hitchhikers Guide ...|
+                                             +---------------------+
+                                             |The Color of Magic   |
+                                             +---------------------+
+
+
+
+$address{Bernd} = {
+                      Name    =&gt;  'Bernd Dulfer',
+                      Str     =&gt;  'Kapellenstr. 1',
+                      EMail   =&gt;  'bdulfer@sybase.com',
+                      Books   =&gt;  [
+                                   'Lord of the Rings',
+                                   'Hitchhikers Guide to the Galaxy',
+                                   'The Color of Magic'
+                                  ]
+                  };
+&lt;/code&gt;
+&lt;br&gt;
+&lt;b&gt;How do I use references and datastructures?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+References are dereferenced by using the sigil ($%@&amp;amp;) of the value and { }.&lt;br&gt;
+When the reference is stored in a variable, the curlies can be omitted.&lt;br&gt;
+Examples:&lt;br&gt;
+&lt;br&gt;
+A reference to a scalar:
+&lt;code&gt;
+    $s   = 'qwertz';
+    $sref = \$s;
+    print ${$sref}, &quot;\n&quot;;
+    print $$sref, &quot;\n&quot;;
+&lt;/code&gt;
+Prints:&lt;br&gt;
+&lt;code&gt;
+qwertz
+qwertz
+&lt;/code&gt;
+&lt;br&gt;
+A reference to an array:
+&lt;code&gt;
+    $, = ':';
+    @a    = (123, 456, 789);
+    $aref = \@a;
+    print @{$aref}, &quot;\n&quot;;
+    print @$aref, &quot;\n&quot;;
+&lt;/code&gt;
+Prints:
+&lt;code&gt;
+123:456:789
+123:456:789
+&lt;/code&gt;
+&lt;br&gt;
+To get single elements, use
+&lt;code&gt;
+    ${$aref}[1]
+or
+    $$aref[1]
+&lt;/code&gt;
+&lt;br&gt;
+When references are stored in an array or hash, use &lt;tt&gt;-&amp;gt;&lt;/tt&gt;:
+&lt;code&gt;
+    $address{Bernd} = {
+                       Name    =&gt; 'Bernd Dulfer',
+                       Str     =&gt; 'Kapellenstr. 1',
+                       EMail   =&gt; 'bdulfer@sybase.com',
+                       Books   =&gt; [
+                                   'Lord of the Rings',
+                                   'Hitchhikers Guide to the Galaxy',
+                                   'The Color of Magic'
+                                  ]
+                      };
+    print 'Name: ', $address{Bernd}-&gt;{Name}, &quot;\n&quot;;
+&lt;/code&gt;
+Prints:
+&lt;code&gt;
+Name: Bernd Dulfer
+&lt;/code&gt;
+&lt;br&gt;
+In the same way assingments are handled:
+&lt;code&gt;
+    $address{Bernd}-&gt;{Books}-&gt;[3] = 'Goedel, Escher, Bach - An Eternal Golden Braid';
+&lt;/code&gt;
+The reference in $address{Bernd} is dereferenced and gives a hash.
+From this hash the value with the key 'Books', which is a reference, is used.
+This reference is again dereferenced and gives a list, of which the fourth element gets a new value.&lt;p&gt;
+&lt;br&gt;
+If something dereferenced shall be used not as a scalar but as an array, it has to be dereferenced with the sigil and { }:
+&lt;code&gt;
+    push @{$address{Bernd}-&gt;{Books}}, 'Icerigger';
+&lt;/code&gt;
+&lt;tt&gt;$address{Bernd}&lt;/tt&gt; contains a reference to an anonymous hash, which can be accessed by using &lt;tt&gt;-&amp;gt;&lt;/tt&gt;.&lt;br&gt;
+&lt;tt&gt;$address{Bernd}-&amp;gt;{Books}&lt;/tt&gt; contains a reference to an anonymous array.&lt;br&gt;
+To use this array, the reference must be dereferenced with &lt;tt&gt;@{ }&lt;/tt&gt;.&lt;br&gt;
+&lt;br&gt;
+This was perhaps a bit fast, therefor here some examples:&lt;p&gt;
+A list of authors and books will be added to the address.&lt;br&gt;
+The authors are stored in a hash. The keys are the names of the authors, the values are references to lists of booktitles.
+To create the hash of authors separately, use:
+&lt;code&gt;
+%authors = (
+            Tolkien   =&gt; [
+                          'The Silmarillion',
+                          'Unfinished Tales'
+                         ],
+            Pratchett =&gt; [;
+                          'Guards! Guards!',
+                          'Feet of Clay'
+                         ]
+           )
+&lt;/code&gt;
+A reference to this hash can be added to the address:
+&lt;code&gt;
+$address{Bernd}-&gt;{Authors} = \%authors;
+&lt;/code&gt;
+A new book by Tolkien is added using:
+&lt;code&gt;
+push @{$authors{Tolkien}}, 'The Hobbit';
+&lt;/code&gt;
+&lt;p&gt;
+
+&lt;br&gt;
+&lt;b&gt;How can I look into complex datastructures?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+The module Data::Dumper has a function &lt;tt&gt;Dumper&lt;/tt&gt;. Pass a reference to this function and &lt;tt&gt;Dumper&lt;/tt&gt; creates Perlcode, representing the whole structure:
+&lt;code&gt;
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use Data::Dumper;
+
+    my %address;
+    $address{Bernd} = {
+                       Name    =&gt; 'Bernd Dulfer',
+                       Str     =&gt; 'Kapellenstr. 1',
+                       EMail   =&gt; 'bdulfer@sybase.com',
+                       Books   =&gt; [
+                                   'Lord of the Rings',
+                                   'Hitchhikers Guide to the Galaxy',
+                                   'The Color of Magic'
+                                  ]
+                      };
+
+    $address{Bernd}-&gt;{Books}-&gt;[3] = 'Goedel, Escher, Bach - An Eternal Golden Braid';
+    push @{$address{Bernd}-&gt;{Books}}, 'Icerigger';
+
+    $address{Bernd}-&gt;{Authors}-&gt;{Tolkien} = ['Silmarillion', 'Unfinished Tales'];
+
+    print Dumper(\%address);
+&lt;/code&gt;
+Take a close look at the line containing &lt;tt&gt;&amp;#091;'Silmarillion', 'Unfinished Tales'&amp;#093;&lt;/tt&gt;.&lt;br&gt;
+A new hash element with the key 'Authors' is created 'on the fly'. The value is a reference to an anonymous hash with the element 'Tolkien'.&lt;br&gt;
+The value of this element is an anonymous array.&lt;br&gt;
+&lt;br&gt;
+The output:
+&lt;code&gt;
+$VAR1 = {
+          'Bernd' =&gt; {
+                       'Authors' =&gt; {
+                                      'Tolkien' =&gt; [
+                                                     'Silmarillion',
+                                                     'Unfinished Tales'
+                                                   ]
+                                    },
+                       'Books' =&gt; [
+                                    'Lord of the Rings',
+                                    'Hitchhikers Guide to the Galaxy',
+                                    'The Color of Magic'
+                                    'G&amp;ouml;del, Escher, Bach - An Eternal Golden Braid',
+                                    'Icerigger'
+                                  ],
+                       'EMail' =&gt; 'bdulfer@sybase.com',
+                       'Str' =&gt; 'Kapellenstr. 1',
+                       'Name' =&gt; 'Bernd Dulfer'
+                     }
+        };
+&lt;/code&gt;
+You get a similar display when you use the Tk-debugger (Devel::ptkdb).
+&lt;p&gt;
+&lt;b&gt;How can I load data from a file into a complex datastructure?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+Consider the following file:
+&lt;code&gt;
+#Short   Name           Str              EMail                Books
+Bernd   |Bernd Dulfer  |Kapellenstr. 1  |bdulfer@sybase.com  |(Lord of the Rings|Hitchhikers Guide ...|The Color of Magic)
+Bilbo   |Bilbo Baggins |Bagend          |                    |(The Red Book)
+&lt;/code&gt;
+The following code creates the well known hash:
+&lt;code&gt;
+ 1:    my %addresses;
+ 2:
+ 3:    open ADDRESSES, 'addresses.dat' or die &quot;Cannot open addresses.dat: $!\n&quot;;
+ 4:    while (&lt;ADDRESSES&gt;) {
+ 5:      next if /^#/;
+ 6:      my ($short, $name, $str, $email, $books) = split(/\s*\|/, $_, 5);
+ 7:      $addresses{$short} = {
+ 8:                             Name    =&gt; $name,
+ 9:                             Str     =&gt; $str,
+10:                             EMail   =&gt; $email
+11:                            };
+12:      $books =~ tr/()//d;
+13:      push @{$addresses{$short}-&gt;{Books}}, split /\|/, $books;
+14:    }
+15:    close ADDRESSES;
+&lt;/code&gt;
+Line  1: declare the hash %addresses.&lt;br&gt;
+Line  3: Open file addresses.dat for reading.&lt;br&gt;
+Line  4: Read each line. Each line is put into $_ automagically.&lt;br&gt;
+Line  5: Ignore comments.&lt;br&gt;
+Line  6: Split line into five values which are assigned to variables.&lt;br&gt;
+Line  7: An anonymous hash with the keys 'Name', 'Str' and 'EMail' is created and a reference to this is stored in the hash %addresses with the key $short.&lt;br&gt;
+Line 12: The parens are removed from the list of books.&lt;br&gt;
+Line 13: The books are splitted by '|' and put into an anonymous array. A reference to this is stored in the hash %addresses.&lt;br&gt;
+Line 15: The file is closed.&lt;p&gt;
+This is only an example, several things remain unconsidered. For instances a booktitle may contain parens.
+&lt;p&gt;
+&lt;b&gt;How can I iterate through arrays and hashes in datastructures?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+All books of a given address:
+&lt;code&gt;
+foreach (@{$address{Bernd}-&gt;{Books}}) {
+  print $_, &quot;\n&quot;;
+}
+&lt;/code&gt;
+All authors with their books:
+&lt;code&gt;
+foreach (keys %{$address{Bernd}-&gt;{Authors}}) {
+  print $_, &quot;\n&quot;;
+  foreach (@{$address{Bernd}-&gt;{Authors}-&gt;{$_}}) {
+    print &quot;\t&quot;, $_, &quot;\n&quot;;
+  }
+}
+&lt;/code&gt;
+  
+&lt;p&gt;
+&lt;b&gt;What are references to subroutines good for?&lt;/b&gt;&lt;br&gt;
+&lt;br&gt;
+References to subroutines are used for several things:&lt;br&gt;
+&lt;br&gt;
+Callbacks:&lt;br&gt;
+&amp;nbsp;&amp;nbsp;&amp;nbsp; In a module a subroutine of the main program shall be executed without the module knowing the name of that subroutine.&lt;br&gt;
+&amp;nbsp;&amp;nbsp;&amp;nbsp; A reference to the subroutine is passed to the module.:
+&lt;code&gt;
+    Package Mod;
+
+    my $callback;
+
+    sub set_callback {
+      $callback = shift;
+    }
+
+    sub do_something {
+      do_this();
+      do_that();
+
+      &amp;$callback;
+
+      do_something_else();
+    }
+
+    .
+    .
+    .
+
+    1;
+
+    __END__
+
+
+    #!/usr/bin/perl
+
+    use strict;
+    use warnings;
+
+    use Mod;
+
+    Mod::set_callback(\&amp;print_rubbish);
+
+    Mod::do_something();
+
+    sub print_rubbish (
+      print &quot;Rubbish!\n&quot;;
+    }
+&lt;/code&gt;
+Tk programmer often use callbacks, events (mouse click, button, ...) are passed to and processed by callbacks.&lt;p&gt;
+Dispatch Lists:&lt;br&gt;
+&amp;nbsp;&amp;nbsp;&amp;nbsp;To avoid large if/elsif/else constructs, pieces of code are put into subroutines.&lt;br&gt;
+&amp;nbsp;&amp;nbsp;&amp;nbsp;References to these subroutines are stored in a hash.The keys represent the conditions.
+&lt;code&gt;
+    %dispatch = (
+                 insert =&gt; \&amp;insert,
+                 update =&gt; \&amp;update,
+                 delete =&gt; \&amp;delete
+                )
+
+    $dispatch{$token}-&gt;($query);
+&lt;/code&gt;
+&lt;p&gt;
+&lt;hr&gt;
+&lt;p&gt;
+&lt;b&gt;Update:&lt;/b&gt; wrong brackets in two places, caught by [petral]&lt;br&gt;
+&lt;b&gt;Update:&lt;/b&gt; replaced (PEGS) link&lt;br&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>137108</node_id>
+  <author_user>61798</author_user>
+  <title>intro to references</title>
+  <createtime>2002-01-08 11:38:03</createtime>
+  <nodeupdated>2005-08-15 11:36:36</nodeupdated>
+</node>

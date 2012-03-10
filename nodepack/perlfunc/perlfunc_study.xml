@@ -1,0 +1,81 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+study - optimize input data for repeated searches
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>114</author_user>
+  <description>&lt;P&gt;
+Takes extra time to study 
+&lt;FONT SIZE=-1&gt;SCALAR&lt;/FONT&gt; (&lt;CODE&gt;$_&lt;/CODE&gt; if unspecified) in anticipation of doing many pattern matches on the string
+before it is next modified. This may or may not save time, depending on the
+nature and number of patterns you are searching on, and on the distribution
+of character frequencies in the string to be searched -- you probably want
+to compare run times with and without it to see which runs faster. Those
+loops which scan for many short constant strings (including the constant
+parts of more complex patterns) will benefit most. You may have only one [perlfunc:study|study()] active at a time -- if you study a different scalar the first is
+``unstudied''. (The way [perlfunc:study|study()] works is this: a linked list of every character in the string to be
+searched is made, so we know, for example, where all the &lt;CODE&gt;'k'&lt;/CODE&gt; characters are. From each search string, the rarest character is selected, based on some static frequency tables constructed from some 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; programs and English text. Only those places that contain this ``rarest'' character are examined.)
+
+&lt;P&gt;
+For example, here is a loop that inserts index producing entries before any
+line containing a certain pattern:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        study;
+        print &amp;quot;.IX foo\n&amp;quot; if /\bfoo\b/;
+        print &amp;quot;.IX bar\n&amp;quot; if /\bbar\b/;
+        print &amp;quot;.IX blurfl\n&amp;quot; if /\bblurfl\b/;
+        # ...
+        print;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+In searching for &lt;CODE&gt;/\bfoo\b/&lt;/CODE&gt;, only those locations in &lt;CODE&gt;$_&lt;/CODE&gt; that contain &lt;CODE&gt;&amp;quot;f&amp;quot;&lt;/CODE&gt;
+will be looked at, because &lt;CODE&gt;&amp;quot;f&amp;quot;&lt;/CODE&gt; is rarer than &lt;CODE&gt;&amp;quot;o&amp;quot;&lt;/CODE&gt;. In general, this is a big win except in pathological cases. The only
+question is whether it saves you more time than it took to build the linked
+list in the first place.
+
+&lt;P&gt;
+Note that if you have to look for strings that you don't know till runtime,
+you can build an entire loop as a string and [perlfunc:eval|eval()] that to avoid recompiling all your patterns all the time. Together with
+undefining &lt;CODE&gt;$/&lt;/CODE&gt; to input entire files as one record, this can be very fast, often faster than specialized programs like 
+&lt;CODE&gt;fgrep(1).&lt;/CODE&gt; The following scans a list of files (
+&lt;CODE&gt;@files&lt;/CODE&gt;) for a list of words (&lt;CODE&gt;@words&lt;/CODE&gt;), and prints out the names of those files that contain a match:
+
+&lt;P&gt;
+&lt;PRE&gt;    $search = 'while (&amp;lt;&amp;gt;) { study;';
+    foreach $word (@words) {
+        $search .= &amp;quot;++\$seen{\$ARGV} if /\\b$word\\b/;\n&amp;quot;;
+    }
+    $search .= &amp;quot;}&amp;quot;;
+    @ARGV = @files;
+    undef $/;
+    eval $search;               # this screams
+    $/ = &amp;quot;\n&amp;quot;;          # put back to normal input delimiter
+    foreach $file (sort keys(%seen)) {
+        print $file, &amp;quot;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;HR&gt;
+</description>
+  <createtime>1999-08-24 18:43:42</createtime>
+  <node_id>364</node_id>
+  <synopsis>&lt;P&gt;
+study 
+&lt;FONT SIZE=-1&gt;SCALAR&lt;/FONT&gt;
+
+&lt;P&gt;
+study
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlfunc:study</title>
+  <nodeupdated>2005-08-12 22:11:56</nodeupdated>
+</node>

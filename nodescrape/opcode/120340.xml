@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="120340" title="randomnode2" created="2001-10-21 01:02:21" updated="2003-03-14 23:12:15">
+<type id="3545">
+opcode</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="code">
+my $min="922168001";
+my $max=time();
+my $range=$max-$min;
+my $randtime=int(rand($range))+$min;
+
+
+my @users=split(/,/,$query-&gt;param('users'));
+my @types=split(/,/,$query-&gt;param('types'));
+
+my $dbh=$DB-&gt;getDatabaseHandle();
+
+@types=map{$dbh-&gt;quote($_)} @types;
+@users=map{$dbh-&gt;quote($_)} @users;
+
+my $userstr=join ',',@users;
+my $typestr=join ',',@users;
+
+my $NT=getNode('nodetype','nodetype');
+my $US=getNode('user','nodetype');
+
+my $sth=$dbh-&gt;prepare("select node_id from node where title  in($typestr) and type_nodetype=?);
+
+$sth-&gt;execute(getId($NT));
+
+my @type_ids;
+while(my $N=$sth-&gt;fetchrow_hashref){
+   push @type_ids, $$N{node_id};
+}
+
+$sth=$dbh-&gt;prepare("select node_id from node where title  in($userstr) and type_nodetype=?);
+
+$sth-&gt;execute(getId($NT));
+
+my @user_ids;
+while(my $N=$sth-&gt;fetchrow_hashref){
+   push @user_ids, $$N{node_id};
+}
+
+my ($sqlbegin, $sqlmid, $sqlend);
+
+
+$sqlbegin="select node_id from node where createtime";
+$sqlmid="(from_unixtime($randtime))";
+$sqlmid.=" and type_nodetype in(".join ',',@type_ids .")" if @type_ids;
+$sqlmid.=" and author_user in(".join ',',@user_ids .")" if @type_ids;
+$sqlend=" limit 1";
+
+
+$sth=$dbh-&gt;prepare($sqlbegin."&gt;".$sqlmiddle.$sqlend);
+$sth-&gt;execute;
+
+if(my $N=$sth-fetchrow_hashref){
+   $query-&gt;param('node','');
+   $query-&gt;param('node_id',$$N{node_id});
+   $sth-&gt;finish;
+   return linkNode($$N{node_id});
+} else {
+   $sth=$dbh-&gt;prepare($sqlbegin."&lt;".$sqlmiddle.$sqlend);
+   $sth-&gt;execute;
+   if(my $N=$sth-fetchrow_hashref){
+      $query-&gt;param('node','');
+      $query-&gt;param('node_id',$$N{node_id});
+      $sth-&gt;finish;   
+      return linkNode($$N{node_id});
+   }
+}
+
+</field>
+</data>
+</node>

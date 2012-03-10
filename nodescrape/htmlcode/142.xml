@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="142" title="reordernodelets" created="1999-08-11 05:36:57" updated="2005-08-06 07:33:16">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+#######
+#  allow users to select which nodelets they want and then re-order them
+#  usage: [{reordernodelets:varsfield,group,noform}]
+#  varsfield:  user var of comma-separated list of node_id's, $VARS-&gt;{$varsfield}
+#  group: nodeletgroup which contains nodelets a user can choose from
+#  noform: 1 if this is part of a larger form (default: 0)
+#######
+my( $varsfield, $nodeletgroup, $noForm )= @_;
+return "Usage error"
+    unless  $varsfield  &amp;&amp;  $nodeletgroup;
+return   if  getId($USER) == $HTMLVARS{guest_user};
+
+use Everything::Experience;
+
+my $html= '';
+my $NG= getNode( $nodeletgroup, "nodeletgroup" );
+my @all= @{ $NG-&gt;{group} };
+
+my $perms=getVars(getNode('nodelet permissions','setting'));
+my @add;
+foreach my $name (split /,/,$perms-&gt;{apply_order}) {
+    my $rule=$perms-&gt;{$name};
+    if ($rule=~/^\s*{/) {
+        push @add,eval $rule;
+    } elsif (Everything::isApproved($USER,getNode($name,'usergroup'))) {
+        push @add,split /,/,$rule;
+    }
+}
+push @all, map { !$_ ? () : /\D/ ? getId( getNode($_,'nodelet') ) : $_ } @add;
+
+my %present;
+@present{@all}= (1) x @all;
+
+my $prefix= $varsfield."_ord_";
+my %neworder;
+my $change= 0;
+foreach(  $q-&gt;param()  ) {
+    next   unless  /^$prefix(\d+)$/;
+    my $id= $1;
+    $change= 1;
+    my $order= $q-&gt;param($_);
+    next   if  ! $present{$id};
+    $neworder{$id}= $order   if  0 != $order;
+}
+
+my( @nodelets )= split /,/, $VARS-&gt;{$varsfield};
+if(  $change  ) {
+    @nodelets= sort {
+        $neworder{$a} &lt;=&gt; $neworder{$b} || $a cmp $b
+    } keys %neworder;
+    $VARS-&gt;{$varsfield}= join( ',', @nodelets );
+}
+%present= ();
+@present{@nodelets}= (1) x @nodelets;
+
+$html .= htmlcode('openform')   unless  $noForm;
+$html .= "&lt;table&gt;&lt;tr&gt;&lt;th&gt;Order&lt;/th&gt;&lt;/tr&gt;\n";
+
+my $number= 1.9;
+for my $id (  @nodelets, 0, @all  ) {
+    if(  ! $id  ) {
+        $number= 0;
+        next;
+    }
+    next   if  ! $number  &amp;&amp;  $present{$id};
+    $html .= qq[&lt;tr&gt;&lt;td&gt;]
+        . $q-&gt;textfield( -name =&gt; $prefix . $id,
+            -value =&gt; $number, -size =&gt; 5, -force =&gt; 1 )
+        . qq[\n&lt;/td&gt;&lt;td&gt;]
+        . $q-&gt;escapeHTML( getNodeById($id,'light')-&gt;{title} )
+        . qq[&lt;/td&gt;&lt;/tr&gt;\n];
+    $number += 1.0   if  $number;
+}
+$html .= "&lt;/table&gt;";
+$html .= htmlcode('closeform') unless $noForm;
+return $html;
+</field>
+</data>
+</node>

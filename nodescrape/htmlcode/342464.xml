@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="342464" title="add_re_to_title" created="2004-04-04 09:28:54" updated="2004-08-15 12:12:48">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+# [add_re_to_title]
+# see bottom for examples of behaviour
+
+my ($title)=@_;
+
+my $name_qr     =qr/\([^\)]*\)|[^\w\s()\[\]{}]|/;
+my $mul_qr      =qr/\s*[*^]\s*\d+\s*/;
+
+my $re_simple_qr=qr/\s*(?:&amp;\w*;\s*)?Re(?:$mul_qr:|\s*:$mul_qr|\s*:\s*)/xi;
+my $re_qr       =qr/$re_simple_qr(?:\s*$name_qr\s*(?=$re_simple_qr))?/x;
+
+return "" unless $title=~/\S/;
+$title="Re: $title";
+
+
+my @res;  # holds any Re:'s we encounter
+my $name; # holds the name of the node.
+while ($title=~/\G(?:($re_qr)\s*|(.+)$)/g) {
+    if ($1) {
+        push @res,$1;
+    } else {
+        $name=$2;
+    }
+}
+
+my @parts;
+my $count=0;
+foreach my $re_str (@res) {
+    my ($re,$parens,$cnt)=($re_str,'',1);
+    # lose parens with numbers in them.
+    $parens=$1 if $re=~s/($name_qr)//;
+    # get the count if any.
+    $cnt=$1    if $re=~m/(\d+)/;
+    $count+=$cnt;
+}
+push @parts,"Re".($count&gt;1 ? "^$count" : "").":",$name;
+
+return "@parts";
+
+
+# In : &amp;bull;Re: Bypassing strict refs
+# Out: Re^2: Bypassing strict refs
+#
+# In : Re: &amp;bull;Re: Bypassing strict refs
+# Out: Re^3: Bypassing strict refs
+#
+# In : Re: &amp;bull;Re: •Re: Bypassing strict refs
+# Out: Re^4: Bypassing strict refs
+#
+# In : Re: (12345) Re: Re: &amp;bull;Re: &amp;bull;Re: Bypassing strict refs
+# Out: Re^6: Bypassing strict refs
+#
+# In : Re: (12345) Re: Re:   &amp;bull;   Re: &amp;bull;Re: Bypassing strict refs
+# Out: Re^6: Bypassing strict refs
+#
+# In : Re: (12345) Re: Foo Bar
+# Out: Re^3: Foo Bar
+#
+# In : Re: Re^3: New code wrap options (in-line code CSS class)|
+# Out: Re^5: New code wrap options (in-line code CSS class)|
+#
+# In : Re: (tye)Re: New code wrap options
+# Out: Re^3: New code wrap options
+#
+# In : Re: Re: Re: Re: The ethics of humour
+# Out: Re^5: The ethics of humour
+#
+# In : Re: Foo Bar
+# Out: Re^2: Foo Bar
+#
+# In : Re: (demerphq) Re: Foo Bar
+# Out: Re^3: Foo Bar
+#
+# In : Re: (tye) Re: (demerphq) Re: Foo Bar
+# Out: Re^4: Foo Bar
+#
+# In : Re^2: (tye) Re: (demerphq) Re: Foo Bar
+# Out: Re^5: Foo Bar
+#
+# In : Re^2: (tye) Re: Re^2: Re: (demerphq) Re: Foo Bar
+# Out: Re^8: Foo Bar
+#
+</field>
+</data>
+</node>

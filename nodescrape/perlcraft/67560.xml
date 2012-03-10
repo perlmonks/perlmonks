@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="67560" title="iter" created="2001-03-27 16:50:25" updated="2005-07-21 01:25:39">
+<type id="121">
+perlcraft</type>
+<author id="17251">
+MeowChow</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+#
+# Q: Perl need iterator? That's unpossible!
+# A: Have you ever had to iterate on multiple list values at once? One 
+#    often resorts to numeric indexing to solve this problem. Shift and splice
+#    is another WTDI, but only if you don't mind eating away at your original
+#    list. Think of the iterator as a non-mutating splice.
+#
+# iterstart ARRAY VARIABLE
+# iterstart ARRAY
+#   Sets up iteration for a given array, with the iterator variable
+#   specified. Must be called before any of the other functions.
+#
+# iter NUM ARRAY
+# iter NUM
+# iter
+#   Iterates through and returns a list of next NUM elements for the 
+#   active or specified array. A negative NUM acts as an index from the
+#   end of the array. When NUM is unspecified, it is defaulted as 1.
+#
+# iterend ARRAY
+# iterend
+#   End iteration for active or specified array. Not usually
+#   needed.
+#
+use strict;
+{
+  my (%listpos, $lref);
+
+  sub iterstart (\@) {
+    $lref = shift;
+    $listpos{$lref} = 0;
+  }
+
+  sub iter (;$\@) {
+    my $num = shift || 1;
+    $lref = shift if @_;
+    return if not exists $listpos{$lref};
+    my $i = $listpos{$lref};
+    my $j = $num &gt;= 0 ? $i + $num - 1: $#$lref + $num + 1;
+    if ($j &lt; $#$lref) {
+      $listpos{$lref} = $j + 1;
+    }
+    else {
+      delete $listpos{$lref};
+      $j = $#$lref;
+    }
+    @$lref[$i..$j];
+  }
+
+  sub iterend (;\@) {
+    delete $listpos{shift || $lref}
+  }
+}
+
+############ EXAMPLES ############
+
+use Data::Dumper;
+my (@data, @lol);
+
+# Example: iterate over a multi-value list
+@data = qw(1 one uno 2 two dos 3 three tres 4 four quatro 5 five cinco);
+iterstart @data;
+while (my ($num, $eng, $span) = iter 3) {
+  print "$num is $eng in English and $span in Spanish\n";
+}
+
+# Example: convert a flat data structure to a list-of-lists
+@data = qw(1 fee 2 fee fi 3 fee fi fo 4 fee fi fo fum 1 fin);
+iterstart @data;
+while (my ($len) = iter) {
+  push @lol, [iter $len];
+}
+print Dumper \@lol;
+</field>
+</data>
+</node>

@@ -1,0 +1,560 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="416" title="perlman:perlcall2" created="1999-08-25 03:05:28" updated="2005-06-26 19:06:56">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Strategies_for_storing_Callback_"&gt;Strategies for storing Callback Context Information&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Potentially one of the trickiest problems to overcome when designing a callback interface can be figuring out how to store the mapping between the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback function and the Perl equivalent.
+
+&lt;P&gt;
+To help understand why this can be a real problem first consider how a callback is set up in an all 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; environment. Typically a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; will provide a function to register a callback. This will expect a pointer to a function as one of its parameters. Below is a call to a hypothetical function
+ &lt;CODE&gt;register_fatal&lt;/CODE&gt; which registers the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function to get called when a fatal error occurs.
+
+&lt;P&gt;
+&lt;PRE&gt;    register_fatal(cb1) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+The single parameter &lt;CODE&gt;cb1&lt;/CODE&gt; is a pointer to a function, so you must have defined &lt;CODE&gt;cb1&lt;/CODE&gt; in your code, say something like this
+
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    cb1()
+    {
+        printf (&amp;quot;Fatal Error\n&amp;quot;) ;
+        exit(1) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Now change that to call a Perl subroutine instead
+
+&lt;P&gt;
+&lt;PRE&gt;    static SV * callback = (SV*)NULL;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    cb1()
+    {
+        dSP ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        PUSHMARK(SP) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Call the Perl sub to process the callback */
+        perl_call_sv(callback, G_DISCARD) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    void
+    register_fatal(fn)
+        SV *    fn
+        CODE:
+        /* Remember the Perl sub */
+        if (callback == (SV*)NULL)
+            callback = newSVsv(fn) ;
+        else
+            SvSetSV(callback, fn) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* register the callback with the external library */
+        register_fatal(cb1) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+where the Perl equivalent of &lt;CODE&gt;register_fatal&lt;/CODE&gt; and the callback it registers, &lt;CODE&gt;pcb1&lt;/CODE&gt;, might look like this
+
+&lt;P&gt;
+&lt;PRE&gt;    # Register the sub pcb1
+    register_fatal(\&amp;amp;pcb1) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub pcb1
+    {
+        die &amp;quot;I'm dying...\n&amp;quot; ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The mapping between the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback and the Perl equivalent is stored in the
+global variable &lt;CODE&gt;callback&lt;/CODE&gt;.
+
+&lt;P&gt;
+This will be adequate if you ever need to have only one callback registered
+at any time. An example could be an error handler like the code sketched
+out above. Remember though, repeated calls to
+&lt;CODE&gt;register_fatal&lt;/CODE&gt; will replace the previously registered callback function with the new one.
+
+&lt;P&gt;
+Say for example you want to interface to a library which allows
+asynchronous file i/o. In this case you may be able to register a callback
+whenever a read operation has completed. To be of any use we want to be
+able to call separate Perl subroutines for each file that is opened. As it
+stands, the error handler example above would not be adequate as it allows
+only a single callback to be defined at any time. What we require is a
+means of storing the mapping between the opened file and the Perl
+subroutine we want to be called for that file.
+
+&lt;P&gt;
+Say the i/o library has a function &lt;CODE&gt;asynch_read&lt;/CODE&gt; which associates a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function &lt;CODE&gt;ProcessRead&lt;/CODE&gt; with a file handle &lt;CODE&gt;fh&lt;/CODE&gt; - this assumes that it has also provided some routine to open the file and
+so obtain the file handle.
+
+&lt;P&gt;
+&lt;PRE&gt;    asynch_read(fh, ProcessRead)
+&lt;/PRE&gt;
+&lt;P&gt;
+This may expect the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;EM&gt;ProcessRead&lt;/EM&gt; function of this form
+
+&lt;P&gt;
+&lt;PRE&gt;    void
+    ProcessRead(fh, buffer)
+    int fh ;
+    char *      buffer ;
+    {
+         ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+To provide a Perl interface to this library we need to be able to map
+between the &lt;CODE&gt;fh&lt;/CODE&gt; parameter and the Perl subroutine we want called. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; hash is a convenient mechanism for storing this
+mapping. The code below shows a possible implementation
+
+&lt;P&gt;
+&lt;PRE&gt;    static HV * Mapping = (HV*)NULL ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    void
+    asynch_read(fh, callback)
+        int     fh
+        SV *    callback
+        CODE:
+        /* If the hash doesn't already exist, create it */
+        if (Mapping == (HV*)NULL)
+            Mapping = newHV() ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Save the fh -&amp;gt; callback mapping */
+        hv_store(Mapping, (char*)&amp;amp;fh, sizeof(fh), newSVsv(callback), 0) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Register with the C Library */
+        asynch_read(fh, asynch_read_if) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+and &lt;CODE&gt;asynch_read_if&lt;/CODE&gt; could look like this
+
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    asynch_read_if(fh, buffer)
+    int fh ;
+    char *      buffer ;
+    {
+        dSP ;
+        SV ** sv ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Get the callback associated with fh */
+        sv =  hv_fetch(Mapping, (char*)&amp;amp;fh , sizeof(fh), FALSE) ;
+        if (sv == (SV**)NULL)
+            croak(&amp;quot;Internal error...\n&amp;quot;) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        PUSHMARK(SP) ;
+        XPUSHs(sv_2mortal(newSViv(fh))) ;
+        XPUSHs(sv_2mortal(newSVpv(buffer, 0))) ;
+        PUTBACK ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Call the Perl sub */
+        perl_call_sv(*sv, G_DISCARD) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+For completeness, here is &lt;CODE&gt;asynch_close&lt;/CODE&gt;. This shows how to remove the entry from the hash &lt;CODE&gt;Mapping&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    void
+    asynch_close(fh)
+        int     fh
+        CODE:
+        /* Remove the entry from the hash */
+        (void) hv_delete(Mapping, (char*)&amp;amp;fh, sizeof(fh), G_DISCARD) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Now call the real asynch_close */
+        asynch_close(fh) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+So the Perl interface would look like this
+
+&lt;P&gt;
+&lt;PRE&gt;    sub callback1
+    {
+        my($handle, $buffer) = @_ ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Register the Perl callback
+    asynch_read($fh, \&amp;amp;callback1) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    asynch_close($fh) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+The mapping between the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback and Perl is stored in the global hash &lt;CODE&gt;Mapping&lt;/CODE&gt; this time. Using a hash has the distinct advantage that it allows an
+unlimited number of callbacks to be registered.
+
+&lt;P&gt;
+What if the interface provided by the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback doesn't contain a parameter which allows
+the file handle to Perl subroutine mapping? Say in the asynchronous i/o
+package, the callback function gets passed only the &lt;CODE&gt;buffer&lt;/CODE&gt; parameter like this
+
+&lt;P&gt;
+&lt;PRE&gt;    void
+    ProcessRead(buffer)
+    char *      buffer ;
+    {
+        ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Without the file handle there is no straightforward way to map from the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback to the Perl subroutine.
+
+&lt;P&gt;
+In this case a possible way around this problem is to predefine a series of 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; functions to act as the interface to Perl, thus
+
+&lt;P&gt;
+&lt;PRE&gt;    #define MAX_CB              3
+    #define NULL_HANDLE -1
+    typedef void (*FnMap)() ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    struct MapStruct {
+        FnMap    Function ;
+        SV *     PerlSub ;
+        int      Handle ;
+      } ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static void  fn1() ;
+    static void  fn2() ;
+    static void  fn3() ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static struct MapStruct Map &amp;#091;MAX_CB&amp;#093; =
+        {
+            { fn1, NULL, NULL_HANDLE },
+            { fn2, NULL, NULL_HANDLE },
+            { fn3, NULL, NULL_HANDLE }
+        } ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    Pcb(index, buffer)
+    int index ;
+    char * buffer ;
+    {
+        dSP ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        PUSHMARK(SP) ;
+        XPUSHs(sv_2mortal(newSVpv(buffer, 0))) ;
+        PUTBACK ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Call the Perl sub */
+        perl_call_sv(Map&amp;#091;index&amp;#093;.PerlSub, G_DISCARD) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    fn1(buffer)
+    char * buffer ;
+    {
+        Pcb(0, buffer) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    fn2(buffer)
+    char * buffer ;
+    {
+        Pcb(1, buffer) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    fn3(buffer)
+    char * buffer ;
+    {
+        Pcb(2, buffer) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    void
+    array_asynch_read(fh, callback)
+        int             fh
+        SV *    callback
+        CODE:
+        int index ;
+        int null_index = MAX_CB ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Find the same handle or an empty entry */
+        for (index = 0 ; index &amp;lt; MAX_CB ; ++index)
+        {
+            if (Map&amp;#091;index&amp;#093;.Handle == fh)
+                break ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;            if (Map&amp;#091;index&amp;#093;.Handle == NULL_HANDLE)
+                null_index = index ;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if (index == MAX_CB &amp;amp;&amp;amp; null_index == MAX_CB)
+            croak (&amp;quot;Too many callback functions registered\n&amp;quot;) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if (index == MAX_CB)
+            index = null_index ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Save the file handle */
+        Map&amp;#091;index&amp;#093;.Handle = fh ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Remember the Perl sub */
+        if (Map&amp;#091;index&amp;#093;.PerlSub == (SV*)NULL)
+            Map&amp;#091;index&amp;#093;.PerlSub = newSVsv(callback) ;
+        else
+            SvSetSV(Map&amp;#091;index&amp;#093;.PerlSub, callback) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        asynch_read(fh, Map&amp;#091;index&amp;#093;.Function) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    void
+    array_asynch_close(fh)
+        int     fh
+        CODE:
+        int index ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /* Find the file handle */
+        for (index = 0; index &amp;lt; MAX_CB ; ++ index)
+            if (Map&amp;#091;index&amp;#093;.Handle == fh)
+                break ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if (index == MAX_CB)
+            croak (&amp;quot;could not close fh %d\n&amp;quot;, fh) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        Map&amp;#091;index&amp;#093;.Handle = NULL_HANDLE ;
+        SvREFCNT_dec(Map&amp;#091;index&amp;#093;.PerlSub) ;
+        Map&amp;#091;index&amp;#093;.PerlSub = (SV*)NULL ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        asynch_close(fh) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+In this case the functions &lt;CODE&gt;fn1&lt;/CODE&gt;, &lt;CODE&gt;fn2&lt;/CODE&gt;, and &lt;CODE&gt;fn3&lt;/CODE&gt; are used to remember the Perl subroutine to be called. Each of the
+functions holds a separate hard-wired index which is used in the function &lt;CODE&gt;Pcb&lt;/CODE&gt; to access the &lt;CODE&gt;Map&lt;/CODE&gt; array and actually call the Perl subroutine.
+
+&lt;P&gt;
+There are some obvious disadvantages with this technique.
+
+&lt;P&gt;
+Firstly, the code is considerably more complex than with the previous
+example.
+
+&lt;P&gt;
+Secondly, there is a hard-wired limit (in this case 3) to the number of
+callbacks that can exist simultaneously. The only way to increase the limit
+is by modifying the code to add more functions and then recompiling. None
+the less, as long as the number of functions is chosen with some care, it
+is still a workable solution and in some cases is the only one available.
+
+&lt;P&gt;
+To summarize, here are a number of possible methods for you to consider for storing the mapping between 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; and the Perl callback
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_Ignore_the_problem_Allow_only_"&gt;Ignore the problem - Allow only 1 callback&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+For a lot of situations, like interfacing to an error handler, this may be
+a perfectly adequate solution.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_Create_a_sequence_of_callbacks_"&gt;Create a sequence of callbacks - hard wired limit&lt;/A&gt;&lt;/STRONG&gt;
+
+If it is impossible to tell from the parameters passed back from the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback what the context is, then you may need to create a sequence of 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; callback interface functions, and store pointers to each in an array.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_Use_a_parameter_to_map_to_the_Pe"&gt;Use a parameter to map to the Perl callback&lt;/A&gt;&lt;/STRONG&gt;
+
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; hash is an ideal mechanism to store the mapping between 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; and Perl.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Alternate_Stack_Manipulation"&gt;Alternate Stack Manipulation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Although 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; have made use of only the &lt;CODE&gt;POP*&lt;/CODE&gt; macros to access values returned from Perl subroutines, it is also possible
+to bypass these macros and read the stack using the [perlman:perlguts] macro (See [perlman:perlxs|the perlxs manpage] for a full description of the [perlman:perlguts] macro).
+
+&lt;P&gt;
+Most of the time the &lt;CODE&gt;POP*&lt;/CODE&gt; macros should be adequate, the main problem with them is that they force
+you to process the returned values in sequence. This may not be the most
+suitable way to process the values in some cases. What we want is to be
+able to access the stack in a random order. The [perlman:perlguts] macro as used when coding an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is ideal for this purpose.
+
+&lt;P&gt;
+The code below is the example given in the section &lt;EM&gt;Returning a list
+of values&lt;/EM&gt; recoded to use [perlman:perlguts] instead of &lt;CODE&gt;POP*&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    static void
+    call_AddSubtract2(a, b)
+    int a ;
+    int b ;
+    {
+        dSP ;
+        I32 ax ;
+        int count ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        ENTER ;
+        SAVETMPS;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        PUSHMARK(SP) ;
+        XPUSHs(sv_2mortal(newSViv(a)));
+        XPUSHs(sv_2mortal(newSViv(b)));
+        PUTBACK ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        count = perl_call_pv(&amp;quot;AddSubtract&amp;quot;, G_ARRAY);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        SPAGAIN ;
+        SP -= count ;
+        ax = (SP - PL_stack_base) + 1 ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if (count != 2)
+            croak(&amp;quot;Big trouble\n&amp;quot;) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        printf (&amp;quot;%d + %d = %d\n&amp;quot;, a, b, SvIV(ST(0))) ;
+        printf (&amp;quot;%d - %d = %d\n&amp;quot;, a, b, SvIV(ST(1))) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        PUTBACK ;
+        FREETMPS ;
+        LEAVE ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Notes
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+Notice that it was necessary to define the variable &lt;CODE&gt;ax&lt;/CODE&gt;. This is because the [perlman:perlguts] macro expects it to exist. If we were in an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; it would not be necessary to define &lt;CODE&gt;ax&lt;/CODE&gt; as it is already defined for you.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The code
+
+&lt;P&gt;
+&lt;PRE&gt;        SPAGAIN ;
+        SP -= count ;
+        ax = (SP - PL_stack_base) + 1 ;
+&lt;/PRE&gt;
+&lt;P&gt;
+sets the stack up so that we can use the [perlman:perlguts] macro.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+Unlike the original coding of this example, the returned values are not
+accessed in reverse order. So [perlman:perlguts] refers to the first value returned by the Perl subroutine and [perlman:perlguts]
+refers to the last.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Creating_and_calling_an_anonymou"&gt;Creating and calling an anonymous subroutine in C&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+As we've already shown, [perlman:perlguts] can be used to invoke an anonymous subroutine. However, our example showed how Perl script invoking an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; to preform this operation. Let's see how it can be done inside our 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; code:
+
+&lt;P&gt;
+&lt;PRE&gt; ...
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; SV *cvrv = perl_eval_pv(&amp;quot;sub { print 'You will not find me cluttering any namespace!' }&amp;quot;, TRUE);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; ...
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; perl_call_sv(cvrv, G_VOID|G_NOARGS);
+&lt;/PRE&gt;
+&lt;P&gt;
+[perlman:perlguts] is used to compile the anonymous subroutine, which will be the return value
+as well (read more about [perlman:perlguts] in
+[perlman:perlguts]). Once this code reference is in hand, it can be mixed in with all the
+previous examples we've shown.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:perlxs|the perlxs manpage], [perlman:perlguts|the perlguts manpage], [perlman:perlembed|the perlembed manpage]
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="AUTHOR"&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Paul Marquess &amp;lt;&lt;EM&gt;pmarquess@bfsec.bt.co.uk&lt;/EM&gt;&amp;gt;
+
+&lt;P&gt;
+Special thanks to the following people who assisted in the creation of the
+document.
+
+&lt;P&gt;
+Jeff Okamoto, Tim Bunce, Nick Gianniotis, Steve Kelem, Gurusamy Sarathy and
+Larry Wall.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DATE"&gt;DATE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Version 1.3, 14th Apr 1997
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

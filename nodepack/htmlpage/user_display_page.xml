@@ -1,0 +1,295 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>display</displaytype>
+  <page>[%
+    return join '',
+        &quot;&lt;p&gt;&lt;b&gt;If this is your usernode and you want it &quot;,
+        &quot;back please read &lt;a href='?node_id=523120'&gt;&quot;,
+        &quot;Unused accounts zombified&lt;/a&gt;&lt;/b&gt;&lt;/p&gt;&lt;hr /&gt;\n&quot;
+        if(  'zombie_user' eq $NODE-&gt;{type}{title}  );
+%]
+
+
+&lt;table class=&quot;pm-user-info&quot;&gt;&lt;tr&gt;
+[%
+    # User Image
+    my $src= $NODE-&gt;{imgsrc};
+    return ''
+        if  ! $src
+        ||  ! Everything::isApproved( $NODE, 'CanHaveImage' );
+
+    my $upd= join '', $NODE-&gt;{lastupdate} =~ /(\d+)/g;
+    my $alt= &quot;$NODE-&gt;{title}'s user image&quot;;
+
+    if(  $src =~ /\D/  ) {
+        $src= &quot;/$src?updated=$upd&quot;;
+    } else {
+        $src= urlGen(
+            { node_id =&gt; $src, updated =&gt; $upd },
+            -1,
+        );
+    }
+    return $q-&gt;td(
+        $q-&gt;img( {
+            src =&gt; $src,
+            alt =&gt; $alt,
+            title =&gt; $alt,
+        } )
+    );
+%]
+    &lt;td valign=&quot;top&quot;&gt;
+[%
+    return linkNodeTitle('I want my picture back|*')
+        if  ! Everything::isApproved( $NODE, 'CanHaveImage' )
+        &amp;&amp;  $NODE-&gt;{imgsrc};
+%]
+      &lt;table&gt;
+[%
+    # Edit links
+    return ''
+        if  getId($USER) != getId($NODE)
+        ||  getId($USER) == $HTMLVARS{default_user};
+
+    my $eup= genLink(
+        'Profile',
+        { node_id =&gt; getId($NODE), displaytype =&gt; 'edit' },
+    );
+    my $eus= genLink(
+        'Settings',
+        { node =&gt; 'User Settings' },
+    );
+    return join '',
+        '&lt;tr id=&quot;user-edit-links&quot;&gt;&lt;td&gt;Edit your:&lt;/td&gt;&lt;td&gt;',
+        &quot;$eup, $eus&lt;/td&gt;&lt;/tr&gt;\n&quot;;
+%]
+        &lt;tr&gt;
+          &lt;td&gt;User since:&lt;/td&gt;
+          &lt;td&gt;[{parsetime:createtime}]
+          [%  return q{&amp;#91;Account disabled&amp;#93;}
+                if  ! $NODE-&gt;{passwd};
+          %]&lt;/td&gt;
+        &lt;/tr&gt;&lt;tr&gt;
+          &lt;td&gt;Last here:&lt;/td&gt;
+          &lt;td&gt;[{parsetime:lasttime}]
+            &lt;i&gt;([{timesince:$NODE-&gt;{lasttime}}])&lt;/i&gt;&lt;/td&gt;
+        &lt;/tr&gt;&lt;tr&gt;
+          &lt;td&gt;Experience:&lt;/td&gt;
+          &lt;td&gt;&lt;b&gt;
+[%
+    my $xp= $NODE-&gt;{experience};
+    (  $xp &lt; -950000  ||  0 &lt; $xp  )
+        ?   $xp :
+    (  $xp &lt; 0  )
+        ? 'requires penance'
+        : 'none earned'
+%]
+          &lt;/b&gt;&lt;/td&gt;
+        &lt;/tr&gt;&lt;tr&gt;
+          &lt;td&gt;Level:&lt;/td&gt;&lt;td&gt;&lt;b&gt;
+[%
+    use Everything::Experience qw( getLevel );
+
+    my $level= getLevel($NODE); # can't accessrule
+    my $title= getVars(
+        getNode( 'level titles', 'setting' )
+    )-&gt;{$level};
+
+    return &quot;$title ($level)&quot;;
+%]
+          &lt;/b&gt;&lt;/td&gt;
+        &lt;/tr&gt;&lt;tr&gt;
+          &lt;td&gt;Writeups:&lt;/td&gt;
+          &lt;td&gt;&lt;b&gt;
+[%
+    my $count= getVars($NODE)-&gt;{numwriteups};
+
+    $count= &quot;none&quot;
+        if  ! $count  ||  $count =~ /\D/;
+
+    return linkNode(
+        6364,
+        $count,
+        { user =&gt; $NODE-&gt;{title} },
+    );
+%]
+          &lt;/b&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+[%
+    return ''   # Don't show 'location' for locked users
+        if  '[NodeReaper]' eq $NODE-&gt;{nick};
+    return htmlcode(
+        'displaySingleVar','',
+        'location',
+        (   isGod($USER)
+        ||  $q-&gt;param('scrub')
+        ||  ! $VARS-&gt;{unfilterhtml}  )
+            ? 1 : 0,
+        '&lt;tr&gt;&lt;td&gt;Location:&lt;/td&gt;&lt;td&gt;',
+        '&lt;/td&gt;&lt;/tr&gt;',
+    );
+%]
+        &lt;tr&gt;
+          &lt;td&gt;User's localtime:&lt;/td&gt;&lt;td&gt;
+[%
+    my $tz= getVars($NODE)-&gt;{timezone};
+    $tz= &quot; &quot;
+        if  $tz !~ /\S/;
+    return htmlcode( 'parseTimeInString','', '', $tz );
+%]
+          &lt;/td&gt;
+        &lt;/tr&gt;&lt;tr&gt;
+          &lt;td&gt;Scratchpad:&lt;/td&gt;&lt;td&gt;
+[%
+    my $has_pad= $NODE-&gt;{user_scratchpad};
+
+    my $view= $has_pad
+        ?   htmlcode( 'scratchpad_link','', $NODE, 'View' )
+        :   'None.';
+
+    my @links= $view;
+
+    if(  $NODE-&gt;{author_user} == $USER-&gt;{node_id}  ) {
+        push @links, scalar htmlcode( 'scratchpad_link','',
+            $NODE,
+            $has_pad ? 'Edit' : 'Create',
+            { displaytype=&gt;'edit', viewmode=&gt;'public' },
+        );
+        if( $has_pad ) {
+            push @links, sprintf &quot;%s (%s)&quot;,
+                scalar htmlcode( 'scratchpad_link','',
+                    $NODE,
+                    'Private',
+                    { viewmode=&gt;'private' },
+                ),
+                scalar htmlcode( 'scratchpad_link','',
+                    $NODE,
+                    'Edit',
+                    { displaytype=&gt;'edit', viewmode=&gt;'private' },
+                );
+        }
+    }
+    return join &quot;, &quot;, @links;
+%]
+          &lt;/td&gt;
+        &lt;/tr&gt;
+[%
+    my $and_where= isGod($USER) ? &quot;&quot; : &quot;AND n.type_nodetype=16&quot;;
+    my $sth= $DB-&gt;getDatabaseHandle-&gt;prepare_cached( join ' ',
+        'SELECT n.node_id AS node_id, n.title AS title',
+        'FROM nodegroup AS g, node AS n',
+        'WHERE g.nodegroup_id = n.node_id AND g.node_id = ?',
+        $and_where,
+        'ORDER BY n.title ASC',
+    );
+    $sth-&gt;execute( getId($NODE) );
+
+    my @groups;
+    while(  my $group= $sth-&gt;fetchrow_hashref()  ) {
+        push @groups, $group;
+    }
+    return ''
+        if  ! @groups;
+    return join '',
+        &quot;&lt;tr&gt;&lt;td&gt;Member of:&lt;/td&gt;&lt;td&gt;\n&quot;,
+        join( ', ', map { linkNode($_) } @groups ),
+    &quot;\n&quot;;
+%]
+          &lt;/td&gt;
+        &lt;/tr&gt;
+[%
+    return ''
+        if  $HTMLVARS{guest_user} == getId($USER);
+
+    my $msg_link= '';
+    if(  $HTMLVARS{guest_user} != getId($NODE)  ) {
+        $msg_link= linkNode(
+            762476,
+            &quot;Send private /msg&quot;,
+            {   sendto =&gt; $NODE-&gt;{title},
+                replytotext =&gt; &quot;&quot;,
+            },
+            {   trusted =&gt; 'yes' },
+        ) . &quot;, &quot;;
+    }
+
+    return join &quot;\n&quot;,
+        '&lt;tr class=&quot;msg_user&quot;&gt;&lt;td&gt;For this user:&lt;/td&gt;&lt;td&gt;',
+        $msg_link,
+        genLink(
+            isGod($USER) ? 'Their votes' : 'Your votes',
+            { node_id =&gt; getId($NODE), displaytype =&gt; 'voteview' },
+        ),
+        ! isGod($USER) ? '' : genLink( 'Lock', {
+            node =&gt; 'lock user',
+            type =&gt; 'superdoc',
+            user_id =&gt; $NODE-&gt;{node_id},
+        } ),
+        '&lt;/td&gt;&lt;/tr&gt;',
+    '';
+%]
+      &lt;/table&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;
+[%
+    if(  '[NodeReaper]' eq $NODE-&gt;{nick}  ) {
+        return join $/,
+            q{&lt;p&gt;Account locked.&lt;/p&gt;},
+            q{&lt;p&gt;Please &lt;a href=&quot;?node_id=491035&quot;&gt;},
+            q{contact the site administrators&lt;/a&gt; if you feel},
+            q{your account should be made available again.&lt;/p&gt;},
+        '';
+    }
+
+    my @type;
+    my $scrub=  isGod($USER)
+            ||  $q-&gt;param('scrub')
+            ||  ! $VARS-&gt;{unfilterhtml};
+
+    if ($scrub) {
+        @type= (
+            'doctext',
+            {
+                # img =&gt; 'alt,border,height,src,width',
+                select =&gt; 'name',
+                option =&gt; 'selected,value',
+                form =&gt; 'method',
+                input =&gt;'name,type,value,/'
+            },
+        );
+    } else {
+        @type= qw&lt; doctext override &gt;;
+    }
+
+    my $nofollow =
+            ! Everything::isApproved( $NODE, 'CanHaveImage' )
+        ||  $q-&gt;param('nofollow');
+
+    my $str= htmlcode( 'parselinks','', @type );
+
+    # prevent images even if viewer doesn't filter HTML
+    $str =~ s/&lt;\s*(?:img|image)[^&gt;]*&gt;//gis
+        if  ! Everything::isApproved( $NODE, 'CanHaveImage' );
+
+    $str =~ s{&lt;(\s*script[^&gt;]*&gt;.*?&lt;\s*/\s*script[^&gt;]*)&gt;}{
+        &quot;&lt;!-- PM Stripped: ($1) --&gt;&quot;;
+    }gise
+        if  $VARS-&gt;{jsoff}  &amp;&amp;  ! $scrub;
+
+    $str =~ s/(s)(crip)(t)/$1&amp;#x200E;$2&amp;#x200E;$3/gi
+        if  $scrub;
+
+    $str =~ s/(&lt;\s*a)\b/$1 rel=&quot;nofollow&quot;/gi
+        if  $nofollow;
+
+    return $str;
+%]
+&lt;/p&gt;</page>
+  <author_user>929</author_user>
+  <createtime>1999-10-04 18:35:04</createtime>
+  <node_id>81</node_id>
+  <title>user display page</title>
+  <nodeupdated>2005-08-13 05:59:51</nodeupdated>
+</node>

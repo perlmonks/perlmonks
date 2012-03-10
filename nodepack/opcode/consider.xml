@@ -1,0 +1,90 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>28898</node_id>
+  <author_user>929</author_user>
+  <title>consider</title>
+  <createtime>2000-03-02 21:34:58</createtime>
+  <code>use Everything::Experience;
+
+return unless Everything::isApproved( $USER, 'CanConsider' );
+
+my $gods= isGod($USER);
+my $dbh= $DB-&gt;getDatabaseHandle();
+foreach my $curid (  grep !/\D/, $query-&gt;param()  ) {
+
+  my $voted= $DB-&gt;sqlSelect( &quot;count(*)&quot;, &quot;considervote&quot;,
+    &quot;considervote_id=&quot;.$dbh-&gt;quote($curid).&quot; and voter_user=&quot;.getId($USER) );
+  my $CURNODE= $DB-&gt;sqlSelectHashref(
+    '*', 'considernodes', &quot;considernodes_id=$curid&quot; );
+  next   if  ! $CURNODE;
+
+  my $REAP;
+  my $ops= 0;
+  foreach my $oper (  $query-&gt;param($curid)  ) {
+    if(  $oper eq &quot;keep&quot;  ||  $oper eq &quot;edit&quot;  ) {
+      next   if  $voted;
+      $CURNODE-&gt;{$oper}++;
+      $ops++;
+    } elsif(  $oper eq &quot;reap&quot;  ) {
+      next   if  $voted  &amp;&amp;  ! $gods;
+      $CURNODE-&gt;{del}++;
+      if(  $CURNODE-&gt;{del} &gt;= 5  ) {
+        $REAP= getNodeById($curid);
+      }
+      $ops++;
+    } elsif(  $oper eq &quot;unconsider&quot;  ) {
+      my $ED= getNode('editors','usergroup');
+      my $isEd = $ED &amp;&amp; Everything::isApproved($USER,$ED);
+      my ($keep, $edit, $delete) = @$CURNODE{qw/keep edit del/};
+      my $canUnconsider = $gods
+          ||  $isEd
+          &amp;&amp;  ( 2 &lt;= $edit || 4 &lt;= $keep
+              || 5 &lt;= $delete &amp;&amp; 4 &lt;= 2*$keep + $edit );
+      last unless $canUnconsider;
+
+      $DB-&gt;sqlDelete( 'considernodes', &quot;considernodes_id=$curid&quot; );
+      $DB-&gt;sqlDelete( 'considervote', &quot;considervote_id=$curid&quot; );
+      last;
+    } elsif(  $oper eq &quot;reallydelete&quot;  and  $gods  ) {
+      my $N= getNodeById($curid);
+      nukeNode( $N, $USER )   if  $N;
+      $DB-&gt;sqlDelete( 'considernodes', &quot;considernodes_id=$curid&quot; );
+      $DB-&gt;sqlDelete( 'considervote', &quot;considervote_id=$curid&quot; );
+      last;
+    }
+    if(  $ops  ) {
+      $DB-&gt;sqlInsert(
+        &quot;considervote&quot;, {
+          considervote_id =&gt; $curid,
+          voter_user      =&gt; getId($USER),
+          voted           =&gt; $oper
+        },
+      );
+      $DB-&gt;sqlUpdate(
+        'considernodes', {
+          keep =&gt; $CURNODE-&gt;{keep},
+          edit =&gt; $CURNODE-&gt;{edit},
+          del  =&gt; $CURNODE-&gt;{del}
+        }, &quot;considernodes_id=$curid&quot;
+      );
+      last;
+    }
+  }
+
+  if(  $REAP  &amp;&amp;  $REAP-&gt;{reputation} &lt; 0
+   &amp;&amp;  2*$CURNODE-&gt;{keep} + $CURNODE-&gt;{edit} &lt; 4  ) {
+    #my $replies= $DB-&gt;sqlSelect(
+    #  &quot;count(*)&quot;, &quot;note&quot;, &quot;parent_node=&quot;.getId($N) );
+    #if($replies==0){
+    #   nukeNode($N,-1);     # This is too quick and causes problems
+    #} else {
+      htmlcode( 'msgsitemaintainer', '', getId($USER),
+        &quot;Reaped node at: [id://$REAP-&gt;{node_id}]&quot;
+        . &quot; because $CURNODE-&gt;{description}&quot; );
+      htmlcode( 'reapnode', $REAP-&gt;{node_id} );
+    #}
+  }
+
+}</code>
+  <nodeupdated>2005-07-22 14:35:06</nodeupdated>
+</node>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="165" title="perlfunc:select" created="1999-08-24 18:41:42" updated="2005-08-15 06:30:41">
+<type id="119">
+perlfunc</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+select - reset default output or do 
+&lt;FONT SIZE=-1&gt;I/O&lt;/FONT&gt; multiplexing
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+select 
+&lt;FONT SIZE=-1&gt;FILEHANDLE&lt;/FONT&gt;
+
+&lt;P&gt;
+select
+
+&lt;P&gt;
+select 
+&lt;FONT SIZE=-1&gt;RBITS,WBITS,EBITS,TIMEOUT&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="description">
+
+&lt;P&gt;
+Returns the currently selected filehandle. Sets the current default filehandle for output, if 
+&lt;FONT SIZE=-1&gt;FILEHANDLE&lt;/FONT&gt; is supplied. This has two effects: first, a
+ [perlfunc:write|write()] or a [perlfunc:print|print()] without a filehandle will default to this 
+&lt;FONT SIZE=-1&gt;FILEHANDLE.&lt;/FONT&gt; Second, references to variables related to
+output will refer to this output channel. For example, if you have to set
+the top of form format for more than one output channel, you might do the
+following:
+
+&lt;P&gt;
+&lt;PRE&gt;    select(REPORT1);
+    $^ = 'report1_top';
+    select(REPORT2);
+    $^ = 'report2_top';
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;FILEHANDLE&lt;/FONT&gt; may be an expression whose value gives the
+name of the actual filehandle. Thus:
+
+&lt;P&gt;
+&lt;PRE&gt;    $oldfh = select(STDERR); $| = 1; select($oldfh);
+&lt;/PRE&gt;
+&lt;P&gt;
+Some programmers may prefer to think of filehandles as objects with
+methods, preferring to write the last example as:
+
+&lt;P&gt;
+&lt;PRE&gt;    use IO::Handle;
+    STDERR-&amp;gt;autoflush(1);
+&lt;/PRE&gt;
+&lt;P&gt;
+This calls the 
+&lt;CODE&gt;select(2)&lt;/CODE&gt; system call with
+the bit masks specified, which can be constructed using [perlfunc:fileno|fileno()] and [perlfunc:vec|vec()], along these lines:
+
+&lt;P&gt;
+&lt;PRE&gt;    $rin = $win = $ein = '';
+    vec($rin,fileno(STDIN),1) = 1;
+    vec($win,fileno(STDOUT),1) = 1;
+    $ein = $rin | $win;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you want to select on many filehandles you might wish to write a
+subroutine:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub fhbits {
+        my(@fhlist) = split(' ',$_&amp;#091;0&amp;#093;);
+        my($bits);
+        for (@fhlist) {
+            vec($bits,fileno($_),1) = 1;
+        }
+        $bits;
+    }
+    $rin = fhbits('STDIN TTY SOCK');
+&lt;/PRE&gt;
+&lt;P&gt;
+The usual idiom is:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($nfound,$timeleft) =
+      select($rout=$rin, $wout=$win, $eout=$ein, $timeout);
+&lt;/PRE&gt;
+&lt;P&gt;
+or to block until something becomes ready just do this
+
+&lt;P&gt;
+&lt;PRE&gt;    $nfound = select($rout=$rin, $wout=$win, $eout=$ein, undef);
+&lt;/PRE&gt;
+&lt;P&gt;
+Most systems do not bother to return anything useful in &lt;CODE&gt;$timeleft&lt;/CODE&gt;, so calling 
+&lt;CODE&gt;select()&lt;/CODE&gt; in scalar context
+just returns &lt;CODE&gt;$nfound&lt;/CODE&gt;.
+
+&lt;P&gt;
+Any of the bit masks can also be undef. The timeout, if specified, is in
+seconds, which may be fractional. Note: not all implementations are capable
+of returning the&lt;CODE&gt;$timeleft&lt;/CODE&gt;. If not, they always return
+&lt;CODE&gt;$timeleft&lt;/CODE&gt; equal to the supplied &lt;CODE&gt;$timeout&lt;/CODE&gt;.
+
+&lt;P&gt;
+You can effect a sleep of 250 milliseconds this way:
+
+&lt;P&gt;
+&lt;PRE&gt;    select(undef, undef, undef, 0.25);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;WARNING&lt;/STRONG&gt;: One should not attempt to mix buffered 
+&lt;FONT SIZE=-1&gt;I/O&lt;/FONT&gt; (like [perlfunc:read|read()]
+or 
+&lt;FONT SIZE=-1&gt;&amp;lt;FH&amp;gt;)&lt;/FONT&gt; with [perlfunc:select|select()], except as permitted by 
+&lt;FONT SIZE=-1&gt;POSIX,&lt;/FONT&gt; and even then only on 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; systems. You have to use
+ [perlfunc:sysread|sysread()] instead.
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

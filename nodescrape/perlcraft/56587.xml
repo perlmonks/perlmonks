@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="56587" title="Is it random?" created="2001-02-06 01:43:05" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="27571">
+ColonelPanic</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+# This script was inspired by the interesting book &lt;i&gt;What is Random?&lt;/i&gt;, by
+# Edward Beltrami.  (As well as [Be a Monkey!] by [KM]). Basically, the idea is 
+# to randomly generate text one character at the time. The probability of a
+# letter being picked is based on the frequency it occurs after the preceding 
+# letters. (u is more likely to come after q, h is more likely to come after t,
+# and so on.) The result is text that is random yet surprisingly familiar.
+#
+# The script works by processing a sample text file. It stores combinations of
+# four letters in a hash, with keys being the first three letters, and values 
+# being array references possible fourth letters. For example:
+#
+#    Well, then this is the sample sentence?
+#
+# would have a data structure including these entries, among others:
+#
+#    key           array
+#
+# { 'wel' }  -&gt;  ('l')
+# { 'the' }  -&gt;  ('n', ' ')
+# { ' th' }  -&gt;  ('e', 'i', 'e')
+#
+# To generate the next character in the sequence, the script looks at the last
+# three characters it generated, and randomly picks a character from the 
+# character array of that key.
+#
+# I also included some quick text processing features, because most text is available
+# in HTML form.
+#
+# I ran it one several texts, including The Adventures of Huckleberry Finn, 
+# another Perl script, and the Gnome GPL. It will generate gibberish in any 
+# language, depending on what you feed it. A good place to find texts is 
+# etext.virginia.edu.
+#
+# The larger the file, the more random the result will be (and the more RAM
+# you need!). Here is some text the script generated when given a copy of 
+# Hamlet. The only modification I made to it was to add line breaks. (The names 
+# were preserved because they were the only things in upper case.)
+#
+#   HAMLET  On we would sance is with ther, his let's his fathe gainst the roth 
+#   goody see you now, on of him coldese with hool not.
+#
+#   OPHELIA  Sir, year seek his dothnessumentis in thanks; And be to us of the 
+#   nigh which most vacannot desenday 'Tis rights, minders -- here the 
+#   commissess assural spect of sift much deed, I much say, my sition ser 
+#   willain the mine.
+#
+#   LORD POLONIUS  She garbages, and beward.
+#
+#   LAERTES  Go truth the that woe imattend, to crossinews is as of words!
+
+use strict;
+my %strings;      #a hash to store the letter groups
+srand;            #needed in older perl versions
+
+&amp;process_file;    #process the stinkin' file
+&amp;gibberish;       #make gibberish
+
+sub process_file
+   {
+   my @quartet;
+   my $groups;    #number of four character groups found
+   OPEN:          #loop until a valid filename is entered
+      {
+      print "Enter file path: ";
+      chomp (my $file = &lt;STDIN&gt;);
+      open (FILE, $file) &amp;&amp; last OPEN;
+      print "File not found, you loser.\n";
+      redo OPEN;
+      }
+   
+   do { local $/; $_ = &lt;FILE&gt;; };
+   print "Loaded file into memory.\n";
+   
+   print "\nQuick and dirty strip of HTML tags? &gt;&gt; ";
+   chomp (my $htmlstrip = &lt;STDIN&gt;);
+   if ($htmlstrip =~ /y/)
+      {
+      s/&lt;br.{,2}&gt;/\n/g;
+      print "Converted breaks into newlines.\n";
+      s/&lt;[^&gt;]+&gt;//g;
+      print "Devoured HTML tags.\n";
+      s/&amp;\w{1,4};//g;
+      print "Pulverised special characters.\n";
+      }
+   
+   print "\nTrash newlines and tabs? &gt;&gt; ";
+   chomp (my $ntstrip = &lt;STDIN&gt;);
+   if ($ntstrip =~ /y/)
+      {
+      s/\t//g;
+      s/\n//g;
+      print "Stripped newlines and tabs.\n";
+      }
+   
+   print "\nSquash multiple spaces? &gt;&gt; ";
+   chomp (my $space = &lt;STDIN&gt;);
+   if ($space =~ /y/)
+      {
+      s/\s+/ /g;
+      print "Destroyed redundant spaces.\n";
+      }
+   
+   print "\nIgnore x or more of the same char in a row? &gt;&gt; x = ";
+   chomp (my $repeats = &lt;STDIN&gt;);
+   if ($repeats)
+      {
+      $repeats--;
+      s/(.)\1{$repeats,}//g;
+      print "Slaughtered repeating characters.\n";
+      }
+   
+   print 
+      "\nEnter regexes of stuff you want to ignore,\n", 
+      "separated by spaces. example: \\n \\t{1,3} \\W &gt;&gt; ";
+   chomp (my $ignore = &lt;STDIN&gt;);
+   my @chars = split /\s/, $ignore;
+   foreach my $char (@chars)
+      {
+      eval 
+         "s/$char//g || die \"$!\"" ?
+      print "Executed Regex: $char.\n" :
+      print "\nRegex failed: $char.\nReason: $@\n";
+      }
+   
+   print "\nCase insensitive? (allows more randomness with smaller file) &gt;&gt; ";
+   chomp (my $insensitive = &lt;STDIN&gt;);
+   if ($insensitive =~ /y/) { $_ = lc $_; }
+   
+   close FILE;
+      
+   s/(.)((.)(.)(.))/$2/s;
+   @quartet = ($1,$3,$4,$5);
+   $groups = 1;
+   $_ = reverse $_;
+   my $time = time;
+   print "Reversed the text, so I can use chop instead of a regexp.\n";
+   print "One dot equals 1000 chars processed.\n";
+   
+   while ($_)                          #go through the file
+      {
+      my $char = pop @quartet;         #get the last of the 4 chars
+      my $pre = join '', @quartet;     #join the other three
+      push @{$strings{$pre}}, $char;   #put them in a hash of arrays
+      push @quartet, $char;            #put the last char back on
+      shift @quartet;                  #remove the first character
+      push (@quartet, (chop $_));      #get a new char on the end
+      $groups++;
+      ($groups % 1000) or print ".";   #every 1000 times print a dot
+      }  
+   $time = time - $time;               #find out the time elapsed
+   print "\n$groups combinations logged in $time seconds.\n";
+   }
+
+sub gibberish
+   {
+   GIBBERISH:
+      {
+      print "Enter amount of gibberish (0 to quit): ";
+      chomp (my $length = &lt;STDIN&gt;);
+      $length || last GIBBERISH;
+      my @keys = keys %strings;
+      my @last3 = split ('', $keys[int rand($#keys)]);
+      undef @keys;
+      print @last3;
+      $length -= 3;
+      for (0..$length)
+         {
+         my $curr = join ('', @last3);
+         my @currarray = @{$strings{$curr}};
+         my $element = $currarray[int rand($#currarray - 1)];
+         shift @last3;
+         push @last3, $element;
+         print $element;
+         }
+      print "\n\n";
+      redo GIBBERISH;
+      }
+   }
+</field>
+</data>
+</node>

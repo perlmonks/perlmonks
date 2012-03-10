@@ -1,0 +1,177 @@
+<node>
+  <doctext>#!c:/perl/bin/perl -w
+
+######################################################################
+# Thanks for trying out NotePod!                                     #
+# What is NotePod? It's a small notepad used for notes and memos.    #
+# It's a cheap little script I threw together in an hour.            #
+# Under what license is this? None! Do *whatever* you want with it!  #
+# Modify it, throw it out, call it names, sell it, whatever.         #
+# I will not be held responsable for lost data, etc, etc.            #
+# Non-copyright 2002 by Nathan B. (you're not getting my last name!) #
+######################################################################
+
+use strict;
+
+my $version = &quot;1.0&quot;;
+
+$|++; # output buffering
+
+# Load modules
+use CGI::Carp qw(fatalsToBrowser);
+use CGI;
+use IO::Scalar;
+use Data::Dumper;
+use Fcntl ':flock';
+
+# Declare variables
+use vars qw( $q %input %db $stdout $OUT $id );
+
+
+# Get data input
+$q = new CGI;
+$input{$_} = $q-&gt;param($_) for $q-&gt;param();
+
+
+# Load DB
+open LOCK, &quot;&gt;&gt;lock.lck&quot; or die &quot;Could not open the lock file: $!\n&quot;;
+flock LOCK, LOCK_EX or die &quot;Could not flock the lock file: $!\n&quot;;
+%db = ();
+do &quot;db.dat&quot;;
+
+
+# Print everything to a variable instead of STDOUT
+$OUT = new IO::Scalar \$stdout;
+select $OUT;
+
+
+# Branch off depending on action
+&amp;main      if !$input{'action'};                              # Main Page
+&amp;main(&quot;Changes Discarded.&quot;) if $input{'action'} eq &quot;Cancel&quot;; # Cancel Save
+&amp;new_note  if $input{'action'} eq &quot;new&quot;;                     # New Note
+&amp;save_note if $input{'action'} eq &quot;Save Note&quot;;               # Save Note
+&amp;edit_note if $input{'action'} eq &quot;edit&quot;;                    # Edit Note
+&amp;del       if $input{'action'} eq &quot;Delete Note&quot;;             # Delete Note
+&amp;del(1)    if $input{'action'} eq &quot;delall&quot;;                  # Delete All
+
+
+# Print HTTP/HTML Headers
+sub print_it {
+
+select STDOUT; # Print it all to STDOUT
+
+# Save DB
+$Data::Dumper::Purity = 1; $Data::Dumper::Indent = 0;
+open DATA, &quot;&gt;db.dat&quot; or die &quot;COuld not open database: $!\n&quot;;
+flock DATA, LOCK_EX or die &quot;Could not flock databse: $!\n&quot;;
+print DATA Data::Dumper-&gt;Dump([\%db], ['*db']);
+close DATA;
+close LOCK;
+
+print qq|Content-type: text/html\n
+&lt;html&gt;
+   &lt;head&gt;
+      &lt;title&gt;NotePod: $_[0]&lt;/title&gt;
+   &lt;/head&gt;
+
+   &lt;body bgcolor=&quot;#FFFFFF&quot; text=&quot;#000000&quot; link=&quot;#0000FF&quot; alink=&quot;#0000FF&quot; vlink=&quot;#0000FF&quot;&gt;
+
+   &lt;table style=&quot;width: 500px; border: solid #AAAAAA 2px; margin-top: 10px; margin-bottom: 10px;&quot;&gt;
+      &lt;tr&gt;
+         &lt;td style=&quot;height: 25px; text-align: center; border: solid #999999 2px; background-color: #BBBBBB; color: #000000;&quot;&gt;
+            &lt;strong&gt;$_[1]&lt;/strong&gt;
+         &lt;/td&gt;
+      &lt;/tr&gt;
+
+      &lt;tr&gt;
+         &lt;td valign=&quot;top&quot; style=&quot;background-color: #DDDDDD;&quot;&gt;
+            &lt;form action=&quot;$ENV{'SCRIPT_NAME'}&quot; method=&quot;post&quot;&gt;
+            &lt;table border=&quot;0&quot; cellpadding=&quot;3&quot; style=&quot;width: 100%; margin-top: 10px;&quot;&gt;
+               $stdout
+            &lt;/table&gt;
+            &lt;/form&gt;
+         &lt;/td&gt;
+      &lt;/tr&gt;
+   &lt;/table&gt;
+|;
+exit;
+
+}
+
+
+# Main Screen
+sub main {
+$_[0] = &quot;NotePod version $version&quot; if !$_[0];
+print qq|
+&lt;tr&gt;&lt;td style=&quot;border: solid #BBBBBB 2px;&quot;&gt;$_[0]&lt;/td&gt;&lt;td colspan=&quot;2&quot; align=&quot;right&quot; style=&quot;border: solid #BBBBBB 2px;&quot;&gt;&lt;a href=&quot;$ENV{'SCRIPT_NAME'}?action=new&quot;&gt;New Note&lt;/a&gt; \| &lt;a href=&quot;$ENV{'SCRIPT_NAME'}?action=delall&quot;&gt;Delete All&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th align=&quot;left&quot;&gt;Title&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;Length&lt;/th&gt;&lt;th align=&quot;left&quot;&gt;Last Modified&lt;/th&gt;&lt;/tr&gt;
+|;
+
+foreach my $id (keys %db) {
+   next if $id eq &quot;num&quot;;
+   my $title = $db{$id}[0];         # Note Title
+   my $len   = length($db{$id}[1]); # Length of Note
+   my $mod   = $db{$id}[2];         # Last Modified Date
+
+   print qq|&lt;tr&gt;&lt;td&gt;&lt;a href=&quot;$ENV{'SCRIPT_NAME'}?action=edit&amp;id=$id&quot;&gt;$title&lt;/a&gt;&lt;/td&gt;&lt;td&gt;$len characters&lt;/td&gt;&lt;td&gt;$mod&lt;/td&gt;&lt;/tr&gt;|;
+}
+
+&amp;print_it('Displaying Notes', 'Current Notes');
+
+}
+
+
+# New Note
+sub new_note {
+$_[0] = &quot;* Creating New Note.&quot; if !$_[0];
+print qq|
+&lt;tr&gt;&lt;td colspan=&quot;2&quot; style=&quot;border: solid #BBBBBB 2px;&quot;&gt;$_[0]&lt;input type=&quot;hidden&quot; name=&quot;id&quot; value=&quot;$input{'id'}&quot;&gt;&lt;/td&gt;&lt;/tr&gt;
+
+&lt;tr&gt;&lt;th align=&quot;left&quot;&gt;Title:&lt;/th&gt;&lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;title&quot; value=&quot;$input{'title'}&quot; style=&quot;width: 100%&quot;&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th align=&quot;left&quot; valign=&quot;top&quot;&gt;Contents:&lt;/th&gt;&lt;td&gt;&lt;textarea name=&quot;contents&quot; rows=&quot;7&quot; cols=&quot;48&quot;&gt;$input{'contents'}&lt;/textarea&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th colspan=&quot;2&quot;&gt;&lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Save Note&quot;&gt; &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Cancel&quot;&gt;&lt;/th&gt;&lt;/tr&gt;
+|;
+
+&amp;print_it('New Note', 'Create New Note');
+}
+
+
+sub save_note {
+&amp;new_note('* You need to enter a title and contents.') if (!$input{'title'} || !$input{'contents'});
+
+if ($input{'id'}) {
+   $db{$input{'id'}} = [$input{'title'}, $input{'contents'}, my $a=localtime];
+} else {
+   $db{int(++$db{'num'})} = [$input{'title'}, $input{'contents'}, my $a=localtime];
+}
+
+&amp;main(&quot;Note Saved&quot;);
+}
+
+sub edit_note {
+print qq|
+&lt;tr&gt;&lt;td colspan=&quot;2&quot; style=&quot;border: solid #BBBBBB 2px;&quot;&gt;* You are editting an existing note.&lt;input type=&quot;hidden&quot; name=&quot;id&quot; value=&quot;$input{'id'}&quot;&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th align=&quot;left&quot;&gt;Title:&lt;/th&gt;&lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;title&quot; value=&quot;$db{$input{'id'}}[0]&quot; style=&quot;width: 100%&quot;&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th align=&quot;left&quot; valign=&quot;top&quot;&gt;Contents:&lt;/th&gt;&lt;td&gt;&lt;textarea name=&quot;contents&quot; rows=&quot;7&quot; cols=&quot;48&quot;&gt;$db{$input{'id'}}[1]&lt;/textarea&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th colspan=&quot;2&quot;&gt;&lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Save Note&quot;&gt; &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Cancel&quot;&gt; &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Delete Note&quot;&gt;&lt;/th&gt;&lt;/tr&gt;
+|;
+&amp;print_it('New Note', 'Create New Note');
+}
+
+# Delete Note(s)
+sub del {
+if ($_[0] == 1) {
+   %db = ();
+   &amp;main(&quot;All Notes Deleted!&quot;);
+} else {
+   delete $db{$input{'id'}};
+   &amp;main(&quot;Note Deleted.&quot;);
+}
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>172893</node_id>
+  <author_user>6608</author_user>
+  <title>NotePod (CGI NotePad)</title>
+  <createtime>2002-06-09 02:28:50</createtime>
+  <nodeupdated>2005-07-21 01:31:46</nodeupdated>
+</node>

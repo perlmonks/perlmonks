@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="693598" title="node navigator ticker" created="2008-06-23 16:18:00" updated="2008-06-23 12:18:00">
+<type id="122">
+fullpage</type>
+<author id="518801">
+Co-Rion</author>
+<data>
+<field name="doctext">
+[%
+my %xmlstyle= ( clean =&gt; 1 );
+
+return "&lt;error&gt;Error creating fling object&lt;/error&gt;"
+     unless htmlcode('new_xml_fling','',\my($xml,@data),\%xmlstyle,'add_http_header');
+
+my $node_id= $q-&gt;param('id') || 847; $node_id+=0;
+
+my $refnode= getNodeById( $node_id );
+
+# api decision:
+# if user specifies param explicitly, and it's invalid,
+# DO NOT fall back on using the value from the ref node.
+
+# the fields in the xml header are to reflect the user's inputs, as long as
+# they're defined, even if they're invalid.
+# the error code will report if any are invalid.
+
+my @xml_header_fields = ( node_id =&gt; $node_id );
+my @errors;
+
+push @errors, "reference node does not exist"
+   unless $refnode;
+
+my $nodetype_id = 
+   $q-&gt;param('nodetype') ? $q-&gt;param('nodetype') :
+   ref $refnode ? $refnode-&gt;{type_nodetype} :
+   undef;
+
+my $author_id = 
+   $q-&gt;param('author') ? $q-&gt;param('author') :
+   ref $refnode ? $refnode-&gt;{author_user} :
+   undef;
+
+$nodetype_id+=0;
+$author_id+=0;
+
+if ( $nodetype_id ) {
+   my $typenode = getNodeById( $nodetype_id );
+   push @xml_header_fields,
+      nodetype_id =&gt; $nodetype_id,
+      nodetype_name =&gt; $typenode-&gt;{title};
+   if ( $typenode-&gt;{type_nodetype} != 1 ) { # 1 = nodetype
+      push @errors, "invalid nodetype id $nodetype_id";
+      undef $nodetype_id;
+   }
+}
+else {
+   push @errors, "nodetype id undetermined/unspecified";
+}
+
+if ( $author_id ) {
+   my $authnode = getNodeById( $author_id );
+   push @xml_header_fields,
+      author_id =&gt; $author_id,
+      author_name =&gt; $authnode-&gt;{title};
+   if ( $authnode-&gt;{type_nodetype} != 15
+     &amp;&amp; $authnode-&gt;{type_nodetype} != 16 ) { # 15,16 = user,usergroup
+      push @errors, "invalid author id $author_id";
+      undef $author_id;
+   }
+}
+else {
+   push @errors, "author id undetermined/unspecified";
+}
+
+@errors and push @xml_header_fields,
+   error =&gt; join ';', @errors;
+
+htmlcode( 'xml_info_tag', '', $xml, \%xmlstyle, 'nodenav',
+   @xml_header_fields,
+);
+
+my %tag = (
+   type  =&gt; 'of_type',
+   auth  =&gt; 'by_author',
+);
+my %att = (
+   type =&gt; [ nodetype_id =&gt; $nodetype_id ],
+   auth =&gt; [ author_id =&gt; $author_id ],
+);
+my %and = (
+   type =&gt; " and type_nodetype=$nodetype_id",
+   auth =&gt; " and author_user=$author_id",
+);
+
+my $empty = {
+   tag =&gt; [], # use "deref to empty array" trick
+   att =&gt; [],
+   sql =&gt; [],
+};
+my @typevec = ($empty);
+my @authvec = ($empty);
+$nodetype_id and push @typevec, {
+   tag =&gt; ['of_type'],
+   att =&gt; [ nodetype_id =&gt; $nodetype_id ],
+   sql =&gt; [" and type_nodetype=$nodetype_id"],
+};
+$author_id and push @authvec, {
+   tag =&gt; ['by_author'],
+   att =&gt; [ author_id =&gt; $author_id ],
+   sql =&gt; [" and author_user=$author_id"],
+};
+
+for my $tv ( @typevec ) {
+for my $av ( @authvec ) {
+
+   my $tag = join '_', @{ $tv-&gt;{tag} }, @{ $av-&gt;{tag} };
+   my @att =           @{ $tv-&gt;{att} }, @{ $av-&gt;{att} };
+   my $and = join  '', @{ $tv-&gt;{sql} }, @{ $av-&gt;{sql} };
+
+   $tag ||= 'all';
+
+   my $pst= $DB-&gt;sqlSelect( "max(node_id)", "node", "node_id&lt;$node_id".$and );
+   my $nst= $DB-&gt;sqlSelect( "min(node_id)", "node", "node_id&gt;$node_id".$and );
+
+   $xml-&gt;start( $tag, @att );
+   $xml-&gt;empty( 'prev', node_id =&gt; $pst ) if $pst;
+   $xml-&gt;empty( 'next', node_id =&gt; $nst ) if $nst;
+   $xml-&gt;end;
+}
+}
+
+$xml-&gt;end;
+
+my $data = join "",@data;       
+htmlcode('postProcessXML','',\$data);
+return $data;
+%]
+</field>
+</data>
+</node>

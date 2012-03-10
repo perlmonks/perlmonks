@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="278220" title="Small chat server..." created="2003-07-27 08:21:15" updated="2005-06-19 14:24:32">
+<type id="121">
+perlcraft</type>
+<author id="197777">
+rlb3</author>
+<data>
+<field name="doctext">
+This is based on a python script I found out on the net.
+I have not writen a client but it works with unix telnet clients.
+
+chat.pl...
+
+#!/usr/bin/perl
+
+use IO::Socket;
+use IO::Select;
+
+use Userlist;
+
+# Fork off...
+$pid = fork();
+exit if ($pid);
+
+#Turn off buffering
+$|++;
+
+my $quit = 0;
+
+# Handle the control-c
+$SIG{INT} = sub {$quit++};
+
+my $listen = IO::Socket::INET-&gt;new(
+	LocalPort =&gt; 8080,
+	Listen    =&gt; 20,
+	Proto     =&gt; 'tcp',
+	Reuse     =&gt; 1,
+	Timeout   =&gt; 60*60
+);
+
+$read = IO::Select-&gt;new();
+$read-&gt;add($listen);
+
+while (!$quit) {
+	my @ready = $read-&gt;can_read;
+	
+	foreach $selected (@ready) {
+		if ($selected == $listen) {
+			my $conn = $listen-&gt;accept;
+			$ip = $conn-&gt;peerhost;
+
+                        # Create new object
+			$user = Userlist-&gt;new($conn);
+                        
+                        # Get the user's name
+			$name = $user-&gt;getName;
+			$count = push(@users,$user);
+			print $conn $count."-".$name."-".$ip."\n";
+			$read-&gt;add($conn) if $conn;
+		} else {
+                        # Get input from who's ready
+			$buffer = &lt;$selected&gt;;
+                   
+                        # Send message to all users
+$user-&gt;broadcast($buffer,$selected,\@users);
+		}	
+	}
+}
+
+
+Userlist.pm...
+
+package Userlist;
+
+sub new {
+
+	$self = shift;
+	$obj = {
+		USER =&gt; shift,
+		NAME =&gt; ''
+	};
+
+	return bless $obj,$self;
+}
+
+sub conn {
+	$self = shift;
+	return $self-&gt;{USER};
+}
+
+sub getName {
+	$self = shift;
+	$conn = $self-&gt;{USER};
+
+	print $conn "Name: ";
+	$name = &lt;$conn&gt;;
+	$name =~ s/\s+$//;
+
+	$self-&gt;{NAME} = $name;
+	return $self-&gt;{NAME};
+}
+
+sub name {
+	$self = shift;
+	return $self-&gt;{NAME};
+}
+
+# I'm not really sure if this is the best place to make this
+# sub, but its the only way I can think of to get the name
+# of the user that sent the message.
+
+
+sub broadcast {
+	$self = shift;
+	$buffer = shift;
+	$selected = shift;
+	$users = shift;
+	if ($buffer) {
+		foreach $client (@$users) {
+			$connection = $client-&gt;conn();
+			$name = $self-&gt;{NAME} if ($connection == $selected);
+			exit(0) if ($buffer =~ /quit/i);
+			print $connection $name.": ".$buffer;
+		}
+	}
+}
+1;
+
+
+</field>
+</data>
+</node>

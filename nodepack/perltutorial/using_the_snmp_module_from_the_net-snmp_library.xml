@@ -1,0 +1,387 @@
+<node>
+  <doctext>&lt;h2&gt;Where to get Net-SNMP&lt;/h2&gt;
+You can get the Net-SNMP library package from [http://net-snmp.sourceforge.net/].  If you have RedHat Linux 9 or RedHat Enterprise Linux 3, you can install the net-snmp-5.0.9 packages from you installation CDs (or from RedHat Network, if you are fortunate enough to have access).
+&lt;p&gt;
+If you install from source, you will need to compile and install the libraries, then cd into the 'perl' directory and install the Perl module separately.  If you install using RPMs from RedHat, you need the net-snmp-perl package and all of its dependencies.  If you build from the src.rpm package, make sure you use &lt;code&gt;--with perl_modules&lt;/code&gt;.
+&lt;p&gt;
+&lt;b&gt;NOTE:  If you use RPM, I highly recommend uninstalling the 5.0.9 packages provided by RedHat, getting the 5.1.x src.rpm, and rebuilding from there.&lt;/b&gt;  Version 5.1 resolves a problem that causes 'make test' to fail any time you use MakeMaker.  Everything actually works, but you can't test anything.
+&lt;p&gt;
+&lt;b&gt;Update:&lt;/b&gt;As of January, 2005, version 5.2.1 of Net-SNMP is available.  I have had no trouble with it so far.
+&lt;p&gt;
+&lt;h4&gt;Do Not Confuse Net-SNMP with Net::SNMP!&lt;/h4&gt;
+The naming is unfortunate, but the SNMP module that comes with the Net-SNMP package is just 'SNMP'.  The Net::SNMP module is a completely different beast.  Confusing the two will get you in big trouble.  Here's the test:
+&lt;p&gt;
+&lt;code&gt;
+use SNMP;       # This is Net-SNMP.
+use Net::SNMP;  # This is NOT.  DO NOT USE WITH THIS TUTORIAL!
+&lt;/code&gt;
+&lt;p&gt;
+Also, remember that the Net-SNMP package began life as UCD-SNMP, since it was originally sponsored and maintained by the University of California - Davis.  It was renamed in version 5.0 and has moved to SourceForge.  In fact, if you do &lt;code&gt;install SNMP&lt;/code&gt; from CPAN, you get the 4.2.0 module from the UCD-SNMP package.  It will &lt;i&gt;probably&lt;/i&gt; work with most of what you see here, but I recommend getting the 5.1 package if you can.
+&lt;hr /&gt;
+&lt;a name=&quot;TrivialQueries&quot;&gt;&lt;/a&gt;
+&lt;h2&gt;Try Some Trivial Queries&lt;/h2&gt;
+Before we get to the advanced stuff, let's make sure it's working.  You will need to have a device attached to the network that will respond to SNMP queries (you can use 'localhost' if snmpd is running).  Edit the script below to suit your environment and try it.
+&lt;p&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+use warnings;
+use strict;
+use SNMP;
+use Socket;
+
+# VARIABLES YOU SHOULD EDIT.
+my $comm = 'public';    # EDIT ME!
+my $dest = 'localhost'; # EDIT ME!
+my $mib  = 'sysDescr';  # Toy with this to get different
+                        # results.
+my $sver = '2';         # EDIT ME!
+
+# VARIABLES YOU SHOULD LEAVE ALONE.
+my $sess; # The SNMP::Session object that does the work.
+my $var;  # Used to hold the individual responses.
+my $vb;   # The Varbind object used for the 'real' query.
+
+# Initialize the MIB (else you can't do queries).
+&amp;SNMP::initMib();
+
+my %snmpparms;
+$snmpparms{Community} = $comm;
+$snmpparms{DestHost} = inet_ntoa(inet_aton($dest));
+$snmpparms{Version} = $sver;
+$snmpparms{UseSprintValue} = '1';
+$sess = new SNMP::Session(%snmpparms);
+
+# Turn the MIB object into something we can actually use.
+$vb = new SNMP::Varbind([$mib,'0']); # '0' is the instance.
+
+$var = $sess-&gt;get($vb); # Get exactly what we asked for.
+if ($sess-&gt;{ErrorNum}) {
+  die &quot;Got $sess-&gt;{ErrorStr} querying $dest for $mib.\n&quot;;
+  # Done as a block since you may not always want to die
+  # in here.  You could set up another query, just go on,
+  # or whatever...
+}
+print $vb-&gt;tag, &quot;.&quot;, $vb-&gt;iid, &quot; : $var\n&quot;;
+
+# Now let's show a MIB that might return multiple instances.
+$mib = 'ipNetToMediaPhysAddress'; # The ARP table!
+$vb = new SNMP::Varbind([$mib]);  # No instance this time.
+
+# I prefer this loop method.  YMMV.
+for ( $var = $sess-&gt;getnext($vb);
+      ($vb-&gt;tag eq $mib) and not ($sess-&gt;{ErrorNum});
+      $var = $sess-&gt;getnext($vb)
+    ) {
+  print $vb-&gt;tag, &quot;.&quot;, $vb-&gt;iid, &quot; : &quot;, $var, &quot;\n&quot;;
+}
+if ($sess-&gt;{ErrorNum}) {
+  die &quot;Got $sess-&gt;{ErrorStr} querying $dest for $mib.\n&quot;;
+}
+
+exit;
+&lt;/code&gt;
+&lt;p&gt;
+Whew!  That's a lot of code just for a couple of simple queries!  There are a lot of comments, and the code demonstrates the two most common ways of getting SNMP data from an agent (single query or loop through some unknown number of instances).  Your coding style may be more succint, and you may not need some of the error checking.  Proceed without it at your own peril, though.
+&lt;hr /&gt;
+&lt;h2&gt;And Now, A Few Words About MIBs&lt;/h2&gt;
+It might be worth defining a few terms before we go on:
+&lt;dl&gt;
+  &lt;dt&gt;&lt;b&gt;MIB&lt;/b&gt;&lt;/dt&gt; &lt;dd&gt;Strictly speaking, the Management Information Base or &quot;MIB&quot; is a database of information that you can query from an SNMP agent.  In practice, the term 'MIB' by itself is confusing.  It is much better to be more specific and use one of the other terms here.&lt;br&gt;&lt;/dd&gt;
+  &lt;dt&gt;&lt;b&gt;MIB module&lt;/b&gt;&lt;/dt&gt; &lt;dd&gt;The actual specifications and definitions for a MIB, found in a file somewhere on your system.  It begins with 'YOUR-MIB-NAME DEFINITIONS ::= BEGIN' and ends with 'END'.  It is best to load MIB modules by name, since this allows Net-SNMP to do all of the file-searching for you, rather than hard-coding in file names.  This puts the onus on you to make sure there's only one file in your search path with definitions for a given MIB.&lt;/dd&gt;
+  &lt;dt&gt;&lt;b&gt;MIB file&lt;/b&gt;&lt;/dt&gt; &lt;dd&gt;A MIB file is just a text file that contains one or more MIB modules.  &lt;b&gt;NOTE:&lt;/b&gt; Net-SNMP has problems loading files with more than one MIB module in them.  In my experience, it only parses the first module properly.  This is a bug in Net-SNMP.  Please let me know if this has been solved so I can upgrade both my libraries and this file.&lt;/dd&gt;
+  &lt;dt&gt;&lt;b&gt;MIB object&lt;/b&gt;&lt;/dt&gt; &lt;dd&gt;A single item in a MIB specification such as 'sysDescr'.  This is what people usually mean when they say they are 'looking for a MIB' or have been 'querying a bunch of MIBs'.  Each MIB object has a type (integer, string, enumerated, etc.).  MIB objects are queried by asking the agent to return one or more &lt;i&gt;instances&lt;/i&gt; of that object (more on this later).  Each instance of a MIB object has a value (which can be NULL).&lt;/dd&gt;
+  &lt;dt&gt;&lt;b&gt;MIB tree&lt;/b&gt;&lt;/dt&gt; &lt;dd&gt;Another, clearer term for describing the entire MIB.  The MIB itself is laid out in a tree structure, with MIB objects as the leaf nodes.  Each node is identified both by number (positive integers or zero) and by name (which is NOT guaranteed to be unique).  The tree layout is very flexible and provides an absolute unique path to every MIB object.  Each MIB module loaded adds new branches to the MIB tree and allows you to query the objects defined in the new module(s).&lt;/dd&gt;
+&lt;/dl&gt;
+&lt;p&gt;
+&lt;h3&gt;And Now, a Few Other Terms&lt;/h3&gt;
+I addressed 'MIBs' first because there is so much confusion about that term.  There are also a few other things you'll need to recognize in order to use SNMP correctly:
+&lt;p&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;b&gt;'tag'&lt;/b&gt; - In this context, this is the same as the MIB object name.  In your Varbinds, the tag value will get updated as part of a query, so keep an eye on it.  If you do a &lt;code&gt;getnext&lt;/code&gt;, you'll get an answer, even if the next object in the agent's MIB isn't in the same table.  You might &lt;i&gt;ask&lt;/i&gt; for the next physical in the ARP table and &lt;i&gt;get&lt;/i&gt; the first IP address in the table.  You've jumped to the next MIB object.  Watch your tags.&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;'oid'&lt;/b&gt; - This is the Object ID.  A fully qualified OID is a long dotted-decimal string that shows how to get from the root of the MIB tree to the particular MIB object you're working with.  Example:  The OID for 'sysDescr' is '.1.3.6.1.2.1.1.1'.  Note the leading dot.  Like in DNS, the optional leading dot makes the OID an absolute reference.  OIDs can also be relative.  Again, be careful.&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;'iid'&lt;/b&gt; - This is the Instance ID.  For some MIB objects, there is only one possible value, or &lt;i&gt;instance&lt;/i&gt;, like with 'sysLocation'.  In those cases, the instance ID will be zero.  In other cases there can be a list of values, like the different network interfaces on a system (eth0, eth1, eth2), so the instance numbers will be positive integers, probably - but not &lt;i&gt;necessarily&lt;/i&gt; - incrementing in a simple way (e.g. '1', '2', '3').  In still other cases, the SNMP agent may decide to keep some data in a more hash-like way, like in the ARP table (think &lt;code&gt;$ARP{'ip'} = $mac;&lt;/code&gt;).  In that case, the instance ID will be complicated, like '0.10.4.15.2.45'.  In &lt;i&gt;every&lt;/i&gt; case, the Instance ID is the sub-identifier that gets tacked onto the end of the OID to specify that particular value.  Here are some examples:
+&lt;p&gt;
+  &lt;ol&gt;
+    &lt;li&gt;&lt;b&gt;sysDescr.0&lt;/b&gt; - Only one instance, so the IID is zero.&lt;/li&gt;
+    &lt;li&gt;&lt;b&gt;ifIndex.1&lt;/b&gt; - Probably a simple list, so the IIDs start with one and increment.&lt;/li&gt;
+    &lt;li&gt;&lt;b&gt;ipNetToMediaPhysAddress.2050.10.1.1.50&lt;/b&gt; - This is the hash-like IID.  In this case, '10.1.1.50' was the IP address learned on the interface whose ifIndex is '2050'.  The &lt;i&gt;value&lt;/i&gt; of this object is something like '00:08:ad:44:13:62'.  So the IID is '2050.10.1.1.50' which is like a 'key' in the 'hash' for 'ipNetToMediaPhysAddress'.
+&lt;p&gt;
+Your mileage &lt;i&gt;will&lt;/i&gt; vary both among different MIB objects and different agents you query.  I have seen different routers respond at least three different ways to queries for the same MIB object.  (Each router answers the same all the time, but the different routers' answers differ from &lt;i&gt;each other&lt;/i&gt;.)  In theory, this &lt;i&gt;shouldn't&lt;/i&gt; happen, since the same MIB object should be defined the same way in every case, so the routers should all respond in the same way.  I have learned to be paranoid about this anyway, and make no assumptions about the returned data.&lt;/li&gt;
+  &lt;/ol&gt;
+&lt;/ul&gt;
+&lt;hr /&gt;
+&lt;h2&gt;And Now, We'll Add Enterprise MIB Files&lt;/h2&gt;
+Net-SNMP comes with plenty of RFC-defined MIB modules, usually stored in /usr/share/snmp/mibs.  However, most of the really good info you want from an SNMP agent is stored in the proprietary &lt;b&gt;Enterprise MIBs&lt;/b&gt; (dum dum DUM!).  These MIBs are stored in the 'enterprises' MIB subtree.  Each vendor has its own identifier (e.g. 'cisco', 'nortel', 'rapidCity'), and under that, the vendor is free to create all the subtrees and objects they want.  But for &lt;i&gt;you&lt;/i&gt; to be able to get to them, you need to get Net-SNMP to parse the definitions for all this great stuff.  You need to get it to load the MIB modules for your enterprise MIBs.
+&lt;p&gt;
+This is really a two-part problem.  First, where are you going to keep the MIB files themselves?  Second, how are you going to get the files imported when you go to do SNMP queries?  I'll tell you how I did it, and hopefully you'll e-mail me if you find some horrible deficiency in this method.
+&lt;h3&gt;Look, I Just Want to Load One File!&lt;/h3&gt;
+Fine.  Here's the fastest - and most unwise - way to do it.  It works, of course, but you'll soon find that this method is rife with practical problems:
+&lt;code&gt;
+&amp;SNMP::addMibFiles(&quot;/path/to/some/file.mib&quot;);
+&amp;SNMP::initMib();
+&lt;/code&gt;
+&lt;h3&gt;So What's So Bad About That?&lt;/h3&gt;
+Since you asked, I'll tell you.
+&lt;p&gt;
+First, that's a hard-coded path to a particular file.  The path may change.  The file name may change, which happens a lot when vendors mark the version of a MIB module in the file name.  This method is extremely resistant to change.
+&lt;p&gt;
+Second, what if this MIB module requires that you load another module first?  Done this way, you'll probably have to load all of the pre-requisite files &lt;i&gt;by hand&lt;/i&gt; before this one will work, especially if the prereqs are other enterprise MIB modules.  There's a better way.  Let's go back to the beginning and pretend we want to do things the Right Way(tm).
+&lt;h3&gt;Where to Put the Files&lt;/h3&gt;
+If you installed from RPM, the MIB files the come with Net-SNMP are put in /usr/share/snmp/mibs (or /usr/local/share/snmp/mibs if you installed from source).  Every time I added a group of related MIBs files, I put them in a subdirectory under this one.  For example, I wrote a program called JScan, and put several subdirectories named JScan/APC, JScan/BayStack, etc. for a full path of /usr/share/snmp/mibs/JScan/APC.  This kept all of the files separate (so 'rm -r ..../JScan' would get rid of them all in a pinch), but in a predictable and sensible place.
+&lt;p&gt;
+Then a second problem presented itself.  I decided it was a pain to add that many search directories all of the time (discussed below), so I created a single directory /usr/share/snmp/mibs/JScan/everything that contains symbolic links to all of the actual files in all of the other directories.  This is done at install time by this excerpt of the post-install script:
+&lt;code&gt;
+# Where $destdir is /usr/share/snmp/mibs in most cases...
+system 
+  &quot;mkdir -p $destdir/JScan/everything ;
+   cd $destdir/JScan/everything ;
+   find .. -type f -exec ln -sf {} \\;&quot;;
+&lt;/code&gt;
+&lt;p&gt;
+I then installed the MIB files for other packages in other subdirs under /usr/share/snmp/mibs.  Again, keeps things separate, but still in more or less the Right Place.
+&lt;p&gt;
+&lt;b&gt;Known Problem:&lt;/b&gt;  While this has not happened to me yet in practice, it is &lt;i&gt;possible&lt;/i&gt; that two vendors may name their MIB files with the same name, in which case 'ln' above will return an error when it tries to create the second link.  This has never happened to me yet, though I have the practice of pulling the RFC-based MIB files out of the vendor-supplied list before I split them up, which resolves a LOT of conflicts.
+&lt;p&gt;
+&lt;h3&gt;Get Perl to Read Your MIB Files&lt;/h3&gt;
+There are several ways to do this, but in my opinion the &lt;i&gt;best&lt;/i&gt; way is as follows.  Suppose I wanted to load the MIB modules 'S5-CHASSIS-MIB', 'RAPID-CITY', &lt;i&gt;and&lt;/i&gt; all of their pre-requisites.  I would do this:
+&lt;code&gt;
+# Add the search directory.
+&amp;SNMP::addMibDirs(&quot;/usr/share/snmp/mibs/JScan/everything&quot;);
+
+# Load the modules AND their pre-reqs.
+&amp;SNMP::loadModules('S5-CHASSIS-MIB', 'RAPID-CITY');
+
+# Wonder-Twin powers, ACTIVATE!
+&amp;SNMP::initMib();
+&lt;/code&gt;
+In the example shown, the directories /usr/share/snmp/mibs AND /usr/share/snmp/mibs/JScan/everything will be searched for a file with the S5-CHASSIS-MIB module.  It will then load that file.  Since the S5-CHASSIS-MIB also requires the S5-ROOT-MIB, those same directories will be searched again for the file containing THAT MIB module, and so on until all the necessary modules have been loaded, or until something fails.  If I load a non-existent module THIS-AND-THAT on my system, I get:
+&lt;code&gt;
+Cannot find module (THIS-AND-THAT): At line 1 in (none)
+&lt;/code&gt;
+You can, of course, turn this off and make it fail silently, but by default it won't cause your script to fail.  The MIB parsing errors can be turned on or off in your snmp.conf file.
+&lt;h3&gt;Other Useful Bits&lt;/h3&gt;
+There are several other ways you can get Net-SNMP to add directories to your search path and/or automatically load MIB modules.  See the &lt;code&gt;snmp.conf(5)&lt;/code&gt; man page for more details, paying particular attention to the parts about the &lt;code&gt;MIBS&lt;/code&gt; and &lt;code&gt;MIBDIRS&lt;/code&gt; environment variables and the &lt;code&gt;~/.snmp/snmp.conf&lt;/code&gt; file, which might be more appropriate than making system-wide changes.
+&lt;p&gt;
+&lt;h2&gt;Review&lt;/h2&gt;
+At this time, I would like to suggest that you go back to &lt;a href=&quot;#TrivialQueries&quot;&gt;Try Some Trivial Queries&lt;/a&gt; and play for a bit.  Re-write this code in your own style, taking the time to understand as much of it as possible.  Try loading some MIB modules and querying new stuff from those modules.  Get used to OIDs, IIDs, values, and MIB object definitions before you proceed to the next section, in which we start doing the dangerous stuff (changing things on a remote agent).
+&lt;hr /&gt;
+&lt;h2&gt;Setting MIB Object Values&lt;/h2&gt;
+Okay, so we've covered how to get Net-SNMP, load new MIB modules, and query some MIB objects.  Suppose now that you want to use Net-SNMP to set the value of a read/write MIB object, such as sysName or sysLocation.  This is actually pretty simple... most of the time.  Take these two objects for instance.  Here's the code to set the value of sysName on a host:
+&lt;code&gt;
+my $comm = 'ihavepower'; # Use read/write community.
+my $dest = '10.1.1.1';  # IP or DNS will work.
+my $sver = '2';  # Use 1 for simple devices, and 3 if you
+                 # really know your SNMP security.
+my %snmpparms;
+$snmpparms{Community} = $comm;
+$snmpparms{DestHost} = inet_ntoa(inet_aton($dest));
+$snmpparms{Version} = $sver;
+$snmpparms{UseSprintValue} = 1;
+my $sess = new SNMP::Session(%snmpparms);
+my $mib = 'sysName';
+my $instance = '0'; # There's only one instance of sysName.
+my $value = &quot;New system name.&quot;;
+my $vb = new SNMP::Varbind([$mib,$instance,$value]);
+
+# This does it!
+$sess-&gt;set($vb);
+if ( $sess-&gt;{ErrorNum} ) {
+  print &quot;Got $sess-&gt;{ErrorStr} setting $mib on $host.\n&quot;;
+}
+&lt;/code&gt;
+This works for most things.  However, I have run into a lot of trouble when trying to set values that aren't strings or integers when I have set UseSprintValue to true, which I usually do, since subsequent queries using the same session make FAR more sense with UseSprintValue (which translates enums and some packed binary values into readable strings for the user).  Setting packed binary values, in particular, is a pain.  Fortunately, all you need is a second session to cure this:
+&lt;code&gt;
+my $comm = 'ihavepower'; # Use read/write community.
+my $dest = '10.1.1.1';  # IP or DNS will work.
+my $sver = '2';  # Use 1 for simple devices, and 3 if you
+                 # really know your SNMP security.
+my %snmpparms;
+$snmpparms{Community} = $comm;
+$snmpparms{DestHost} = inet_ntoa(inet_aton($dest));
+$snmpparms{Version} = $sver;
+$snmpparms{UseSprintValue} = 0;
+### NEW SESSION REQUIRED!
+my $sess2 = new SNMP::Session(%snmpparms);
+my $mib = 'some32BitMib';  # Suppose it takes a packed IP.
+my $instance = '0';        # Will vary with the MIB object.
+my $value = inet_aton($ipaddr);
+my $vb = new SNMP::Varbind([$mib,$instance,$value]);
+
+$sess2-&gt;set($vb);
+if ( $sess2-&gt;{ErrorNum} ) {
+  print &quot;Got $sess2-&gt;{ErrorStr} setting $mib on $host.\n&quot;;
+}
+&lt;/code&gt;
+Note that it's almost entirely the same except that UseSprintValue is set to zero when the SNMP session object is created.
+&lt;hr /&gt;
+&lt;h2&gt;Using VarLists&lt;/h2&gt;
+Sometimes you want to query a bunch of different SNMP values on the same device.  You could query each of them one at a time, but if you want to conserve bandwidth or if you're trying to keep several variables in sync it's a lot easier to use a VarList.
+&lt;p&gt;
+So what's a VarList?  A VarList is a blessed reference to an array of Varbinds (so you can't just do &lt;code&gt;push @varbinds, $vb;&lt;/code&gt; in a loop and expect that to work).  So basically, a VarList is a bunch of Varbinds stuck together so you can make many queries at once.  Let's walk through two examples of using VarLists and see how they work.
+&lt;p&gt;
+Here we create a VarList and query a device for the variables 'sysName', 'sysDescr', and 'sysLocation'.  We're assuming that the session is already created and we're going to just query instance 0, since we know from experience that this is the only instance that exists for these MIB objects.
+&lt;code&gt;
+$MIB[0] = 'sysName';
+$MIB[1] = 'sysDescr';
+$MIB[2] = 'sysLocation';
+$vl = new SNMP::VarList([$MIB[0], 0],
+                        [$MIB[1], 0],
+                        [$MIB[2], 0]);
+@ANSWERS = $sess-&gt;get($vl);
+&lt;/code&gt;
+&lt;p&gt;
+And that's it!  Instead of using one array constructor with &quot;MIB, instance, value&quot; inside of it like with a Varbind, you just create a list of them.  Now let's do that same query above, but this time we'll use a loop to create an array of Varbinds.  For this example, it's trivial, but this can make for an elegant solution in some cases and save you a lot of code and a lot of bandwidth.
+&lt;code&gt;
+@MIBS = ('sysName', 'sysDescr', 'sysLocation');
+foreach $mib ( @MIBS ) {
+  push @bunchovbs, new SNMP::Varbind([$mib,0]);
+}
+# Now the magic!
+$vl = new SNMP::VarList(@bunchovbs);
+@ANSWERS = $sess-&gt;get($vl);
+&lt;/code&gt;
+This method is most useful when the instance number or the value you need in the Varbind is only known after some calculation AND you want to put several MIB objects in the same &lt;code&gt;get&lt;/code&gt; or &lt;code&gt;set&lt;/code&gt; action.  Here's a more useful example of using a VarList:
+&lt;code&gt;
+@MIBS = ('ifAdminStatus', 'ifOperStatus', 'ifSpeed');
+$vl = new SNMP::VarList([$MIBS[0]], [$MIBS[1]], [$MIBS[2]]);
+for ( $ifindex = 1 ; $ifindex &lt; 25 ; $ifindex++ ) {
+  @STATUS = $sess-&gt;getnext($vl);
+  if ( $STATUS[0] eq 'up' ) { print &quot;Port $ifindex enabled.\n&quot;; }
+  else next;
+  print &quot;  Link status is $STATUS[1].  Speed is $STATUS[2].\n&quot;;
+}
+&lt;/code&gt;
+Now we skipped all the setup and there's absolutely no error checking in the loop shown, but you can see how using VarLists can drastically shorten the process of getting (or setting) several MIB objects at once.
+&lt;p&gt;
+&lt;b&gt;TIP:&lt;/b&gt; One problem I've come across when using VarLists in this way is that in some cases the &lt;code&gt;getnext&lt;/code&gt; causes one of the MIB objects in the list to get a different instance number than the others.  Suppose in the example above that the switch does not keep a value for 'ifOperStatus' at all if 'ifAdminStatus' is 'down'.  If port 2 is disabled, then on the second query, the instance ID for &lt;code&gt;$$vl[0]&lt;/code&gt; will be 2, but for the other two objects the instance will be &lt;b&gt;3&lt;/b&gt; (assuming port 3 is enabled).  The &lt;code&gt;getnext&lt;/code&gt; is performed on all of the MIBs &lt;i&gt;regardless of the success or failure or values of the other MIBs in the same query&lt;/i&gt;  SNMP doesn't magically 'know' you want the objects in your VarList to be in sync.
+&lt;p&gt;
+&lt;b&gt;SO:&lt;/b&gt;  When using VarLists, even though you're querying them all at once and they share a packet, they are &lt;i&gt;separate&lt;/i&gt; queries, so if you want them to stay in sync, you may need to add code to make sure they actually do.  Check that all of the instance IDs are the same after each query and then do whatever is appropriate to resolve it when they turn up unequal.  Sometimes a &lt;code&gt;getnext&lt;/code&gt; will skip an instance, but going back and doing a &lt;code&gt;get&lt;/code&gt; on that same instance will return the information you want.
+&lt;hr /&gt;
+&lt;h2&gt;Getting Many Values in ONE Query&lt;/h2&gt;
+So far, we have been using SNMP commands that were defined in version 1 of the SNMP specification:  GET, GETNEXT, and SET.  In version 2, the SNMP designers decided that they wanted a way to send a single query that would return N values of a single object, like doing 20 &quot;GETNEXTs&quot; at once.  To do this, they created the GETBULK command.
+&lt;p&gt;
+The syntax for the &lt;code&gt;getbulk&lt;/code&gt; method in the SNMP module is a little complicated.  Here's what &lt;code&gt;perldoc&lt;/code&gt; has to say about it:
+&lt;p&gt;
+&lt;code&gt;
+$sess-&gt;getbulk(&lt;non-repeaters&gt;, &lt;max-repeaters&gt;, &lt;vars&gt;)
+  do an SNMP GETBULK, from the list of Varbinds, the single next lex-
+  ico instance is fetched for the first n Varbinds as defined by
+  &lt;non-repeaters&gt;. For remaining Varbinds, the m lexico instances are
+  retrieved each of the remaining Varbinds, where m is
+  &lt;max-repeaters&gt;.
+&lt;/code&gt;
+&lt;p&gt;
+So the first two arguments, &lt;code&gt;non-repeaters&lt;/code&gt; and &lt;code&gt;max-repeaters&lt;/code&gt; are integers that define how &lt;code&gt;getbulk&lt;/code&gt; is going to behave, and the remaining arguments are Varbinds (or better, a VarList).
+&lt;p&gt;
+Now &lt;code&gt;getbulk&lt;/code&gt; is a little tricky.  It's behaves like a bunch of &lt;code&gt;getnext&lt;/code&gt; commands strung together.  If &lt;code&gt;non-repeaters&lt;/code&gt; is set to '4', it will take the first four Varbinds in the list given and get their &lt;i&gt;next&lt;/i&gt; values exactly once (as if you had used &lt;code&gt;getnext&lt;/code&gt; on each of them).  Then if we suppose that &lt;code&gt;max-repeaters&lt;/code&gt; is set to '10', &lt;code&gt;getbulk&lt;/code&gt; will behave like a &lt;code&gt;getnext&lt;/code&gt; on the remaining Varbinds 10 times &lt;i&gt;as a list&lt;/i&gt;.  So it doesn't get the next 10 of the first Varbind, then get 10 of the next Varbind, and so on, but rather it does 10 &lt;code&gt;getnext&lt;/code&gt;'s &lt;i&gt;on the list&lt;/i&gt; (just as if you had used a &lt;code&gt;for&lt;/code&gt; loop on a VarList).
+&lt;p&gt;
+So let's take an example that I threw together that queries some basic stuff about a 24-port switch, and hopefully things will become clearer:
+&lt;p&gt;
+&lt;code&gt;
+use SNMP;
+use Socket;
+
+# Set up the SNMP session.
+my %snmpparms = ();
+$snmpparms{DestHost} = inet_ntoa(inet_aton($host));
+$snmpparms{Community} = 'public';
+$snmpparms{UseSprintValue} = '1';  # readable!
+$snmpparms{Version} = '2';  # MUST USE 2 for GETBULK!
+
+my $sess = new SNMP::Session(%snmpparms);
+
+# I prefer to use VarLists for this sort of thing, since
+# we have enough confusion without making the actual
+# getbulk() call complicated.
+my @vbs = ();
+foreach my $mib (
+  'sysName',
+  'sysDescr',
+  'sysLocation',
+  'sysUpTime',
+  'ifIndex',
+  'ifAdminStatus',
+  'ifOperStatus'  ) {
+
+  push @vbs, new SNMP::Varbind([$mib]);
+}
+my $vl = new SNMP::VarList(@vbs);
+
+# We'll keep our answers in these.
+my %sysStuff;
+my @ANSWERS;
+
+# Query the first four objects ONCE EACH, and store the
+# answers in the appropriate places in %sysStuff.
+# Then get ifIndex and ifAdminStatus 24 times and store
+# all of those reponses in @ANSWERS.
+($sysStuff{Name},
+ $sysStuff{Descr},
+ $sysStuff{Location},
+ $sysStuff{UpTime},
+ @ANSWERS) = $sess-&gt;getbulk(4, 24, $vl);  # AT LAST!
+
+# Always, always, always...
+if ( $sess-&gt;{ErrorNum} ) {
+  die &quot;Got &quot;, $sess-&gt;{ErrStr}, &quot; during getbulk.\n&quot;;
+}
+
+# So $ANSWERS[0] now contains the first value of ifIndex.
+# $ANSWERS[1] contains the FIRST VALUE OF ifAdminStatus,
+# NOT the second value of ifIndex.
+
+# The remaining code could be MUCH simpler, but it's done
+# this way to illustrate how the answers are returned.
+my @INDEXES;
+my @STATUS;
+for ( my $x = 0 ; @ANSWERS ; $x++ ) {
+  # Smart people would probably use map() for this.
+  # I'm not that smart...
+  $INDEXES[@INDEXES] = shift @ANSWERS;
+  $STATUS[@STATUS] = shift @ANSWERS;
+
+  # So we round-robin between @INDEXES and @STATUS,
+  # thus &quot;unstriping&quot; the responses stored in @ANSWERS.
+}
+
+print &quot;Name:         $sysStuff{Name}\n&quot;;
+print &quot;Description:  $sysStuff{Descr}\n&quot;;
+print &quot;Location:     $sysStuff{Location}\n&quot;;
+print &quot;Uptime:       $sysStuff{UpTime}\n&quot;;
+print &quot;\n&quot;;
+
+# This now prints out clearly.
+for ( my $x = 0 ; $x &lt;= $#INDEXES ; $x++ ) {
+  print &quot;  INDEX: $INDEXES[$x]  STATUS:  $STATUS[$x]\n&quot;;
+}
+&lt;/code&gt;
+&lt;p&gt;
+So we asked for four non-repeaters, sysName, sysDescr, sysLocation, and sysUpTime.  We also ask for 24 instances of ifIndex and ifAdminStatus.  The first four objects are queried once each, then the 24 answers for ifIndex and ifAdminStatus are &quot;striped&quot; together, and we use a simple &lt;code&gt;for&lt;/code&gt; loop to break them apart again.
+&lt;p&gt;
+Now, if this were a real program, we would have just used @ANSWERS directly in the output&lt;code&gt;for&lt;/code&gt; loop at the bottom and done &lt;code&gt;$x+=2&lt;/code&gt; for each iteration and saved a lot of code and extra variables, but I digress...
+&lt;p&gt;
+Using the &lt;code&gt;getbulk&lt;/code&gt; command with &lt;code&gt;max-repeaters&lt;/code&gt; set to less than '2' is silly, though it can be used with &lt;code&gt;non-repeaters&lt;/code&gt; set to '0'.  There is no requirement to have any non-repeaters in your query.
+&lt;p&gt;
+&lt;b&gt;WARNING:&lt;/b&gt;  The &lt;code&gt;getbulk&lt;/code&gt; command is not the Hold Grail of Supah-Queries.  You can't just ask it to return 1000 instances, because SNMP &lt;i&gt;will only send one packet in reply&lt;/i&gt;.  SNMP can't fragment its responses into multiple UDP messages, and &lt;i&gt;won't&lt;/i&gt; send a single UDP message that would cause the IP packet to be fragmented either, so you'll have to use &lt;code&gt;getbulk&lt;/code&gt; with a  little circumspection.  I've found that I can safely pack about 75 small queries (for 'ifAdminStatus', say) into a single &lt;code&gt;getbulk&lt;/code&gt;, but that's about it.  &lt;b&gt;CHECK YOUR RESPONSES!&lt;/b&gt;
+&lt;p&gt;
+&lt;b&gt;NOTE:&lt;/b&gt;  It should be noted that I haven't tried to see if this limitation still exists in SNMP version 3 when using TCP instead of UDP.  If anyone gets large queries to work using this - or any other - method, &lt;b&gt;&lt;i&gt;PLEASE&lt;/i&gt;&lt;/b&gt; let me know.  You can imagine how much simpler it would make large queries.
+&lt;hr /&gt;
+&lt;h2&gt;Planned:&lt;/h2&gt;
+&lt;ol&gt;
+  &lt;li&gt;Using the callback (SNMP in the background!)&lt;/li&gt;
+  &lt;li&gt;Using SNMPv3 (NO MORE CLEARTEXT 'PASSWORDS'!)&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Quick and Dirty Synopses of Planned Stuff for the Impatient&lt;/h2&gt;
+Heh.  This is also to help motivate me to get this writeup finished.  Perhaps it will help you make sense of the documentation you hopefully referred to already.
+&lt;ol&gt;
+  &lt;li&gt;&lt;b&gt;Using the callback&lt;/b&gt; - The short version of this is you pass &lt;code&gt;get()&lt;/code&gt;, &lt;code&gt;getnext()&lt;/code&gt;, or &lt;code&gt;getbulk()&lt;/code&gt; a reference to a subroutine that should be executed when the response arrives (works with the SET commands as well).  Then you run a waiting function to sit and allow them all to be processed.  Can &lt;i&gt;seriously&lt;/i&gt; speed up things like querying many different devices.&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;SNMPv3&lt;/b&gt; - User names, passwords, authentication, and privacy.  Using the authentication feature means you may or may not have to supply a user name and password (as opposed to a plain ol' community) when you query the device.  Using the privacy feature means you can set up an encrypted session (typically TLS) for your queries, so people can't see your user/pass or communities or the data you asked for, any of which could be considered sensitive data.&lt;/li&gt;
+&lt;/ol&gt;
+Sorry I don't have time (well, patience) to write more on these topics at the moment.  I promise to get back to it, though.  They say the best way to learn is to teach.  Well, I've learned a bit myself while writing this.  Suggestions on re-organizing and/or reformatting this document are welcomed.  Flames and pointless criticisms can be sent to 127.0.0.1:25.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>396223</node_id>
+  <author_user>50802</author_user>
+  <title>Using the SNMP module from the Net-SNMP library</title>
+  <createtime>2004-10-04 09:26:54</createtime>
+  <nodeupdated>2005-08-15 11:45:42</nodeupdated>
+</node>

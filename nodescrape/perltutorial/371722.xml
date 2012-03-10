@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="371722" title="How will my regular expression match?" created="2004-07-04 12:57:58" updated="2005-08-14 20:34:06">
+<type id="956">
+perltutorial</type>
+<author id="209409">
+hv</author>
+<data>
+<field name="doctext">
+&lt;p&gt;A common source of confusion is the issue of which possible match the regular expression will find in any given instance, and this gives rise to many queries on [Seekers of Perl Wisdom|SOPW] and many different attempts to explain what happens.&lt;/p&gt;
+
+&lt;p&gt;A common theme in the explanations is to talk about preferences - the regular expression engine "prefers" longer or shorter matches, or leftmost matches.&lt;/p&gt;
+
+&lt;p&gt;The reality is however very simple: the regular expression engine will &lt;b&gt;always return the first match it finds&lt;/b&gt;, and if you understand the &lt;i&gt;order&lt;/i&gt; in which the engine attempts matches, you need never be confused about which match will be found.&lt;/p&gt;
+
+&lt;p&gt;A few simple rules (in no particular order) characterise the order in which attempts are made.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;1: leftmost character first&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;The engine will start trying to match the pattern against the string, starting with the first character of the string. Only if it cannot find any match against the beginning of the string will it start looking for matches starting with the second character of the string, and so on until the string is exhausted.&lt;/p&gt;
+
+&lt;p&gt;Example:&lt;code&gt;
+  ($match) = "The longest word" =~ /(\w+)/;
+  print $match;
+&lt;/code&gt;.. will print "The", since it matches at the beginning of the string. The fact that there is a longer match to find is irrelevant - a match against the beginning of the string succeeded, so this is the match that is returned.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;2: leftmost alternation first&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;Given a choice of alternates, the leftmost alternate is tried first. If a match is found against the leftmost alternate, the engine will attempt to match the rest of the pattern against the rest of the string; only if no match can be found will the next alternate be tried.&lt;/p&gt;
+
+&lt;p&gt;Example:&lt;code&gt;
+  ($match) = "Mrs Smith" =~ /(Mr|Mrs)/;
+  print $match;
+&lt;/code&gt;.. will print "Mr": the first alternate matched, and thus satisfied the entire pattern, so this is the match returned. The second alternate was never looked at.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;3. Maximal (greedy)&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;With any normal quantifier (ie any of &lt;code&gt;? * + {1,3}&lt;/code&gt;), the engine will first try to match the &lt;i&gt;greatest&lt;/i&gt; number of iterations permitted (or the most available if that is fewer than permitted), and try to match the rest of the pattern against the rest of the string. Only if the rest of the pattern fails to match will it try matching one fewer iteration, and repeat until the minimum permitted number is reached.&lt;/p&gt;
+
+&lt;p&gt;Example:&lt;code&gt;
+  ($match) = "/foo/bar" =~ m[.*/(.*)];
+  print $match;
+&lt;/code&gt;.. prints "bar": the engine tries to match the initial &lt;code&gt;.*&lt;/code&gt; against "/foo/bar", then "/foo/ba", then "/foo/b", then "/foo/", then "/foo". At this point the remaining pattern matches, so this is the match returned.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;4. Minimal (non-greedy)&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;Adding a '?' after a quantifier (ie &lt;code&gt;?? *? +? {1,3}?&lt;/code&gt;) requests a minimal match, so the order is reversed: the engine first attempts to match the fewest number of iterations permitted and if it can, attempts to match the rest of the pattern against the rest of the string. Only if that fails does it try matching one more iteration, and continues increasing the number of iterations matched until the upper limit is reached.&lt;/p&gt;
+
+&lt;p&gt;Example:&lt;code&gt;
+  ($match) = "foo/bar/baz" =~ m[.*?/(.*)];
+  print $match;
+&lt;/code&gt;.. prints "bar/baz": the engine tries to match the initial &lt;code&gt;.*&lt;/code&gt; against "", then "f", then "fo", then "foo". At this point the rest of the pattern matches, so this is the match that is returned.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;5. Pattern components: left to right&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;Implicit in some of the above examples is that the components of the pattern are matched from left to right. So in the 'maximal' example above, the engine decides first (based on the rules above) how it is going to try to match the initial &lt;code&gt;.*&lt;/code&gt;, and only after that is fixed does it start worrying about the remaining components of the pattern.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;6. Nesting&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;This is really just more of the "left to right" rule, best explained by example:&lt;code&gt;
+  ($outer, $inner) = "/foo/bar" =~ m[(/(.+))*];
+  print $inner;
+&lt;/code&gt;.. prints "foo/bar". The engine reaches the outer quantifier, knows it should match it as many times as possible, and attempts to match its innards. The first iteration of the innards reaches the nested quantifier, and tries to match &lt;i&gt;it&lt;/i&gt; as many times as possible, giving "foo/bar". At this point, the outer quantifier cannot be matched a second time but that's fine - the pattern has been fully satisfied, and so this match is returned.&lt;/p&gt;
+
+&lt;p&gt;That covers most of the standard cases. There are a few other possibilities to consider (eg anchors, &lt;code&gt;pos()&lt;/code&gt;, and the various zero-width assertions). Also, the optimiser may sometimes cause the engine to skip some steps, but only if it is sure that the actual match found will be the same.&lt;/p&gt;
+
+&lt;p&gt;I hope this will help you work out which match your regular expression will find.&lt;/p&gt;
+
+&lt;p&gt;Hugo&lt;/p&gt;</field>
+</data>
+</node>

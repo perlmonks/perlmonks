@@ -1,0 +1,40 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>175839</node_id>
+  <author_user>929</author_user>
+  <title>unreap</title>
+  <createtime>2002-06-19 16:31:47</createtime>
+  <code>use Data::Dumper;
+
+return unless isGod($USER);
+
+my $nid = $query-&gt;param('node_id');
+
+Everything::printLog(&quot;$USER-&gt;{title} unreaps $nid&quot;);
+
+my $corpse = $DB-&gt;sqlSelectHashref('*', 'reapednode', &quot;node_id = $nid&quot;);
+
+unless ( $corpse ) {
+  Everything::printLog(&quot;Couldn't find entry for $nid in reapednode&quot;);
+  return;
+}
+
+my $node = do {
+  my $VAR1;
+  eval($corpse-&gt;{data});
+};
+
+$node = { %$corpse, %$node };
+
+delete $node-&gt;{data};
+
+updateNode($node, $USER);
+
+htmlcode( 'msgsitemaintainer', '', getId($USER), &quot;Unreaping [id://$nid].&quot; );
+
+$DB-&gt;sqlDelete(
+  'reapednode',
+  &quot;node_id = $nid&quot;
+);</code>
+  <nodeupdated>2005-07-24 09:11:15</nodeupdated>
+</node>

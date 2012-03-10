@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="224666" title="Pack/Unpack Tutorial (aka How the System Stores Data)" created="2003-01-06 11:56:29" updated="2005-08-15 04:49:46">
+<type id="956">
+perltutorial</type>
+<author id="217641">
+pfaut</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Pack/Unpack Tutorial&lt;/h1&gt;
+
+&lt;p&gt;A recent conversation in the chatterbox gave me the idea to write
+this.  A beginning programmer was trying to encode some information
+with pack and unpack but was having trouble coming to grips with
+exactly how they work.  I have never had trouble with them but I came
+to programming from a hardware background and I'm very familiar with
+assembly and C programming.  People who have come to programming
+recently have probably never dealt with things at such a low level and
+may not understand how a computer stores data.  A little understanding
+at this level might make pack and unpack a little easier to figure
+out.&lt;/p&gt;
+
+&lt;readmore&gt;
+
+&lt;h2&gt;Why we need pack and unpack&lt;/h2&gt;
+
+&lt;p&gt;Perl can handle strings, integers and floating point values.
+Occassionally a perl programmer will need to exchange data with
+programs written in other languages.  These other languages have a
+much larger set of datatypes.  They have integer values of different
+sizes.  They may only be capable of dealing with fixed length strings
+(&lt;i&gt;dare I say COBOL?&lt;/i&gt;).  Sometimes, there may be a need to exchange
+binary data over a network with other machines.  These machines may
+have different word sizes or even store values differently.  Somehow,
+we need to get our data into a format that these other programs and
+machines can understand.  We also need to be able to interpret the
+responses we get back.&lt;/p&gt;
+
+&lt;p&gt;Perl's pack and unpack functions allow us to read and write buffers of
+data according to a template string.  The template string allows us to
+indicate specific byte orderings and word sizes or use the local
+system's default sizes and ordering.  This gives us a great deal of
+flexibility when dealing with external programs.&lt;/p&gt;
+
+&lt;p&gt;In order to understand how all of this works, it helps to understand
+how computers store different types of information.&lt;/p&gt;
+
+&lt;h2&gt;Integer Formats&lt;/h2&gt;
+
+&lt;p&gt;Computer memory can be looked at as a large array of bytes.  A byte
+contains eight bits and can represent unsigned values between 0 and
+255 or signed values between -128 and 127.  You can't do a whole lot
+of computation with such a small range of values so a modern
+computer's registers are larger than a byte.  Most modern processors
+use 32 bit registers and there are some processors with 64 bit
+registers.  A 32 bit register can store unsigned values between 0 and
+4294967295 or signed values between -2147483648 and 2147483647.&lt;/p&gt;
+
+&lt;p&gt;When storing values greater than 8 bits long to memory, the value is
+broken up into 8 bit segments and stored in multiple consecutive
+storage locations.  Some processors will store the segment containing
+the most significant bits in the first memory location and work up in
+memory with lesser segments.  This is referred to as "big-endian"
+format.  Other processors will store the least significant segment in
+the first byte and store more significant segments into higher memory
+locations.  This is referred to as "little-endian" format.&lt;/p&gt;
+
+&lt;p&gt;This might be easier to see with a picture.  Suppose a register
+contains the value 0x12345678 and we're trying to store it to memory
+at address 1000.  Here's how it looks.&lt;/p&gt;
+
+&lt;table border&gt;
+&lt;tr&gt;&lt;th&gt;Address&lt;/th&gt;&lt;th&gt;Big-Endian&lt;br&gt;Machine&lt;/th&gt;&lt;th&gt;Little-Endian&lt;br&gt;Machine&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;1000&lt;/td&gt;&lt;td&gt;0x12&lt;/td&gt;&lt;td&gt;0x78&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;1001&lt;/td&gt;&lt;td&gt;0x34&lt;/td&gt;&lt;td&gt;0x56&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;1002&lt;/td&gt;&lt;td&gt;0x56&lt;/td&gt;&lt;td&gt;0x34&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;1003&lt;/td&gt;&lt;td&gt;0x78&lt;/td&gt;&lt;td&gt;0x12&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;If you have looked at perldoc -f pack or have looked up the pack
+function in Programming Perl, you have seen a table listing template
+characters with a description of the type of datum they match.  That
+table lists integer formats of several sizes and byte orders.  There
+are also signed and unsigned versions.&lt;/p&gt;
+
+&lt;table border&gt;
+&lt;tr&gt;&lt;th&gt;Format&lt;/th&gt;&lt;th&gt;Description&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;c,C&lt;/td&gt;&lt;td&gt;A signed/unsigned char (8-bit integer) value&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;s,S&lt;/td&gt;&lt;td&gt;A signed/unsigned short, always 16 bits&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;l,L&lt;/td&gt;&lt;td&gt;A signed/unsigned long, always 32 bits&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;q,Q&lt;/td&gt;&lt;td&gt;A signed/unsigned quad (64-bit integer) value&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;i,I&lt;/td&gt;&lt;td&gt;A signed/unsigned integer, native format&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;n,N&lt;/td&gt;&lt;td&gt;A 16/32 bit value in "network" (big-endian) order&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;v,V&lt;/td&gt;&lt;td&gt;A 16/32 bit value in "VAX" (little-endian) order&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;The s, l, and q formats pack 16, 32, and 64 bit values in the host
+machine's native order.  The i format packs a value of the host
+machine's word length.  The n and v formats allow you to specify the
+size and storage order and are useful for interchange with other
+systems.&lt;/p&gt;
+
+&lt;h2&gt;Character Formats&lt;/h2&gt;
+
+&lt;p&gt;Strings are stored as arrays of characters.  Traditionally, each
+character was encoded in a single byte using some coding system like
+ASCII or EBCDIC.  Newer encoding systems like Unicode use either
+multi-byte or variable length encodings to represent characters.&lt;/p&gt;
+
+&lt;p&gt;Perl's pack function accepts the following template characters for
+strings.&lt;/p&gt;
+
+&lt;table border&gt;
+&lt;tr&gt;&lt;th&gt;Format&lt;/th&gt;&lt;th&gt;Description&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;a,A&lt;/td&gt;&lt;td&gt;A null/space padded string&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;b,B&lt;/td&gt;&lt;td&gt;A bit (binary) string in ascending/descending bit order&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;h,H&lt;/td&gt;&lt;td&gt;A hexadecimal string, low/high nybble first&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Z&lt;/td&gt;&lt;td&gt;A null terminated string&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;Strings are stored in successive increasing memory locations with the
+first character in the lowest address location.&lt;/p&gt;
+
+&lt;h2&gt;Perl's pack function&lt;/h2&gt;
+
+&lt;p&gt;The pack function accepts a template string and a list of values.  It
+returns a scalar containing the list of values stored according to the
+formats specified in the template.  This allows us to write data in a
+format that would be readable by a program written in C or another
+language or to pass data to a remote system through a network socket.&lt;/p&gt;
+
+&lt;p&gt;The template contains a series of letters from the tables above.  Each
+letter is optionally followed by a repeat count (for numeric values)
+or a length (for strings).  A '*' on an integer format tells pack to
+use this format for the rest of the values.  A '*' on a string format
+tells pack to use the length of the string.&lt;/p&gt;
+
+&lt;p&gt;Now, let's try an example.  Suppose we're collecting some information
+from a web form and posting it for processing by our backend system
+which is written in C.  The form allows a monk to request office
+supplies.  The backend system wants to see input in the following
+format.&lt;/p&gt;
+
+&lt;code&gt;
+    struct SupplyRequest {
+        time_t request_time;    // time request was entered
+        int employee_id;        // employee making request
+        char item[32];          // item requested
+        short quantity;         // quantity needed
+        short urgent;           // request is urgent
+    };
+&lt;/code&gt;
+
+&lt;p&gt;After looking through our system header files, we determine that
+&lt;code&gt;time_t&lt;/code&gt; is a long.  To create a suitable record for sending to the
+backend, we could use the following.&lt;/p&gt;
+
+&lt;code&gt;
+    $rec = pack( "l i Z32 s2", time, $emp_id, $item, $quan, $urgent);
+&lt;/code&gt;
+
+&lt;p&gt;That template says 'a long, an int, a 32 character null terminated
+string and two shorts'.&lt;/p&gt;
+
+&lt;p&gt;If monk number 217641 (&lt;i&gt;hey! that's me!&lt;/i&gt;) placed an urgent order for
+two boxes of paperclips on January 1, 2003 at 1pm EST, $rec would
+contain the following (first line in decimal, second in hex, third as
+characters where applicable).  Pipe characters indicate field
+boundaries.&lt;/p&gt;
+
+&lt;code&gt;
+    Offset   Contents (increasing addresses left to right)
+         0   160  44  19  62| 41  82   3   0| 98 111 120 101 115  32 111 102
+              A0  2C  13  3E| 29  52  03  00| 62  6f  78  65  73  20  6f  66
+                                            |  b   o   x   e   s       o   f
+        16    32 112  97 112 101 114  99 108 105 112 115   0   0   0   0   0
+              20  70  61  70  65  72  63  6c  69  70  73  00  00  00  00  00
+                   p   a   p   e   r   c   l   i   p   s
+        32     0   0   0   0   0   0   0   0|  2   0|  1   0
+              00  00  00  00  00  00  00  00| 02  00| 01  00
+&lt;/code&gt;
+
+&lt;p&gt;Let's figure out where all of that came from.  The first template item
+is a 'l' which packs a long.  A long is 32 bits or four bytes.  The
+value that was stored came from the time function.  The actual value
+was 1041444000 or 0x3e132ca0.  See how that fits into the beginning of
+the buffer?  My system has an Intel Pentium processor which is little
+endian.&lt;/p&gt;
+
+&lt;p&gt;The second template item is a 'i'.  This calls for an integer of the
+machine's native size.  The Pentium is a 32 bit processor so again we
+pack into four bytes.  The monk's number is 217641 or 0x00035229.&lt;/p&gt;
+
+&lt;p&gt;The third template item is 'Z32'.  This specifies a 32 character null
+terminated field.  You can see the string 'boxes of paperclips' stored
+next in the buffer followed by zeros (null characters) until the 32
+bytes have been filled.&lt;/p&gt;
+
+&lt;p&gt;The last template item is 's2'.  This calls for two shorts which are
+16 bit integers.  This consumes two values from the list of values
+passed to pack.  16 bits get stored in two bytes.  The first value was
+the quantity 2 and the second was the 1 indicating urgent.  These two
+values occupy the last four bytes of the buffer.&lt;/p&gt;
+
+&lt;h2&gt;Perl's unpack function&lt;/h2&gt;
+
+&lt;p&gt;Unbeknownst to us when we wrote the web side of this application,
+someone was porting the backend from C to perl (&lt;i&gt;something about eating
+dog food, I don't think I heard it right&lt;/i&gt;).  But, since we've already
+written the web side of the application, they figured they would just
+use the same data format.  Therefore, they need to use unpack to read
+the data we sent them.&lt;/p&gt;
+
+&lt;p&gt;unpack is kind of the opposite of pack.  pack takes a template string
+and a list of values and returns a scalar.  unpack takes a template
+string and a scalar and returns a list of values.&lt;/p&gt;
+
+&lt;p&gt;Theoretically, if we give unpack the same template string and the
+scalar produced by pack, we should get back the list of values we
+passed to pack.  I say theoretically because if the unpacking is done
+on a machine with a different byte order (big vs. little endian) or a
+different word size (16, 32, 64 bit), unpack might interpret the data
+differently than pack wrote it.  The formats we used all used our
+machine's native byte order and 'i' could be different sizes on
+different machines so we could be in trouble.  But in our simple case,
+we'll assume the backend runs on the same machine as the web
+interface.&lt;/p&gt;
+
+&lt;p&gt;To unpack the data we wrote, the backend program would use a statement like
+this.&lt;/p&gt;
+
+&lt;code&gt;
+    ($order_time, $monk, $itemname, $quantity, $ignore) =
+        unpack( "l i Z32 s2", $rec );
+&lt;/code&gt;
+
+&lt;p&gt;Notice that the template string is identical to the one we used above
+for packing and the same information is returned in the same order
+(&lt;i&gt;except they used $ignore where we packed with $urgent, what are they
+trying to say?&lt;/i&gt;).&lt;/p&gt;
+
+&lt;h2&gt;Integer Formats&lt;br&gt;
+&lt;font size="-1"&gt;&lt;i&gt;aka,&lt;/i&gt; &lt;b&gt;Why all those template types?&lt;/b&gt;&lt;/font&gt;&lt;/h2&gt;
+
+&lt;p&gt;You may be asking why there are so many different ways to write the
+same data type.  'i', 'l', 'N', and 'V' could all be used to write a 32 bit
+integer to a buffer.  Why use any specific one?  Well, that depends on
+what you are trying to exchange information with.&lt;/p&gt;
+
+&lt;p&gt;If you are only going to be exchanging information with programs on
+the same machine, you can use 'i', 'l', 's', and 'q' and their
+uppercase unsigned counterparts.  Since both the reading and writing
+programs will be running on the same system architecture, you might as
+well use the native formats.&lt;/p&gt;
+
+&lt;p&gt;If you are writing a program to read files whose layout is
+architecture specific, use the 'n', 'N', 'v' and 'V' formats.  This
+way, you will know that you are interpreting the information correctly
+no matter what architecture your program is running on.  For example, the
+'wav' file format is defined for Windows on the Intel processor which
+is little endian.  If you were trying to read the header of a 'wav'
+file, you should use 'v' and 'V' to read out 16 and 32 bit values
+respectively.&lt;/p&gt;
+
+&lt;p&gt;The 'n' and 'N' formats are called "network order" for a reason: they
+are the order specified for TCP/IP communications.  If you are doing
+certain types of network programming, you will need to use these
+formats.&lt;/p&gt;
+
+&lt;h2&gt;String formats&lt;/h2&gt;
+
+&lt;p&gt;Choosing between the string formats is a little different.  You would
+probably choose between 'a', 'A' and 'Z' depending on the language of the other
+program.  If the other program is written in C or C++, you probably want 'a' or
+'Z'.  'A' would be a good choice for COBOL or FORTRAN.&lt;/p&gt;
+
+&lt;h3&gt;'a', 'A', and 'Z' formats&lt;/h3&gt;
+
+&lt;p&gt;When packing, 'a' and 'z' with a count fill extra locations with
+nulls.  'A' fills the extra locations with spaces.  When unpacking,
+'A' removes trailing spaces and nulls, 'Z' strips everything after the
+first null, and 'a' returns the full field as is.&lt;/p&gt;
+
+&lt;h4&gt;Examples&lt;/h4&gt;
+&lt;code&gt;
+    pack('a8',"hello") produces "hello\0\0\0"
+    pack('Z8',"hello") produces "hello\0\0\0"
+    pack('A8',"hello") produces "hello   "
+    unpack('a8',"hello\0\0\0") produces "hello\0\0\0"
+    unpack('Z8',"hello\0\0\0") produces "hello"
+    unpack('A8',"hello   ") produces "hello"
+    unpack('A8',"hello\0\0\0") produces "hello"
+&lt;/code&gt;
+
+&lt;h3&gt;'b' and 'B' formats&lt;/h3&gt;
+
+&lt;p&gt;The 'b' and 'B' formats pack strings consisting of '0' and '1'
+characters to bytes and unpack bytes to strings of '0' and '1'
+characters.  Perl treats even valued characters as 0 and odd valued
+characters as 1 while packing.  The difference between the two is the
+order of the bits within each byte.  With 'b', the bits are specified
+in increasing order.  With 'B', in descending order.  The count
+represents the number of bits to pack.&lt;/p&gt;
+
+&lt;h4&gt;Examples&lt;/h4&gt;
+&lt;code&gt;
+    ord(pack('b8','00100110')) produces 100 (4 + 32 + 64)
+    ord(pack('B8','00100110')) produces 38 (32 + 4 + 2)
+&lt;/code&gt;
+
+&lt;h3&gt;'h' and 'H' formats&lt;/h3&gt;
+
+&lt;p&gt;The 'h' and 'H' formats pack strings containing hexadecimal digits.
+'h' takes the low nybble first, 'H' takes the high nybble first.  The
+count represents the number of nybbles to pack.  In case you were
+wondering, a nybble is half a byte.&lt;/p&gt;
+
+&lt;h4&gt;Examples&lt;/h4&gt;
+
+&lt;p&gt;Each of the following returns a two byte scalar.&lt;/p&gt;
+&lt;code&gt;
+    pack('h4','1234') produces 0x21,0x43
+    pack('H4','1234') produces 0x12,0x34
+&lt;/code&gt;
+
+&lt;h2&gt;Additional Information&lt;/h2&gt;
+
+&lt;p&gt;Perl 5.8 includes &lt;a
+href="http://www.perldoc.com/perl5.8.0/pod/perlpacktut.html"&gt;its own
+tutorial&lt;/a&gt; for pack and unpack.  That tutorial is a bit more indepth than
+this one but some of the things it covers may be specific to perl 5.8.  If you
+are still using perl 5.6, check your own documentation if things don't work as
+that tutorial describes.&lt;/p&gt;
+
+&lt;p&gt;There are more template characters that I haven't covered here.  There are
+also ways to read and write counted ASCII fields as well as some additional
+tricks you can play with pack and unpack.  Try perldoc -f pack on your system
+or refer to [isbn://0596000278|Programming Perl].  And above all, don't be
+afraid to experiment (&lt;i&gt;except on live programs&lt;/i&gt;).  Use the DumpString
+function below to examine the buffers returned by pack until you understand how
+it manipulates data.&lt;/p&gt;
+
+&lt;h2&gt;References&lt;/h2&gt;
+
+&lt;p&gt;[isbn://0596000278|Programming Perl], Third Edition, Larry Wall, Tom
+Christiansen, and Jon Orwant, &amp;copy; 2000, 1996, 1991 O'Reilly &amp;amp;
+Associates, Inc.  ISBN 0-596-00027-8&lt;/p&gt;
+
+&lt;p&gt;Thanks to [bart] for [id://223619|the reference] to the pack/unpack tutorial
+from perl 5.8.&lt;/p&gt;
+
+&lt;p&gt;Thanks to [Zaxo] and [jeffa] for reviewing this document and sharing their
+own efforts at creating a tutorial.&lt;/p&gt;
+
+&lt;p&gt;Thanks to [sulfericacid] and [PodMaster] for inspiring this on the CB.&lt;/p&gt;
+
+&lt;h2&gt;Example Code&lt;/h2&gt;
+
+&lt;p&gt;The following program contains the examples in this document.&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+
+# dump the contents of a string as decimal and hex bytes and characters
+sub DumpString {
+    my @a = unpack('C*',$_[0]);
+    my $o = 0;
+    while (@a) {
+        my @b = splice @a,0,16;
+        my @d = map sprintf("%03d",$_), @b;
+        my @x = map sprintf("%02x",$_), @b;
+        my $c = substr($_[0],$o,16);
+        $c =~ s/[[:^print:]]/ /g;
+        printf "%6d %s\n",$o,join(' ',@d);
+        print " "x8,join('  ',@x),"\n";
+        print " "x9,join('   ',split(//,$c)),"\n";
+        $o += 16;
+    }
+}
+
+# place our web order
+my $t = time;
+my $emp_id = 217641;
+my $item = "boxes of paperclips";
+my $quan = 2;
+my $urgent = 1;
+my $rec = pack( "l i a32 s2", $t, $emp_id, $item, $quan, $urgent);
+DumpString($rec);
+
+# process a web order
+my ($order_time, $monk, $itemname, $quantity, $ignore) =
+       unpack( "l i a32 s2", $rec );
+print "Order time: ",scalar localtime($order_time),"\n";
+print "Placed by monk #$monk for $quantity $itemname\n";
+
+# string formats
+$rec = pack('a8',"hello");               # should produce 'hello\0\0\0'
+DumpScalar($rec);
+$rec = pack('Z8',"hello");               # should produce 'hello\0\0\0'
+DumpScalar($rec);
+$rec = pack('A8',"hello");               # should produce 'hello   '
+DumpScalar($rec);
+($rec) = unpack('a8',"hello\0\0\0");     # should produce 'hello\0\0\0'
+DumpScalar($rec);
+($rec) = unpack('Z8',"hello\0\0\0");     # should produce 'hello'
+DumpScalar($rec);
+($rec) = unpack('A8',"hello   ");        # should produce 'hello'
+DumpScalar($rec);
+($rec) = unpack('A8',"hello\0\0\0");     # should produce 'hello'
+DumpScalar($rec);
+
+# bit format
+$rec = pack('b8',"00100110");            # should produce 0x64 (100)
+DumpScalar($rec);
+$rec = pack('B8',"00100110");            # should produce 0x26 (38)
+DumpScalar($rec);
+
+# hex format
+$rec = pack('h4',"1234");                # should produce 0x21,0x43
+DumpScalar($rec);
+$rec = pack('H4',"1234");                # should produce 0x12,0x34
+DumpScalar($rec);
+&lt;/code&gt;
+http://nbpfaus.net/~pfau/</field>
+</data>
+</node>

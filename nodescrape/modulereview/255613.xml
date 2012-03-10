@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="255613" title="Net::IMAP::Simple" created="2003-05-05 09:20:06" updated="2005-08-09 06:13:02">
+<type id="31663">
+modulereview</type>
+<author id="225743">
+nite_man</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;Name&lt;/h3&gt;
+&lt;p&gt;Net::IMAP::Simple&lt;/p&gt;
+&lt;h3&gt;Author&lt;/h3&gt;
+&lt;p&gt;Joao Fonseca&lt;/a&gt;
+&lt;h3&gt;Version&lt;/h3&gt;
+&lt;p&gt;0.93&lt;/p&gt;
+&lt;h3&gt;Description&lt;/h3&gt;
+&lt;p&gt;
+	Perl extension for simple IMAP account handling. This module leaves a possibility
+	to create, delete or rename IMAP mailboxes, read, copy, delete mail messages.
+&lt;/p&gt;
+&lt;h3&gt;Methods&lt;/h3&gt;
+&lt;dl&gt;
+&lt;dt&gt;&lt;i&gt;new(host, opt_par1 =&gt; val1, opt_par2 =&gt; var2, ...)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	Method &lt;code&gt;new&lt;/code&gt; create a new object &lt;code&gt; Net::IMAP::Simple &lt;/code&gt;
+	Parameter &lt;code&gt;host&lt;/code&gt; defines a IMAP host name, another parameters are optional and pass to &lt;code&gt; 
+	IO::Socket::INET&lt;/code&gt; directly. Usually, it uses parameter &lt;code&gt;Timeout&lt;/code&gt; but you can see other parameters in &lt;code&gt;IO::Socket::INET&lt;/code&gt; &lt;a
+	href='http://search.cpan.org/author/JHI/perl-5.8.0/ext/IO/lib/IO/Socket/INET.pm#CONSTRUCTOR'&gt;
+	documentation&lt;/a&gt;&lt;br&gt;
+	The method &lt;code&gt;new&lt;/code&gt; returns an object which connected
+	to the IMAP server in successful case or it returns
+	&lt;code&gt;undef&lt;/code&gt; and stores an error code into variable &lt;code&gt;$!&lt;/code&gt;:
+	&lt;pre&gt;
+	my $imap = Net::IMAP::Simple-&gt;new($my_host, Timeout =&gt; 30) or die "Can't connect to $my_host: $!";
+	&lt;/pre&gt;
+&lt;/dd&gt;				
+&lt;dt&gt;&lt;i&gt;login(user_name, user_passw)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	This method tries to login on IMAP server using a pair &lt;code&gt; user_name&lt;/code&gt; and &lt;code&gt;user_passw&lt;/code&gt;. This method returns
+	a number of messages in the default user's mail box (usually this is INBOX)
+	or &lt;code&gt;undef&lt;/code&gt; (at that, you can use a hash for 
+	defining of &lt;code&gt;user_name&lt;/code&gt; and &lt;code&gt;user_passw&lt;/code&gt;):
+	&lt;pre&gt;
+	defined (my $num_msgs = $imap-&gt;login($my_name =&gt; $my_passw)) or die "Can't login!";
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;mailboxes()&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	This method returns a list of all user's mailboxes:
+	&lt;pre&gt;
+	my $mailbox_list = $imap-&gt;mailboxes;
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;select(mailbox_name)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;	
+	This method selects a mailbox according to &lt;code&gt;mailbox_name&lt;/code&gt;
+	and return a number of messages which consist in this mailbox 
+	(if mailbox is empty the method &lt;code&gt;select&lt;/code&gt; returns 0) 
+	or &lt;code&gt;undef&lt;/code&gt; if mailbox doesn't exist:
+	&lt;pre&gt;
+	defined(my $num_msgs = $imap-&gt;select($mailbox)) or die "Mailbox $mailbox is invalid!";
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;get(message_number)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	Method &lt;code&gt;get&lt;/code&gt; returns a reference on array which 
+	consists lines of message with number &lt;code&gt;message_number&lt;/code&gt;:
+	&lt;pre&gt;
+	print "Message No 10:\n";
+	map { print $_ ."\n" } @{ $imap-&gt;get(10) };
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;getfh(message_number)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	This method returns the lines of defined message alike previous
+	method but stores result into temporary file. This means 
+	that the message transfers early on user's computer and 
+	then you can read it from file:
+	&lt;pre&gt;
+	my $fh = $imap-&gt;getfh(10);
+	print "Message No 10:\n";
+	print &lt;$fh&gt;;
+	close $fh;
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;delete(message_number)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	This method marks a defined message as delete but, in fact,
+	this message will be delete when method &lt;code&gt;quite&lt;/code&gt; will
+	be called. &lt;code&gt;Net::IMAP::Simple&lt;/code&gt; doesn't leave to
+	possibility of undelete of message which were marked as delete:
+	&lt;pre&gt;
+	$imap-&gt;delete(10);
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;top(message_number)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	Method &lt;code&gt;top&lt;/code&gt; returns a header of defined message as
+	an array reference:
+	&lt;pre&gt;
+	my $header = $imap-&gt;top(10);
+						
+	my $head_obj = Mail::Header-&gt;new($header);
+	my $subj = $head_obj-&gt;get('Subject');
+	my $from = $head_obj-&gt;get('From');	
+	&lt;/pre&gt;					
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;list()&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	If this method is called without a parameter, it returns
+	size for all messages in the mailbox as hash reference where
+	key is message ID and value is message size:
+	&lt;pre&gt;
+	my $all_sizes = $imap-&gt;list;
+					
+	map { print "Message No $_: $$all_sizes{$_} bytes!\n" } keys %$all_sizes; 
+
+	or
+
+	my $msg_size = $imap-&gt;list(10);
+	print "Message No 10: $msg_size bytes!\n";
+	&lt;/pre&gt;					
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;seen(message_number)&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	This method returns 'true' if defined message was read and
+	'false' if not. You can use method &lt;code&gt;seen&lt;/code&gt; for
+	determination of list of  new messages in your mailbox:
+	&lt;pre&gt;
+	for(1 .. $num_msgs) { push @new_msgs, $_ unless $imap-&gt;seen($_);
+	print "You have ".scalar @new_msgs." in your mailbox!\n";
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;dt&gt;&lt;i&gt;quit()&lt;/i&gt;&lt;/dt&gt;
+&lt;dd&gt;
+	Method &lt;code&gt;quit&lt;/code&gt; deletes all marked messages and close
+	a connection with IMAP server:
+	&lt;pre&gt;
+	$imap-&gt;quit;
+	&lt;/pre&gt;
+&lt;/dd&gt;
+&lt;/dl&gt;
+&lt;h3&gt;Others methods&lt;/h3&gt;
+&lt;p&gt;
+	You can manipulate a mailbox by using following methods:
+	&lt;ul&gt;
+	&lt;li&gt;&lt;code&gt;$res = $imap-&gt;create_mailbox(mailbox_name);&lt;/code&gt;&lt;/li&gt;
+	&lt;li&gt;&lt;code&gt;$res = $imap-&gt;delete_mailbox(mailbox_name);&lt;/code&gt;&lt;/li&gt;
+	&lt;li&gt;&lt;code&gt;$res = $imap-&gt;rename_mailbox(old_mailbox_name, new_mailbox_name);&lt;/code&gt;&lt;/li&gt;
+	&lt;/ul&gt;
+	which create, delete and rename defined mailbox accordingly. Those methods
+	return 'true' in success case or 'false'.&lt;br&gt;
+	For copy message from one mailbox to another you can use method &lt;code&gt;copy&lt;/code&gt;:
+	&lt;code&gt;
+	$res = $imap-&gt;copy(message_number, mailbox_name);	
+	&lt;/code&gt;
+	This method returns 'true' in success case or 'false'.
+&lt;/p&gt;
+&lt;h3&gt;Resume&lt;/h3&gt;
+&lt;p&gt;
+	This module will be useful in case of creation a mail checker or simple
+	mail interface to IMAP server. In more complex case preferably use more
+	power modules 
+	&lt;ul&gt;&lt;li&gt;
+	&lt;a
+	href='http://search.cpan.org/author/KJOHNSON/NetxAP-0.02/Net/IMAP.pm'&gt;Net::IMAP&lt;/a&gt;
+	leaves larger set of methods for intercept and interpretation of server
+	responses, management of mailboxes and messages etc.
+	&lt;/li&gt;
+	&lt;li&gt;
+	&lt;a
+	href='http://search.cpan.org/author/DJKERNEN/Mail-IMAPClient-2.2.7/IMAPClient.pod'&gt;Mail::IMAPClient&lt;/a&gt;
+	leaves most full interface to the IMAP server but you should be ready to
+	interpret some responses of server by yourself using 
+	&lt;a href='http://www.cis.ohio-state.edu/cgi-bin/rfc/rfc2060.html'&gt;RFC 2060&lt;/a&gt;.
+	&lt;/li&gt;
+&lt;/p&gt;
+</field>
+<field name="itemdescription">
+A simple Perl interface to the IMAP server.</field>
+<field name="usercomment">
+This review describes methods of module Net::IMAP::Simple.</field>
+<field name="identifier">
+</field>
+</data>
+</node>

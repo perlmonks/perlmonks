@@ -1,0 +1,50 @@
+<node>
+  <doctext>&lt;p&gt;This is where you end up when somebody uses the &lt;tt&gt;[id://539865|/borg]&lt;/tt&gt; command on you.&lt;/p&gt;
+[%
+   my $BUN= getNode('borged users','setting');
+   my $BU= getVars( $BUN );
+   my $str= '';
+   my $changed= 0;
+   my $cnt= 0;
+   my $PU= getNode( 'power users', 'usergroup' );
+   my $isPU= $DB-&gt;isApproved( $USER, $PU );
+   if(  $q-&gt;param('unborgid')  &amp;&amp;  $DB-&gt;isApproved($USER,$PU)  ) {
+      ++$changed   if  delete $BU-&gt;{$query-&gt;param('unborgid')};
+   }
+   $str .= &quot;&lt;table&gt;&lt;tr&gt;&quot;;
+   $str .= &quot;&lt;td&gt;&lt;/td&gt;&quot;   if  $isPU;
+   $str .= &quot;&lt;td&gt;User&lt;/td&gt;&lt;td&gt;Time left&lt;/td&gt;&lt;/tr&gt;&quot;;
+   my $now= time();
+   foreach(  keys %$BU  ) {
+       if(  $BU-&gt;{$_} &lt; $now  ) {
+          ++$changed;
+          delete $BU-&gt;{$_};
+       } else {
+          $str .= &quot;&lt;tr&gt;&quot;;
+          $str .= &quot;&lt;td&gt;&quot; . htmlcode('openform')
+             . $q-&gt;submit( -name=&gt;'unborg' )
+             . $q-&gt;hidden( -name=&gt;'unborgid', -value=&gt;$_, -override=&gt;1 )
+             . &quot;&lt;/form&gt;&lt;/td&gt;&quot;
+             if  $isPU;
+          my $sec= $BU-&gt;{$_} - $now;
+          my $lt = ($sec%60).&quot; sec&quot;;
+          $lt = (($sec/60)%60).&quot; minutes $lt&quot; if $sec &gt; 60;
+          $lt = int($sec/3600).&quot; hours $lt&quot; if $sec &gt; 3600;
+          $str .= &quot;&lt;td&gt;&quot; . linkNode($_) . &quot;&lt;/td&gt;&lt;td&gt;$lt&lt;/td&gt;&lt;/tr&gt;&quot;;
+          ++$cnt;
+       }
+   }
+   if(  $changed  ) {
+      setVars( $BUN, $BU );
+   }
+   $str .= &quot;&lt;/table&gt;&quot;;
+
+   return $cnt ? $str : &quot;&lt;b&gt;No users are currently borged&lt;/b&gt;&quot;;
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>56087</node_id>
+  <author_user>485628</author_user>
+  <title>borg's belly</title>
+  <createtime>2001-02-02 19:26:21</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

@@ -1,0 +1,75 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>523234</node_id>
+  <author_user>357600</author_user>
+  <title>scratchpad_mode</title>
+  <createtime>2006-01-14 15:44:51</createtime>
+  <code>my ( $node, $tools )= @_;
+$node ||= $NODE;
+$tools ||= \do{my $x=&quot;&quot;};
+
+return if $node-&gt;{type}{title} ne 'scratchpad';
+
+my $is_own_pad = ( getId($USER) == $node-&gt;{author_user} );
+my $see_private = $is_own_pad || isGod($USER);
+my $show_private = $see_private &amp;&amp; $VARS-&gt;{show_private_pad} 
+                                &amp;&amp; $VARS-&gt;{show_private_pad}{$node-&gt;{node_id}};
+
+my $mode=$q-&gt;param('viewmode');
+my $showmode;
+if (!$mode) {
+  $mode= $q-&gt;param('showmode');
+  $showmode = 1 if $mode;
+}
+
+if ( $see_private and $mode =~ /^(?:(private)|public)$/) {
+  if ($1) {
+    $VARS-&gt;{show_private_pad}{$node-&gt;{node_id}}= 1
+       if !$showmode;
+    $show_private=1;
+  } else {
+    if ( !$showmode ) {
+      delete $VARS-&gt;{show_private_pad}{$node-&gt;{node_id}};
+      delete $VARS-&gt;{show_private_pad};
+    }
+    $show_private=0;
+  }
+} 
+my $is_edit= $q-&gt;param('displaytype') eq 'edit';
+my @tools;
+if ( $see_private ) {
+   if ( $show_private ) {
+         push @tools, ( $is_edit ? &quot;Re&quot; : &quot;&quot; ) 
+                    . linkNode($node,'Edit Private',{displaytype =&gt; 'edit', viewmode =&gt; 'private'});
+         push @tools, linkNode($node,'Edit Public',{displaytype =&gt; 'edit',viewmode =&gt; 'public'});
+
+         push @tools, ( !$is_edit ? &quot;Re&quot; : &quot;&quot; ) 
+                    . linkNode($node,'View Private', {viewmode =&gt; 'private'});
+         push @tools, linkNode( $node, 'View Public',{ viewmode =&gt; 'public' } );
+
+   } else {
+         push @tools, ( $is_edit ? &quot;Re&quot; : &quot;&quot; ) 
+                    . linkNode($node,'Edit Public',{displaytype =&gt; 'edit',viewmode =&gt; 'public'});
+         push @tools, linkNode($node,'Edit Private',{displaytype =&gt; 'edit',viewmode =&gt; 'private'});
+
+         push @tools, ( !$is_edit ? &quot;Re&quot; : &quot;&quot; ) 
+                    . linkNode( $node, 'View Public',{ viewmode =&gt; 'public' } );
+         push @tools, linkNode($node, 'View Private', { viewmode =&gt; 'private'});
+   }
+   if ( ! $is_edit  ) {
+      @tools[0,1,2,3]= @tools[2,3,0,1];
+   }
+}
+push @tools, linkNode($node, 'Download', {displaytype =&gt; 'displaycode'});
+push @tools, linkNode($node, 'Select Code To D/L', {displaytype =&gt; 'selectcode'});
+my $title=$show_private ? &quot;Private&quot; : &quot;Public&quot;;
+$$tools .= &quot;&lt;table width='100%' class='splinks'&gt;&lt;tr&gt;&quot;
+        . &quot;&lt;td align='left'&gt;$title Scratchpad&lt;/td&gt;&quot;
+        . &quot;&lt;td align='right'&gt;&quot; 
+        . join(&quot;, &quot;,@tools) 
+        . &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&quot;; 
+
+return $show_private ? &quot;private&quot; : 0;
+</code>
+  <nodeupdated>2006-01-14 10:44:51</nodeupdated>
+</node>

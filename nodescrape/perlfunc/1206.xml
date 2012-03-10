@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1206" title="perlman:File::Find" created="1999-12-22 19:51:48" updated="2005-08-15 09:30:03">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+find - traverse a file tree
+
+&lt;P&gt;
+finddepth - traverse a directory structure depth-first
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+&lt;PRE&gt;    use &lt;A HREF="File::Find"&gt;File::Find&lt;/A&gt;;
+    find(\&amp;amp;wanted, '/foo','/bar');
+    sub wanted { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use &lt;A HREF="File::Find"&gt;File::Find&lt;/A&gt;;
+    finddepth(\&amp;amp;wanted, '/foo','/bar');
+    sub wanted { ... }
+&lt;/PRE&gt;
+&lt;P&gt;</field>
+<field name="description">
+
+&lt;P&gt;
+The first argument to 
+&lt;CODE&gt;find()&lt;/CODE&gt; is either a hash
+reference describing the operations to be performed for each file, or a
+code reference. If it is a hash reference, then the value for the key &lt;CODE&gt;wanted&lt;/CODE&gt; should be a code reference. This code reference is called &lt;EM&gt;the wanted()
+function&lt;/EM&gt; below.
+
+&lt;P&gt;
+Currently the only other supported key for the above hash is
+&lt;CODE&gt;bydepth&lt;/CODE&gt;, in presense of which the walk over directories is performed depth-first. Entry point 
+&lt;CODE&gt;finddepth()&lt;/CODE&gt; is a shortcut for specifying
+ &lt;CODE&gt;{ bydepth =&lt;/CODE&gt; 1}&amp;gt; in the first argument of 
+&lt;CODE&gt;find().&lt;/CODE&gt;
+
+&lt;P&gt;
+The 
+&lt;CODE&gt;wanted()&lt;/CODE&gt; function does
+whatever verifications you want. $File::Find::dir contains the current
+directory name, and &lt;CODE&gt;$_&lt;/CODE&gt; the current filename within that
+directory. $File::Find::name contains
+&lt;CODE&gt;&amp;quot;$File::Find::dir/$_&amp;quot;&lt;/CODE&gt;. You are 
+&lt;CODE&gt;chdir()'d&lt;/CODE&gt; to
+$File::Find::dir when the function is called. The function may set
+$File::Find::prune to prune the tree.
+
+&lt;P&gt;
+File::Find assumes that you don't alter the &lt;CODE&gt;$_&lt;/CODE&gt; variable. If
+you do then make sure you return it to its original value before exiting
+your function.
+
+&lt;P&gt;
+This library is useful for the &lt;CODE&gt;find2perl&lt;/CODE&gt; tool, which when fed,
+
+&lt;P&gt;
+&lt;PRE&gt;    find2perl / -name .nfs\* -mtime +7 \
+        -exec rm -f {} \; -o -fstype nfs -prune
+&lt;/PRE&gt;
+&lt;P&gt;
+produces something like:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub wanted {
+        /^\.nfs.*$/ &amp;amp;&amp;amp;
+        (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) &amp;amp;&amp;amp;
+        int(-M _) &amp;gt; 7 &amp;amp;&amp;amp;
+        unlink($_)
+        ||
+        ($nlink || (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_))) &amp;amp;&amp;amp;
+        $dev &amp;lt; 0 &amp;amp;&amp;amp;
+        ($&lt;A HREF="File::Find::prune"&gt;File::Find::prune&lt;/A&gt; = 1);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Set the variable $File::Find::dont_use_nlink if you're using 
+&lt;FONT SIZE=-1&gt;AFS,&lt;/FONT&gt; since 
+&lt;FONT SIZE=-1&gt;AFS&lt;/FONT&gt; cheats.
+
+&lt;P&gt;
+&lt;CODE&gt;finddepth&lt;/CODE&gt; is just like &lt;CODE&gt;find&lt;/CODE&gt;, except that it does a depth-first search.
+
+&lt;P&gt;
+Here's another interesting wanted function. It will find all symlinks that
+don't resolve:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub wanted {
+        -l &amp;amp;&amp;amp; !-e &amp;amp;&amp;amp; print &amp;quot;bogus link: $&lt;A HREF="File::Find::name"&gt;File::Find::name&lt;/A&gt;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="BUGS"&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+There is no way to make find or finddepth follow symlinks.
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="120838" title="HTML::CalendarMonthSimple cookbook recipe" created="2001-10-23 16:51:06" updated="2005-08-12 13:39:34">
+<type id="956">
+perltutorial</type>
+<author id="24736">
+boo_radley</author>
+<data>
+<field name="doctext">
+&lt;h4&gt;Problem&lt;/h4&gt;
+You want to display data online in a monthly view.
+&lt;h4&gt;Solution&lt;/h4&gt;
+Make use of [cpan://HTML::CalendarMonthSimple] to provide a programmatic interface to the contents of an HTML calendar month.
+&lt;code&gt;#! c:/perl/bin/perl.exe
+use strict;
+use CGI qw (header);
+use CGI::Carp qw(fatalsToBrowser);
+use DBI;
+use HTML::CalendarMonthSimple;
+
+my $myyear=2001;
+my $mymonth=10;  # month to pull data on
+
+
+#
+#   set up database connectivity &amp; retrieve records
+#   the dbi method selectall_arrayref was added in DBI v1.15.
+#
+my $dbi=DBI-&gt;connect("DBI:mysql:host=myhost:user=nobody") || die ("no dbi",DBI-&gt;errstr);
+$dbi-&gt;do ("use mydatabase") || die DBI-&gt;errstr;
+my @items = @{$dbi-&gt;selectall_arrayref (
+    "SELECT title, dayofmonth(date), detail
+     FROM table
+     WHERE month (date) = $mymonth AND
+           year (date) = $myyear
+     order by  dayofmonth(date)")};
+#
+#   set up the calendar &amp; populate information
+#
+my $cal = new HTML::CalendarMonthSimple('year'=&gt;$myyear,'month'=&gt;$mymonth);
+$cal-&gt;width('100%');
+$cal-&gt;border(2);
+$cal-&gt;header('Monthly data');
+$cal-&gt;bgcolor('whitesmoke');
+#
+#   populate calendar with data
+#
+foreach my $row (@items) {
+    $cal-&gt;addcontent($$row[1], "&lt;b&gt;$$row[0]&lt;/b&gt; &lt;br /&gt; &lt;i&gt;$$row[2]&lt;/i&gt;");
+}
+print header;
+print $cal-&gt;as_HTML;
+&lt;/code&gt;
+&lt;h4&gt;Discussion&lt;/h4&gt;
+This short example provides the barest methods for inputting data into an HTML::CalendarMonthSimple object, and the displaying that calendar.&lt;br/&gt;
+The new method takes 2 optional arguments, year and month. If either is missing, the current month or year will be used. This can be useful if you want a calendar of the current month in a previous year.&lt;br /&gt;
+&lt;b&gt;Example : &lt;/b&gt;&lt;code&gt; my $cal = new HTML::CalendarMonthSimple ('year'=&gt;1990);&lt;/code&gt; will make a calendar for October 1990.&lt;p&gt;
+content is added to each day via the setcontent and addcontent methods; setcontent replaces any existing data, and addcontent appends to the day's data.
+&lt;b&gt;Example : &lt;/b&gt;&lt;code&gt;$cal-&gt;setcontent(31,"Halloween!"); &lt;/code&gt; puts "Halloween" into the 31st day of the calendar.&lt;br&gt;
+&lt;b&gt;Example : &lt;/b&gt;&lt;code&gt;$cal-&gt;addcontent(31,"&lt;br&gt;Buy lots of candy for the kids"); &lt;/code&gt; appends a second line to the same date.&lt;br&gt;
+In addition to specifying the exact day, references like "2FRIDAY" can be used to place information in certain cells when the date value may not be known (think paydays, for example).&lt;p&gt;
+In addition to the methods listed above, there are a large host of methods which control the layout &amp; presentation of the calendar; colors, fonts and html attributes can be configured easily, and calendar layout can be manipulated as well.&lt;br&gt;
+There are some things which could be done better -- this module is not warning-safe due to concatenation of undef'd strings in a few places, and the HTML produced is not in strict compliance with HTML 3 standards, causing tidy to produce warnings. I feel that these are not insurmountable problems though, and have found that working with HTML::CalendarMonthSimple has been a rewarding and speedy way to present data over the web.&lt;p&gt;
+&lt;b&gt;update&lt;/b&gt; I've patched the source code to prevent the warnings from occuring and as a side effect, this will emit smaller html. I've contacted the module's owner about the patches.&lt;p&gt;
+&lt;b&gt;update (20Nov01)&lt;/b&gt; The patches I submitted have been integrated into the module, so it should be warning safe now.</field>
+</data>
+</node>

@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="553889" title="Operator Associativity and Eliminating Left-Recursion in Parse::RecDescent" created="2006-06-06 14:52:07" updated="2006-06-06 10:52:07">
+<type id="956">
+perltutorial</type>
+<author id="381608">
+ikegami</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Operator Associativity and Eliminating Left-Recursion in [mod://Parse::RecDescent]&lt;/h1&gt;
+
+&lt;h2&gt;Synopsis&lt;/h2&gt;
+
+&lt;p&gt;I have found documentation on eliminating left-recursion (such as [id://153155]) to be unsatisfactory. Left recursion is usually eliminated at the expense of associativity. This tutorial seeks to address this issue.
+
+&lt;p&gt;The document provides two implementation for every topic covered. The first shows how the topic applies when evaluating the text at parse time. The second shows how the topic applies when building a parse tree. It is probably best to ignore the latter (parse tree creation) until the former (parse-time eval) is understood.
+
+&lt;p&gt;Feedback and criticisms are welcome.
+
+&lt;h2&gt;Table of Contents&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s1"&gt;1. What is Operator Associativity?&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s2"&gt;2. Parsers and Associativity&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s2_a"&gt;2.a. Parse-time Evaluation with Associativity&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s2_b"&gt;2.b. Building a Parse Tree with Associativity&lt;/a&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3"&gt;3. Eliminating Left-Recursion&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_a"&gt;3.a. Method 1: Create a Flat List, and Reconstruct&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_a_i"&gt;3.a.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_a_ii"&gt;3.a.ii. ...to Build a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_b"&gt;3.b. Method 2: Create a Flat List Using &lt;c&gt;&lt;leftop&gt;&lt;/c&gt;, and Reconstruct&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_b_i"&gt;3.b.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_b_ii"&gt;3.b.ii. ...to Build a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_c"&gt;3.c. Method 3: Using a Subrule Argument&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_c_i"&gt;3.c.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s3_c_ii"&gt;3.c.ii. ...to Build a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4"&gt;4. Improving Right-Recursion&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_a"&gt;4.a. Method 1: Create a Flat List, and Reconstruct&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_a_i"&gt;4.a.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_a_ii"&gt;4.a.ii. ...to Build a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_b"&gt;4.b. Method 2: Create a Flat List Using &lt;c&gt;&lt;rightop&gt;&lt;/c&gt;, and Reconstruct&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_b_i"&gt;4.b.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_b_ii"&gt;4.b.ii. ...to Build a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_c"&gt;4.c. Method 3: Using a Subrule Argument&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_c_i"&gt;4.c.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s4_c_ii"&gt;4.c.ii. ...to Build a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;/ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s5"&gt;5. Working Code&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#n553889_s5_a"&gt;5.a. ...to Evaluate the Text at Parse-time&lt;/a&gt;
+&lt;li&gt;&lt;a href="#n553889_s5_b"&gt;5.b. ...to Build and Evaluate a Parse Tree&lt;/a&gt;
+&lt;/ul&gt;
+&lt;/ul&gt;
+
+&lt;readmore&gt;
+&lt;h2&gt;&lt;a name="n553889_s1"&gt;1. What is Operator Associativity?&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;The Perl binary operators &lt;c&gt;+&lt;/c&gt; and &lt;c&gt;-&lt;/c&gt; have the same preceedence, but that doesn't mean they can be evaluated in any order. For example, consider &lt;c&gt;4 - 5 + 6&lt;/c&gt;.
+
+&lt;c&gt;
+If executed from left-to-right,
+4 - 5 + 6 = (4 - 5) + 6 = 5
+
+If executed from right-to-left,
+4 - 5 + 6 = 4 - (5 + 6) = -7
+&lt;/c&gt;
+
+&lt;p&gt;Similarly,
+
+&lt;c&gt;
+If executed from left-to-right,
+4 ** 3 ** 2 = (4 ** 3) ** 2 = 4096
+
+If executed from right-to-left,
+4 ** 3 ** 2 = 4 ** (3 ** 2) = 262144
+&lt;/c&gt;
+
+&lt;p&gt;Operators which are evaluated from left-to-right are left-associative.
+
+&lt;p&gt;Operators which are evaluated from right-to-left are right-associative.
+
+&lt;p&gt;In Perl, binary operators &lt;c&gt;+&lt;/c&gt; and &lt;c&gt;-&lt;/c&gt; are left-associative, and binary operator &lt;c&gt;**&lt;/c&gt; is right-associative. (Refer to [doc://perlop#Operator-Precedence-and-Associativity--operator%2c-precedence-precedence-associativity|Operator Precedence and Associativity] in [doc://perlop] for the associativity of other operators.)
+
+&lt;h2&gt;&lt;a name="n553889_s2"&gt;2. Parsers and Associativity&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;Grammars do not specify associativity. A [wp://Formal grammar|grammar] simply defines whether a given string is valid in the language represented by the grammar, and associativity is not needed for that purpose.
+
+&lt;p&gt;However, we're rarely just interested in validity check. Parsers that return a parse tree representing the text being parsed and those that evaluate the text being parsed are much more useful. Because Parse::RecDescent processes rules from left to right, grammars can be written in a form that lends itself well to doing these tasks.
+
+&lt;p&gt;Left-associative:
+
+&lt;c&gt;
+sum : sum /[+-]/ NUM
+    | NUM
+&lt;/c&gt;
+
+&lt;p&gt;Right-associative:
+
+&lt;c&gt;
+pow : NUM '**' pow
+    | NUM
+&lt;/c&gt;
+
+&lt;p&gt;The following subsections will enrich these grammars with code to build a parse tree and to evaluate the expression at parse-time. As you will see, no changes will be needed to the grammar.
+
+&lt;h3&gt;&lt;a name="n553889_s2_a"&gt;2.a. Parse-time Evaluation with Associativity&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;Left-associative:
+
+&lt;c&gt;
+sum : sum '+' NUM { $item[1] + $item[3] }
+    | sum '-' NUM { $item[1] - $item[3] }
+    | NUM         { $item[1]            }
+&lt;/c&gt;
+
+&lt;p&gt;Right-associative:
+
+&lt;c&gt;
+pow : NUM '**' sum { $item[1] ** $item[3] }
+    | NUM          { $item[1]             }
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s2_b"&gt;2.b. Building a Parse Tree with Associativity&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;Left-associative:
+
+&lt;c&gt;
+sum : sum /[+-]/ NUM { [ @item[2,1,3] ] }
+    | NUM            { [ $item[1]     ] }
+&lt;/c&gt;
+
+&lt;p&gt;Right-associative:
+
+&lt;c&gt;
+pow : NUM '**' pow { [ @item[2,1,3] ] }
+    | NUM          { [ $item[1]     ] }
+&lt;/c&gt;
+
+&lt;h2&gt;&lt;a name="n553889_s3"&gt;3. Eliminating Left-Recursion&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;There is a catch. The theory is solid, but parsers have limitations.
+
+&lt;p&gt;Productions of the form &lt;c&gt;a : a b&lt;/c&gt; are called left-recursive. An entire class of parser generators cannot process left-recursive grammars, and Parse::RecDescent belongs to that class. Unfortunately, the left-associative rules presented so far are left-recursive. The remainder of this section will show methods of removing left-recursion from grammars for Parse::RecDescent.
+
+&lt;h3&gt;&lt;a name="n553889_s3_a"&gt;3.a. Method 1: Create a Flat List, and Reconstruct&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;It's easy to parse &lt;c&gt;4 - 5 + 6&lt;/c&gt; into the list &lt;c&gt;'4', '-', '5', '+', '6'&lt;/c&gt;. The following snippet does so:
+
+&lt;c&gt;
+sum  : NUM sum_        { [ $item[1], @{$item[2]} ] }
+sum_ : /[+-]/ NUM sum_ { [ $item[1], $item[2], @{$item[3]} ] }
+     |                 { [] }
+&lt;/c&gt;
+
+&lt;p&gt;If we are evaluating at parse-time, we have little choice but to process the sum as a list rather than a binary operator. When building a parse tree, we have two options. We could leave it as is, or we could convert the list into a tree.
+
+&lt;p&gt;The following subsections show how to evaluate the list how to treeify it.
+
+&lt;h4&gt;&lt;a name="n553889_s3_a_i"&gt;3.a.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub eval_sum {
+      my $acc = shift(@_);
+      while (@_) {
+         my $op = shift(@_);
+         if    ($op eq '+') { $acc += shift(@_); }
+         elsif ($op eq '-') { $acc -= shift(@_); }
+      }
+      return $acc;
+   }
+}
+
+sum  : NUM sum_         { eval_sum($item[1], @{$item[2]}) }
+sum_ : /[+-]/ NUM sum_  { [ $item[1], $item[2], @{$item[3]} ] }
+      |                 { [] }
+&lt;/c&gt;
+
+&lt;h4&gt;&lt;a name="n553889_s3_a_ii"&gt;3.a.ii. ...to Build a Parse Tree&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub treeify {
+      my $t = shift(@_);
+      $t = [ shift(@_), $t, shift(@_) ]
+         while @_;
+      return $t;
+   }
+}
+
+sum  : NUM sum_         { treeify($item[1], @{$item[2]}) }
+sum_ : /[+-]/ NUM sum_  { [ $item[1], $item[2], @{$item[3]} ] }
+     |                  { [] }
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s3_b"&gt;3.b. Method 2: Create a Flat List Using &lt;c&gt;&lt;leftop&gt;&lt;/c&gt;, and Reconstruct&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;This method is the same as Method 1, but takes advantage of a Parse::RecDescent feature to improve readability. Parse::RecDescent has a pair of directives to help build lists. &lt;c&gt;&lt;leftop&gt;&lt;/c&gt; is designed to build left-associative lists, and &lt;c&gt;&lt;rightop&gt;&lt;/c&gt; is designed to build right-associative lists.
+
+&lt;h4&gt;&lt;a name="n553889_s3_b_i"&gt;3.b.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub eval_sum {
+      my $acc = shift(@_);
+      while (@_) {
+         my $op = shift(@_);
+         if    ($op eq '+') { $acc += shift(@_); }
+         elsif ($op eq '-') { $acc -= shift(@_); }
+      }
+      return $acc;
+   }
+}
+
+sum : &lt;leftop: NUM /[+-]/ NUM&gt; { eval_sum(@{$item[1]}) }
+&lt;/c&gt;
+
+&lt;h4&gt;&lt;a name="n553889_s3_b_ii"&gt;3.b.ii. ...to Build a Parse Tree&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub treeify {
+      my $t = shift(@_);
+      $t = [ shift(@_), $t, shift(@_) ]
+         while @_;
+      return $t;
+   }
+}
+
+sum : &lt;leftop: NUM /[+-]/ NUM&gt; { treeify(@{$item[1]}) }
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s3_c"&gt;3.c. Method 3: Using a Subrule Argument&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;Normally, information passes from subrule to superrule. For example, in the following code, rule2 receives the result of rule3. In turn, rule1 receives the result of rule2.
+
+&lt;c&gt;
+rule1: token rule2
+rule2: token rule3
+rule3: token
+&lt;/c&gt;
+
+&lt;p&gt;The deeper something is, the sooner it will get executed. In a list, that means the means the last (right-most) element encountered will be executed first. With left-associative lists, the opposite is needed. With left-associative lists, information needs to flow from the superrule to the subrule. Fortuantely, Parse::RecDescent provides a means of passing information to subrules: Subrule argument lists.
+
+&lt;p&gt;Think of each rule as a function, and each reference to that rule as a function call. (In fact, this is how the compiled grammars are implemented.) Just like function can have arguments, so can subrules.
+
+&lt;h4&gt;&lt;a name="n553889_s3_c_i"&gt;3.c.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+sum  : NUM sum_[ $item[1] ]
+sum_ : '+' NUM sum_[ $arg[0] + $item[2] ]
+     | '-' NUM sum_[ $arg[0] - $item[2] ]
+     | { $arg[0] }
+&lt;/c&gt;
+
+&lt;h4&gt;&lt;a name="n553889_s3_c_ii"&gt;3.c.ii. ...to Build a Parse Tree&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+sum  : NUM sum_[ $item[1] ]
+sum_ : '+' NUM sum_[ [ $item[1], $arg[0], $item[2] ] ]
+     | '-' NUM sum_[ [ $item[1], $arg[0], $item[2] ] ]
+     | { $arg[0] }
+&lt;/c&gt;
+
+&lt;h2&gt;&lt;a name="n553889_s4"&gt;4. Improving Right-Recursion&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;Earlier, we ended up with the following rules for right-recursive binary operators:
+
+&lt;c&gt;
+pow : NUM '**' pow
+    | NUM
+&lt;/c&gt;
+
+&lt;p&gt;Unlike left-recursion, Parse::RecDescent has no problem with right-recursion. However, Parse::RecDescent handles rule with productions with identical prefixes very inefficiently.
+
+&lt;p&gt;Just like in algebra, we can factor out the common prefix into another rule.
+
+&lt;c&gt;
+pow   : NUM pow_
+pow_  : '**' pow
+      |
+&lt;/c&gt;
+
+&lt;p&gt;The complicated part is how to evaluate the expression or build the parse tree when one of the operands is matched by one rule, and the other is matched by a different rule. It turns out that doing this is very similar to eliminating left-recursion.
+
+&lt;h3&gt;&lt;a name="n553889_s4_a"&gt;4.a. Method 1: Create a Flat List, and Reconstruct&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;Just like when eliminating left-recursion, we can build a flat list of the whole chain of powers, and work with that. The difference is that the list will be processed from right to left.
+
+&lt;h4&gt;&lt;a name="n553889_s4_a_i"&gt;4.a.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub eval_pow {
+      my $acc = pop(@_);
+      while (@_) {
+         my $op = pop(@_);
+         $acc = pop(@_) ** $acc;
+      }
+      return $acc;
+   }
+}
+
+pow  : NUM pow_      { eval_pow($item[1], @{$item[2]}) }
+pow_ : '**' NUM pow_ { [ $item[1], $item[2], @{$item[3]} ] }
+     |               { [] }
+&lt;/c&gt;
+
+&lt;h4&gt;&lt;a name="n553889_s4_a_ii"&gt;4.a.ii. ...to Build a Parse Tree&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub treeify_r {
+      my $t = pop;
+      $t = [ pop, pop, $t ]
+         while @_;
+      return $t;
+   }
+}
+
+pow  : NUM pow_      { treeify_r($item[1], @{$item[2]}) }
+pow_ : '**' NUM pow_ { [ $item[1], $item[2], @{$item[3]} ] }
+     |               { [] }
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s4_b"&gt;4.b. Method 2: Create a Flat List Using &lt;c&gt;&lt;rightop&gt;&lt;/c&gt;, and Reconstruct&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;Just like Parse::RecDescent has an directive for creating a flat list for a left-associative operator (&lt;c&gt;&lt;lefttop&gt;&lt;/c&gt;), it has one to create a flat list for a right-associative operator (&lt;c&gt;&lt;rightop&gt;&lt;/c&gt;).
+
+&lt;h4&gt;&lt;a name="n553889_s4_b_i"&gt;4.b.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub eval_pow {
+      my $acc = pop(@_);
+      while (@_) {
+         my $op = pop(@_);
+         $acc = pop(@_) ** $acc;
+      }
+      return $acc;
+   }
+}
+
+pow : &lt;rightop: NUM /(\*\*)/ NUM&gt; { eval_pow(@{$item[1]}) }
+&lt;/c&gt;
+
+&lt;h4&gt;&lt;a name="n553889_s4_b_ii"&gt;4.b.ii. ...to Build a Parse Tree&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+{
+   sub treeify_r {
+      my $t = pop;
+      $t = [ pop, pop, $t ]
+         while @_;
+      return $t;
+   }
+}
+
+pow : &lt;rightop: NUM /(\*\*)/ NUM&gt; { treeify_r(@{$item[1]}) }
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s4_c"&gt;4.c. Method 3: Using a Subrule Argument&lt;/a&gt;&lt;/h3&gt;
+
+&lt;p&gt;Let's look at the algebra again. We can change
+
+&lt;c&gt;
+pow : NUM '**' pow { $item[1] ** $item[3] }
+    | NUM          { $item[1] } 
+&lt;/c&gt;
+  
+&lt;p&gt;into
+
+&lt;c&gt;
+pow   : NUM pow_
+pow_  : '**' pow { &lt;&lt;pow's $item[1]&gt;&gt; ** $item[2] }
+      |          { &lt;&lt;pow's $item[1]&gt;&gt; } 
+&lt;/c&gt;
+
+&lt;p&gt;The problem we have to pass &lt;c&gt;$item[1]&lt;/c&gt; from &lt;c&gt;pow&lt;/c&gt; to &lt;c&gt;pow_&lt;/c&gt;. We've already seen that we can pass data from one rule to another using subrule arguments. When eliminating left-recursion, we used the subrule argument to form a stack. When improving right-recursion, we simply pass from the main rule to the helper rule.
+
+&lt;h4&gt;&lt;a name="n553889_s4_c_i"&gt;4.c.i. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+pow  : NUM pow_[ $item[1] ]
+pow_ : '**' pow { $arg[0] ** $item[2] }
+     |          { $arg[0]             } 
+&lt;/c&gt;
+
+&lt;h4&gt;&lt;a name="n553889_s4_c_ii"&gt;4.c.ii. ...to Build a Parse Tree&lt;/a&gt;&lt;/h4&gt;
+
+&lt;c&gt;
+pow  : NUM pow_[ $item[1] ]
+pow_ : '**' pow { [ $item[2], $arg[0], $item[3] ] }
+     |          { $arg[0]                         } 
+&lt;/c&gt;
+
+&lt;h2&gt;&lt;a name="n553889_s5"&gt;5. Working Code&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;The following subsections contains complete, working code to parse expressions formed of the &lt;c&gt;+&lt;/c&gt;, &lt;c&gt;-&lt;/c&gt; and &lt;c&gt;**&lt;/c&gt; binary operators using the Subrule Argument methods. Parentheses are also supported to produce more meaningful results.
+
+&lt;p&gt;In order to support parentheses and to give the operators their proper precedence, the rules used in the upcoming code are slightly different from those seen earlier. Where &lt;c&gt;NUM&lt;/c&gt; used to be in the productions, you will now find &lt;c&gt;term&lt;/c&gt; (in &lt;c&gt;sum&lt;/c&gt;/&lt;c&gt;sum_&lt;/c&gt;) and &lt;c&gt;sum&lt;/c&gt; (in &lt;c&gt;pow&lt;/c&gt;/&lt;c&gt;pow_&lt;/c&gt;).
+
+&lt;p&gt;The code of both subsections produce the same output, an uncommented version of the following:
+
+&lt;c&gt;
+Demonstrates left-associativity
+4-5+6   =  5  got  5
+(4-5)+6 =  5  got  5
+4-(5+6) = -7  got -7
+
+Demonstrates right-associativity
+4**3**2   = 262144  got 262144
+(4**3)**2 =   4096  got   4096
+4**(3**2) = 262144  got 262144
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s5_a"&gt;5.a. ...to Evaluate the Text at Parse-time&lt;/a&gt;&lt;/h3&gt;
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+use Parse::RecDescent ();
+
+my $grammar = &lt;&lt;'__END_OF_GRAMMAR__';
+
+   {
+      use strict;
+      use warnings;
+   }
+
+   parse : expr /^\Z/ { $item[1] }
+
+   # Just an alias
+   expr  : pow
+
+   # vvv lowest precedence
+
+   # pow : sum '**' pow
+   #     | sum
+
+   pow   : sum pow_[ $item[1] ]
+   pow_  : '**' pow { $arg[0] ** $item[2] }
+         |          { $arg[0]             }
+
+   # sum : sum /[+-]/ term
+   #     | term
+
+   sum   : term sum_[ $item[1] ]
+   sum_  : '+' term sum_[ $arg[0] + $item[2] ]
+         | '-' term sum_[ $arg[0] - $item[2] ]
+         | { $arg[0] }
+
+   # ^^^ highest precedence
+
+   term  : '(' expr ')' { $item[2] }
+         | /\d+/
+
+__END_OF_GRAMMAR__
+
+my $parser = Parse::RecDescent-&gt;new($grammar)
+   or die("Bad grammar\n");
+
+foreach my $expr (
+   '4-5+6',      # Demonstrates left-associativity
+   '(4-5)+6',
+   '4-(5+6)',
+
+   '4**3**2',    # Demonstrates right-associativity
+   '(4**3)**2',
+   '4**(3**2)',
+) {
+   my $expected = eval $expr;
+   my $got = $parser-&gt;parse($expr);
+   print("$expr = $expected  got $got\n");
+}
+&lt;/c&gt;
+
+&lt;h3&gt;&lt;a name="n553889_s5_b"&gt;5.b. ...to Build and Evaluate a Parse Tree&lt;/a&gt;&lt;/h3&gt;
+
+&lt;c&gt;
+use strict;
+use warnings;
+
+use Parse::RecDescent ();
+
+my $grammar = &lt;&lt;'__END_OF_GRAMMAR__';
+
+   {
+      use strict;
+      use warnings;
+   }
+
+   parse : expr /^\Z/ { $item[1] }
+
+   # Just an alias
+   expr  : pow
+
+   # vvv lowest precedence
+
+   # pow : sum '**' pow
+   #     | sum
+
+   pow   : sum pow_[ $item[1] ]
+   pow_  : '**' pow { [ $item[1], $arg[0], $item[2] ] }
+         |          { $arg[0] }
+
+   # sum : sum /[+-]/ term
+   #     | term
+
+   sum   : term sum_[ $item[1] ]
+   sum_  : /[+-]/ term sum_[ [ $item[1], $arg[0], $item[2] ] ]
+         | { $arg[0] }
+
+   # ^^^ highest precedence
+
+   term  : '(' expr ')' { $item[2] }
+         | /\d+/ { [ @item ] }
+
+__END_OF_GRAMMAR__
+
+my $parser = Parse::RecDescent-&gt;new($grammar)
+   or die("Bad grammar\n");
+
+my %eval = (
+   term =&gt; sub { $_[1] },
+   '+'  =&gt; sub { eval_node($_[1]) +  eval_node($_[2]) },
+   '-'  =&gt; sub { eval_node($_[1]) -  eval_node($_[2]) },
+   '**' =&gt; sub { eval_node($_[1]) ** eval_node($_[2]) },
+);
+
+sub eval_node {
+   my ($node) = @_;
+   $eval{$node-&gt;[0]}-&gt;(@$node);
+}
+
+foreach my $expr (
+   '4-5+6',      # Demonstrates left-associativity
+   '(4-5)+6',
+   '4-(5+6)',
+
+   '4**3**2',    # Demonstrates right-associativity
+   '(4**3)**2',
+   '4**(3**2)',
+) {
+   my $expected = eval $expr;
+   my $tree = $parser-&gt;parse($expr);
+   my $got = eval_node($tree);
+   print("$expr = $expected  got $got\n");
+}
+&lt;/c&gt;
+&lt;/readmore&gt;
+
+&lt;p&gt;&lt;b&gt;Update Aug 13, 2006&lt;/b&gt;: The examples have been simplified. A right-associative operator is used for the right-associative examples. Parse-time eval was placed before parse tree building. Added section on simplifying right-recursion. Small additions were made here and there to improve clarity. It still needs to link to a tutorial on precedence.
+</field>
+</data>
+</node>

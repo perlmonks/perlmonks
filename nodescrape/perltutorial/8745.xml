@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="8745" title="Benchmarking Your Code" created="2000-04-24 18:05:39" updated="2005-08-15 11:47:46">
+<type id="956">
+perltutorial</type>
+<author id="6041">
+turnstep</author>
+<data>
+<field name="doctext">
+&lt;H2&gt;Benchmarking your code&lt;/H2&gt;
+
+&lt;H3&gt;What is benchmarking?&lt;/H3&gt;
+&lt;P&gt;Benchmarking is a way of measuring something - in this 
+case, how fast your code runs. This is particularly useful 
+when you are trying to compare two or more ways to do the 
+same thing, and you want to see which one is faster. You are 
+really measuring which way is more efficient for perl 
+to do - the less work it takes perl, the faster it is.&lt;/P&gt;
+
+&lt;H3&gt;Why benchmark?&lt;/H3&gt;
+&lt;P&gt;Small differences add up. A slight change in a small 
+section of your code may make a big difference, especially 
+if that code has to perform a lot of work. For example, 
+a different ways of sorting a collection of words may 
+not matter much for 100 words, but if you have 100,000 
+words, the small differences start to matter. Also, it 
+can be matter of style to make your code as efficient as 
+possible. It is a good goal to aim for.&lt;/P&gt;
+
+&lt;H3&gt;How to benchmark your code&lt;/H3&gt;
+&lt;P&gt;Benchmarking is usually done with the (surprise) Benchmark 
+module. This module is very standard, and is very likely 
+already installed on your system. If not, grab it off 
+of CPAN.&lt;/P&gt;
+
+&lt;P&gt;Benchmarking is not as simple as subtracting the results of 
+one &lt;STRONG&gt;time&lt;/STRONG&gt; call from another one - these are only 
+accurate to one second, and are not a very good measure. The 
+benchmark module uses the &lt;STRONG&gt;time&lt;/STRONG&gt; function as well 
+as the &lt;STRONG&gt;times&lt;/STRONG&gt; function, which allows for a 
+much finer measurement of milliseconds.&lt;/P&gt;
+
+&lt;P&gt;Here is a quick overview of the Benchmark module:&lt;/P&gt;
+
+&lt;P&gt;To use it, just type:
+
+&lt;CODE&gt;
+use Benchmark;
+&lt;/CODE&gt;
+
+at the top of your code. Benchmark has three simple routines 
+for you to use: &lt;STRONG&gt;timeit&lt;/STRONG&gt;, 
+&lt;STRONG&gt;timethis&lt;/STRONG&gt;, and &lt;STRONG&gt;timethese&lt;/STRONG&gt;. 
+Each one needs to know what code to run (sent as the string 
+&lt;STRONG&gt;CODE&lt;/STRONG&gt; in the examples below), as well as how 
+many times to loop through the code (&lt;STRONG&gt;$count&lt;/STRONG&gt; 
+in the examples below).&lt;/P&gt;
+
+&lt;P&gt;For a simple measurement of one piece of code, just use 
+&lt;STRONG&gt;timeit&lt;/STRONG&gt;. You will also need the 
+&lt;STRONG&gt;timestr&lt;/STRONG&gt; routine, which changes the times 
+that Benchmark uses to a more useful string:
+
+&lt;CODE&gt;
+$x = timeit($count, 'CODE');
+## CODE is run $count times
+## $x becomes a Benchmark object which contains the result
+print "Result from $count loops: ";
+print timestr($x), "\n";
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;This can be a bit awkward, so Benchmark also has the 
+&lt;STRONG&gt;timethis&lt;/STRONG&gt; routine, which does the same thing 
+as timeit, but also outputs the results. No timestr is needed 
+this time:
+&lt;CODE&gt;
+$x = timethis($count, 'CODE');
+
+## or even just:
+
+timethis($count, 'CODE');
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;The last routine is &lt;STRONG&gt;timethese&lt;/STRONG&gt;, which is 
+the most useful, as it allows you to compare 2 or more 
+chunks of code at the same time. The syntax is as follows:
+
+&lt;CODE&gt;
+@x = timethese($count, { 'one','CODE1', 'two','CODE2' });
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;It returns an array, but this is often unused. Use of the 
+'alternative comma' is also recommended, to make it easier 
+to read:
+
+&lt;CODE&gt;
+timethese($count, {
+  'one'   =&gt; 'CODE1',
+  'two'   =&gt; 'CODE2',
+  'pizza' =&gt; 'CODE_X', ## etc....
+});
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;It will run each code in the list, and report the result 
+with the label before it. See the example below for some 
+sample output.&lt;/P&gt;
+
+&lt;P&gt;A final routine to know is &lt;STRONG&gt;timediff&lt;/STRONG&gt; 
+which simply computes the difference between two 
+Benchmark objects:
+&lt;CODE&gt;
+$x = timeit($count, 'CODE1');
+$y = timeit($count, 'CODE2');
+$mydiff = timediff($x, $y);
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;The benchmark module has a few other features, but these 
+are beyond this tutorial - if interested, check it out 
+yourself: Benchmark.pm has embedded POD inside it.&lt;/P&gt;
+
+&lt;H3&gt;Benchmark Example&lt;/H3&gt;
+
+&lt;P&gt;For a simple example of benchmarking, let's compare two 
+different ways of sorting a list of words. One way will use the 
+&lt;STRONG&gt;cmp&lt;/STRONG&gt; operator, and one will use the 
+&lt;STRONG&gt;&amp;lt;=&amp;gt;&lt;/STRONG&gt; operator. Which one is faster 
+for a simple list of words? We will us benchmarking to 
+find out. For this example, we will create a random list of 
+1000 words with 6 letters each. Then we'll sort the list 
+both ways and compare the results. 
+Here is our complete code:
+
+&lt;CODE&gt;
+#!/usr/bin/perl
+use Benchmark;
+
+$count = shift || die "Need a count!\n";
+
+## Create a dummy list of 1000 random 6 letter words
+srand();
+for (1..1000) {
+  push(@words,
+    chr(rand(26)+65) . chr(rand(26)+65) . chr(rand(26)+65) .
+    chr(rand(26)+65) . chr(rand(26)+65) . chr(rand(26)+65));
+}
+
+## Method number one - a numeric sort
+sub One {
+  @temp = sort {$a &lt;=&gt; $b} @words;
+}
+
+## Method number two - an alphabetic sort
+sub Two {
+  @temp = sort {$a cmp $b} @words;
+}
+
+## We'll test each one, with simple labels
+timethese (
+  $count,
+  {'Method One' =&gt; '&amp;One',
+   'Method Two' =&gt; '&amp;Two'}
+);
+
+exit;
+
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;Notice that we store the results of our sort into an 
+unused variable, @temp, so that @words itself is never 
+sorted, as we need to use it again.&lt;/P&gt;
+
+&lt;P&gt;Here is the result of running it with a count of 10:
+&lt;CODE&gt;
+Benchmark: timing 10 iterations of Sort One, Sort Two...
+  Sort One:  0 secs ( 0.33 usr  0.00 sys =  0.33 cpu)
+            (warning: too few iterations for a reliable count)
+  Sort Two:  1 secs ( 0.48 usr  0.01 sys =  0.49 cpu)
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;The results tell us four numbers for each code. Notice 
+that it also gave us a warning for the first one. This 
+warning is only a guideline, but it is usually right - 
+we need a higher count. Try to get the number of 
+cpu seconds (the last number) to be at least 3 seconds or 
+more for one of the measurements. In our example, let's 
+try boosting the count to 150:
+&lt;CODE&gt;
+Benchmark: timing 150 iterations of Sort One, Sort Two...
+  Sort One:  5 secs ( 4.89 usr  0.01 sys =  4.90 cpu)
+  Sort Two:  8 secs ( 7.12 usr  0.01 sys =  7.13 cpu)
+&lt;/CODE&gt;&lt;/P&gt;
+
+&lt;P&gt;Much better! No warning, and some real times are generated. 
+Let's look at each of the numbers. The first number is 
+the elapsed time, or how many seconds the loops took by using 
+the &lt;STRONG&gt;time&lt;/STRONG&gt; function. This is not a very reliable 
+number: as you can see, with 10 loops, one of the results was 
+0 seconds. Generally, you can ignore this one, except as a 
+rough guideline. In particular, a reading of '0' or '1' is 
+almost useless. Aim for at least an elapsed time of 5 seconds 
+or more for the best results.&lt;/P&gt;
+
+&lt;P&gt;The next three numbers come from the function 
+&lt;STRONG&gt;times&lt;/STRONG&gt;, which returns much more detailed 
+information. The first two numbers return the user and system 
+time. Don't be surprised if the system time is often "0" or 
+very low. These are not as important as the final value, the 
+cpu time, which is what we are really interested in. This is 
+the one you should use to make your comparisons. Try to get 
+at least one of the numbers over 5 seconds - the higher the 
+number, the more accurate your comparison will be. In this case, 
+we can see that Method One, the &lt;STRONG&gt;&amp;lt=&amp;gt;&lt;/STRONG&gt; 
+operator, is faster at 4.90 cpu seconds compared to the 
+7.13 seconds that &lt;STRONG&gt;cmp&lt;/STRONG&gt; took.&lt;/P&gt;
+
+&lt;H3&gt;Tips and Tricks&lt;/H3&gt;
+
+&lt;P&gt;Here are some things to think about and watch out for:&lt;/P&gt;
+
+&lt;UL&gt;
+ &lt;LI&gt;Make sure your code works before you start looping it! 
+     This is often overlooked when you are in a hurry. Test it 
+     once with some results and then benchmark it.&lt;/LI&gt;
+
+ &lt;LI&gt;Add the count to the command line. Something as simple as:
+     &lt;CODE&gt;
+$count = shift || die "Need a count!\n";
+     &lt;/CODE&gt;
+     keeps you from editing the code every time to try a new 
+     count value.&lt;/LI&gt;
+
+ &lt;LI&gt;Beware of changes in your repeated loop. Don't change any 
+     variables that are used the next time the loop is run. In 
+     other words, make sure that when you benchmark a chunk of 
+     code, the first loop does exactly the same thing as the last.&lt;/LI&gt;
+ 
+ &lt;LI&gt;Move everything out of the loop that you can. You want to 
+     only test what is important. Move things like opening file 
+     handles and initializing values out of the loop. You don't 
+     want to reopen your file 5000 times! Do it once, outside of 
+     the loop.&lt;/LI&gt;
+
+ &lt;LI&gt;Minimize the test. Similar to the above, try to compare as 
+     few things as possible. A subroutine that slices, sorts, 
+     replaces, and does ten other things will not tell you how 
+     fast each of them is, only how they work together. Change 
+     one thing at a time when comparing two chunks of code.&lt;/LI&gt;
+
+ &lt;LI&gt;Put the benchmark code at the top of your code. It's 
+     temporary, easy to find, and easy to remove once you are 
+     done testing.&lt;/LI&gt;
+
+ &lt;LI&gt;Use subroutines to test your code. It keeps the Benchmark 
+     routines uncluttered, and it is easy to make changes to 
+     your subroutines. If the code is really simple, of course, 
+     you can just put the whole code into the argument for 
+     the Benchmark routine&lt;/LI&gt;
+
+ &lt;LI&gt;Start with a low count, and work your way up. It is 
+     often hard to tell exactly how long the code will take - 
+     so err on the low side. Start with 10, and then move up to 
+     100, then a 1000, then perhaps 5000. You'll get a feel for 
+     it as you go. Aim for at least 5 seconds of elapsed time, 
+     and at least 3 seconds of cpu time. Complicated code and 
+     slow machines may take over a minute to run 100 loops, 
+     while very simple code and very fast machines may require 
+     counts in the millions!&lt;/LI&gt;
+
+ &lt;LI&gt;Swap the order of your tests around, to make sure that one 
+     is not affecting the other inadvertently. The results 
+     should be the same.&lt;/LI&gt;
+
+&lt;/UL&gt;
+</field>
+</data>
+</node>

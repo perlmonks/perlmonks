@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="153212" title="uploaduserimage" created="2002-03-20 23:01:12" updated="2005-05-17 09:12:48">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my $field   = shift(@_);
+my $param   = $field . "_file";
+my $maxsize = shift(@_) || 80 * 1024;
+
+if (  !$query-&gt;param($param)  &amp;&amp;  !$query-&gt;param('deluserimg')  ) {
+  return qq[
+  &lt;small&gt;
+    The rules are simple:  only upload JPEG, PNG, or GIF.
+    No larger than ] . $maxsize/1024 . qq[ kB.  Suggested maximum
+    width is 500 pixels.  We &lt;b&gt;will&lt;/b&gt; take away this privilege
+    if what you post is copyrighted or obscene.
+  &lt;/small&gt;
+  &lt;br /&gt;
+  &lt;input type="file" name="$param" /&gt;];
+}
+
+my $delimgfile = $NODE-&gt;{$field} =~ /\D/;
+
+my $title = $NODE-&gt;{title} . "'s user image";
+my $img;
+
+my $status = '';
+
+if(  $query-&gt;param($param)  ) {
+
+  my $file    = $query-&gt;param($param);
+  my $fh      = $query-&gt;upload($param);
+  my $size    = -s $fh;
+  my $header  = $query-&gt;uploadInfo($file)-&gt;{"Content-Type"};
+
+  return "Image too big: $size bytes ($maxsize is max)"
+    if  $size &gt; $maxsize;
+
+  return "Invalid image type: $header\n"
+    if  $header !~ m#^(image/(x-)?(p?jpeg|gif|png))$#i;
+
+  $status .= "&lt;p&gt;Received $size bytes.&lt;/p&gt;\n";
+
+  $img = {
+    datatype  =&gt; $header,
+    databytes =&gt; join( '', &lt;$fh&gt; ),
+  };
+
+} else {        # $query-&gt;param('deluserimg') specified:
+
+  if(  $NODE-&gt;{$field}  &amp;&amp;  $NODE-&gt;{$field}  !~ /\D/  ) {
+    $img = {
+      datatype  =&gt;  'text/html',
+      databytes =&gt; qq[
+        &lt;html&gt;
+          &lt;head&gt;
+            &lt;title&gt;Deleted user image&lt;/title&gt;
+          &lt;/head&gt;
+          &lt;body&gt;
+            Deleted
+          &lt;/body&gt;
+        &lt;/html&gt;],
+    };
+  }
+
+  $status .= "&lt;p&gt;Your user image has been removed.&lt;/p&gt;\n";
+
+  $NODE-&gt;{$field} = 0;
+}
+
+if ( $delimgfile ) {
+  $status .= htmlcode('deluserimagefile',$field);
+}
+
+if ( $img ) {
+  my $id = $DB-&gt;replaceNode(
+    $title,
+    getType('rawdata'),
+    getNode('root','user'),
+    $img,
+  );
+
+  if( ! $id ) {
+    $status .= qq[&lt;p&gt;&lt;b&gt;Image update failed. Sorry.&lt;/b&gt;&lt;/p&gt;\n];
+  }
+
+  if( $query-&gt;param($param) ) {
+    $NODE-&gt;{$field} = $id;
+  }
+}
+
+if ( $NODE-&gt;{node_id} == $USER-&gt;{node_id} ) {
+  $USER-&gt;{$field} = $NODE-&gt;{$field};
+}
+
+updateNode( $NODE, $USER );
+
+return $status;</field>
+</data>
+</node>

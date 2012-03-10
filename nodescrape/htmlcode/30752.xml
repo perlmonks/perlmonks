@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="30752" title="showprivatemessages" created="2000-09-01 17:01:08" updated="2005-07-17 12:52:47">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+# Note: Patch tested on local perlmonks copy.
+return   if  getId($USER) == $HTMLVARS{guest_user};
+
+for(  $VARS-&gt;{cbmaxmsgs}  ) {
+  $_ = 10   if  /\D/ || $_ &lt; 0 || 50 &lt; $_;
+}
+my $length= $_[0] || $VARS-&gt;{cbmaxmsgs} || 10;
+my $split= $_[1];
+my $order= '' || $VARS-&gt;{priv_msg_order};
+$order= 'desc'   if  $VARS-&gt;{reverse_messages};
+$order= ''   unless  $order eq ''
+  or  $order eq 'desc'  or  $order eq 'asc';
+
+if(  $length &lt; 0   ) {
+  $order  = " desc";
+  $length = -$length &lt; 51 ? -$length : 50;
+}
+
+my( $total )= $DB-&gt;sqlSelect( 'count(*)',
+    'message', "for_user=" . getId($USER). " and archive &gt; -1" );
+my( $live )= $DB-&gt;sqlSelect( 'count(*)',
+    'message', "archive=0 and for_user=" . getId($USER) );
+
+return '' if 0 == $total;
+
+my @msgs;
+{
+  my $csr= $DB-&gt;sqlSelectMany( "*", "message",
+     "for_user=" . getId($USER) . " and archive=0",
+     "order by tstamp $order limit $length" );
+  push @msgs, $_ while $_ = $csr-&gt;fetchrow_hashref;
+  $csr-&gt;finish;
+}
+
+my $start=$query-&gt;param( 'privmessagebegin' );
+my $numshown= @msgs;
+my $AT= getVars( getNode('approved chatter tags','setting') );
+
+my $str;
+
+foreach my $MSG (  @msgs  ) {
+     $str .= $query-&gt;checkbox(
+        "deletemsg_$MSG-&gt;{message_id}", "", "yup", " " );
+
+     my $title = htmlcode(
+        'parseTimeInString', 
+        $MSG-&gt;{tstamp}
+     );
+     local $AUTHOR=getNodeById($MSG-&gt;{author_user}); # pad:// needs this
+     my $msgtext = htmlcode(
+        'parselinksinchatter','',
+        $MSG-&gt;{msgtext},
+        $split
+     );
+
+     $msgtext = htmlScreen( $msgtext, $AT );
+
+     $str .= sprintf qq[
+&lt;span class="msg"&gt;
+ &lt;span class="msgfrom_$MSG-&gt;{author_user}"&gt;
+  &lt;i class="msgfrom" title="%s"&gt;%s says&lt;/i&gt;
+  %s&lt;!-- --&gt;
+ &lt;/span&gt;
+&lt;/span&gt;&lt;br /&gt;
+],
+               $title,
+               linkNode(
+                 $MSG-&gt;{author_user}, 
+                 undef, # look up title,
+                 {},
+                 {trusted =&gt; 'yes'},
+               ),
+               $msgtext;}
+
+$str= "$str\n";
+
+my $extra= $live - $numshown;
+my $archived= $total - $live;
+{
+    my $pref= qq[&lt;a href="?node=Message+Inbox;srch_folder];
+    $str .= qq[\n&lt;span class="cb_more_messages"&gt;]
+        . qq[&lt;i&gt;&amp;nbsp;&amp;nbsp;&amp;#8226; And &lt;/i&gt;]
+        . qq[$pref=0"&gt;&lt;b&gt;$extra&lt;/b&gt;&lt;i&gt; more&lt;/i&gt;&lt;/a&gt;, ]
+        . qq[$pref=1"&gt;&lt;b&gt;$archived&lt;/b&gt;&lt;i&gt; archived&lt;/i&gt;&lt;/a&gt;]
+        . qq[&lt;br /&gt;]
+        . qq[&lt;/span&gt;\n];
+}
+return $str;</field>
+</data>
+</node>

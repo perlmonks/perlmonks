@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="42467" title="rmv - a replacement for rm" created="2000-11-20 04:02:57" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="42462">
+gremio</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w 
+#emacs note: the '#&lt;' and '#&gt;' marks are folding marks for folding.el.
+#            you may find reading the code with folding more pleasant.
+
+# COPYING: This source may be modified, copied, and distributed under
+#          the terms of any license meeting the Open Source Definition:
+#          http://basiclinux.hypermart.net/opensource/perens.html
+#          If you want to be particular, you may distribute it in
+#          accordance with the the distribution rules of GNU rm.
+
+use strict;
+
+my $Version = q|$Id: rmv,v 1.5 2000/11/20 04:07:49 gmarton Exp $|;
+
+#&lt; documentation
+=pod
+
+=head1 NAME
+
+rmv - remove files and directories, with a trash can
+
+=head1 SYNOPSIS
+
+rmv [OPTIONS]... FILES...
+
+=head1 DESCRIPTION
+
+rmv is intended to replace GNU rm for the average user.  It 
+should not generally be used by root or by suid programs 
+because it is insecure.  It attempts to mimic and extend 
+GNU rm's functionality and interface.  
+
+By default, rmv does not remove directories.  If a file is not
+writeable, and the standard input is a tty, and the C&lt;-f&gt; or C&lt;--force&gt;
+option has not been specified, then rmv will prompt the user about
+removing the file anyway.
+
+rmv, like every program that uses Getopt::Long to parse its arguments,
+lets you use the -- option to indicate that all following arguments
+are non-options.  To remove a file called 'C&lt;-f&gt;' in the current
+directory, you could type either
+
+     rmv -- -f
+or
+     rmv ./-f
+
+
+=head1 OPTIONS
+
+All options may be specified on the command line, or in an rcfile in the form
+option=value
+
+Options will be read from rmvrc in /etc/skel, /etc/profile, or /etc,
+or from ~/.rmvrc.  Options given on the command line will override any
+of these.  For options without apparent values, set them to B&lt;1&gt; or B&lt;0&gt; for
+on or off respectively in the rcfile.
+
+=head2 options similar to GNU rm's:
+
+=over
+
+=item -f, --force
+
+ignore nonexistent files, never prompt
+
+=item -i, --interactive
+
+prompt before any removal
+
+=item -r, -R, --recursive
+
+remove the contents of directories recursively
+
+=item -v, --verbose
+
+explain what is being done
+
+=item -h, --help
+
+display this help text and exit
+
+=item --version
+
+output version information and settings, then exit
+
+=back
+
+
+
+=head2 additional features:
+
+=over 
+
+=item -k, --kill
+
+permanently remove files, bypassing the trash can (just like rm).
+
+=item -e, --empty
+
+empty the trash can. 
+
+By default, this cleans out trash more than max_age (see below) old.
+you can specify --empty=all to clear out all the trash, or
+--empty=by_size to clear out the oldest trash first, until the trash
+can is less than max_size (see below) kilobytes
+
+I recommend an rmv --empty either in your .login, or as a cron job.
+
+=back
+
+=head2 settings:
+
+note: --option "value" will work just as well as the forms below.
+
+=over
+
+=item --junk=B&lt;pttn&gt;
+
+do not back up files matching the perl regular expression /B&lt;pttn&gt;/
+
+=item --trashcan=B&lt;path&gt;
+
+use B&lt;path&gt; as the trash can
+
+=item --max_age=B&lt;days&gt;
+
+set the maximum age for emptying by date to B&lt;days&gt;
+
+=item --max_size=B&lt;kb&gt;
+
+set the maximum size for the trash can to B&lt;kb&gt; kilobytes
+
+=item --copy=B&lt;cmd&gt;
+
+specify B&lt;cmd&gt; as the command for copying files
+
+=item --chmod=B&lt;cmd&gt;
+
+specify B&lt;cmd&gt; as the command for changing permissions (with chmod style
+arguments) on a file
+
+=item --date=B&lt;cmd&gt;
+
+specify B&lt;cmd&gt; as the command for finding the date (specify the date
+format this way)
+
+=item --mkdir=B&lt;cmd&gt; 
+
+specify B&lt;cmd&gt; as the command for creating a directory, and possibly
+parent directories as well.
+
+=back
+
+=head1 AUTHOR
+
+Written by Greg Marton with valuable input from Deniz Yuret.
+Bugs and comments to gremio@speakeasy.org
+
+=cut
+#&gt;
+
+#&lt; config defaults
+
+my $User = ($ENV{LOGNAME} || $ENV{USER} || $ENV{USERNAME});
+my $Home = $ENV{HOME};
+unless ($Home) {
+    foreach (qw(/home /usr/home/ /export/home/ /usr/export/home/)) {
+	$Home ||= "$_/$User" if -d "$_/$User";
+    }
+}
+my $config = { 
+    #system commands:
+    copy =&gt; "cp -dfr", # if you preserve attributes, the by_date empty will
+    #                    get confused.  if you don't preserve links (-d) you
+    #                    risk huge trash cans or infinitely recursive ones. 
+    #                    if you don't override (-f) you may die on removing 
+    #                    the same file twice within the date period below. 
+    chmod =&gt; "chmod",
+    date =&gt; qq(date "+%Y%m%d%H%M"),
+    mkdir =&gt; "mkdir -p",
+    
+    #settings
+    trashcan =&gt; qq($Home/.trash),
+    clean_first =&gt; "",
+    junk =&gt; qq(^\$),
+    max_size =&gt; 5000,
+    max_age =&gt; 7, 
+    recursive =&gt; 0,
+    interactive =&gt; 0
+    };
+
+#&gt;
+
+#&lt; read_config_file($configfilename, \%config);
+sub read_config_file {
+    my ($configfile, $config) = @_;
+    #configfile is the name of the configuration file to read. 
+    #config is a hash of default (or pre-existing) values. 
+    open(CONF, "&lt;". $configfile) or return $config;
+    while (&lt;CONF&gt;) {
+	if (/^(\w+)\s*=\s*(.*?)\s*$/) {
+	    $config-&gt;{$1}=$2;
+	} elsif (/^(\w+)\s*\+=\s*(.*?)\s*$/) {
+	    $config-&gt;{$1} ||= [];
+	    push @{$config-&gt;{$1}}, $2;
+	}
+    }
+}
+#&gt;
+#&lt; read config
+{
+    my $configfile;
+    my $rc = $0;
+    $rc =~ s|^.*/||;
+    $rc .= "rc";
+    $configfile = qq($Home/.$rc);
+    $configfile = qq(/etc/skel/$rc) unless -f $configfile;
+    $configfile = qq(/etc/profile/$rc) unless -f $configfile;
+    $configfile = qq(/etc/$rc) unless -f $configfile;
+    read_config_file($configfile, $config);
+}
+#&gt;
+#&lt; option processing
+
+use Getopt::Long;
+while (defined $ARGV[0] and $ARGV[0] =~ /^-[fRrivh]+$/) {
+    #enable aggregate processing for -h, -f, -i, -r, -v to better emulate rm.
+    #I refuse to enable -d for something that's supposed to be "safer". 
+    my $opts = shift @ARGV;
+    foreach (split //, $opts) {
+	$config-&gt;{interactive}=1 if /i/;
+	$config-&gt;{force}=1 if /f/;
+	$config-&gt;{recursive}=1 if /r/i;
+	$config-&gt;{verbose}=1 if /v/;
+	$config-&gt;{help}=1 if /h/;
+    }
+}
+GetOptions($config, 
+	   #system calls: 
+	   "copy=s", "chmod=s", "date=s", "mkdir=s",
+	   #settings:
+	   "trashcan=s", "junk=s", "max_size=i", "max_age=f", 
+	   #standard rm options:
+	   "interactive", "force", "recursive", "verbose", "help", "version",
+	   #rmv commands:
+	   "empty:s", "kill");
+$config-&gt;{force}=1 unless -t STDIN; #don't interact if there's nothing to 
+#                                    interact with. 
+$config-&gt;{interactive} = -1 if $config-&gt;{force};
+
+if ($config-&gt;{help}) {
+    $ENV{PAGER} ||= "more";
+    exec(qq(pod2man $0 | nroff -man | $ENV{PAGER})) or 
+	exec(qq(perl -ne'{\$a++ if /^=pod/; \$a-- if /^=cut/; s/^=\\w+//; print if \$a;}' $0))
+	     #now how exactly they managed to execute the program and didn't 
+	     #luck out on that second try, I don't know, but just in case...
+	    or (print "couldn't print the help for some reason.  sorry.\n" 
+		and exit 0);
+
+}
+if ($config-&gt;{version}) {
+    print "$0: version $Version\n";
+    use Data::Dumper;
+    print Data::Dumper-&gt;Dump([$config],["config"]);
+    
+    print "\n\nCopyright (C) 2000 Gregory Marton\n";
+    print "This is free software; see the source for copying conditions.\n";
+    print "There is NO warranty; not even for MERCHANTABILITY or \n";
+    print "FITNESS FOR A PARTICULAR PURPOSE.\n";
+    exit 0;
+}
+
+#&gt;
+
+#&lt; find the current directory and date
+use Cwd;
+my $Curdir = cwd();
+chomp $Curdir;
+$Curdir =~ s|/$||;
+$Curdir =~ s|.*/||;
+
+my $Date = qx($config-&gt;{date});
+chomp $Date;
+#&gt;
+
+#&lt; backup
+sub target_name {
+    my ($target) = @_;
+    my $basedir = $target;
+    $basedir =~ s|^(.+)/.*|$1|;
+    my $newbasedir = $basedir;
+    $newbasedir =~ s/\W/_/gs;
+    $target =~ s|\Q$basedir\E|$newbasedir|;
+    $target = $config-&gt;{trashcan} ."/". $Date ."_". $Curdir ."_". $target;
+
+    #now make sure the target's directory exists.
+    if ($target !~ m|/$|) {
+	$basedir = $target;
+	$basedir =~ s|/[^/]*$||;
+	print qq($config-&gt;{mkdir} $basedir\n) if $config-&gt;{verbose};
+	system(qq($config-&gt;{mkdir} $basedir));
+    }
+    return $target;
+}
+sub backup {
+    return 1 if $config-&gt;{kill};
+    die "$0: trash can [$config-&gt;{trashcan}] is not writeable.\n" 
+	unless -w $config-&gt;{trashcan};
+    foreach my $entry (@_) {
+	next if $entry =~ $config-&gt;{junk};
+	next unless -l $entry or -f _ or -d _;
+	my $target = &amp;target_name($entry);
+	print qq($config-&gt;{copy} "$entry" "$target"\n) if $config-&gt;{verbose};
+	system(qq($config-&gt;{copy} "$entry" "$target")) and 
+	    do {
+		warn "$0: cannot back up [$entry] to [$target]\n";
+		return 0;
+	    };
+    }
+    return 1;
+}
+#&gt;
+#&lt; empty
+sub by_date {return (-M "$_[0]" &gt; $config-&gt;{max_age});}
+sub by_size {
+    $config-&gt;{done_count}||=2;
+    $config-&gt;{check_every}||=1;
+    return if $config-&gt;{check_every} &lt; 0;
+    unless ($config-&gt;{done_count} % $config-&gt;{check_every}) {
+	#check again every 10 files. 
+	my $size = qx(du -ks $config-&gt;{trashcan});
+	$size =~ s/\D//g;
+	print "size = $size\n";
+
+	#check less often if we've more to do:
+	$config-&gt;{check_every} = ($size - $config-&gt;{max_size}) / 1024;
+	$config-&gt;{check_every} =~ s/\..*//;
+	print "will check again in $config-&gt;{check_every} files...\n";
+
+	$config-&gt;{done_count} = -1 if $size &lt; $config-&gt;{max_size};
+    }
+    return 0 if $config-&gt;{done_count} &lt; 0;
+    return ++$config-&gt;{done_count};
+}
+#&gt;
+#&lt; remove 
+
+sub remove {
+    #this is basically an internal implementation of /bin/rm.
+    #it's faster to do it like this than to make a million system calls.
+    my $backup = shift @_;
+    foreach my $entry (@_) {
+	next unless -l $entry or -e $entry;
+	next if $entry =~ m|^(.*/)?\.\.?$|; #don't worry about specials.
+	print "trying to remove $entry\n" if $config-&gt;{verbose};
+	#&lt; check writeable, maybe chmod.
+
+	if (not -l $entry and not -w _) { #lstat needed, and ok for -w.
+#	    warn "$0: [$entry] is not writeable.\n";
+	    my $override=1;
+	    if ($config-&gt;{interactive} &gt; -1) {
+		print "$0: override write-protection for [$entry]? (Ny) ";
+		$override = &lt;STDIN&gt;;
+		$override = ($override =~ /[yY]/ and $override !~ /[nN]/);
+	    }
+	    next unless $override;
+	    my $e = $entry;
+	    $e =~ s/\"/\\\"/;
+	    print qq($config-&gt;{chmod} +w "$entry"\n) if $config-&gt;{verbose};
+	    system(qq($config-&gt;{chmod} +w "$entry"));
+	    if (not -w $entry) { #need a new stat.
+		warn "$0: cannot change permissions for [$entry]: $!\n";
+		next;
+	    }
+	}
+
+	#&gt; 
+	if (-f $entry or -l $entry or not -d _) { # -l needs an lstat, not just a stat.
+	    #&lt; interact
+	    if ($config-&gt;{interactive} == 1) {
+		print STDERR "remove [$entry]? (Ny) ";
+		my $ans = &lt;STDIN&gt;;
+		next unless $ans =~ /y/i and $ans !~ /n/i;
+	    }
+	    #&gt;
+	    &amp;{$backup}($entry) or next;
+	    print "unlink $entry\n" if $config-&gt;{verbose};
+	    unlink $entry or warn "$0: cannot unlink [$entry]: $!\n";
+	} else {
+	    $entry =~ s|/$||;
+	    unless ($config-&gt;{recursive}) {
+		warn "$0: [$entry] is a directory.\n";
+		next;
+	    }
+	    #&lt; interact
+	    $config-&gt;{interactive}++ if $config-&gt;{interactive} &gt; 1;
+	    if ($config-&gt;{interactive} == 1) {
+		print STDERR "remove directory [$entry]? (Eny) ";
+		my $ans = &lt;STDIN&gt;;
+		next if $ans =~ /n/i;
+		$config-&gt;{interactive}++ if $ans =~ /y/i and $ans !~ /e/i;
+	    }
+	    #&gt;
+	    local *DIR;
+	    opendir(DIR, $entry) or warn "$0: cannot open dir [$entry]: $!\n";
+	    remove($backup, map {$_ = qq($entry/$_);} readdir(DIR));
+	    closedir(DIR);
+	    print "rmdir $entry\n" if $config-&gt;{verbose};
+	    rmdir $entry;
+	    $config-&gt;{interactive}-- if $config-&gt;{interactive} &gt; 1;
+	}
+    }
+}
+
+#&gt;
+
+#&lt; take out the trash
+if (defined $config-&gt;{empty}) {
+    my $tmp_conf = { %$config };
+    $config-&gt;{recursive} = 1;
+    $config-&gt;{interactive} = -1;
+
+    remove(sub {return $_[0] =~ m|$config-&gt;{clean_first}|}, 
+	   $config-&gt;{trashcan}) if $config-&gt;{clean_first};
+
+    my $method;
+    $method = sub{1} if $config-&gt;{empty} eq "all";
+    $method = \&amp;by_size if $config-&gt;{empty} eq "by_size";
+    $method ||= \&amp;by_date;
+    remove($method, $config-&gt;{trashcan});
+
+    $config = $tmp_conf;
+}
+#&gt;
+#&lt; make sure there's a trashcan
+
+if (! -d $config-&gt;{trashcan}) {
+    print qq($config-&gt;{mkdir} $config-&gt;{trashcan}\n) if $config-&gt;{verbose};
+    system(qq($config-&gt;{mkdir} $config-&gt;{trashcan})) and 
+	die "$0: cannot make trash can at [$config-&gt;{trashcan}]: $!\n";
+}
+
+#&gt;
+
+my $method;
+#&lt; check for accidental rmv ~ instead of rmv *~ or something. 
+unless ($config-&gt;{interactive} &lt; 0) {
+    if (grep /$Home/, @ARGV) {
+	print qq(Are you sure you want to remove your home directory? (Ny) );
+	my $answer = &lt;STDIN&gt;;
+	exit 0 unless $answer =~ /y/i and $answer !~ /n/i;
+    }
+}
+#&gt;
+
+#&lt; perform faster total backup beforehand if not interacting:
+if ($config-&gt;{interactive} &lt; 1) {
+    &amp;backup(@ARGV) or 
+	die "$0: You can use the --kill option to bypass backup.\n";
+    $method=sub{1};
+} else {
+    # otherwise we'll need to back things up as we destroy them. 
+    $method=\&amp;backup;
+}
+#&gt;
+
+remove($method, @ARGV);
+@ARGV = ();
+
+</field>
+</data>
+</node>

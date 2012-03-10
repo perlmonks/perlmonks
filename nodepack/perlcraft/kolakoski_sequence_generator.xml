@@ -1,0 +1,86 @@
+<node>
+  <doctext>#!/usr/local/bin/perl -w
+
+# The &quot;Kolakoski sequence&quot;
+# (http://www.research.att.com/cgi-bin/access.cgi/as/njas/sequences/eisA.cgi?Anum=000002)
+# is the sequence beginning 2,2,1,1,2,1,2,2,1,2,2,1,1,2,...
+# of alternating blocks of 1's and 2's, where the length
+# of the k'th block is the value of the k'th element.  So
+# the sequence has TWO 2's, then TWO 1's, then ONE 2, then
+# ONE 1, then TWO 2's, then ONE 1, ...
+#
+# It's not a periodic sequence, but it is conjectured
+# (i.e. it is thought to be true, but nobody has any idea
+# how to prove it) that approximately half the elements
+# are 1's.
+
+# Generate the Kolakoski sequence
+
+use strict;
+
+package Kolakoski;
+
+# Object format: [ WHAT, HOW_MANY, KOLAKOSKI ]
+#
+# WHAT: What we're generating now (1's or 2's)
+# HOW_MANY: How many to generate (2 -&gt; 1 -&gt; 0)
+# KOLAKOSKI: Sequence generator, to use when HOW_MANY == 0
+sub new {
+  my $class = shift;
+  $class = ref($class) || $class;
+  bless [2, 2, undef], $class
+}
+
+sub next {
+  my $self = shift;
+  if ($self-&gt;[1] == 0) {
+    if (! defined $self-&gt;[2]) {
+      # Generate a new object
+      $self-&gt;[2] = $self-&gt;new;
+      $self-&gt;[2]-&gt;next;		# advance past first one (already generated)
+    }
+    # Use sequence object to generate next count
+    $self-&gt;[0] = 3 - $self-&gt;[0]; # flip 1 &lt;-&gt; 2
+    $self-&gt;[1] = $self-&gt;[2]-&gt;next;
+  }
+  -- $self-&gt;[1];
+  return $self-&gt;[0];
+}
+
+
+package main;
+
+my $n = shift || 100_000;
+my $n2;
+
+my $k = new Kolakoski;
+
+for (1..$n) {
+  my $v = $k-&gt;next;
+  print $v;
+  $n2++ if $v==2;
+}
+print &quot;\n&quot;;
+print &quot;$n2 / $n 2's (@{[$n2/$n*100]}%)\n&quot;;
+
+# Notes
+#
+# 1. Some people prefer to start the sequence with a &quot;1&quot;.
+# If you're one of them, just print a &quot;1&quot; before starting
+# the loop.
+# 2. The number of objects required to print the first N
+# elements is O(log N), IF the conjecture about the
+# distribution of 2's in the sequence is true.
+# 3. Simulations (not much more sophisticated than this
+# one, although probably better written in C) suggest that
+# the conjecture is true.  The number of 2's in the first
+# N elements of the sequence appears to be  N/2+O(log(N)),
+# but of course this too is unproven.
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>176016</node_id>
+  <author_user>43894</author_user>
+  <title>Kolakoski sequence generator</title>
+  <createtime>2002-06-20 10:08:34</createtime>
+  <nodeupdated>2005-07-21 01:31:52</nodeupdated>
+</node>

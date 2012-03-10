@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="159262" title="ExtUtils::ModuleMaker" created="2002-04-15 12:42:41" updated="2005-08-14 03:10:36">
+<type id="31663">
+modulereview</type>
+<author id="153880">
+simonflk</author>
+<data>
+<field name="doctext">
+&lt;h2&gt;ExtUtils::ModuleMaker vs h2xs&lt;/h2&gt;
+&lt;p&gt;[cpan://ExtUtils::ModuleMaker] is a replacement for h2xs. So what's wrong with h2xs
+   anyway and how does ExtUtils::ModuleMaker perform any better?&lt;/p&gt;
+&lt;ul&gt;
+  &lt;h3&gt;h2xs -AXn Foo::Bar&lt;/h3&gt;
+
+  &lt;p&gt;My annoyances with h2xs (these are purely personal):
+    &lt;ul&gt;
+      &lt;li&gt;by default: it produces code that isn't backwards compatible &amp;#91;&lt;a href="#h2xscompat"&gt;see note&lt;/a&gt;&amp;#93; (our instead of use vars, use warnings, and use 5.00?)&lt;/li&gt;
+      &lt;li&gt;you have extra work if you have more than one module in the distribution&lt;/li&gt;
+      &lt;li&gt;you have lots of editing to do before you get started, (unless your name is A. U. Thor)&lt;/li&gt;
+      &lt;li&gt;module code and tests are all dumped into the main directory&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/p&gt;
+
+  &lt;p&gt;On reflection, these seem quite petty -- but I am very lazy. &lt;/p&gt;
+
+  &lt;h3&gt;perl -MExtUtils::ModuleMaker -e "Quick_Module ('Foo::Bar')"&lt;/h3&gt;
+
+  &lt;p&gt;This is more to type, and produces similar results to h2xs. However there are the following improvements:
+    &lt;ul&gt;
+      &lt;li&gt;module files are neatly stored in a &amp;quot;lib&amp;quot; folder&lt;/li&gt;
+      &lt;li&gt;test file is created in &amp;quot;t&amp;quot; subfolder&lt;/li&gt;
+      &lt;li&gt;LICENSE file is included - defaults to perl license (GPL &amp; Artistic)&lt;/li&gt;
+      &lt;li&gt;lib/Foo/Bar.pm is backwards compatible with perl 5.005&lt;/li&gt;
+      &lt;li&gt;useful pod sample for documenting subroutines&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/p&gt;
+&lt;/ul&gt;
+
+&lt;h2&gt;Advanced use of ExtUtils::ModuleMaker&lt;/h2&gt;
+&lt;p&gt;The QuickModule() function still leaves A.U. Thor as the author of your work and other defaults
+   and leaves you with only one module in your distribution. Use Generate_Module_Files() for a more complete solution...&lt;/p&gt;
+&lt;ul&gt;
+  &lt;p&gt;&lt;b&gt;Generate_Module_Files()&lt;/b&gt;
+  &lt;ul&gt;
+    &lt;li&gt;Specify author details, (fills in the pod, Makefile.PL, etc)&lt;/li&gt;
+    &lt;li&gt;Specify version number to start on&lt;/li&gt;
+    &lt;li&gt;Specify the license that your module is released under (over 20 licenses included - or use custom)&lt;/li&gt;
+    &lt;li&gt;Create module and test files for additional modules&lt;/li&gt;
+  &lt;/ul&gt;
+ &lt;/p&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Here is my code using ExtUtils::ModuleMaker that allows me to be extra lazy:&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl5.6.1 -w
+use strict;
+use Getopt::Long;
+use ExtUtils::ModuleMaker;
+
+my %author = 
+(
+  NAME =&gt; 'Simon Flack',
+  EMAIL =&gt; 'simonflk@example.com',
+  CPANID =&gt; 'SIMONFLK',
+  WEBSITE =&gt; 'http://www.simonflack.com',
+);
+
+# Set some defaults
+my $license = 'perl';
+my $version = '0.1';
+my $module_name = '';
+my $extra_modules = '';
+my @extra_modules = ();
+
+GetOptions
+(
+  'name=s' =&gt; \$module_name, 
+  'version:f' =&gt; \$version, 
+  'license:s' =&gt; \$license, 
+  'extra:s'=&gt; \$extra_modules
+);
+
+Usage() unless $module_name;
+
+###############################################################################
+# Now make the module
+###############################################################################
+
+push @extra_modules, {NAME =&gt; $_, ABSTRACT =&gt; $_}
+    for split /,/, $extra_modules;
+
+Generate_Module_Files
+(
+ NAME =&gt; $module_name,
+ ABSTRACT =&gt; $module_name,
+ AUTHOR =&gt; \%author,
+ VERSION =&gt; $version,
+ LICENSE =&gt; $license,
+ EXTRA_MODULES =&gt; \@extra_modules,
+);
+
+
+sub Usage
+{
+    my ($prog) = $0 =~ /\/([^\/]+)$/;
+print &lt;&lt;HELP;
+$prog - Simple Module Maker
+
+Usage: $prog &lt;-name ModuleName&gt; [-version=?] [-extra=?,?] [-license=?]
+
+Eg:    $prog -name My::Module
+       $prog -name My::Module -version 0.11
+                    -extra My::Utils,My::Extra -license perl
+
+HELP
+}
+&lt;/code&gt;
+
+&lt;p&gt;Now I can write: &amp;quot;&lt;tt&gt;newmodule -n Foo::Bar -v 1.0 -l gpl&lt;/tt&gt;&amp;quot; and I can start coding and
+writing tests straight away...&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;Note: &lt;/b&gt;If you use this, don't forget to change the author info.&lt;/p&gt;
+
+&lt;h2&gt;Problems with ExtUtils::ModuleMaker&lt;/h2&gt;
+&lt;p&gt;There aren't many.
+  &lt;ul&gt;
+    &lt;li&gt;ExtUtils::ModuleMaker won't be helpful if you are writing XS modules. You should stick to h2xs for this, probably.&lt;/li&gt;
+    &lt;li&gt;The .pm files it creates encourage inline pod for documenting subroutines. I know a lot of people do this,
+      but I prefer putting my pod at the bottom.&lt;/li&gt;
+    &lt;li&gt;The test files are obscurely named, you'll probably want to rename them.&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/p&gt;
+
+&lt;h2&gt;Reference:&lt;/h2&gt;
+&lt;p&gt;See the following docs for more information about writing modules&lt;/p&gt;
+&lt;ul&gt;
+   [cpan://ExtUtils::ModuleMaker]&lt;br/&gt;
+   [perldoc://perlnewmod]&lt;br/&gt;
+   [perldoc://perlmod]&lt;br/&gt;
+   [perldoc://perlmodlib]&lt;br/&gt;
+   [http://use.perl.org/~Matts/journal/1707|Makefile.PL best practices] by [Matts]&lt;br/&gt;
+   [id://159044|How to make a CPAN Module Distribution] by [tachyon]&lt;br/&gt;
+   [id://102347|Simple Module Tutorial] by [tachyon]&lt;br/&gt;
+   [http://search.cpan.org/search?dist=Make|Make.pm] A perl make. I prefer this to nmake on win32. pmake dist works. do &amp;quot;&lt;tt&gt;ppm install make&lt;/tt&gt;&amp;quot;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;b&gt;update: &lt;/b&gt;&lt;a name="h2xscompat"&gt;h2xs compatibility&lt;/a&gt;&lt;br/&gt;
+[crazyinsomniac] pointed out that h2xs has a backwards compatibility option &amp;quot;-b&amp;quot; [perldoc://h2xs|I couldn't find this documented] and it didn't work when I tried it (my v5.6.0 h2xs is higher up in the PATH than my 5.6.1 h2xs). It seems that is is a new option since perl5.6.1. I'll leave my original statement in here because it will still apply to some people on older perls. Thanks to [crazyinsomniac] for pointing out this option.&lt;/p&gt;
+</field>
+<field name="itemdescription">
+an h2xs replacement for non-XS modules</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

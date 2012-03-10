@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="158022" title="Ping and reset (AGate200)" created="2002-04-10 10:00:05" updated="2005-07-19 14:08:11">
+<type id="121">
+perlcraft</type>
+<author id="38558">
+Kolyan</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+# pinger for AGate200 link
+
+use strict;
+use POSIX;
+use Net::Ping;
+use Net::Telnet;
+
+my $host = '192.168.1.1';                       # other end of the link
+my $agate = '192.168.1.2';                      # AGate to (try to) reset
+my $admin = 'admin@domain.org';                 # someone who cares
+my $maxfail = 3;                                # his patience
+my $pause = 60;                                 # secs to sleep between pings
+my $fail = 0;                                   # consider it pingable apriori
+my $log = '/var/log/pinger.log';                # log file
+
+my $pid = fork;
+exit if $pid;
+die "Couldn't fork: $!" unless defined($pid);
+POSIX::setsid() or die "Can't start a new session: $!";
+my $time_to_die = 0;
+$SIG{INT} = $SIG{TERM} = $SIG{HUP} = \&amp;signal_handler;
+
+open (LOG, "&gt; $log") or die "Can't open logfile: $!\n";
+select(LOG);
+$|++;
+print scalar localtime, " Started succesfully\n";
+
+my $ping = Net::Ping-&gt;new("icmp") or die "Can't create new ping: $!\n";
+
+until ($time_to_die) {
+        if ($ping-&gt;ping($host)) {
+#               print scalar localtime, " Ping $host: success\n";
+                $fail = 0;
+        } else {
+                print scalar localtime, " Ping $host: fail\n";
+                $fail++;
+        }
+        if ($fail == $maxfail) {
+                my $result = fix();
+                $result ||= 'success';
+                print scalar localtime, " Reset: $result\n";
+                notify($result);
+        }
+        if ($fail &gt; $maxfail) {
+                fix();
+        }
+        sleep($pause);
+}
+
+sub signal_handler {
+        $ping-&gt;close();
+        print scalar localtime, " Exiting\n";
+        close LOG;
+        $time_to_die = 1;
+}
+
+sub notify {
+        my $result = shift;
+        my $minutes = ($maxfail*$pause)/60;
+
+        open(MAIL, "| mail -s 'Wake up!' $admin") or die "Couldn't fork: $!\n";
+        print MAIL &lt;&lt;MESSAGE;
+
+$host is unpingable more than $minutes minutes!
+Result of the reset: $result.
+Examine the situation ASAP!
+
+Love, Pinger
+MESSAGE
+
+        close(MAIL) or die "Couldn't close: $!\n";
+        print scalar localtime, " Notification sent: $admin\n";
+}
+
+sub fix {
+        print scalar localtime, " Trying to reset: $agate\n";
+        my $t = Net::Telnet-&gt;new(Errmode =&gt; "return");
+        $t-&gt;open($agate);
+        $t-&gt;waitfor('/A Choice :/');
+        $t-&gt;print('9');
+        $t-&gt;waitfor('/reenter.*$/');
+        $t-&gt;print('');
+        $t-&gt;waitfor('/Password :/');
+        $t-&gt;print('figatebe');
+        $t-&gt;waitfor('/\(y\/n\):/');
+        $t-&gt;print('y');
+        $t-&gt;close($agate); 
+        return $t-&gt;errmsg;
+}
+</field>
+</data>
+</node>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="475161" title="poll maintenance create" created="2005-07-15 06:04:57" updated="2005-08-04 21:00:35">
+<type id="868">
+maintenance</type>
+<author id="474174">
+yitzchak</author>
+<data>
+<field name="code">
+my ($node_id) = @_;
+
+# get previous poll id and collect final popularity data for it
+my $poll_type_id = getId( getType( 'poll' ) );
+my $previous_poll = $DB-&gt;sqlSelect(
+    "MAX(node_id)", 
+    "node", 
+    "type_nodetype = $poll_type_id AND node_id &lt; $node_id"
+);
+Everything::printLog(
+    "new poll $node_id," .
+    " previous poll id: ".
+    "$previous_poll"
+);
+my %pollday;
+htmlcode('get_poll_popularity','', \%pollday, $previous_poll, 1);
+for my $day_row (values %pollday) {
+   $DB-&gt;sqlInsert('pollpopularity', $day_row);
+}
+
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare( "DELETE FROM pollvote" );
+$csr-&gt;execute() or
+   Everything::printLog(
+       "poll maintenance create: " .
+       "clearing old poll votes failed"
+   );
+
+Everything::printLog(
+    "poll maintenance create: ".
+    "deleted old poll votes"
+);
+
+# this is a crude hack (and unsatisfactory, in that there's no error reporting 
+# if a name is mispelt) until [new poll] does its own node creation instead of
+# sending op=new and allows preview.
+
+if (my $author = $q-&gt;param("change_poll_author")) {
+   Everything::printLog(
+       "poll maintenance create: " .
+       "request to change author to $author" 
+   );
+   my $AUTHOR = getNode($author, 'user') || getNode($author, 'usergroup');
+   if ( $AUTHOR-&gt;{node_id} ) {
+      my $poll = $node_id;
+      getRef $poll;
+      $poll-&gt;{author_user} = $AUTHOR-&gt;{node_id};
+      updateNode($poll, -1);
+      Everything::printLog(
+          "poll maintenance create: " .
+          "author_user set to $AUTHOR-&gt;{node_id}" 
+      );
+   }
+}</field>
+</data>
+</node>

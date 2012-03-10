@@ -1,0 +1,60 @@
+<node>
+  <doctext>#!/usr/bin/perl
+# Author : Valter Mazzola, txian@hotmail.com, Italy
+# Date 25/May/2000, Local time 01:00 AM.
+
+# Purpose:
+# ---&gt; Generate a Graph-ical call tree for your *.pm perl module files.
+# gra.pl assume that:
+# 1- you have defined sub(s) with  'sub myfunc {' with 'sub' at the beginning of line.
+# 2- you call your sub with the '&amp;', i.e.  &amp;my_sub ();
+
+# The code isn't clean nor perfect ! I've made it in 30 min (including testing) !
+
+# usage: 
+# 1) generate the .dot text graph file definition  
+#    perl gra.pl *.pm &gt; myfile.dot
+# 2) generate the graph using 'dot' executable ( http://www.research.att.com/sw/tools/graphviz/ )
+#    dot -Tps myfile.dot -o myfile.ps
+# 3) display the graph
+#    ghostview myfile.ps (choose BBox format)  
+
+while (&lt;&gt;){ 
+    if (/^sub\s+(.*?)\s*\{/){
+        $cur_sub=$1;	
+    }
+    if (/\&amp;([\d\w_]+)\s*\(/){
+        $c_sub = $1;
+        $n = 0;
+        foreach $k (@{$called_subs{$cur_sub}}) {
+            if ($c_sub eq $k){
+		$n = 1;
+		last;
+	    }
+	} 
+        if ($n == 0) {
+	   push @{$called_subs{$cur_sub}}, $c_sub;
+        }
+    }
+}
+
+print &quot;digraph G {\n&quot;;
+print &quot;   ratio=auto;\n&quot;;
+
+foreach $k (keys(%called_subs)){
+    $ref_arr = $called_subs{$k};
+    if (ref($ref_arr)) {
+	foreach $y (@{$ref_arr}){
+	    print &quot;   $k -&gt; $y;\n&quot;;
+	}
+    }
+}
+
+print &quot;}\n&quot;;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>14690</node_id>
+  <author_user>12453</author_user>
+  <title>Generate a Graph-ical call tree for your *.pm perl modules</title>
+  <createtime>2000-05-25 00:10:58</createtime>
+  <nodeupdated>2005-08-08 18:10:48</nodeupdated>
+</node>

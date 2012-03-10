@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="293415" title="Remove Duplicates from a mbox file" created="2003-09-23 02:38:37" updated="2005-08-11 10:53:33">
+<type id="121">
+perlcraft</type>
+<author id="6211">
+coolmichael</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+
+# Simple program to remove duplicate email messages
+# from an mbox file. This program only looks at the content
+# of the message for uniqueness, not entire message with the headers.
+# There is no file locking, use this program on a backup 
+# of your mbox file.
+# Enjoy.
+
+use strict;
+use warnings;
+use Digest::MD5 qw(md5_hex);
+
+#grab file names from the program parameters.
+#and do some error checking.
+my ($from, $to) = @_;
+die "usage: $0 from to" unless (defined $from &amp;&amp; defined $to);
+my (%uniq, $msg);
+my ($head, $body);
+my $i = 0;
+
+$|++;
+
+open (my $fh, "&lt;$from") || die "cannot open $from: $!";
+while(&lt;$fh&gt;) {
+	#emails in mbox files always begin with ^From 
+	#when /^From / is matched, process the previous message
+	#then start on this message
+	if(m/^From /) {
+		next if ($msg eq "");
+		#increment the counter for a status report
+		$i++;
+		#print a status report if necessary.
+		#I like to do it this way
+		print '.' if(($i % 50) == 0);
+		print " $i\n" if(($i % 1000) == 0);
+		#since evolution can give different headers on the same message,
+		#only hash the body of the message, and use that to compare to other
+		#emails. The entire message will be stored in the hash though.
+		($head, $body) = split /\n\n/, $msg;
+		#standard perl technique for removing duplicates, using hashes and 
+		#md5 files.
+		$uniq{md5_hex($body)} = $msg;
+		
+		#done processing the previous message, start the next message
+		$msg = $_;
+	} else {
+		#current line didn't match /^From / so this line is part of the
+		#middle of the current message. Just tack it on to the end.
+		$msg .= $_;
+	}
+}
+
+#print the results to a file.
+open (my $th, "&gt;$to") || die "cannot open $to: $!";
+while(my ($k, $v) = each %uniq) {
+	print $th $v;
+}</field>
+</data>
+</node>

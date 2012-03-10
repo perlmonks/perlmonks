@@ -1,0 +1,159 @@
+<node>
+  <doctext>&lt;h1&gt;Objects with Private Variables&lt;/h1&gt;
+
+Designed to answer the question: how can I give my
+object &quot;private&quot; variables?&lt;p&gt;
+
+&lt;h2&gt;Introduction&lt;/h2&gt;
+
+Many perl objects are implemented as hash references, which
+are inherently unprivate. Developers from some other, more
+highly-private languages often find this unsatisfactory,
+particularly since Perl is &quot;interpreted&quot; and not compiled
+into binaries--after all, if anyone can look at your source
+and see what variables you're using internally in your object,
+and then they can access those variables, isn't that
+insecure/dangerous? :)&lt;p&gt;
+
+Anyway, implemented as hash references, it's difficult to
+really protect your data. But if you implement your object
+as a closure, you can protect your data as much as you'd
+like! This method is described in [perltoot], and it's
+pretty neat.
+
+&lt;h2&gt;Implementation&lt;/h2&gt;
+
+&lt;h3&gt;The Constructor&lt;/h3&gt;
+
+You start by declaring your object normally:
+
+&lt;code&gt;
+    package Person;
+    use strict;
+
+    sub new {
+        my $type = shift;
+        my $class = ref $type || $type;
+        my $self = {
+            NAME =&gt; undef,
+            AGE  =&gt; undef
+        };
+&lt;/code&gt;
+
+Up until here, everything looks normal: you've declared
+a package &quot;Person&quot;, and you've started to create a
+constructor; you determine the class that this object
+will be [bless]'ed into; and you set up the data fields.
+A person will have a name and an age.&lt;p&gt;
+
+If we were implementing our object as a hash reference,
+we'd bless $self into $class and be done with it. But
+that would let any user of our object mess with
+NAME and AGE directly, rather than through our accessor
+methods.&lt;p&gt;
+
+So, instead of a hash reference, we implement the object
+as a closure. A closure is a subroutine reference that
+has access to the lexical variables that were in scope when
+it was created. So, in this case, we're most concerned
+with our closure being able to access the fields in $self.&lt;p&gt;
+
+The closure will be an anonymous subroutine that will act
+as an accessor/setter method. We'll give it a field name
+(NAME or AGE), and a possible second argument (a value
+to set that field to), and it will return the value of
+the field. So let's implement that:
+
+&lt;code&gt;
+        my $closure = sub {
+            my $field = shift;
+            @_ and $self-&gt;{$field} = shift;
+            $self-&gt;{$field};
+        };
+&lt;/code&gt;
+
+Pretty simple: the closure takes a field, sets the field
+if it's given a value, and returns the value either
+way.&lt;p&gt;
+
+Now the magic: we're going to [bless] our closure into
+$class so that the closure *is* the object!
+
+&lt;code&gt;
+        bless $closure, $class;
+        $closure;
+    }
+&lt;/code&gt;
+
+We create a new closure object, blessing it into $class,
+and return it; and we're done.
+
+&lt;h3&gt;Accessor Methods&lt;/h3&gt;
+
+Now we just need to write our accessor methods. We need
+one of these for each data fields; they'll be the interface
+to our object. They'll receive the object (the closure)
+as their zeroth argument, and then any additional
+information (such as the value to set the field to) as
+additional arguments:
+
+&lt;code&gt;
+    sub name { &amp;{ $_[0] }(&quot;NAME&quot;, @_[1 .. $#_ ] ) }
+    sub age  { &amp;{ $_[0] }(&quot;AGE&quot;,  @_[1 .. $#_ ] ) }
+&lt;/code&gt;
+
+As mentioned, these receive the closure (a code
+reference) as the zeroth argument, so they invoke that
+code reference. The arguments they provide are the field
+name (&quot;NAME&quot; or &quot;AGE&quot;), and then a list of any other
+arguments that were handed to them.&lt;p&gt;
+
+Thus, what happens is that the closure (which, remember,
+has access to our data fields via $self) gets the name
+of the field, sets the value of the field if a value
+is provided, then returns the value.
+
+&lt;h2&gt;Usage&lt;/h2&gt;
+
+You can use this object just as you would any other. Here's
+a short example:
+
+&lt;code&gt;
+    use strict;
+    use Person;
+
+    my $person = new Person;
+    $person-&gt;name(&quot;Foo Bar&quot;);
+    $person-&gt;age(22);
+
+    print $person-&gt;name, &quot; is &quot;, $person-&gt;age, &quot; years old.\n&quot;;
+&lt;/code&gt;
+
+&lt;h2&gt;What's Neat About This&lt;/h2&gt;
+
+From a user's perspective, this looks and acts just like a
+&quot;normal&quot; (ie. hash reference) object. But the user has no
+way at all of accessing or modifying your data fields
+unless you've defined an accessor method.&lt;p&gt;
+
+For example, you could define a new data field
+(called &quot;PRIVATE&quot;, for example)--and if you didn't define
+an accessor method, the user would have no way of accessing
+that field. In your implementation, however, you could access
+it as much as you wished (although you'd have to go through
+the closure to do so).&lt;p&gt;
+
+Which, I think, is pretty neat.
+
+&lt;h2&gt;See Also&lt;/h2&gt;
+
+This tutorial is based on the example given in Tom
+Christiansen's [perltoot], so look there for his
+explanation and some other fun tricks.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>8251</node_id>
+  <author_user>2675</author_user>
+  <title>Objects with Private Variables</title>
+  <createtime>2000-04-20 19:26:57</createtime>
+  <nodeupdated>2005-08-15 12:06:15</nodeupdated>
+</node>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="182616" title="chatrepeated" created="2002-05-03 17:13:07" updated="2004-03-22 09:02:12">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+   my( $text, $to, $from )= @_;
+   $to ||= 0;
+   $from ||= getId($USER);
+   if(  $to == $HTMLVARS{default_user}  ) {
+      $query-&gt;param( "sentmessage",
+         "&lt;i&gt;You can't send messages to "
+         . linkNode($to) . "&lt;/i&gt;"
+      );
+      return 1;
+   }
+   my $dbh = $DB-&gt;getDatabaseHandle();
+   my $sth = $dbh-&gt;prepare_cached( "select * from message"
+      . " where author_user=? and msgtext=? and for_user=? and tstamp"
+      . " and unix_timestamp(now())-unix_timestamp(tstamp) &lt; 500 "
+   );
+   $sth-&gt;execute( $from, $text, $to );
+   my $isDup= $sth-&gt;fetchrow_hashref;
+   $sth-&gt;finish();
+
+   if(  $isDup  ) {
+      $query-&gt;param( "sentmessage",
+         "&lt;i&gt;Whoa, Cowboy!  You said that already.  Don't 'reload'?&lt;/i&gt;"
+      );
+      return 1;
+   }
+   if(  $to  ) {
+      $query-&gt;param( "sentmessage",
+         qq[&lt;i&gt;You said "] . $query-&gt;escapeHTML($text)
+         . qq[" to ] . linkNode($to) . "&lt;/i&gt;" );
+   }
+
+   return !1;
+</field>
+</data>
+</node>

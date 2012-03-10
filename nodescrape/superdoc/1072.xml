@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1072" title="User Settings" created="1999-12-19 07:27:41" updated="2005-08-22 16:16:19">
+<type id="14">
+superdoc</type>
+<author id="485637">
+MembersOnly</author>
+<data>
+<keywords>
+<keyword rating="">
+config</keyword>
+<keyword rating="">
+timezone</keyword>
+<keyword rating="">
+settings</keyword>
+<keyword rating="">
+preferences</keyword>
+<keyword rating="">
+scratchpad</keyword>
+</keywords>
+<field name="doctext">
+[%
+  if(  $HTMLVARS{guest_user} == getId($USER)  ) {
+    return qq[
+        &lt;p align="center"&gt;
+          Not much for you to do here, since you're an Anonymous Monk...
+          wouldn't want you to change settings for all of your kind around
+          here
+        &lt;/p&gt;];
+  }
+
+  # Update $VARS-&gt;{numwriteups} if needed:
+  if(  $q-&gt;param("sexisgood")  ) {
+    my @qtypes = map { getId( getType($_) ) }
+        'categorized answer', 'categorized question';
+
+    my @types = map { getId( getType($_) ) }
+        'note', 'snippet', 'sourcecode', 'perlquestion', 'perlcraft',
+        'perlmeditation', 'poem', 'CUFP', 'obfuscated', 'perltutorial',
+        'monkdiscuss', 'modulereview', 'bookreview', 'perlnews';
+
+    my $count= 0;
+
+    my $where = join ' OR ', map { "type_nodetype = $_" } @types;
+    $count += $DB-&gt;sqlSelect(
+      'COUNT(*)', 'node', "author_user = $$USER{node_id} AND ($where)"
+    );
+    $where = join ' OR ', map { "type_nodetype = $_" } @qtypes;
+    $count += $DB-&gt;sqlSelect(
+      'COUNT(*)', 'node,contributor',
+      "node_id=contributor_id and original_author=$USER-&gt;{node_id}"
+       . " AND ($where)"
+    );
+    my $old= $VARS-&gt;{numwriteups};
+    if(  $count != $old  ) {
+      $VARS-&gt;{numwriteups}= $count;
+      return "\n&lt;p&gt;Your write-up count has been corrected"
+        . " from $old to $count&lt;/p&gt;\n";
+    }
+  }
+  return '';
+%]
+
+  &lt;form method="post" action="?"
+    enctype="application/x-www-form-urlencoded"
+    style="display:block"&gt;
+  &lt;!-- Netscape makes everything "inline" when
+       inside of an inline &lt;form&gt;. *sigh* --&gt;
+[%
+  $q-&gt;hidden( "displaytype" ) .
+  $q-&gt;hidden( "node_id", getId($NODE) );
+%]
+
+    &lt;p align="right"&gt;
+      &lt;a target="_new" href="?node_id=17642#user"&gt;Help for this page&lt;/a&gt;
+    &lt;/p&gt;
+
+    &lt;center&gt;
+      &lt;p&gt;[{see_also:Settings Nodes;faqlist}]&lt;/p&gt;
+      &lt;table border="1" class="user-settings" id="u-s-misc" &gt;
+        &lt;tr&gt;&lt;td valign="top"&gt;
+            &lt;table&gt;
+              &lt;tr&gt;&lt;td colspan="2"&gt;
+                  &lt;h3 align="center"&gt;
+                    &lt;a name="Sections displayed"&gt;
+                      Front-page sections displayed
+                    &lt;/a&gt;
+                  &lt;/h3&gt;
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td align="center"&gt;
+                  Check to Turn Off
+                &lt;/td&gt;&lt;td align="center"&gt;
+                  Maximum Entries
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [{checkvar:fp_sopw_off}] Seekers of Perl Wisdom
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:fp_max_sopw}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [{checkvar:fp_med_off}] Meditations
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:fp_max_med}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [{checkvar:fp_cufp_off}] Cool Uses for Perl
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:fp_max_cufp}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [{checkvar:fp_poem_off}] Perl Poetry
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:fp_max_poem}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [{checkvar:fp_obfu_off}] Obfuscated Code
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:fp_max_obfu}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [{checkvar:fp_disc_off}] Perl Monks Discussion
+                &lt;/td&gt;&lt;td&gt; [{setvar:fp_max_disc}]
+              &lt;/td&gt;&lt;/tr&gt;
+            &lt;/table&gt;
+          &lt;/td&gt;&lt;td valign="top"&gt;
+            &lt;table&gt;
+              &lt;tr&gt;&lt;td colspan="2"&gt;
+                  &lt;h3 align="center"&gt;
+                    &lt;a name="Miscellaneous"&gt;
+                      Miscellaneous&lt;sup&gt;&lt;a href="?node_id=17642#misc"&gt;?&lt;/a&gt;&lt;/sup&gt;
+                    &lt;/a&gt;
+                  &lt;/h3&gt;
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Show Unapproved Nodes
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:unapprovedcontent}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Turn Hints Off
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:hintsoff}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  No Forced Preview
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:previewfirstoff}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Null vote:
+                &lt;/td&gt;&lt;td&gt;
+                  [%
+                    $VARS-&gt;{nullvote} = "off" unless $VARS-&gt;{nullvote};
+                    return htmlcode("listVarMenu", "nullvote,off,on,mid");
+                  %]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  &lt;a href="?node_id=453652"&gt;Show reputation spread&lt;/a&gt;
+                  [%
+                    # this option is selectable from [id://453652];
+                    # no link is provided to turn it back off
+                    if(  '' ne $q-&gt;param('setnodetensionquiet')  ) {
+                      $VARS-&gt;{nodetensionquiet}= $q-&gt;param('setnodetensionquiet');
+                    }
+                  %]
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:nodetension}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Disable some JavaScript on homenodes
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:jsoff}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  &lt;a href="?node_id=17642#homenodefilter"&gt;
+                    Don't filter risky HTML from monks' homenodes&lt;/a&gt;
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:unfilterhtml}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Perl Monks User Search Default Length
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:pmuslen}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Search finds nodes I can't read
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:findhidden}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [id://192415|Format for date-times]
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:timeformat}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  [id://192415|Abbreviated format for date-times]
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:shorttimeformat}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  &lt;a href="?node_id=239623#sections"&gt;
+                  No navigation menu under title bar
+                  &lt;/a&gt;
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:navmenuoff}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Default XML ticker style.
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:xmlstyle}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Extras in Domain Nodelet?
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:DomainNodeletExtras}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Show count of all replies
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:repliesdisplay,,repliesbelow}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Show quips on XP loss/gain messages
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:xpquips}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  No April Foolery
+                &lt;/td&gt;&lt;td&gt;
+                  [{checkvar:nosenseofhumor}]
+              &lt;/td&gt;&lt;/tr&gt;
+            &lt;/table&gt;
+        &lt;/td&gt;&lt;/tr&gt;
+      &lt;/table&gt;
+
+      &lt;!--Second Row--&gt;
+      &lt;table border="1" class="user-settings" id="u-s-misc2" &gt;
+        &lt;tr&gt;&lt;th colspan='2'&gt;
+            &lt;a name="Note-Configuration"&gt;Note Configuration&lt;/a&gt;
+        &lt;/th&gt;&lt;/tr&gt;
+              &lt;tr&gt;&lt;td&gt;
+                  Replies header depth:
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:notedepth}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Replies text depth:
+                &lt;/td&gt;&lt;td&gt;
+                  [{setvar:notetextthreshold}]
+              &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;
+                  Note ordering:
+                &lt;/td&gt;&lt;td&gt;
+                  [{choosenotesortorder}]
+              &lt;/td&gt;&lt;/tr&gt;
+            &lt;/table&gt;
+
+      [%
+        return ''
+          if $HTMLVARS{guest_user} == getId($USER);
+        return htmlcode("closeform");
+      %]
+
+    &lt;/center&gt;
+   &lt;/form&gt;</field>
+</data>
+</node>

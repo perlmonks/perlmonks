@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="162075" title="cpanplus and debian packages" created="2002-04-25 15:23:00" updated="2005-07-29 10:09:26">
+<type id="121">
+perlcraft</type>
+<author id="132236">
+Juerd</author>
+<data>
+<field name="doctext">
+This patch allows you to use dh-make-perl (Debian's Perl module packager) with
+CPANPLUS instead of CPAN.pm. Use --cpanplus instead of --cpan.
+
+And no, this isn't a coding style that I like, but I thought it would be best
+to use the style that the dh-make-perl script already had.
+
+Sigh. Stupid line numbering, never heard of &lt;ol&gt;/&lt;li&gt; - some browsers can
+actually ignore the numbers then... :)
+Use "d/l code" below.
+
+--- dh-make-perl	Sun Nov 11 20:05:55 2001
++++ /usr/bin/dh-make-perl	Mon Apr 15 17:06:42 2002
+@@ -71,7 +71,6 @@
+ use File::Basename;
+ use File::Find;
+ use User::pwent;
+-use CPAN;
+ use Getopt::Long;
+ use Cwd;
+ use strict;
+@@ -94,13 +93,14 @@
+ my ($pkgname, $srcname, $version, $desc, $longdesc, $copyright, $author);
+ my ($extrasfields, $extrapfields);
+ my (@docs, $changelog, @args);
+-my ($cpanmodule, $build, $install, $dbflags);
++my ($cpanmodule, $cpanplusmodule, $build, $install, $dbflags);
+ 
+ $dbflags = $&gt;==0?"":"-rfakeroot";
+ chomp($date);
+ 
+ GetOptions(
+ 	"cpan=s" =&gt; \$cpanmodule,
++	"cpanplus=s" =&gt; \$cpanplusmodule,
+ 	"desc=s" =&gt; \$desc,
+ 	"arch=s" =&gt; \$arch,
+ 	"version=s" =&gt; \$version,
+@@ -111,7 +111,7 @@
+ 	"install!" =&gt; \$install,
+ 	) || die &lt;&lt;"USAGE";
+ Usage:
+-$0 [--build] [--install] [module_source_dir|--cpan modulename]
++$0 [--build] [--install] [module_source_dir|--cpan modulename|--cpanplus modulename]
+ Other options: [--desc description] [--arch arch] [--version pkg_version]
+ USAGE
+ 
+@@ -149,6 +149,7 @@
+ 
+ sub setup_dir {
+ 	if ($cpanmodule) {
++		require CPAN;
+ 		my ($dist, $mod, $cpanversion);
+ 		$mod = CPAN::Shell-&gt;expand('Module', '/^'.$cpanmodule.'$/') 
+ 			|| die "Can't find '$cpanmodule' module on CPAN\n";
+@@ -164,6 +165,13 @@
+ 			$dist-&gt;get || die "Cannot get ", $mod-&gt;cpan_file, "\n";
+ 			$maindir = $dist-&gt;dir;
+ 		}
++	} elsif ($cpanplusmodule) {
++		require CPANPLUS;
++		my $cb = CPANPLUS::Backend-&gt;new();
++		my $href = $cb-&gt;fetch( modules =&gt; [ $cpanplusmodule ] );
++		die "Cannot get $cpanplusmodule\n" if keys(%$href) != 1;
++		my $file = (values %$href)[0];
++		$maindir = $cb-&gt;extract( files =&gt; [ $file ] )-&gt;{$file};
+ 	} else {
+
+ 		$maindir = shift(@ARGV) || '.';
+ 	}
+@@ -243,6 +251,7 @@
+ 	# band aid: need to find a solution also for build in directories
+ 	# warn "name is $name (cpan name: $cpanmodule)\n";
+ 	$name = $cpanmodule if ($name eq '__PACKAGE__' &amp;&amp; $cpanmodule);
++	$name = $cpanplusmodule if ($name eq '__PACKAGE__' &amp;&amp; $cpanplusmodule);
+ 	for (($name, $ver)) {
+ 		next unless defined;
+ 		next unless /^\$/;
+@@ -484,7 +493,7 @@
+ 
+ =head1 SYNOPSIS
+ 
+-dh-make-perl [module_source_dir|--cpan module]
++dh-make-perl [module_source_dir|--cpan module|--cpanplus module]
+ 
+ Additional options include:
+ 
+</field>
+</data>
+</node>

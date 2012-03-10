@@ -1,0 +1,2508 @@
+<node>
+  <filetext>package Everything::NodeBase;
+
+#############################################################################
+#   Everything::NodeBase
+#       Wrapper for the Everything database and cache.
+#
+#   Copyright 1999 Everything Development Inc.
+#   Format: tabs = 4 spaces
+#
+#############################################################################
+
+use strict;
+use DBI;
+use Everything;
+use Everything::NodeCache;
+
+sub BEGIN
+{
+    use Exporter ();
+    use vars   qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+    $VERSION= '1.003109';
+    @ISA=qw(Exporter);
+    @EXPORT=qw(
+        getCache
+        getDatabaseHandle
+        getAllTypes
+        getNodetypeTables
+
+        sqlDelete
+        sqlInsert
+        sqlUpdate
+        sqlSelect
+        sqlSelectMany
+        sqlSelectHashref
+
+        getFields
+        getFieldsHash
+
+        tableExists
+        createNodeTable
+        dropNodeTable
+        addFieldToTable
+        dropFieldFromTable
+
+        quote
+        genWhereString
+        );
+}
+
+my $dbases = {};
+my $caches = {};
+
+
+#############################################################################
+#   Sub
+#       new
+#
+#   Purpose
+#       Constructor for is module
+#
+#   Parameters
+#       $dbname - the database name to connect to
+#       $staticNodetypes - a performance enhancement.  If the nodetypes in
+#           your system are fairly constant (you are not changing their
+#           permissions dynmically or not manually changing them often) set
+#           this to 1.  By turning this on we will derive the nodetypes
+#           once and thus save that work each time we get a nodetype.  The
+#           downside to this is that if you change a nodetype, you will need
+#           to restart your web server for the change to take.
+#
+#   Returns
+#       A new NodeBase object
+#
+sub new
+{
+    my ($className, $dbname, $staticNodetypes) = @_;
+    my $this = {};
+    my $setCacheSize = 0;
+
+    bless $this;
+    $staticNodetypes ||= 0;
+
+    if(not exists $dbases-&gt;{$dbname})
+    {
+        my $db = {};
+
+        if ($dbname eq 'perlmonks') { $dbname = &quot;perlmonk_ebase&quot; }
+
+        # A connection to this database does not exist.  Create one.
+        # NOTE!  This has no database password protection!!!
+        require Everything::Password;
+        $db-&gt;{dbh} = Everything::Password::connectDB( $dbname );
+        $this-&gt;{dbh} = $db-&gt;{dbh};
+
+        $db-&gt;{cache} = new Everything::NodeCache($this, 300);
+        $dbases-&gt;{$dbname} = $db;
+
+        $setCacheSize = 1;
+    }
+
+
+    $this-&gt;{dbh} = $dbases-&gt;{$dbname}-&gt;{dbh};
+    $this-&gt;{cache} = $dbases-&gt;{$dbname}-&gt;{cache};
+    $this-&gt;{dbname} = $dbname;
+    $this-&gt;{staticNodetypes} = $staticNodetypes;
+
+    if($setCacheSize &amp;&amp; $this-&gt;getType(&quot;setting&quot;))
+    {
+        my $CACHE = $this-&gt;getNode(&quot;cache settings&quot;, &quot;setting&quot;);
+        my $cacheSize = 300;
+
+        # Get the settings from the system
+        if(defined $CACHE &amp;&amp; (ref $CACHE eq &quot;HASH&quot;))
+        {
+            my $vars;
+
+            $Everything::DB = $this;
+                #we have to set this, or it crashes when it calls a getRef
+
+            $vars = Everything::getVars($CACHE);
+            $cacheSize = $$vars{maxSize} if(exists $$vars{maxSize});
+        }
+
+        $this-&gt;{cache}-&gt;setCacheSize($cacheSize);
+    }
+    $this-&gt;{cache}-&gt;clearSessionCache;
+
+    return $this;
+}
+
+
+#############################################################################
+#   Sub
+#       getDatabaseHandle
+#
+#   Purpose
+#       This returns the DBI connection to the database.  This can be used
+#       to do raw database queries.  Unless you are doing something very
+#       specific, you shouldn't need to access this.
+#
+#   Returns
+#       The DBI database connection for this NodeBase.
+#
+sub getDatabaseHandle
+{
+    my ($this) = @_;
+
+    return $this-&gt;{dbh};
+}
+
+
+#############################################################################
+#   Sub
+#       getCache
+#
+#   Purpose
+#       This returns the NodeCache object that we are using to cache
+#       nodes.  In general, you should never need to access the cache
+#       directly.  This is more for maintenance type stuff (you want to
+#       check the cache size, etc).
+#
+#   Returns
+#       A reference to the NodeCache object
+#
+sub getCache
+{
+    my ($this) = @_;
+
+    return $this-&gt;{cache};
+}
+
+
+#############################################################################
+#   Sub
+#       sqlDelete
+#
+#   Purpose
+#       Quickie wrapper for deleting a row from a specified table.
+#
+#   Parameters
+#       from - the sql table to delete the row from
+#       where - what the sql query should match when deleting.
+#
+#   Returns
+#       0 (false) if the sql command fails, 1 (true) if successful.
+#
+sub sqlDelete
+{
+    my ($this, $from, $where) = @_;
+
+    $where or return;
+
+    my $sql = &quot;DELETE FROM $from WHERE $where&quot;;
+
+    return 1 if($this-&gt;{dbh}-&gt;do($sql));
+
+    return 0;
+}
+
+
+#############################################################################
+#   Sub
+#       sqlSelect
+#
+#   Purpose
+#       Select specific fields from a single record.  If you need multiple
+#       records, use sqlSelectMany.
+#
+#   Parameters
+#       select - what colums to return from the select (ie &quot;*&quot;)
+#       from - the table to do the select on
+#       where - the search criteria
+#       other - any other sql options thay you may wan to pass
+#
+#   Returns
+#       An array of values from the specified fields in $select.  If
+#       there is only one field, the return will be that value, not an
+#       array.  Undef if no matches in the sql select.
+#
+sub sqlSelect
+{
+    my($this, $select, $from, $where, $other) = @_;
+    my $cursor = $this-&gt;sqlSelectMany($select, $from, $where, $other);
+    my @result;
+
+    return undef if(not defined $cursor);
+
+    @result = $cursor-&gt;fetchrow();
+    $cursor-&gt;finish();
+
+    return $result[0] if(scalar @result == 1);
+    return @result;
+}
+
+
+#############################################################################
+#   Sub
+#       sqlSelectMany
+#
+#   Purpose
+#       A general wrapper function for a standard SQL select command.
+#       This returns the DBI cursor.
+#
+#   Parameters
+#       select - what colums to return from the select (ie &quot;*&quot;)
+#       from - the table to do the select on
+#       where - the search criteria
+#       other - any other sql options thay you may wan to pass
+#
+#   Returns
+#       The sql cursor of the select.  Call fetchrow() on it to get
+#       the selected rows.  undef if error.
+#
+sub sqlSelectMany
+{
+    my($this, $select, $from, $where, $other) = @_;
+
+    my $sql=&quot;SELECT $select &quot;;
+    $sql .= &quot;FROM $from &quot; if $from;
+    $sql .= &quot;WHERE $where &quot; if $where;
+    $sql .= &quot;$other&quot; if $other;
+
+    my $cursor = $this-&gt;{dbh}-&gt;prepare($sql);
+
+    return $cursor if($cursor-&gt;execute());
+    return undef;
+}
+
+
+#############################################################################
+#   Sub
+#       sqlSelectHashref
+#
+#   Purpose
+#       Grab one row from a table and return it as a hash.  This just grabs
+#       the first row from the select and returns it as a hash.  If you
+#       want more than the first row, call sqlSelectMany and retrieve them
+#       yourself.  This is basically a quickie for getting a single row.
+#
+#   Parameters
+#       select - what colums to return from the select (ie &quot;*&quot;)
+#       from - the table to do the select on
+#       where - the search criteria
+#       other - any other sql options thay you may wan to pass
+#
+#   Returns
+#       A hashref to the row that matches the query.  undef if no match.
+#
+sub sqlSelectHashref
+{
+    my ($this, $select, $from, $where, $other) = @_;
+    my $cursor = $this-&gt;sqlSelectMany($select, $from, $where, $other);
+    my $hash;
+
+    if(defined $cursor)
+    {
+        $hash = $cursor-&gt;fetchrow_hashref();
+        $cursor-&gt;finish();
+    }
+
+    return $hash;
+}
+
+
+#############################################################################
+#   Sub
+#       sqlUpdate
+#
+#   Purpose
+#       Wrapper for sql update command.
+#
+#   Parameters
+#       table - the sql table to udpate
+#       data - a hash reference that contains the fields and their values
+#           that will be changed.
+#       where - the string that contains the constraints as to which rows
+#           will be updated.
+#
+#   Returns
+#       Number of rows affected (true if something happened, false if
+#       nothing was changed).
+#
+sub sqlUpdate
+{
+    my($this, $table, $data, $where) = @_;
+    my $sql = &quot;UPDATE $table SET&quot;;
+
+    return unless keys %$data;
+
+    foreach (keys %$data)
+    {
+        if (/^-/)
+        {
+            # If the parameter name starts with a '-', we need to treat
+            # the value as a literal value (don't quote it).
+            s/^-//;
+            $sql .=&quot;\n  $_ = &quot; . $$data{'-'.$_} . &quot;,&quot;;
+        }
+        else
+        {
+            # We need to quote the value
+            $sql .=&quot;\n  $_ = &quot; . $this-&gt;{dbh}-&gt;quote($$data{$_}) . &quot;,&quot;;
+        }
+    }
+
+    chop($sql);
+
+    $sql .= &quot;\nWHERE $where\n&quot; if $where;
+
+    $this-&gt;{dbh}-&gt;do($sql) or
+        (Everything::printErr(&quot;sqlUpdate failed:\n $sql\n&quot;) and return 0);
+}
+
+
+#############################################################################
+#   Sub
+#       sqlInsert
+#
+#   Purpose
+#       Wrapper for the sql insert command.
+#
+#   Parameters
+#       table - string name of the sql table to add the new row
+#       data - a hash reference that contains the fieldname =&gt; value
+#           pairs.  If the fieldname starts with a '-', the value is
+#           treated as a literal value and thus not quoted/escaped.
+#
+#   Returns
+#       true if successful, false otherwise.
+#
+sub sqlInsert
+{
+    my ($this, $table, $data) = @_;
+    my ($names, $values);
+
+    foreach (keys %$data)
+    {
+        if (/^-/)
+        {
+            $values.=&quot;\n  &quot;.$$data{$_}.&quot;,&quot;; s/^-//;
+        }
+        else
+        {
+            $values.=&quot;\n  &quot; . $this-&gt;{dbh}-&gt;quote($$data{$_}) . &quot;,&quot;;
+        }
+
+        $names .= &quot;$_,&quot;;
+    }
+
+    chop($names);
+    chop($values);
+
+    my $sql = &quot;INSERT INTO $table ($names) VALUES($values)\n&quot;;
+
+    $this-&gt;{dbh}-&gt;do($sql) or
+        (Everything::printErr(&quot;sqlInsert failed:\n $sql&quot;) and return 0);
+}
+
+
+#############################################################################
+#   Sub
+#       getNode
+#
+#   Purpose
+#       Get a node by title and type.  This only returns the first match.
+#       To get all matches, use getNodeWhere which returns an array.
+#
+#   Parameters
+#       $title - the title or numeric ID of the node
+#       $TYPE - the nodetype hash of the node, or the title of the type.
+#
+#   Returns
+#       A node hashref if a node is found.  undef otherwise.
+#
+sub getNode
+{
+    my ($this, $title, $TYPE) = @_;
+    my $NODE;
+
+    if (not $TYPE and $title =~ /^\d+$/) {
+        return $this-&gt;getNodeById($title);
+    }
+
+    if(defined $TYPE)
+    {
+        $TYPE = $this-&gt;getType($TYPE) unless(ref $TYPE eq &quot;HASH&quot;);
+    }
+
+    $NODE = $this-&gt;{cache}-&gt;getCachedNodeByName($title, $$TYPE{title});
+    return $NODE if(defined $NODE);
+
+    my $typename = $TYPE ? $$TYPE{title} : '&lt;any&gt;';
+
+    #Everything::printLog(&quot;getNode: Cache miss for '$title' [$typename]&quot;);
+
+    ($NODE) =  $this-&gt;getNodeWhere({ title =&gt; $title }, $TYPE);
+    # SQLite needs the following too:
+    #if (!defined $NODE) {
+    #    ($NODE) = $this-&gt;getNodeWhere({ &quot;upper(title)&quot; =&gt; uc $title }, $TYPE);
+    #}
+
+    if(defined $NODE)
+    {
+        $this-&gt;{cache}-&gt;cacheNode($NODE);
+    }
+
+    return $NODE;
+}
+
+
+#############################################################################
+#   Sub
+#       getNodeById
+#
+#   Purpose
+#       This takes a node id or node hash reference (all we need is the id)
+#       and loads the node into a hash by attaching the other table data.
+#
+#       If the node is a group node, the group members will be added to
+#       the &quot;group&quot; key in the hash.
+#
+#   Parameters
+#       N - either an integer node Id, or a reference to a node hash.
+#       selectop - either &quot;force&quot;, &quot;light&quot;, or &quot;&quot;.  If set to &quot;force&quot;, this
+#           will do the work even if the node is cached.  If set to &quot;light&quot;
+#           it just attaches the nodetype hash to the node.  If &quot;&quot; or null,
+#           it resolves nodegroup stuff and attaches the extra table data.
+#
+#   Returns
+#       A node hash reference.  False if failure.
+#
+sub getNodeById
+{
+    my ($this, $N, $selectop) = @_;
+    my $groupTable;
+    my $NODETYPE;
+    my $NODE;
+    my $table;
+    my $cachedNode;
+
+    $selectop ||= '';
+    return -1 if $N == -1;
+    $N = $this-&gt;getId($N);
+    return undef unless $N;
+
+    return undef unless $N =~ /^\d+$/;
+
+    # See if we have this node cached already
+    $cachedNode = $this-&gt;{cache}-&gt;getCachedNodeById($N);
+    return $cachedNode unless ($selectop eq 'force' or not $cachedNode);
+
+    $NODE = $this-&gt;sqlSelectHashref('*', 'node', &quot;node_id=$N&quot;);
+    return undef if(not defined $NODE);
+
+    $NODETYPE = $this-&gt;getType($$NODE{type_nodetype});
+    return undef if(not defined $NODETYPE);
+
+    # Wire up the node's nodetype
+    $$NODE{type} = $NODETYPE;
+
+    if ($selectop eq 'light')
+    {
+        # Note that we do not cache the node.  We don't want to cache a
+        # node that does not have its table data (its not complete).
+        return $NODE;
+    }
+
+    # Get the rest of the info for this node
+    $this-&gt;constructNode($NODE);
+
+    # Fill out the group in the node, if its a group node.
+    $this-&gt;loadGroupNodeIDs($NODE);
+
+    # Store this node in the cache.
+    $this-&gt;{cache}-&gt;cacheNode($NODE);
+
+    return $NODE;
+}
+
+
+#############################################################################
+#   Sub
+#       loadGroupNodeIDs
+#
+#   Purpose
+#       A group nodetype has zero or more nodes in its group.  This
+#       will get the node ids from the group, and store them in the
+#       'group' key of the node hash.
+#
+#   Parameters
+#       $NODE - the group node to load node IDs for.  If the given
+#           node is not a group node, this will do nothing.
+#
+sub loadGroupNodeIDs
+{
+    my ($this, $NODE, $hash, $recursive) = @_;
+    my $groupTable;
+
+    # If this node is a group node, add the nodes in its group to its array.
+    if ($groupTable = $this-&gt;isGroup($$NODE{type}))
+    {
+        my $cursor;
+        my $nid;
+
+        if(not defined $$NODE{group})
+        {
+            $cursor = $this-&gt;sqlSelectMany('node_id', $groupTable,
+                $groupTable . &quot;_id=$$NODE{node_id}&quot;, 'ORDER BY orderby');
+
+            while($nid = $cursor-&gt;fetchrow)
+            {
+                push @{ $$NODE{group} }, $nid;
+            }
+
+            $cursor-&gt;finish();
+        }
+    }
+}
+
+
+#############################################################################
+#   Sub
+#       getNodeWhere
+#
+#   Purpose
+#       Get a list of NODE hashes.  This constructs a complete node.
+#
+#   Parameters
+#       $WHERE - a hash reference to fieldname/value pairs on which to
+#           restrict the select.
+#       $TYPE - the nodetype to search.  If this is not given, this
+#           will only search the fields on the &quot;node&quot; table since
+#           without a nodetype we don't know what other tables to join
+#           on.
+#       $orderby - the field in which to order the results.
+#
+#   Returns
+#       An array of integer node id's that match the query.
+#
+sub getNodeWhere
+{
+    my ($this, $WHERE, $TYPE, $orderby) = @_;
+    my $NODE;
+    my @nodelist;
+    my $cursor;
+
+    $cursor = $this-&gt;getNodeCursor($WHERE, $TYPE, $orderby);
+
+    if(defined $cursor)
+    {
+        while($NODE = $cursor-&gt;fetchrow_hashref)
+        {
+            # NOTE: This duplicates some stuff from getNodeById().  The
+            # reason that we don't call getNodeById here is pure
+            # performance.  We already have the entire hash.  We just
+            # need the type and any group info.  Calling getNodeById
+            # would result in two extra sql queries that we don't need.
+
+            # Attach the type to the node
+            $$NODE{type} = $this-&gt;getType($$NODE{type_nodetype});
+
+            # Fill out the group, if its a group node.
+            $this-&gt;loadGroupNodeIDs($NODE);
+
+            push @nodelist, $NODE;
+        }
+
+        $cursor-&gt;finish();
+    }
+
+    return @nodelist;
+}
+
+
+#############################################################################
+#   Sub
+#       selectNodeWhere
+#
+#   Purpose
+#       Retrieves node id's that match the given query.
+#
+#   Parameters
+#       $WHERE - a hash reference to fieldname/value pairs on which to
+#           restrict the select.
+#       $TYPE - the nodetype to search.  If this is not given, this
+#           will only search the fields on the &quot;node&quot; table since
+#           without a nodetype we don't know what other tables to join
+#           on.
+#       $orderby - the field in which to order the results.
+#       $nodeTableOnly - (performance enhancement) Set to 1 (true) if the
+#           search fields are only in the node table.  This prevents the
+#           database from having to do table joins when they are not needed.
+#           Note that if this is turned on you will not get &quot;complete&quot; nodes,
+#           just the data from the &quot;node&quot; table.
+#
+#   Returns
+#       A refernce to an array that contains the node ids that match.
+#       Undef if no matches.
+#
+sub selectNodeWhere
+{
+    my ($this, $WHERE, $TYPE, $orderby, $nodeTableOnly) = @_;
+    my $cursor;
+    my $select;
+    my @nodelist;
+    my $node_id;
+
+    $cursor = $this-&gt;getNodeCursor($WHERE, $TYPE, $orderby, $nodeTableOnly);
+
+    if((defined $cursor) &amp;&amp; ($cursor-&gt;execute()))
+    {
+        while (($node_id) = $cursor-&gt;fetchrow)
+        {
+            push @nodelist, $node_id;
+        }
+
+        $cursor-&gt;finish();
+    }
+
+    return undef unless(@nodelist);
+
+    return \@nodelist;
+}
+
+
+#############################################################################
+#   Sub
+#       getNodeCursor
+#
+#   Purpose
+#       This returns the sql cursor for node matches.  Users of this object
+#       can call this directly for specific searches, but the more general
+#       functions selectNodeWhere() and getNodeWhere() should be used for
+#       most cases.
+#
+#   Parameters
+#       $WHERE - a hash reference to fieldname/value pairs on which to
+#           restrict the select.
+#       $TYPE - the nodetype to search.  If this is not given, this
+#           will only search the fields on the &quot;node&quot; table since
+#           without a nodetype we don't know what other tables to join
+#           on.
+#       $orderby - the field in which to order the results.
+#       $nodeTableOnly - (performance enhancement) Set to 1 (true) if the
+#           search fields are only in the node table.  This prevents the
+#           database from having to do table joins when they are not needed.
+#           Note that if this is turned on you will not get &quot;complete&quot; nodes,
+#           just the data from the &quot;node&quot; table.
+#
+#   Returns
+#       The sql cursor from the &quot;select&quot;.  undef if their was an error
+#       in the search or no matches.  The caller is responsible for calling
+#       finish() on the cursor.
+#
+sub getNodeCursor
+{
+    my ($this, $WHERE, $TYPE, $orderby, $nodeTableOnly) = @_;
+    my $cursor;
+    my $select;
+
+    $nodeTableOnly ||= 0;
+
+    $TYPE = $this-&gt;getType($TYPE) if((defined $TYPE) &amp;&amp; (ref $TYPE ne &quot;HASH&quot;));
+
+    my $wherestr = $this-&gt;genWhereString($WHERE, $TYPE, $orderby);
+
+    # We need to generate an sql join command that has the potential
+    # to join on multiple tables.  This way the SQL engine does the
+    # search for us.
+    $select = &quot;SELECT * FROM node&quot;;
+
+    # Now we need to join on the appropriate tables.
+    if((! $nodeTableOnly) &amp;&amp; (defined $TYPE) &amp;&amp; (ref $$TYPE{tableArray}))
+    {
+        my $tableArray = $$TYPE{tableArray};
+        my $table;
+
+        foreach $table (@$tableArray)
+        {
+            $select .= &quot; LEFT JOIN $table ON node_id=&quot; . $table . &quot;_id&quot;;
+        }
+    }
+
+    $select .= &quot; WHERE &quot; . $wherestr if($wherestr);
+    $cursor = $this-&gt;{dbh}-&gt;prepare($select);
+
+    return $cursor if($cursor-&gt;execute());
+    return undef;
+}
+
+
+#############################################################################
+#   Sub
+#       constructNode
+#
+#   Purpose
+#       Given a hash that contains a row of data from the 'node' table,
+#       get its type and &quot;join&quot; on the appropriate tables.  This function
+#       is designed to work in conjuction with simple queries that only
+#       search the node table, but then want a complete node.  (ie do a
+#       search on the node table, find something, now we want the complete
+#       node).
+#
+#   Parameters
+#       $NODE - the incomplete node that should be filled out.
+sub constructNode
+{
+    my ($this, $NODE) = @_;
+    my $TYPE = $this-&gt;getType($$NODE{type_nodetype});
+    my $cursor;
+    my $DATA;
+
+    return 0 unless((defined $TYPE) &amp;&amp; (ref $$TYPE{tableArray}));
+
+    $cursor = $this-&gt;getNodeCursor({node_id =&gt; $$NODE{node_id}}, $TYPE);
+
+    return 0 if(not defined $cursor);
+
+    $DATA = $cursor-&gt;fetchrow_hashref();
+    $cursor-&gt;finish();
+
+    @$NODE{keys %$DATA} = values %$DATA;
+
+    # Make sure each field is at least defined to be nothing.
+    foreach (keys %$NODE)
+    {
+        $$NODE{$_} = &quot;&quot; unless defined ($$NODE{$_});
+    }
+
+    return 1;
+}
+
+
+#############################################################################
+#   Sub
+#       updateNode
+#
+#   Purpose
+#       Update the given node in the database.
+#
+#   Parameters
+#       $NODE - the node to update
+#       $USER - the user attempting to update this node (used for
+#           authorization)
+#
+#   Returns
+#       True if successful, false otherwise.
+#
+sub updateNode
+{
+    my ($this, $NODE, $USER) = @_;
+    my %VALUES;
+    my $tableArray;
+    my $table;
+    my @fields;
+    my $field;
+
+    $this-&gt;getRef($NODE);
+     #   Everything::printLog(&quot;before canupdateNode  $$NODE{node_id} $USER&quot;);
+    return 0 unless ($this-&gt;canUpdateNode($USER, $NODE));
+        #Everything::printLog(&quot;after canupdateNode  $$NODE{node_id} $USER&quot;);
+
+    $tableArray = $$NODE{type}{tableArray};
+
+    # Cache this node since it has been updated.  This way the cached
+    # version will be the same as the node in the db.
+    $this-&gt;{cache}-&gt;incrementGlobalVersion($NODE);
+    $this-&gt;{cache}-&gt;cacheNode($NODE) if(defined $this-&gt;{cache});
+
+    # The node table is assumed, so its not in the &quot;joined&quot; table array.
+    # However, for this update, we need to add it.
+    push @$tableArray, &quot;node&quot;;
+
+    # We extract the values from the node for each table that it joins
+    # on and update each table individually.
+    foreach $table (@$tableArray)
+    {
+        next   if  ! $NODE-&gt;{ $table . '_id' };
+        undef %VALUES; # clear the values hash.
+
+        @fields = $this-&gt;getFields($table);
+        foreach $field (@fields)
+        {
+            if (exists $NODE-&gt;{$field})
+            {
+                $VALUES{$field} = $$NODE{$field};
+            }
+        }
+
+        # we don't want to chance mucking with the primary key
+        # So, remove this from the hash
+        delete $VALUES{$table . &quot;_id&quot;};
+
+        $this-&gt;sqlUpdate($table, \%VALUES, $table . &quot;_id=$$NODE{node_id}&quot;);
+    }
+
+    # We are done with tableArray.  Remove the &quot;node&quot; table that we put on
+    pop @$tableArray;
+
+    # This node has just been updated.  Do any maintenance if needed.
+    # NOTE!  This is turned off for now since nothing uses it currently.
+    # (helps performance).  If you need to do some special updating for
+    # a particualr nodetype, uncomment this line.
+    #$this-&gt;nodeMaintenance($NODE, 'update');
+    #    Everything::printLog(&quot;updateNode $$NODE{node_id} is finished&quot;);
+    return 1;
+}
+
+
+############################################################################
+#   sub
+#       replaceNode
+#
+#   purpose
+#       given insertNode information, test whether or not the node is there
+#       if it is, update it, otherwise insert the node as new
+#
+sub replaceNode
+{
+    my ($this, $title, $TYPE, $USER, $DATA) = @_;
+
+    if (my $N = $this-&gt;getNode($title, $TYPE)) {
+        if ($this-&gt;canUpdateNode($USER,$N)) {
+            @$N{keys %$DATA} = values %$DATA if $DATA;
+            $this-&gt;updateNode($N, $USER);
+        }
+        $this-&gt;getId($N);
+    } else {
+        $this-&gt;insertNode($title, $TYPE, $USER, $DATA);
+    }
+}
+
+
+#############################################################################
+#   Sub
+#       insertNode
+#
+#   Purpose
+#       Insert a new node into the tables.
+#
+#   Parameters
+#       title - the string title of the node
+#       TYPE - the hash of the type that we want to insert
+#       USER - the user trying to do this (used for authorization)
+#       DATA - the fields/values of the node to set.
+#
+#   Returns
+#       The id of the node inserted, or false if error (sql problem, node
+#       already exists).
+#
+sub insertNode
+{
+    my ($this, $title, $TYPE, $USER, $DATA) = @_;
+        Everything::printLog(&quot;insertNode @_&quot;);
+    my $tableArray;
+    my $table;
+    my $NODE;
+
+
+    $TYPE = $this-&gt;getType($TYPE) unless (ref $TYPE);
+
+    unless ($this-&gt;canCreateNode($USER, $TYPE))
+    {
+        Everything::printErr(
+            &quot;$$USER{title} not allowed to create this type of node!&quot;);
+        return 0;
+    }
+
+    if ($$TYPE{restrictdupes})
+    {
+        # Check to see if we already have a node of this title.
+        my $DUPELIST = $this-&gt;sqlSelect(&quot;*&quot;, &quot;node&quot;, &quot;title=&quot; .
+            $this-&gt;quote($title) . &quot; &amp;&amp; type_nodetype=&quot; . $$TYPE{node_id});
+
+        if ($DUPELIST)
+        {
+            # A node of this name already exists and restrict dupes is
+            # on for this nodetype.  Don't do anything
+            return 0;
+        }
+    }
+
+    $this-&gt;sqlInsert(&quot;node&quot;,
+            {title =&gt; $title,
+            type_nodetype =&gt; $$TYPE{node_id},
+            author_user =&gt; $this-&gt;getId($USER),
+            hits =&gt; 0,
+            -createtime =&gt; 'now()',
+                        -ucreatetime=&gt;'unix_timestamp()'});
+
+    # Get the id of the node that we just inserted.
+    my ($node_id) = $this-&gt;sqlSelect(&quot;LAST_INSERT_ID()&quot;);
+
+    # Now go and insert the appropriate rows in the other tables that
+    # make up this nodetype;
+    $tableArray = $$TYPE{tableArray};
+    foreach $table (@$tableArray)
+    {
+        $this-&gt;sqlInsert($table, { $table . &quot;_id&quot; =&gt; $node_id });
+    }
+
+    $NODE = $this-&gt;getNodeById($node_id, 'force');
+
+    # This node has just been created.  Do any maintenance if needed.
+    # We do this here before calling updateNode below to make sure that
+    # the 'created' routines are executed before any 'update' routines.
+    $this-&gt;nodeMaintenance($NODE, 'create');
+
+    if ($DATA)
+    {
+        @$NODE{keys %$DATA} = values %$DATA;
+                #we canCreateNode so we don't check if we can update at createtime
+        $this-&gt;updateNode($NODE, -1);
+    }
+
+    return $node_id;
+}
+
+#######################################################################
+#   sub
+#       tombstoneNode
+#
+#   purpose
+#       save a soon-to-be-nuked node to the tomb table, so that
+#       if we ever need to restore it, we can
+#       take same params as nukeNode
+#
+sub tombstoneNode
+{
+    my ($this, $NODE, $USER) = @_;
+
+    my %N = %{ $NODE };  #create a copy of the node hash;
+    my %data = %N;
+
+    $N{killa_user} = $this-&gt;getId($USER);
+
+    my @fields = $this-&gt;getFields('tomb');
+    foreach (@fields) { delete $data{$_} if exists $data{$_} }
+    foreach (keys %data) {
+        delete $N{$_};
+    }
+    delete $data{type};
+
+    use Data::Dumper;
+    $N{data} = Data::Dumper-&gt;Dump([\%data]);
+    $this-&gt;sqlInsert(&quot;tomb&quot;, \%N);
+}
+
+
+#############################################################################
+#   Sub
+#       nukeNode
+#
+#   Purpose
+#       Given a node, delete it and all of its associated table data.
+#       If it is a group node, this will also clean out all of its
+#       entries in its group table.
+#
+#   Parameters
+#       $NODE - the node in which we wish to delete
+#       $USER - the user trying to do this (used for authorization)
+#
+#   Returns
+#       True if successful, false otherwise.
+#
+sub nukeNode
+{
+    my ($this, $NODE, $USER,$NOTOMB) = @_;
+    my $tableArray;
+    my $table;
+    my $result = 0;
+    my $groupTable;
+
+    $this-&gt;getRef($NODE, $USER);
+
+    return unless ($this-&gt;canDeleteNode($USER, $NODE));
+
+        $this-&gt;tombstoneNode($NODE, $USER) unless $NOTOMB;
+
+    # This node is about to be deleted.  Do any maintenance if needed.
+    $this-&gt;nodeMaintenance($NODE, 'delete');
+
+    # Delete this node from the cache that we keep.
+    $this-&gt;{cache}-&gt;removeNode($NODE);
+
+    $tableArray = $$NODE{type}{tableArray};
+
+    push @$tableArray, &quot;node&quot;;  # the node table is not in there.
+
+    foreach $table (@$tableArray)
+    {
+        $result += $this-&gt;{dbh}-&gt;do(&quot;DELETE FROM $table WHERE &quot; . $table .
+            &quot;_id=$$NODE{node_id}&quot;);
+    }
+
+    pop @$tableArray; # remove the implied &quot;node&quot; that we put on
+
+    # Remove all links that go from or to this node that we are deleting
+    $this-&gt;{dbh}-&gt;do(&quot;DELETE FROM links
+        WHERE to_node=$$NODE{node_id}
+        OR from_node=$$NODE{node_id}&quot;);
+
+    # If this node is a group node, we will remove all of its members
+    # from the group table.
+    if($groupTable = $this-&gt;isGroup($$NODE{type}))
+    {
+        # Remove all group entries for this group node
+        $this-&gt;{dbh}-&gt;do(&quot;DELETE FROM $groupTable WHERE &quot; . $groupTable .
+            &quot;_id=$$NODE{node_id}&quot;);
+    }
+    $this-&gt;{dbh}-&gt;do(&quot;DELETE FROM nodegroup WHERE node_id=$$NODE{node_id}&quot;);
+    $this-&gt;{dbh}-&gt;do(&quot;DELETE FROM considernodes WHERE considernodes_id=$$NODE{node_id}&quot;);
+
+    # This will be zero if nothing was deleted from the tables.
+    return $result;
+}
+
+
+#############################################################################
+#   Sub
+#       getType
+#
+#   Purpose
+#       Get a nodetype.  This must be called to get a nodetype.  You
+#       cannot retrieve a nodetype through selectNodeWhere, getNodeById,
+#       etc.  Nodetypes are derived and inherit values from &quot;parent&quot;
+#       nodetypes.  This takes care of the tricky part of getting the
+#       nodetypes loaded and properly derives their values.
+#
+#   Returns
+#       A hash ref to a nodetype node.  undef if not found
+#
+sub getType
+{
+    my ($this, $idOrName) = @_;
+    my $TYPE;
+    my $NODE;
+    my $field;
+    my $fromCache = 1;
+
+    # We assume that the nodetypes join on the 'nodetype' table and the
+    # nodetype 'nodetype' is always id #1.  If this changes, this will
+    # break and we will need to change this stuff.
+
+    # If they pass in a hash, just take the id.
+    $idOrName = $$idOrName{node_id} if(ref $idOrName eq &quot;HASH&quot;);
+
+    return undef if((not defined $idOrName) || ($idOrName eq &quot;&quot;));
+
+    if($idOrName =~ /\D/) # Does it contain non-digits?
+    {
+        # It is a string name of the nodetype we are looking for.
+        $TYPE = $this-&gt;{cache}-&gt;getCachedNodeByName($idOrName, &quot;nodetype&quot;);
+
+        if(not defined $TYPE)
+        {
+            $TYPE = $this-&gt;sqlSelectHashref(&quot;*&quot;,
+                &quot;node left join nodetype on node_id=nodetype_id&quot;,
+                &quot;title=&quot; . $this-&gt;quote($idOrName) . &quot; &amp;&amp; type_nodetype=1&quot;);
+
+            $fromCache = 0;
+        }
+    }
+    elsif($idOrName &gt; 0)
+    {
+        # Its an id
+        $TYPE = $this-&gt;{cache}-&gt;getCachedNodeById($idOrName);
+
+        if(not defined $TYPE)
+        {
+            $TYPE = $this-&gt;sqlSelectHashref(&quot;*&quot;,
+                &quot;node left join nodetype on node_id=nodetype_id&quot;,
+                &quot;node_id=$idOrName &amp;&amp; type_nodetype=1&quot;);
+
+            $fromCache = 0;
+        }
+    }
+    else
+    {
+        # We only get here if the id is zero or negative
+        return undef;
+    }
+
+    # If we did not find a matching nodetype, forget it.
+    return undef unless(defined $TYPE);
+
+    if(not exists $$TYPE{type})
+    {
+        # We need to assign the &quot;type&quot;.
+        if($$TYPE{node_id} == 1) {
+            # This is the nodetype nodetype, it is its own type.
+            $$TYPE{type} = $TYPE;
+        }
+        else
+        {
+            # Get the type and assign it.
+            $$TYPE{type} = $this-&gt;getType($$TYPE{type_nodetype});
+        }
+    }
+
+    if(not exists $$TYPE{resolvedInheritance})
+    {
+        # If this didn't come from the cache, we need to cache it
+        $this-&gt;{cache}-&gt;cacheNode($TYPE, 1) if((not $fromCache) &amp;&amp;
+            (not $this-&gt;{staticNodetypes}));
+
+        $TYPE = $this-&gt;deriveType($TYPE);
+
+        # If we have static nodetypes, we can do a performance enhancement
+        # by caching the completed nodes.
+        $this-&gt;{cache}-&gt;cacheNode($TYPE, 1) if($this-&gt;{staticNodetypes});
+    }
+
+    return $TYPE;
+}
+
+
+#############################################################################
+#   Sub
+#       getAllTypes
+#
+#   Purpose
+#       This returns an array that contains all of the nodetypes in the
+#       system.  Useful for knowing what nodetypes exist.
+#
+#   Parameters
+#       None
+#
+#   Returns
+#       An array of TYPE hashes of all the nodetypes in the system
+#
+sub getAllTypes
+{
+    my ($this) = @_;
+    my $sql;
+    my $cursor;
+    my @allTypes = ();
+    my $node_id;
+    my $TYPE = $this-&gt;getType(&quot;nodetype&quot;);
+
+    $sql = &quot;select node_id from node where type_nodetype=&quot; . $$TYPE{node_id};
+    $cursor = $this-&gt;{dbh}-&gt;prepare($sql);
+    if($cursor &amp;&amp; $cursor-&gt;execute())
+    {
+        while( ($node_id) = $cursor-&gt;fetchrow() )
+        {
+            $TYPE = $this-&gt;getType($node_id);
+            push @allTypes, $TYPE;
+        }
+
+        $cursor-&gt;finish();
+    }
+
+    return @allTypes;
+}
+
+
+#############################################################################
+#   Sub
+#       getFields
+#
+#   Purpose
+#       Get the field names of a table.
+#
+#   Parameters
+#       $table - the name of the table of which to get the field names
+#
+#   Returns
+#       An array of field names
+#
+sub getFields
+{
+    my ($this, $table) = @_;
+
+    return $this-&gt;getFieldsHash($table, 0);
+}
+
+
+#############################################################################
+#   Sub
+#       getFieldsHash
+#
+#   Purpose
+#       Given a table name, returns a list of the fields or a hash.
+#
+#   Parameters
+#       $table - the name of the table to get fields for
+#       $getHash - set to 1 if you would also like the entire field hash
+#           instead of just the field name. (set to 1 by default)
+#
+#   Returns
+#       Array of field names, if getHash is 1, it will be an array of
+#       hashrefs of the fields.
+#
+sub getFieldsHash
+{
+    my ($this, $table, $getHash) = @_;
+    my $field;
+    my @fields;
+    my $value;
+
+    $getHash = 1 if(not defined $getHash);
+    $table ||= &quot;node&quot;;
+
+    my $cursor = $this-&gt;{dbh}-&gt;prepare_cached(&quot;show columns from $table&quot;);
+
+    $cursor-&gt;execute;
+    while ($field = $cursor-&gt;fetchrow_hashref)
+    {
+        $value = ( ($getHash == 1) ? $field : $$field{Field});
+        push @fields, $value;
+    }
+
+    $cursor-&gt;finish();
+
+    @fields;
+}
+
+
+#############################################################################
+#   Sub
+#       tableExists
+#
+#   Purpose
+#       Check to see if a table of the given name exists in this database.
+#
+#   Parameters
+#       $tableName - the table to check for.
+#
+#   Returns
+#       1 if it exists, 0 if not.
+#
+sub tableExists
+{
+    my ($this, $tableName) = @_;
+    my $cursor = $this-&gt;{dbh}-&gt;prepare(&quot;show tables&quot;);
+    my $table;
+    my $exists = 0;
+
+    $cursor-&gt;execute();
+    while((($table) = $cursor-&gt;fetchrow()) &amp;&amp; (not $exists))
+    {
+          $exists = 1 if($table eq $tableName);
+    }
+
+    $cursor-&gt;finish();
+
+    return $exists;
+}
+
+
+#############################################################################
+#   Sub
+#       createNodeTable
+#
+#   Purpose
+#       Create a new database table for a node, if it does not already
+#       exist.  This creates a new table with one field for the id of
+#       the node in the form of tablename_id.
+#
+#   Parameters
+#       $tableName - the name of the table to create
+#
+#   Returns
+#       1 if successful, 0 if failure, -1 if it already exists.
+#
+sub createNodeTable
+{
+    my ($this, $table) = @_;
+    my $tableid = $table . &quot;_id&quot;;
+    my $result;
+
+    return -1 if($this-&gt;tableExists($table));
+
+    $result = $this-&gt;{dbh}-&gt;do(&quot;create table $table ($tableid int(11)&quot; .
+        &quot; DEFAULT '0' NOT NULL, PRIMARY KEY($tableid))&quot;);
+
+    return $result;
+}
+
+
+#############################################################################
+#   Sub
+#       dropNodeTable
+#
+#   Purpose
+#       Drop (delete) a table from a the database.  Note!!! This is
+#       perminent!  You will lose all data in that table.
+#
+#   Parameters
+#       $table - the name of the table to drop.
+#
+#   Returns
+#       1 if successful, 0 otherwise.
+#
+sub dropNodeTable
+{
+    my ($this, $table) = @_;
+
+    # These are the tables that we don't want to drop.  Dropping one
+    # of these, could cause the entire system to break.  If you really
+    # want to drop one of these, do it from the command line.
+    my @nodrop = (
+        &quot;container&quot;,
+        &quot;document&quot;,
+        &quot;htmlcode&quot;,
+        &quot;htmlpage&quot;,
+        &quot;image&quot;,
+        &quot;links&quot;,
+        &quot;maintenance&quot;,
+        &quot;node&quot;,
+        &quot;nodegroup&quot;,
+        &quot;nodelet&quot;,
+        &quot;nodetype&quot;,
+        &quot;note&quot;,
+        &quot;rating&quot;,
+        &quot;user&quot; );
+
+    foreach (@nodrop)
+    {
+        if($_ eq $table)
+        {
+            printLog(&quot;WARNING! Attempted to drop core table $table!&quot;);
+            return 0;
+        }
+    }
+
+    return 0 unless($this-&gt;tableExists($table));
+
+    Everything::printLog(&quot;Dropping table $table&quot;);
+    return $this-&gt;{dbh}-&gt;do(&quot;drop table $table&quot;);
+}
+
+
+#############################################################################
+#   Sub
+#       addFieldToTable
+#
+#   Purpose
+#       Add a new field to an existing database table.
+#
+#   Parameters
+#       $table - the table to add the new field to.
+#       $fieldname - the name of the field to add
+#       $type - the type of the field (ie int(11), char(32), etc)
+#       $primary - (optional) is this field a primary key?  Defaults to no.
+#       $default - (optional) the default value of the field.
+#
+#   Returns
+#       1 if successful, 0 if failure.
+#
+sub addFieldToTable
+{
+    my ($this, $table, $fieldname, $type, $primary, $default) = @_;
+    my $sql;
+
+    return 0 if(($table eq &quot;&quot;) || ($fieldname eq &quot;&quot;) || ($type eq &quot;&quot;));
+
+    if(not defined $default)
+    {
+        if($type =~ /^int/i)
+        {
+            $default = 0;
+        }
+        else
+        {
+            $default = &quot;&quot;;
+        }
+    }
+    elsif($type =~ /^text/i)
+    {
+        # Text blobs cannot have default strings.  They need to be empty.
+        $default = &quot;&quot;;
+    }
+
+    $sql = &quot;alter table $table add $fieldname $type&quot;;
+    $sql .= &quot; default \&quot;$default\&quot; not null&quot;;
+
+    $this-&gt;{dbh}-&gt;do($sql);
+
+    if($primary)
+    {
+        # This requires a little bit of work.  We need to figure out what
+        # primary keys already exist, drop them, and then add them all
+        # back in with the new key.
+        my @fields = $this-&gt;getFieldsHash($table);
+        my @prikeys;
+        my $primaries;
+        my $field;
+
+        foreach $field (@fields)
+        {
+            push @prikeys, $$field{Field} if($$field{Key} eq &quot;PRI&quot;);
+        }
+
+        $this-&gt;{dbh}-&gt;do(&quot;alter table $table drop primary key&quot;) if(@prikeys &gt; 0);
+
+        push @prikeys, $fieldname; # add the new field to the primaries
+        $primaries = join ',', @prikeys;
+        $this-&gt;{dbh}-&gt;do(&quot;alter table $table add primary key($primaries)&quot;);
+    }
+
+    return 1;
+}
+
+
+#############################################################################
+#   Sub
+#       dropFieldFromTable
+#
+#   Purpose
+#       Remove a field from the given table.
+#
+#   Parameters
+#       $table - the table to remove the field from
+#       $field - the field to drop
+#
+#   Returns
+#       1 if successful, 0 if failure
+#
+sub dropFieldFromTable
+{
+    my ($this, $table, $field) = @_;
+    my $sql;
+
+    $sql = &quot;alter table $table drop $field&quot;;
+
+    return $this-&gt;{dbh}-&gt;do($sql);
+}
+
+
+#############################################################################
+#   Sub
+#       quote
+#
+#   Purpose
+#       A quick access to DBI's quote function for quoting strings so that
+#       they do not affect the sql queries.
+#
+#   Paramters
+#       $str - the string to quote
+#
+#   Returns
+#       The quoted string
+#
+sub quote
+{
+    my ($this, $str) = @_;
+
+    return ($this-&gt;{dbh}-&gt;quote($str));
+}
+
+
+#############################################################################
+#   Sub
+#       genWhereString
+#
+#   Purpose
+#       This code was stripped from selectNodeWhere.  This takes a WHERE
+#       hash and a string for ordering and generates the appropriate where
+#       string to pass along with a select-type sql command.  The code is
+#       in this function so we can re-use it.
+#
+#   Notes
+#       You will note that this is not a full-featured WHERE generator --
+#       there is no way to do &quot;field1=foo OR field2=bar&quot;
+#       you can only OR on the same field and AND on different fields
+#       I haven't had to worry about it yet.  That day may come
+#
+#   Parameters
+#       WHERE - a reference to a hash that contains the criteria (ie
+#           title =&gt; 'the node', etc).
+#       TYPE - a hash reference to the nodetype
+#       orderby - a string that contains information on how the sql
+#           query should order the result if more than one match is found.
+#
+#   Returns
+#       A string that can be used for the sql query.
+#
+sub genWhereString
+{
+    my ($this, $WHERE, $TYPE, $orderby) = @_;
+    my $wherestr = &quot;&quot;;
+    my $tempstr;
+
+    foreach my $key (keys %$WHERE)
+    {
+        $tempstr = &quot;&quot;;
+
+        # if your where hash includes a hash to a node, you probably really
+        # want to compare the ID of the node, not the hash reference.
+        if (ref ($$WHERE{$key}) eq &quot;HASH&quot;)
+        {
+            $$WHERE{$key} = $this-&gt;getId($$WHERE{$key});
+        }
+
+        # If $key starts with a '-', it means its a single value.
+        if(  $key =~ s/^\-//  ) {
+            my $val= $WHERE-&gt;{ '-' . $key };
+            if(  $val =~ s/^! //  ) {
+                $tempstr .= &quot;$key != $val&quot;;
+            } elsif(  $val =~ /^not /i  ) {
+                $tempstr .= &quot;$key $val&quot;;
+            } else {
+                $val =~ s/^= //;
+                $tempstr .= &quot;$key = $val&quot;;
+            }
+        }
+        #if we have a list, we join each item with ORs
+        elsif (ref ($$WHERE{$key}) eq &quot;ARRAY&quot;)
+        {
+            my $LIST = $$WHERE{$key};
+            my $orstr = &quot;&quot;;
+
+            foreach my $item (@$LIST)
+            {
+                $orstr .= &quot; or &quot; if($orstr ne &quot;&quot;);
+                $item = $this-&gt;getId($item);
+                $orstr .= $key . '=' . $this-&gt;quote($item);
+            }
+
+            $tempstr .= &quot;(&quot; . $orstr . &quot;)&quot;;
+        }
+        else
+        #!!# elsif($$WHERE{$key})       # Makes nasty DB-hogging bug
+        {
+            $tempstr .= $key . '=' . $this-&gt;quote($$WHERE{$key});
+        }
+
+        if($tempstr ne &quot;&quot;)
+        {
+            #different elements are joined together with ANDS
+            $wherestr .= &quot; &amp;&amp; \n&quot; if($wherestr ne &quot;&quot;);
+            $wherestr .= $tempstr;
+        }
+    }
+
+    if(defined $TYPE)
+    {
+        $wherestr .= &quot; &amp;&amp;&quot; if($wherestr ne &quot;&quot;);
+        $wherestr .= &quot; type_nodetype=$$TYPE{node_id}&quot;;
+    }
+
+    $wherestr .= &quot; ORDER BY $orderby&quot; if $orderby;
+
+    return $wherestr;
+}
+
+
+#############################################################################
+#   &quot;Private&quot; functions to this module
+#############################################################################
+
+
+#############################################################################
+sub deriveType
+{
+    my ($this, $TYPE) = @_;
+    my $PARENT;
+    my $NODETYPE;
+    my $field;
+
+    # If this type has been derived already, don't do it again.
+    return $TYPE if(exists $$TYPE{resolvedInheritance});
+
+    # Make a copy of the TYPE.  We don't want to change whatever is stored
+    # in the cache if static nodetypes are turned off.
+    foreach $field (keys %$TYPE)
+    {
+        $$NODETYPE{$field} = $$TYPE{$field};
+    }
+
+    $$NODETYPE{sqltablelist} = $$NODETYPE{sqltable};
+    $PARENT = $this-&gt;getType($$NODETYPE{extends_nodetype});
+
+    if(defined $PARENT)
+    {
+        foreach $field (keys %$PARENT)
+        {
+            # We add some fields that are not apart of the actual
+            # node, skip these because they are never inherited
+            # anyway. (if more custom fields are added, add them
+            # here.  We don't want to inherit them.)
+            my %skipfields = (
+                &quot;tableArray&quot; =&gt; 1,
+                &quot;resolvedInheritance&quot; =&gt; 1 );
+
+            next if(exists $skipfields{$field});
+
+            # If a field in a nodetype is '-1', this field is derived from
+            # its parent.
+            if($$NODETYPE{$field} eq &quot;-1&quot;)
+            {
+                $$NODETYPE{$field} = $$PARENT{$field};
+            }
+            elsif(($field eq &quot;sqltablelist&quot;) &amp;&amp; ($$PARENT{$field} ne &quot;&quot;))
+            {
+                # Inherited sqltables are added onto the list.  Derived
+                # nodetypes &quot;extend&quot; parent nodetypes.
+                $$NODETYPE{$field} .= &quot;,&quot; if($$NODETYPE{$field} ne &quot;&quot;);
+                $$NODETYPE{$field} .= &quot;$$PARENT{$field}&quot;;
+            }
+            elsif(($field eq &quot;grouptable&quot;) &amp;&amp; ($$PARENT{$field} ne &quot;&quot;) &amp;&amp;
+                ($$NODETYPE{$field} eq &quot;&quot;))
+            {
+                # We are inheriting from a group nodetype and we have not
+                # specified a grouptable, so we will use the same table
+                # as our parent nodetype.
+                $$NODETYPE{$field} = $$PARENT{$field};
+            }
+        }
+    }
+
+    $this-&gt;getNodetypeTables($NODETYPE);
+
+    # If this is the 'nodetype' nodetype, we need to reassign the 'type'
+    # field to point to this completed nodetype.
+    if($$NODETYPE{title} eq &quot;nodetype&quot;)
+    {
+        $$NODETYPE{type} = $NODETYPE;
+    }
+
+    # Flag this nodetype as complete.  We use this for checking to make
+    # sure that it is a valid nodetype.  This should be the only place
+    # that this flag gets set!
+    $$NODETYPE{resolvedInheritance} = 1;
+
+    return $NODETYPE;
+}
+
+
+#############################################################################
+#   Sub
+#       getNodetypeTables
+#
+#   Purpose
+#       Returns an array of all the tables that a given nodetype joins on.
+#       This will create the array, if it has not already created it.
+#
+#   Parameters
+#       typeNameOrId - The string name or integer Id of the nodetype
+#
+#   Returns
+#       A reference to an array that contains the names of the tables
+#       to join on.  If the nodetype does not join on any tables, the
+#       array is empty.
+#
+sub getNodetypeTables
+{
+    my ($this, $TYPE) = @_;
+    $TYPE = $this-&gt;getType($TYPE) unless ref $TYPE;
+    my $tables;
+    my @tablelist;
+    my @nodupes;
+    my $warn = &quot;&quot;;
+
+    if(defined $$TYPE{tableArray})
+    {
+        # We already calculated this, return it.
+        return $$TYPE{tableArray};
+    }
+
+    $tables = $$TYPE{sqltablelist};
+
+    if((defined $tables) &amp;&amp; ($tables ne &quot;&quot;))
+    {
+        my %tablehash;
+
+        # remove all spaces (table names should not have spaces in them)
+        $tables =~ s/ //g;
+
+        # Remove any crap that the user may put in there (stray commas, etc).
+        $tables =~ s/,{2,}/,/g;
+        $tables =~ s/^,//;
+        $tables =~ s/,$//;
+
+        @tablelist = split &quot;,&quot;, $tables;
+
+        # Make sure there are no dupes!
+        foreach (@tablelist)
+        {
+            if(defined $tablehash{$_})
+            {
+                $tablehash{$_} = $tablehash{$_} + 1;
+            }
+            else
+            {
+                $tablehash{$_} = 1;
+            }
+        }
+
+        foreach (keys %tablehash)
+        {
+            $warn .= &quot;table '$_' : $tablehash{$_}\n&quot; if($tablehash{$_} &gt; 1);
+            push @nodupes, $_;
+        }
+
+        if($warn ne &quot;&quot;)
+        {
+            $warn = &quot;WARNING: Duplicate tables for nodetype &quot; .
+                $$TYPE{title} . &quot;:\n&quot; . $warn;
+
+            Everything::printLog($warn);
+        }
+
+        # Store the table array in case we need it again.
+        $$TYPE{tableArray} = \@nodupes;
+    }
+    else
+    {
+        my @emptyArray;
+
+        # Just an empty array.
+        $$TYPE{tableArray} = \@emptyArray;
+    }
+
+    return $$TYPE{tableArray};
+}
+
+
+#############################################################################
+#   Sub
+#       getMaintenanceCode
+#
+#   Purpose
+#       This finds the code that needs to be executed for the given
+#       node and operation.
+#
+#   Parameters
+#       $NODE - a node hash or id of the node being affected
+#       $op - the operation being performed (typically 'create', 'update',
+#           or 'delete')
+#
+#   Returns
+#       The code to be executed.  0 if no code was found.
+#
+sub getMaintenanceCode
+{
+    my ($this, $NODE, $op) = @_;
+    my $maintain;
+    my $code;
+    my %WHEREHASH;
+    my $TYPE;
+    my $done = 0;
+
+    # If the maintenance nodetype has not been loaded, don't try to do
+    # any thing (the only time this should happen is when we are
+    # importing everything from scratch).
+    return 0 if(not defined $this-&gt;getType(&quot;maintenance&quot;));
+
+    $this-&gt;getRef($NODE);
+    $TYPE = $this-&gt;getType($$NODE{type_nodetype});
+
+    # Maintenance code is inherited by derived nodetypes.  This will
+    # find a maintenance code from parent nodetypes (if necessary).
+    do
+    {
+        undef %WHEREHASH;
+
+        %WHEREHASH = (
+            maintain_nodetype =&gt; $$TYPE{node_id}, maintaintype =&gt; $op);
+
+        $maintain = $this-&gt;selectNodeWhere(\%WHEREHASH,
+            $this-&gt;getType(&quot;maintenance&quot;));
+
+        if(not defined $maintain)
+        {
+            # We did not find any code for the given type.  Run up the
+            # inheritance hierarchy to see if we can find anything.
+            if($$TYPE{extends_nodetype})
+            {
+                $TYPE = $this-&gt;getType($$TYPE{extends_nodetype});
+            }
+            else
+            {
+                # We have hit the top of the inheritance hierarchy for this
+                # nodetype and we haven't found any maintenance code.
+                return 0;
+            }
+        }
+    } until(defined $maintain);
+
+    $code = $this-&gt;getNodeById($$maintain[0]);
+    return $$code{code};
+}
+
+
+
+#############################################################################
+#   Sub
+#       nodeMaintenance
+#
+#   Purpose
+#       Some nodetypes need to do some special stuff when a node is
+#       created, updated, or deleted.  Maintenance nodes (similar to
+#       htmlpages) can be created to have code that knows how to
+#       maintain nodes of that nodetype.  You can kind of think of
+#       maintenance pages as constructors and destructors for nodes of
+#       a particular nodetype.
+#
+#   Parameters
+#       $node_id -  a node hash or id that is being affected
+#       $op - the operation being performed (typically, 'create', 'update',
+#           or 'delete')
+#
+#   Returns
+#       0 if error.  1 otherwiwse.
+#
+sub nodeMaintenance
+{
+    my ($this, $node_id, $op) = @_;
+    my $code;
+
+    # NODE and op must be defined!
+    return 0 if(not defined $node_id);
+    return 0 if((not defined $op) || ($op eq &quot;&quot;));
+
+    # Find the maintenance code for this page (if there is any)
+    $code = $this-&gt;getMaintenanceCode($node_id, $op);
+
+    if($code)
+    {
+        $node_id = $this-&gt;getId($node_id);
+        my $args = &quot;\@\_ = \&quot;$node_id\&quot;;\n&quot;;
+        Everything::HTML::embedCode(&quot;%&quot; . $args . $code . &quot;%&quot;, @_);
+    }
+}
+
+#############################################################################
+#   Sub
+#       getId
+#
+#   Purpose
+#       Opposite of getRef.  This makes sure we have node id's not hashes.
+#
+#   Parameters
+#       Array of node hashes to convert to id's
+#
+#   Returns
+#       An array (if there are more than one to be converted) of node id's.
+#
+sub getId
+{
+    my ($this, @args) = @_;
+
+    foreach my $arg (@args)
+    {
+        if (ref $arg eq &quot;HASH&quot;) {$arg = $$arg{node_id};}
+    }
+
+    return (@args == 1 ? $args[0] : @args);
+}
+
+
+#############################################################################
+#   Sub
+#       getRef
+#
+#   Purpose
+#       This makes sure that we have an array of node hashes, not node id's.
+#
+#   Parameters
+#       Any number of node id's or node hashes (ie getRef( $n[0], $n[1], ...))
+#
+#   Returns
+#       The node hash of the first element passed in.
+#
+sub getRef
+{
+    my $this = shift @_;
+
+    for (my $i = 0; $i &lt; @_; $i++)
+    {
+        unless (ref ($_[$i]))
+        {
+            $_[$i] = $this-&gt;getNodeById($_[$i]) if($_[$i]);
+        }
+    }
+
+    ref $_[0];
+}
+
+
+#############################################################################
+#   Sub
+#       isNodetype
+#
+#   Purpose
+#       Checks to see if the given node is nodetype or not.
+#
+#   Parameters
+#       $NODE - the node to check
+#
+#   Returns
+#       true if the node is a nodetype, false otherwise.
+#
+sub isNodetype
+{
+    my ($this, $NODE) = @_;
+    $this-&gt;getRef($NODE);
+
+    return 0 if (not ref $NODE);
+
+    # If this node's type is a nodetype, its a nodetype.
+    my $TYPE = $this-&gt;getType(&quot;nodetype&quot;);
+    return ($$NODE{type_nodetype} == $$TYPE{node_id});
+}
+
+
+#############################################################################
+#   Sub
+#       isGroup
+#
+#   Purpose
+#       Check to see if a nodetpye is a group.  Groups have a value
+#       in the grouptable field.
+#
+#   Parameters
+#       $NODETYPE - the node hash or hashreference to a nodetype node.
+#
+#   Returns
+#       The name of the grouptable if the nodetype is a group, 0 (false)
+#       otherwise.
+#
+sub isGroup
+{
+    my ($this, $NODETYPE) = @_;
+    $this-&gt;getRef($NODETYPE);
+    return $NODETYPE-&gt;{grouptable} || 0;
+}
+
+
+#############################################################################
+sub canCreateNode
+{
+    my( $this, $USER, $TYPE )= @_;
+    $TYPE = $this-&gt;getType( $TYPE );
+
+    my $writers= $TYPE-&gt;{writers_user};
+    # The default is that everyone can create
+    return 1   if  ! $writers;
+    return $this-&gt;isApproved( $USER, $writers, $TYPE );
+}
+
+
+#############################################################################
+sub canDeleteNode
+{
+    my( $this, $USER, $NODE )= @_;
+    $this-&gt;getRef($NODE);
+
+    my $deleters= $NODE-&gt;{type}{deleters_user};
+    # The default is that nobody can delete
+    return 0   if  ! $NODE  ||  ! $deleters;
+
+    # -2 means &quot;owner&quot; can delete (anonymous?)
+    return $this-&gt;isApproved( $USER, $NODE-&gt;{author_user}, $NODE )
+        if -2 == $deleters;
+
+    return $this-&gt;isApproved( $USER, $deleters, $NODE );
+}
+
+
+#############################################################################
+sub canUpdateNode
+{
+    my( $this, $USER, $NODE )= @_;
+    $this-&gt;getRef( $NODE, $USER );
+
+    return 0   if  ! $NODE;
+
+    my $updaters = $NODE-&gt;{type}{updaters_user};
+    if(  ! $updaters  ) {
+        # The default is that non-anonymous owners can modify
+        return 0
+            if  $Everything::HTML::HTMLVARS{guest_user}
+                    == $this-&gt;getId($USER);
+        $updaters = $NODE-&gt;{author_user};
+    }
+
+    return $this-&gt;isApproved( $USER, $updaters, $NODE );
+}
+
+
+#############################################################################
+sub canReadNode
+{
+    my( $this, $USER, $NODE )= @_;
+
+    $this-&gt;getRef($NODE);
+
+    return 0   if  ! $NODE;
+
+    my $readers= $NODE-&gt;{type}{readers_user};
+
+    # the default is that everyone can read
+    return 1   if  ! $readers;
+
+    # -2 means only &quot;owner&quot; can read
+    return $this-&gt;isApproved( $USER, $NODE-&gt;{author_user}, $NODE )
+        if -2 == $readers;
+
+    return $this-&gt;isApproved( $USER, $readers, $NODE );
+}
+
+
+#############################################################################
+#   Sub
+#       isApproved
+#
+#   Purpose
+#       Checks to see if the given user is approved within a given group
+#
+#   Parameters
+#       $USER  - reference to a user node hash  (-1 if super user)
+#       $GROUP - ref to nodegroup / accessrule that the user might be in
+#       $NODE  - optional reference to the item being tested against.
+#                its presence allows rules to be applied against the
+#                the item.
+#       $NotGod - If the last parameter is the string 'notgod'
+#                 then isApproved will not consider gods to
+#                 to be automatically approved.
+#
+#   Returns
+#       true if the user is authorized, false otherwise
+#
+#   Uses %Everything::HTML::HTMLVARS as a per-session cache
+#   of the results as well as populating
+#      $Everything::HTML::HTMLVARS{isApproved}{last}
+#   with a hash of the results. This hash should be treated
+#   as read only, and may contain the following keys:
+#       ret   =&gt; the actual return value (0/1).
+#                Will be the only value if invalid data was passed in
+#                or if $USER was -1
+#       group =&gt; the ID of the last $GROUP checked
+#       user  =&gt; the ID of the last $USER checked
+#       node  =&gt; the ID of the last $NODE
+#       rule  =&gt; if a rule was responsible for a failure
+#                it's ID will be provided here
+#       error =&gt; if an error occured during processing
+#                a rule the value will be here
+#
+#   Note this cache is per session, which means on average
+#   it will be for one $USER and most likely three or four
+#   groups. It wont be large.
+
+sub isApproved
+{
+    my( $this, $USER, $GROUP, $NODE, $notgod )= @_;
+
+    my $vars= \%Everything::HTML::HTMLVARS;
+    $vars= $vars-&gt;{isApproved} ||= {};
+    $vars-&gt;{calls}++;
+    my $hash= $vars-&gt;{last}= {};
+
+    return $hash-&gt;{ret}= 1   if  -1 == $USER;
+
+    ( $notgod, $NODE )= ( $NODE, $notgod )
+        if  $NODE eq 'notgod';
+
+    if(  ! ref $GROUP  ) {
+        if(  $GROUP =~ /^\d+$/  ) {
+            $GROUP= $this-&gt;getNodeById( $GROUP );
+        } else {
+            my( $name, $type )= split /\s*\|\s*/, $GROUP;
+            return $hash-&gt;{ret}= 0
+                if  ! $name;
+            if(  $type  ) {
+                $GROUP= $this-&gt;getNode( $name, $type );
+            } else {
+                $GROUP= $this-&gt;getNode( $name, 'usergroup' )
+                    ||  $this-&gt;getNode( $name, 'accessrule' );
+            }
+        }
+    }
+
+    $this-&gt;getRef( $USER );
+    $this-&gt;getRef( $NODE )   if  $NODE;
+
+    return $hash-&gt;{ret}= 0
+        if  ! $GROUP  ||  ! $USER
+        ||  ! ref($GROUP)  ||  ! ref($USER);
+
+    $hash-&gt;{user}= $USER-&gt;{node_id};
+    $hash-&gt;{group}= $GROUP-&gt;{node_id};
+    $hash-&gt;{node}= ref($NODE) ? $NODE-&gt;{node_id} : $NODE;
+    $hash-&gt;{notgod}= $notgod ? 1 : 0;
+
+    my $cachekey= join &quot;|&quot;,
+        @$hash{qw/ user group notgod /};
+
+    $hash= $vars-&gt;{last}= $vars-&gt;{cache}{$cachekey} ||= $hash;
+    if(  exists $hash-&gt;{ret}  &amp;&amp;  ! $hash-&gt;{hasrule}  ) {
+        $vars-&gt;{cachedret}++;
+        return $hash-&gt;{ret};
+    }
+
+    return $hash-&gt;{ret}= 1
+        if  ! $notgod  &amp;&amp;  $this-&gt;isGod($USER);
+
+    my $user_id= $this-&gt;getId($USER);
+
+    #You're always approved if it's yourself...
+    return $hash-&gt;{ret}= 1
+        if  $user_id == $this-&gt;getId($GROUP);
+
+    foreach my $node (  @{ $this-&gt;selectNodegroupFlat($GROUP) }  ) {
+
+        return $hash-&gt;{ret}= 1
+            if  $user_id == $this-&gt;getId($node);
+
+        if(  $node-&gt;{type}{title} =~ /accessrule$/i  ) {
+            my $RULE= $node;
+            $hash-&gt;{hasrule}= 1;
+
+            my $res= do {
+                package Everything::HTML;
+                require Everything::Experience;
+                eval $node-&gt;{code};
+            };
+
+            if(  $@  or  ( defined($res) and !$res )  ) {
+                $hash-&gt;{rule}= $node-&gt;{node_id};
+            }
+            if( $@ ) {
+                Everything::printLog(
+                    &quot;Access Rule eval error in $node-&gt;{node_id}\n&quot;
+                  . &quot;$@\n$node-&gt;{code}&quot; );
+                $hash-&gt;{error}= $@;
+                return $hash-&gt;{ret}= 0;
+            }
+            return $hash-&gt;{ret}= $res
+                if  defined $res;
+        }
+    }
+    return $hash-&gt;{ret}= 0;
+}
+
+
+#############################################################################
+#   Sub
+#       isGod
+#
+#   Purpose
+#       Checks to see if a user is in the gods group.  This includes root
+#       and '-1' as gods.  This also checks sub groups so you can have
+#       other usergroups in the gods group.
+#
+#   Parameters
+#       $USER - an id or HASH ref to a user node.
+#
+#   Returns
+#       1 if the user is a god, 0 otherwise
+#
+#   Uses %Everything::HTML::HTMLVARS as a per-session cache
+#
+
+sub isGod
+{
+    my( $this, $USER )= @_;
+
+    return 1   if  $USER == -1;
+
+    $this-&gt;getRef($USER);
+
+    my $vars= \%Everything::HTML::HTMLVARS;
+    $vars= $vars-&gt;{isGod} ||= {};
+    $vars-&gt;{calls}++;
+
+    my $user_id= $USER-&gt;{node_id};
+
+    for my $cache (  $vars-&gt;{cache}{$user_id}  ) {
+        if(  defined $cache  ) {
+            $vars-&gt;{cachedret}++;
+            return $cache;
+        }
+
+        my $GODS= $this-&gt;getNode( &quot;gods&quot;, &quot;usergroup&quot; );
+        my $godsgroup= $GODS-&gt;{group};
+        #$this-&gt;selectNodegroupFlat($GODS);
+
+        foreach my $god (  @$godsgroup  )
+        {
+            if(  $user_id == $this-&gt;getId($god)  ) {
+                return $cache= 1;
+            }
+        }
+
+        return $cache= 0;
+    }
+}
+
+
+#############################################################################
+#   Sub
+#       selectNodegroupFlat
+#
+#   Purpose
+#       This recurses through the nodes and node groups that this group
+#       contains getting the node hash for each one on the way.
+#
+#   Parameters
+#       $NODE - the group node to get node hashes for.
+#
+#   Returns
+#       An array of node hashes that belong to this group.
+#
+sub selectNodegroupFlat
+{
+    my( $this, $NODE )= @_;
+
+    return $this-&gt;flattenNodegroup($NODE,{},[]);
+}
+
+
+#############################################################################
+#   Sub
+#       flattenNodegroup
+#
+#   Purpose
+#       Returns an array of node hashes that all belong to the given
+#       group.  If the given node is not a group, its just assumed that
+#       a single node is in its own &quot;group&quot;.
+#
+#   Parameters
+#       $NODE  - the node (preferably a group node) in which to get the
+#              nodes that are within its group.
+#       $seen  - hash of id's already seen during traverse. This can be used
+#              to filter the result set and is used internally for preventing
+#              infinite recursion.
+#       $array - container for the result set. This can be used to &quot;prestuff&quot;
+#              the array, and is used internally to avoid repeatedly passing the
+#              results up the stack.
+#
+#   Returns
+#       An array of node hashrefs of all of the nodes in this group.
+
+sub flattenNodegroup
+{
+    my( $this, $GROUP, $seen, $array )= @_;
+
+    return   if  ! $GROUP;
+
+    $seen ||= {};
+    $array ||= [];
+
+    $this-&gt;getRef($GROUP);
+
+    if(  $this-&gt;isGroup( $GROUP-&gt;{type} )  ) {
+        my @items= @{ $GROUP-&gt;{group} };
+        $this-&gt;getRef( @items );
+        foreach my $item (  @items  ) {
+            if(  ! $seen-&gt;{$item-&gt;{node_id}}++  ) {
+                if(  $this-&gt;isGroup( $item-&gt;{type} )  ) {
+                    $this-&gt;flattenNodegroup( $item, $seen, $array );
+                } else {
+                    push @$array, $item;
+                }
+            }
+        }
+    }
+    elsif(  !$seen-&gt;{ $GROUP-&gt;{node_id} }++  ) {
+        push @$array, $GROUP;
+    }
+    return $array;
+}
+
+
+#############################################################################
+#   Sub
+#       insertIntoNodegroup
+#
+#   Purpose
+#       This will insert a node(s) into a nodegroup.
+#
+#   Parameters
+#       NODE - the group node to insert the nodes.
+#       USER - the user trying to add to the group (used for authorization)
+#       insert - the node or array of nodes to insert into the group
+#       orderby - the criteria of which to order the nodes in the group
+#
+#   Returns
+#       The group NODE hash that has been refreshed after the insert.
+#       undef if the user does not have permissions to change this group.
+#
+sub insertIntoNodegroup
+{
+    my ($this, $NODE, $USER, $insert, $orderby) = @_;
+    $this-&gt;getRef($NODE);
+    my $insertref;
+    my $TYPE;
+    my $groupTable;
+    my $rank;
+
+
+    return undef unless($this-&gt;canUpdateNode ($USER, $NODE));
+
+    $TYPE = $$NODE{type};
+    $groupTable = $this-&gt;isGroup($TYPE);
+
+    # We need a nodetype, darn it!
+    if(not defined $TYPE)
+    {
+        return 0;
+    }
+    elsif(not $groupTable)
+    {
+        return 0;
+    }
+
+    if(ref ($insert) eq &quot;ARRAY&quot;)
+    {
+        $insertref = $insert;
+
+        # If we have an array, the order is specified by the order of
+        # the elements in the array.
+        undef $orderby;
+    }
+    else
+    {
+        #converts to a list reference w/ 1 element if we get a scalar
+        $insertref = [$insert];
+    }
+
+    foreach my $INSERT (@$insertref)
+    {
+        $this-&gt;getRef($INSERT);
+        my $maxOrderBy;
+
+        # This will return a value if the select is not empty.  If
+        # it is empty (there is nothing in the group) it will be null.
+        ($maxOrderBy) = $this-&gt;sqlSelect('MAX(orderby)', $groupTable,
+            $groupTable . &quot;_id=$$NODE{node_id}&quot;);
+
+        if (defined $maxOrderBy)
+        {
+            # The group is not empty.  We may need to change some ordering
+            # information.
+            if ((defined $orderby) &amp;&amp; ($orderby &lt;= $maxOrderBy))
+            {
+                # The caller of this function specified an order position
+                # for the new node in the group.  We need to make a spot
+                # for it.  To do this, we will increment each orderby
+                # field that is the same or higher than the orderby given.
+                # If orderby is greater than the current max orderby, we
+                # don't need to do this.
+                $this-&gt;sqlUpdate($groupTable, { '-orderby' =&gt; 'orderby+1' },
+                    $groupTable. &quot;_id=$$NODE{node_id} &amp;&amp; orderby&gt;=$orderby&quot;);
+            }
+            elsif(not defined $orderby)
+            {
+                $orderby = $maxOrderBy+1;
+            }
+        }
+        elsif(not defined $orderby)
+        {
+            $orderby = 0;  # start it off
+        }
+
+        $rank = $this-&gt;sqlSelect('MAX(rank)', $groupTable,
+            $groupTable . &quot;_id=$$NODE{node_id}&quot;);
+
+        # If rank exists, increment it.  Otherwise, start it off at zero.
+        $rank = ((defined $rank) ? $rank+1 : 0);
+
+        $this-&gt;sqlInsert($groupTable, { $groupTable . &quot;_id&quot; =&gt; $$NODE{node_id},
+            rank =&gt; $rank, node_id =&gt; $$INSERT{node_id},
+            orderby =&gt; $orderby});
+
+        # if we have more than one, we need to clear this so the other
+        # inserts work.
+        undef $orderby;
+    }
+
+    # we should also refresh the group list ref stuff
+    $_[1] = $this-&gt;getNodeById($NODE, 'force'); #refresh the group
+}
+
+
+#############################################################################
+#   Sub
+#       removeFromNodegroup
+#
+#   Purpose
+#       Remove a node from a group.
+#
+#   Parameters
+#       $GROUP - the group in which to remove the node from
+#       $NODE - the node to remove
+#       $USER - the user who is trying to do this (used for authorization)
+#
+#   Returns
+#       The newly refreshed nodegroup hash.  If you had called
+#       selectNodegroupFlat on this before, you will need to do it again
+#       as all data will have been blown away by the forced refresh.
+#
+sub removeFromNodegroup
+{
+    my ($this, $GROUP, $NODE, $USER) = @_;
+    $this-&gt;getRef($GROUP);
+    my $groupTable;
+    my $success;
+
+    ($groupTable = $this-&gt;isGroup($$GROUP{type})) or return;
+    $this-&gt;canUpdateNode($USER, $GROUP) or return;
+
+    my $node_id = $this-&gt;getId($NODE);
+
+    $success = $this-&gt;sqlDelete ($groupTable,
+        $groupTable . &quot;_id=$$GROUP{node_id} &amp;&amp; node_id=$node_id&quot;);
+
+    if($success)
+    {
+        # If the delete did something, we need to refresh this group node.
+        $_[1] = $this-&gt;getNodeById($GROUP, 'force'); #refresh the group
+    }
+
+    return $_[1];
+}
+
+
+#############################################################################
+#   Sub
+#       replaceNodegroup
+#
+#   Purpose
+#       This removes all nodes from the group and inserts new nodes.
+#
+#   Parameters
+#       $GROUP - the group to clean out and insert new nodes
+#       $REPLACE - A node or array of nodes to be inserted
+#       $USER - the user trying to do this (used for authorization).
+#
+#   Returns
+#       The group NODE hash that has been refreshed after the insert
+#
+sub replaceNodegroup
+{
+    my ($this, $GROUP, $REPLACE, $USER) = @_;
+    $this-&gt;getRef($GROUP);
+    my $groupTable;
+
+    $this-&gt;canUpdateNode($USER, $GROUP) or return;
+    ($groupTable = $this-&gt;isGroup($$GROUP{type})) or return;
+
+    $this-&gt;sqlDelete ($groupTable, $groupTable . &quot;_id=$$GROUP{node_id}&quot;);
+
+    return $this-&gt;insertIntoNodegroup ($_[1], $USER, $REPLACE);
+}
+
+
+
+#############################################################################
+#   End of Package
+#############################################################################
+
+1;
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-05-10 11:48:23</createtime>
+  <node_id>165673</node_id>
+  <filerequired></filerequired>
+  <title>Everything/NodeBase.pm</title>
+  <nodeupdated>2005-08-13 05:26:24</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="320275" title="htmlhead" created="2004-01-09 21:15:44" updated="2005-07-07 15:15:01">
+<type id="4">
+htmlcode</type>
+<author id="3607">
+Petruchio</author>
+<data>
+<field name="code">
+# This returns the basics to put inside a head element for 
+# a normal-looking page.  Code is taken from [basichead], 
+# for use in [basichead], and the various pages that make up 
+# [fullpage chat].
+# This does not include a title tag, users should do that 
+# themselves.
+# No arguments.
+
+my $absprefix = ( $ENV{SCRIPT_NAME} =~ m!^(/~\w+)! ? $1 : '' );
+my $icon = qq(&lt;link rel="icon" href="$absprefix/favicon.ico" /&gt;);
+$_ = qq(&lt;link rel="stylesheet" href="?node_id=%d" type="text/css" /&gt;);
+my( $theme, $common ) = ('','');
+my $theme_comment = "&lt;!-- Theme $$VARS{preferred_theme}: $THEME-&gt;{description} --&gt;";
+if ( $THEME-&gt;{CSS} ) {
+  $theme = sprintf $_, $THEME-&gt;{CSS};
+  $common = qq(&lt;link rel="stylesheet" href="$absprefix/css/common.css" type="text/css" /&gt;);
+}
+my $css = $VARS-&gt;{css_link};
+if ( $css ) {
+  $css =~ s/\n//g;
+  $css =~ s/&lt;/&amp;lt;/g;
+  $css =~ s/&gt;/&amp;gt;/g;
+  $css =~ s/'/&amp;quot;/g;
+  $css = qq(&lt;link rel="stylesheet" href='$css' type="text/css" /&gt;);
+}
+$css ||= '&lt;!-- No CSS Link in User Settings --&gt;';
+
+my $style = $VARS-&gt;{style};
+if ( $style ) {
+  chomp $style;
+  my $ind = ' ' x 6;
+  $style  =~ s/&lt;/&amp;lt;/g;
+  $style  =~ s/\n/\n$ind/g;
+  $style  = &lt;&lt;"END";
+&lt;style type="text/css"&gt;
+$style
+&lt;/style&gt;
+END
+}
+$style ||= '&lt;!-- No CSS Data in User Settings --&gt;';
+
+if ( 'print' eq ($q-&gt;param('displaytype') || '') ) {
+  $theme = $style = '';
+  $common = qq(&lt;link rel="stylesheet" type="text/css" href=").(
+    $VARS-&gt;{printcss} || urlGen({ node =&gt; 'print displaytype stylesheet' }, -1)
+  ).qq(" /&gt;\n);
+}
+
+my $noindex =
+  'document' eq $NODE-&gt;{type}{title} 
+    ? '&lt;meta name="robots" content="noindex"&gt;'
+    : 'Super Search' eq $NODE-&gt;{title}
+    ? '&lt;meta name="robots" content="noindex,nofollow"&gt;' : '';
+
+return "
+    $theme_comment
+    $common
+    $theme
+    $css
+    $style
+    $icon
+    $noindex
+";</field>
+</data>
+</node>

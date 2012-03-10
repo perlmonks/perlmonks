@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="52021" title="Scoping Study Aid program" created="2001-01-15 18:39:14" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="49126">
+zeno</author>
+<data>
+<field name="doctext">
+I had a lot of trouble understanding Perl scoping.  After
+reading the FAQs, etc, I decided to try writing a program
+trying out everything.  Now I think I understand it.
+
+This code consists of a program and a perl module.  They
+should be in the same directory.  Run the program.  It
+will show how I tried to refer to different declared
+variables and subs.
+
+This program uses undeclared package variables
+(terminology correct?), 'my' variables, and 'our'
+variables.  It doesn't use 'local' variables, though I
+might change it.  And it also demonstrates using AUTOLOAD
+subs to react to calls to undefined subs.
+
+I really want this to be useful.  So if you see something
+I screwed up, or terminology which is wrong, etc, please
+tell me.  Thanks! -tim allen
+
+(I) THE PROGRAM (scoping.pl)
+#!/usr/bin/perl
+# (note: this program will generate a warning if the -w
+# command line parameter is used.  This is on purpose
+# to show that 'my' causes variables to be lexically scoped
+# to their package. -tim)
+# Program: scoping.pl
+# Purpose: to try out the various ways of referring to variables
+# and subs in a package, specifically using "our"
+# Author: tim allen
+# Restrictions: 1) I don't "use strict" here on purpose so I
+#  can have variables not defined as 'my' or 'our'.
+#  2) I don't declare anything 'local' -- maybe later.
+
+# The AUTOLOAD sub is special: it catches undefined
+# references to subs.  Programming Perl, p. 297
+sub AUTOLOAD {
+  our $AUTOLOAD;
+  warn "$AUTOLOAD NOT DEFINED IN scoping.pl. (AUTOLOAD)\n";
+  return undef;
+}
+
+sub here_sub {
+  my $in_val = shift;
+  return "received $in_val in here_sub";
+}
+
+use Our_package;
+
+# DEFINITIONS
+# define a package variable for *this* package
+$package_variable = "defined without 'my' or 'our' in main";
+# ... and a lexically scoped variable as well
+my $my_variable = "defined with 'my' in main";
+# END OF DEFINITIONS
+
+print "VARIABLES IN *THIS* PACKAGE\n";
+print "1) \$package_variable=$package_variable\n";
+print "2) \$my_variable=$my_variable\n";
+
+print "\nVARIABLE DECLARED IN *OTHER* PACKAGE\n";
+print "1) \$our_variable = $our_variable\n" if (defined $our_variable);
+print "2) \$our_variable NOT DEFINED\n"   if not (defined $our_variable);
+print "3) \$Our_package::our_variable = $Our_package::our_variable\n";
+print "4) \$Our_package::my_variable NOT DEFINED\n"
+  if not (defined $Our_package::my_variable);
+
+print "\nPACKAGE VARIABLE IN OUTSIDE PACKAGE\n";
+print "1) \$package_variable=$package_variable (WRONG)\n";
+print "2) \$Our_package::package_variable=$Our_package::package_variable\n";
+
+print "\nCALL SUBROUTINES\n";
+print "1) Our_package::our_sub(4) = ".Our_package::our_sub(4)."\n";
+print "2) here_sub(4) = ".here_sub(4)."\n";
+print "3) here_sub($my_variable) = ".here_sub($my_variable)."\n";
+
+if ($_ = our_sub()) {
+  print "our_sub() = ".$_."\n"; 
+}
+
+if ($_ = Our_package::our_foo($my_variable)) {
+  print "Our_package::our_foo($my_variable) = ".$_."\n";
+}
+
+(II) AND NOW THE PERL MODULE (Our_package.pm)
+package Our_package;
+our $our_variable = "defined with 'our' in Our_package";
+$package_variable = "defined without 'my' or 'our' in Our_package";
+my $my_variable = "defined with 'my' in Our_package";
+
+sub AUTOLOAD {
+  our $AUTOLOAD;
+  warn "$AUTOLOAD NOT DEFINED IN Our_package.pm.(Our_package::AUTOLOAD)\n";
+  return undef;
+}
+
+sub our_sub {
+  my $in_val = $_[0];
+  return "defined in Our_package (received $in_val)";
+}</field>
+</data>
+</node>

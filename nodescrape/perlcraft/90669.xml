@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="90669" title="Bookmark maintenance" created="2001-06-22 10:18:06" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="22194">
+Mungbeans</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+=head1 NAME
+
+linkmanager.pm - Package for maintaining a hierarchical bookmark file
+
+=head1 SYNOPSIS
+
+    use linkmanager;
+    my $links = linkmanager-&gt;new;
+    $links-&gt;read_html('links.htm');  # Read in existing bookmark file
+                                     # ... then add some new links
+    $links-&gt;addlink(
+      'News', 'IT', 'Slashdot', 'http://slashdot.org');
+    $links-&gt;addlink(
+      'News', 'PERL', 'Perl Monks', 'http://www.perlmonks.org');
+    $links-&gt;output_html(links.htm'); # .. then save the new bookmarks
+                                     # file
+
+=head2 Advice
+
+The purpose of this module was to provide a flexible and portable
+method of maintaining bookmarks of URLs.  The intention is to retain
+the data in a generated HTML file, which can be easily read and
+appended to.
+
+This module is NOT suitable for use as a CGI script, but could be made
+so with appropriate taint checking (FUTURE DEVELOPMENT).
+
+Methods for deleting or relocating links do not exist.  Simplest
+method is to edit the table rows in the html bookmark file before
+reading it in.
+
+=head1 METHODS
+
+=over
+
+=cut
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+package linkmanager;
+use strict;
+use Carp;
+use vars qw(
+            @ISA 
+            $VERSION 
+            @EXPORT_OK
+           );
+
+$VERSION   = "1.0";
+@ISA       = qw(Exporter);
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+sub new {
+    my $class = shift;
+    my $self = {};
+    bless $self, $class;
+    return $self;
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+=head2 addlink method
+
+    Parameters
+      Parent - The parent section for this link if any, use ''
+        for a root node
+      Section - Which section the link should appear in
+      Title - A brief description of the link
+      Link - URL for the link
+
+    Returns
+      Nothing.
+
+    Adds a link to the internal hash array indexed by parent,
+    section and title.  Duplicates are overwritten.
+
+=cut
+
+sub addlink {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+
+    my ($parent, $section, $title, $link) = @_;
+    $self-&gt;{$parent}{$section}{$title}=$link;
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+=head2 getparents method
+
+    Parameters
+      None.
+
+    Returns
+      Array containing all parent nodes.
+
+=cut
+
+sub getparents {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+
+    my $parent;
+    my @parents;
+
+    foreach $parent (sort keys %{ $self }){
+        push @parents, $parent;
+    }
+
+    return @parents;
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+
+=head2 getsections method
+
+    Parameters
+      Parent node.
+
+    Returns
+      Array containing all sections under the specified parent node.
+
+=cut
+
+sub getsections {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+    my $parent = shift;
+
+    my $section;
+    my @sections;
+
+    foreach $section (sort keys %{ $self-&gt;{$parent} }){
+        push @sections, $section;
+    }
+
+
+    return @sections;
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+=head2 countkids method
+
+    Parameters
+      Parent node.
+
+    Returns
+      Scalar count of all titles under parent node, regardless of
+      section.
+
+=cut
+
+sub countkids {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+    my $parent = shift;
+
+    my $section;
+    my @sections;
+    my $section_total;
+    my $parent_total;
+
+    foreach $section (sort keys %{ $self-&gt;{$parent} }){
+        $parent_total+=$self-&gt;gettitles($parent, $section);
+    }
+
+    return $parent_total;
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+=head2 getlinks method
+
+    Parameters
+      Parent node.
+      Section node.
+
+    Returns
+      Hash containing all titles and links for section and parent
+      node.
+
+=cut
+
+sub getlinks {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+    my $parent = shift;
+    my $section = shift;
+
+    return %{ $self-&gt;{$parent}{$section}};
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+
+=head2 gettitles method
+
+    Parameters
+      Parent node.
+      Section node.
+
+    Returns
+      Array containing all titles for the section and parent node.
+
+=cut
+
+sub gettitles {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+    my $parent = shift;
+    my $section = shift;
+
+    my $title;
+    my @titles;
+
+    foreach $section (sort keys %{ $self-&gt;{$parent}{$section} }){
+        push @titles, $title;
+    }
+
+    return @titles;
+
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+
+=head2 output_html method
+
+    Parameters
+      None.  Links must already have been created before outputting.
+
+    Returns
+      Nothing.
+
+    Creates a file with html tables containing the links.  Backs up
+    existing file to .bak.
+
+=cut
+
+
+sub output_html {
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+
+    my $file = shift;
+    $file = 'links.htm' unless defined $file;
+
+    use CGI qw/:form :html param header *table *TR/;
+    use File::Copy;
+    my $date = scalar localtime;
+    my ($section_already_started,
+        $parent_already_started,
+        @sections,
+        $number_of_sections,
+        @titles,
+        $number_of_titles,
+        $parent,
+        @parents,
+        $section,
+       );
+
+    move($file, "$file.bak"); # backup existing links file
+                              # ... MAY not exist so ignore
+                              # errors.
+
+    open(BOOKMARK, "&gt;$file")
+        or die "Unable to write to $file because: $!, Stopped";
+    select BOOKMARK;
+
+    ### Start the file
+    print
+        comment(header),
+            start_html("Links"),
+                h1("Links created as at $date"),
+                    "\n";
+
+    @parents = (sort $self-&gt;getparents);
+
+    ### Index first
+    for $parent (@parents){
+        print a({-href=&gt;"$file#$parent"}, $parent), "\n";
+    }
+
+    ### Then tables
+    for $parent (@parents){
+
+        print  a({-name=&gt;"$parent"}, h3($parent)), "\n",
+            "\n",
+                start_table({-border=&gt;1}), "\n";
+
+        ### Use column headings so that html::tableextract can read
+        ### this later as structured data.
+        print
+            td(b("Section")),
+                td(b("Subsection")),
+                    td(b("Title")),
+                        td(b("Link")),
+                            end_TR(), "\n";
+
+        $parent_already_started=0;
+
+        @sections = (sort $self-&gt;getsections($parent));
+        $number_of_sections = $self-&gt;countkids($parent);
+        for $section (@sections){
+
+            $section_already_started=0;
+
+            ### Span rows based on number of entries under parent to
+            ### reduce visual clutter
+            print td({-rowspan=&gt;$number_of_sections},$parent)
+                unless $parent_already_started;
+            $parent_already_started=1;
+
+            my %self = $self-&gt;getlinks($parent, $section);
+            @titles = (sort keys %self);
+            $number_of_titles = $self-&gt;gettitles($parent, $section);;
+            foreach my $title (@titles){
+
+            ### Ditto, span rows based on titles under section to
+            ### reduce visual clutter
+                print td({-rowspan=&gt;$number_of_titles},$section) 
+                    unless $section_already_started;
+                $section_already_started=1;
+                print
+                    td($title),
+                        td(a{-href=&gt;"$self{$title}"}, $self{$title}),
+                            end_TR(), "\n";
+            }
+        }
+        print end_table(),p();
+
+    }
+
+    close BOOKMARK;
+    select STDOUT;
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+
+=head2 read_html method
+
+    Parameters
+      File to read.  Table rows expected to have headings:
+        Section Subsection Title Link
+
+    Returns
+      Nothing.
+
+    Internally stores the links found in the tables indexed by parent,
+    section and title.
+
+=cut
+
+
+sub read_html{
+    my $self = shift;
+    croak "bad method call" unless ref $self;
+    my $file = shift;
+
+    ### Prime table extract to grab all data with Section Subsection
+    ### Title Link headings
+    use HTML::TableExtract;
+    my $te = new HTML::TableExtract( headers =&gt; [qw(Section Subsection Title Link)] );
+    my $html;
+
+    ### Grab the html and parse it
+    {
+        local undef $/;        #Slurp up the whole file into one html string
+        open(LINKS, "&lt;$file") or die "unable to open file: $file because: $!,";
+        $html = &lt;LINKS&gt;;
+        close LINKS;
+    }
+    $te-&gt;parse($html);
+    my ($parent, $section, $title,$link, $last_parent, $last_section);
+
+    ### Load the links into $self
+    foreach my $ts ($te-&gt;table_states) {
+
+        foreach my $row ($ts-&gt;rows) {
+
+            ($parent,$section,$title,$link)=(@$row);
+
+            if ($parent eq ''){
+                $parent = $last_parent;
+            } else {
+                $last_parent=$parent;
+            }
+
+            if ($section eq ''){
+                $section = $last_section;
+            } else {
+                $last_section=$section;
+            }
+
+            $self-&gt;addlink($parent,$section,$title,$link);
+        }
+    }
+
+}
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+=head1 REQUIRES
+
+HTML::TableExtract Carp File::Copy CGI
+
+
+=cut
+
+
+### UPDATE: untabify</field>
+</data>
+</node>

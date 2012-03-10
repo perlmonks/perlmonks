@@ -1,0 +1,267 @@
+<node>
+  <doctext>My goal with this tutorial is to answer the same repetitive questions dealing with Win32::OLE and Excel that I see so frequently on Perl Monks, as well as the various Perl lists that I frequent. As always, it's a snap-shot of work in progress, and suggestions for improvement or functions you would like to see are always welcome.&lt;P&gt;
+
+I'm going to cover many topics, ranging from dealing with dates and implementing borders, to sizing columns, turning off those pesky warning dialogs, iterating through a collection of worksheets and shading and formatting cells and their contents. &lt;P&gt;
+
+Before I go any further, though, there are some tools and texts that I have found indispensable in my work with Perl and OLE, and I think that I should mention them right from the top.&lt;P&gt;
+
+&lt;H3&gt;Books&lt;/H3&gt;
+&lt;UL&gt;
+  &lt;LI&gt;[isbn:// 157870216X|Windows NT Win32 Perl Programming: The Standard Extensions] by [http://www.roth.net/|Dave Roth]&lt;/LI&gt;
+
+  &lt;LI&gt;[isbn:// 1578702151|Win32 Perl Scripting - The Administrator's Handbook] by [http://www.roth.net/|Dave Roth]&lt;/LI&gt;
+&lt;/UL&gt;
+Both of these books attack the art of using perl in the Win32 environment much more succinctly than I ever could (thank you, Dave Roth), and for a much more in-depth discussion on the &quot;how's&quot;, &quot;why's&quot; and &quot;where's&quot;, I point you to them and Dave's website, [http://www.roth.net/|www.roth.net].&lt;P&gt;
+
+&lt;H3&gt;Resources&lt;/H3&gt;
+You need a good Object Explorer to map the proper methods, objects and properties of each interface.  Since I happen to have VB and VC++ on my machine as well, I use the Object Browser that comes standard with VB, and associate the appropriate reference to a project (I actually created an empty project with references to all of the office objects for an easy reference).  But for those without those tools, never fear, you still have a chance.&lt;P&gt;
+
+If you are using the ActiveState flavor of Perl, I recommend the &quot;Win32::OLE - Type Library Browser&quot; written by Jan Dubois (who also wrote a nice little tutorial [http://search.cpan.org/~gsar/libwin32-0.191/OLE/lib/Win32/OLE/TPJ.pod|here]).  Mine was conveniently located in:&lt;P&gt;
+
+&lt;CENTER&gt; &amp;lt;PERLROOT&amp;gt;\html\site\lib\Win32\OLE\Browswer\Browser.html&lt;/CENTER&gt;&lt;P&gt;
+
+What follows is an &quot;Out of the Box&quot; piece of code that should run (well, it does on my machine) with one small change (the path information to reflect your current environment near the CHANGE ME comment).  To get the most from the code, feel free to play with the lines that I have commented out, including inserting a graphic into a worksheet.&lt;P&gt;
+
+At the end I have some snippets that didn't really fit in with the complete code, but they are useful in the everyday use of Perl and Excel.&lt;P&gt;
+
+&lt;p&gt;
+&lt;font size=2&gt;&lt;B&gt;&lt;I&gt;Update - &lt;/I&gt;&lt;/B&gt; I'm working on a rewrite that removes the comments from the code and puts them in plain text surrounding the lines being discussed, as per a CB conversation with [jeffa] and [dws]&lt;/FONT&gt;&lt;BR&gt;
+
+&lt;font size=2&gt;&lt;B&gt;&lt;I&gt;UpdateII - &lt;/I&gt;&lt;/B&gt; Done&lt;/FONT&gt;
+
+&lt;BR&gt;&lt;font size=2&gt;&lt;B&gt;&lt;I&gt;UpdateIII - &lt;/I&gt; &lt;/B&gt; &lt;code&gt;http://support.microsoft.com/default.aspx?scid=kb;[LN];257757&lt;/code&gt; is a nice resource regarding using OLE in a web environement and some hazards you might face
+ (I'm not sure how to make that a link, given the internal use of square brackets, guidance welcome) &lt;/FONT&gt;&lt;/p&gt;
+
+&lt;P&gt;&lt;font size=2&gt;&lt;B&gt;&lt;I&gt;Update - &lt;/I&gt;&lt;/B&gt; Added more snippets regarding inserting sheets in a specific order.&lt;/font&gt;&lt;/P&gt;
+
+
+&lt;H2&gt;The Code&lt;/H2&gt;
+&lt;CODE&gt;
+#!c:\perl\bin\
+use strict;
+
+use Win32::OLE qw(in with);
+use Win32::OLE::Const 'Microsoft Excel';
+use Win32::OLE::Variant;
+use Win32::OLE::NLS qw(:LOCALE :DATE);
+
+$Win32::OLE::Warn = 3; # Die on Errors.
+
+# ::Warn = 2; throws the errors, but #
+# expects that the programmer deals  #
+
+my $excelfile = '&lt;MYPATH&gt;\perltut.xls';
+&lt;/CODE&gt;
+
+
+First, we need an excel object to work with, so if there isn't an open one, we create a new one, and we define how the object is going to exit                                              
+
+&lt;CODE&gt;
+my $Excel = Win32::OLE-&gt;GetActiveObject('Excel.Application')
+        || Win32::OLE-&gt;new('Excel.Application', 'Quit');
+&lt;/CODE&gt;
+
+For the sake of this program, we'll turn off all those pesky alert boxes, such as the SaveAs response &quot;This file already exists&quot;, etc. using the &lt;I&gt;DisplayAlerts&lt;/I&gt; property.
+
+&lt;CODE&gt;
+$Excel-&gt;{DisplayAlerts}=0;   
+&lt;/CODE&gt;
+
+Now, we'll add a new WorkBook to the collection of our very own and immediately save it with our predeclared file name
+
+&lt;CODE&gt; 
+my $Book = $Excel-&gt;Workbooks-&gt;Add();
+   $Book-&gt;SaveAs($excelfile); #Good habit when working with OLE, save often.
+
+&lt;/CODE&gt;
+
+Of Course, we could just as easily opened an existing file to work with like so:
+
+&lt;CODE&gt;                                                 
+ my $Book = $Excel-&gt;Workbooks-&gt;Open($excelfile);     &lt;/CODE&gt;      
+
+Now we create a reference to a worksheet object and activate the sheet to give it focus so that actions taken on the workbook or application objects occur on this sheet unless otherwise specified.
+
+&lt;CODE&gt;
+    my $Sheet = $Book-&gt;Worksheets(&quot;Sheet1&quot;);
+       $Sheet-&gt;Activate();       
+       $Sheet-&gt;{Name} = &quot;DidItInPerl&quot;;
+&lt;/CODE&gt;       
+
+As a first example of inserting data into a WorkSheet and as a preamble to using variants later on I thought we'd use a date value and a piece of text longer than the unformatted cell width.
+
+&lt;CODE&gt;  
+   my ($mday,$mon,$year) = (localtime(time))[3,4,5];
+       $year += 1900;
+
+   my $str = $mon.'/'.$mday.'/'.$year;
+
+   $Sheet-&gt;Range(&quot;a1&quot;)-&gt;{Value} = $str;   
+   $Sheet-&gt;Range(&quot;c1&quot;)-&gt;{Value} = &quot;This is a long piece of text&quot;;
+&lt;/CODE&gt;
+    
+This is a study in a few things.  The first is iterating over a range and the second is exploring the colors available to us for the interior background color.  There are 56 colors in the indexed color palette.  If you want a larger palette, you can use the &lt;CODE&gt;-&gt;{Color}&lt;/CODE&gt; property instead, and pass it an integer value as generated by the VBA function RGB (RGB(&lt;I&gt;Red&lt;/I&gt;,&lt;I&gt;Green&lt;/I&gt;,&lt;I&gt;Blue&lt;/I&gt;)), an exercise I leave to the reader.&lt;P&gt;
+
+Following the iteration, I look at changing the style of a cells text by changing the font and font alignment, as well as changing the widths of the columns and adding gridlines using the &lt;B&gt;WITH&lt;/B&gt; method.&lt;P&gt;
+
+&lt;CODE&gt;
+    foreach my $y(1..56){
+        my $range = 'b'.$y;
+        $Sheet-&gt;Range($range)-&gt;Interior-&gt;{ColorIndex} =$y;
+        $Sheet-&gt;Range($range)-&gt;{Value} = $y;
+    }
+   
+    my $range = &quot;A1&quot;;
+    $Sheet-&gt;Range($range)-&gt;Interior-&gt;{ColorIndex} =27;
+    $Sheet-&gt;Range($range)-&gt;Font-&gt;{FontStyle}=&quot;Bold&quot;;
+    $Sheet-&gt;Range($range)-&gt;{HorizontalAlignment} = xlHAlignCenter;
+
+    my @columnheaders = qw(A:B);
+    foreach my $range(@columnheaders){
+        $Sheet-&gt;Columns($range)-&gt;AutoFit();
+    }
+     $Sheet-&gt;Columns(&quot;c&quot;)-&gt;{ColumnWidth}=56;
+     my @edges = qw (xlEdgeBottom xlEdgeLeft xlEdgeRight xlEdgeTop xlInsideHorizontal xlInsideVertical);
+     $range = &quot;b1:c56&quot;; 
+     foreach my $edge (@edges){
+     with (my $Borders = $Sheet-&gt;Range($range)-&gt;Borders(eval($edge)), 
+             LineStyle =&gt;xlContinuous,
+             Weight =&gt; xlThin ,
+             ColorIndex =&gt; 1);
+     }
+
+#$Excel-&gt;ActiveSheet-&gt;Pictures-&gt;Insert(&lt;PATH TO THE PIC&gt;);   
+&lt;/CODE&gt;
+
+And now for a brief example using a Variant data type and it's methods.
+
+&lt;Font size=1&gt;&lt;B&gt;&lt;I&gt;Update:&lt;/B&gt; Added other variant as per example in [id://162889|this] node&lt;/I&gt;&lt;/FONT&gt;
+
+
+&lt;CODE&gt;
+    
+my $dt = Variant(VT_DATE, $Sheet-&gt;Range(&quot;a1&quot;)-&gt;{Value});
+print &quot;$dt\n&quot;;
+print $dt-&gt;Date(DATE_LONGDATE), &quot;\n&quot;;
+$Sheet-&gt;Range(&quot;a2&quot;)-&gt;{Value} =   $dt-&gt;Date(DATE_LONGDATE);
+
+print $dt-&gt;Date(&quot;ddd',' MMM dd yy&quot;), &quot;\n&quot;;
+$Sheet-&gt;Range(&quot;a3&quot;)-&gt;{Value}= $dt-&gt;Date(&quot;ddd',' MMM dd yy&quot;);  
+
+#Some Properties Take Variant ints or longs - 
+#in this case the Zoom property MUST be set for the 
+#FitToPages(Wide|Tall) to be acknowledged.
+
+my $vtfalse =  Variant(VT_BOOL, 0);  
+my $vtpages =  Variant(VT_I4, 1);  
+with ($Sheet-&gt;PageSetup, 
+    'FitToPagesWide'=&gt;$vtpages, 
+    'FitToPagesTall'=&gt;$vtpages,
+    'Zoom'=&gt;$vtfalse,     
+    'PrintGridlines'=&gt;0,
+    'LeftHeader'=&gt; &quot;Using Perl and Excel&quot;,
+    'CenterHeader' =&gt; &quot;My First Script&quot;,
+    'RightHeader' =&gt; &quot;Test&quot;,    
+    'LeftFooter' =&gt; &quot;Done&quot;,
+    'CenterFooter' =&gt; $dt-&gt;Date(&quot;ddd',' MMM dd yy&quot;),
+    'Orientation' =&gt; xlLandscape,
+    'RightFooter' =&gt; &quot;&quot;,
+    'PrintHeadings'=&gt;0,
+    'FirstPageNumber'=&gt; xlAutomatic,
+    'PrintTitleRows' =&gt; &quot;1:1&quot;);  
+
+   #$Book-&gt;Save();
+   #$Book = $Excel-&gt;Workbooks-&gt;Close();
+&lt;/CODE&gt;
+Now for the 
+
+&lt;H3&gt;Snippets&lt;/H3&gt;
+
+In an earlier [id://153068|thread] I suggested that the [sabersd|monk] iterate through the worsheets object using the ordinal postion of each sheet in the collection, however you can also do this by using the 'in' method of the OLE object.  I will show both here for examples sake.
+
+&lt;h4&gt;Range Example&lt;/h4&gt;
+&lt;CODE&gt;
+my $sheetcnt = $Book-&gt;Worksheets-&gt;Count();
+foreach (1..$sheetcnt){
+   print &quot;\t&quot; .$Book-&gt;Worksheets($_)-&gt;{Name} .&quot;\n&quot;;
+} 
+&lt;/CODE&gt;
+
+&lt;h4&gt;'IN' Example&lt;/h4&gt;
+&lt;CODE&gt;
+foreach my $Sheet(in $Book-&gt;{Worksheets}){
+   print &quot;\t&quot; .$Sheet-&gt;{Name} .&quot;\n&quot;;
+}
+&lt;/CODE&gt;
+&lt;h4&gt;Finding the last Column and Row&lt;/h4&gt;
+Knowing where your data ends is useful.  If you want to find the outer edges of the data in your spreadsheet, the following is what I recommend.&lt;P&gt;
+
+&lt;CODE&gt;
+my $LastRow = $Sheet-&gt;UsedRange-&gt;Find({What=&gt;&quot;*&quot;,
+    SearchDirection=&gt;xlPrevious,
+    SearchOrder=&gt;xlByRows})-&gt;{Row};
+
+my $LastCol = $Sheet-&gt;UsedRange-&gt;Find({What=&gt;&quot;*&quot;, 
+                  SearchDirection=&gt;xlPrevious,
+                  SearchOrder=&gt;xlByColumns})-&gt;{Column};
+&lt;/CODE&gt;
+&lt;h4&gt;Adding a Chart Object&lt;/h4&gt;
+You have all this data, what if you want to create some dynamic Charts? &lt;P&gt;
+&lt;CODE&gt;
+      # Create the chart by dimension  #
+      my $Chart = $Sheet-&gt;ChartObjects-&gt;Add(200, 200, 200, 200);
+&lt;/CODE&gt;
+We're going to use the beauty of the ChartWizard to initialize the data object within the chart object and just give a dummy range.  Then, we'll add the bar graphs in after the data object is created.
+
+&lt;CODE&gt;
+      $Chart-&gt;Chart-&gt;ChartWizard({Source =&gt;$Sheet-&gt;Cells(1)});
+      $Chart-&gt;Chart-&gt;SeriesCollection(1)-&gt;{Values}= [19,3,24,56,34, 33, 16, 10, 3, 100];
+&lt;/CODE&gt;
+&lt;h4&gt;Running a Macro&lt;/h4&gt;
+Although I would rewrite all of the VBA Marcos in Perl (*grin*) if you want to leave old sleeping code dogs lie.
+
+&lt;CODE&gt;
+$Excel-&gt;Run($MacroName);
+&lt;/CODE&gt;
+
+&lt;B&gt;Fitting to one landscaped page&lt;/B&gt;&lt;P&gt;
+
+So, you say your boss wants to see it all on one page.
+
+&lt;CODE&gt;
+with ($Sheet-&gt;PageSetup,   Zoom           =&gt; Variant(VT_BOOL, 0),
+                           FitToPagesTall =&gt; 1, FitToPagesWide =&gt; 1,
+                           Orientation    =&gt; xlLandscape);
+&lt;/CODE&gt;
+
+&lt;FONT size=2&gt;&lt;I&gt;*new*&lt;/I&gt;&lt;/FONT&gt;&lt;h4&gt;Using Before and After with 'Add'&lt;/h4&gt;
+&lt;p&gt;Here are some examples of using before and after to get the sheet exactly where you want it.&lt;/p&gt;
+
+In the last spot:
+&lt;CODE&gt;
+my $Sheet = $Book-&gt;Worksheets-&gt;Add({After=&gt;$Book-&gt;Worksheets($Book-&gt;Worksheets-&gt;{Count})}) or die Win32::OLE-&gt;LastError();
+&lt;/CODE&gt;
+
+In the first spot:
+&lt;CODE&gt;
+my $Sheet = $Book-&gt;Worksheets-&gt;Add({Before=&gt;$Book-&gt;Worksheets(1)}) or die Win32::OLE-&gt;LastError();
+&lt;/CODE&gt;
+
+After (or before) a specific sheet - Note, you can do this by index or by sheet name:
+&lt;CODE&gt;
+my $Sheet = $Book-&gt;Worksheets-&gt;Add({After=&gt;$Book-&gt;Worksheets(&quot;Sheet1&quot;)}) or die Win32::OLE-&gt;LastError();
+&lt;/CODE&gt;
+
+
+
+I've covered most of the 'Basic' skills I found necessary to get my projects done around the office, but I will attempt to add things as I think of them, or am asked about how they work.  Suggestions welcome.&lt;P&gt;
+
+C-.
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>153486</node_id>
+  <author_user>69394</author_user>
+  <title>Using Win32::OLE and Excel - Tips and Tricks</title>
+  <createtime>2002-03-21 23:56:49</createtime>
+  <nodeupdated>2005-08-15 16:50:34</nodeupdated>
+</node>

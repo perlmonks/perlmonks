@@ -1,0 +1,117 @@
+<node>
+  <doctext>After some discussion with [grantm], it was suggested that I take a look at [cpan://HTML::FillInForm] because &quot;it's magic&quot;.  Having used it now, I agree!&lt;p&gt;
+
+&lt;READMORE&gt;
+[cpan://HTML::FillInForm] takes the form you give it and automagically populates fields on that form with parameters from a CGI object that you also pass it (read: sticky forms).  You may be thinking, &quot;I already can do sticky forms with CGI.pm!  Why do I need this?&quot;  Templating!  &lt;p&gt;
+
+While you can use [cpan://HTML::FillInForm] in most any instance (as a substitute for sticky forms with CGI.pm, for example), I have found it to be most invaluable when working with [cpan://HTML::Template] (I imagine it would provide the same benefits for users of TT or [cpan://HTML::Mason] too).  It has drastically cut down the complexity and programming required to redisplay a form to a user with their information filled in.&lt;p&gt;
+
+How does it work?  First we create the fill-in-form object:
+&lt;code&gt;
+my $form = new HTML::FillInForm;
+my $page = $form-&gt;fill(scalarref =&gt; \$html,
+                       fobject =&gt; $request);
+&lt;/code&gt;
+
+$html contains the HTML of the form to fill in.  $request is a CGI object that contains one or more parameters that you would like to fill in your form with.  The call to fill() does the rest.  It's that easy!  fill() returns the HTML of the filled-in form.
+
+So how does this save work?  Consider the following sample template:
+&lt;code&gt;
+&lt;form method=&quot;post&quot; action=&lt;!-- TMPL_VAR NAME=action --&gt; enctype=&quot;application/x-www-form-urlencoded&quot;&gt;
+    &lt;center&gt;
+        &lt;table&gt;
+            &lt;tr&gt;
+                &lt;td valign=&quot;top&quot;&gt;Pay by &lt;/td&gt;
+                &lt;td valign=&quot;top&quot;&gt;
+                    &lt;input type=&quot;radio&quot; name=&quot;searchby&quot; value=&quot;Parcel&quot; checked=&quot;checked&quot; /&gt;Parcel
+                    &lt;input type=&quot;radio&quot; name=&quot;searchby&quot; value=&quot;Name&quot; /&gt;Name
+                    &lt;input type=&quot;radio&quot; name=&quot;searchby&quot; value=&quot;Address&quot; /&gt;Address
+                &lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+                &lt;td&gt;Enter Search Value&lt;/td&gt;
+                &lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;searchkey&quot; value=&lt;!-- TMPL_VAR NAME=DEFAULT --&gt; maxlength=&quot;255&quot; length=&quot;50&quot; /&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+        &lt;/table&gt;
+        &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Search&quot; /&gt;
+        &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Verify&quot; /&gt;
+        &lt;input type=&quot;submit&quot; name=&quot;.defaults&quot; value=&quot;Defaults&quot; /&gt;
+    &lt;/center&gt;
+    &lt;input type=&quot;hidden&quot; name=&quot;.cgifields&quot; value=&quot;searchby&quot; /&gt;
+&lt;/form&gt;
+&lt;/code&gt;
+
+The Perl to populate this looks something like:
+&lt;code&gt;
+$tmpl_form-&gt;param(
+    ACTION  =&gt; &quot;/path/to/my/script.cgi&quot;,
+    DEFAULT =&gt; $request-&gt;param(&quot;searchkey&quot;),
+);
+&lt;/code&gt;
+
+Essentially, I have to create an extra TMPL_VAR for each form field that I would like to fill in.  With [cpan://HTML::FillInForm], we can omit the DEFAULT TMPL_VAR and let fill() handle it for us.  Not a big deal when dealing with a text field or two, I realize.  But what about those radio buttons?  Let's adjust our template to account for those:
+&lt;code&gt;
+&lt;form method=&quot;post&quot; action=&lt;!-- TMPL_VAR NAME=action --&gt; enctype=&quot;application/x-www-form-urlencoded&quot;&gt;
+    &lt;center&gt;
+        &lt;table&gt;
+            &lt;tr&gt;
+                &lt;td valign=&quot;top&quot;&gt;Pay by &lt;/td&gt;
+                &lt;td valign=&quot;top&quot;&gt;
+                    &lt;input type=&quot;radio&quot; name=&quot;searchby&quot; value=&quot;Parcel&quot; &lt;!-- TMPL_IF NAME=PARCEL --&gt;checked=&quot;checked&quot;&lt;!-- /TMPL_IF --&gt; /&gt;Parcel
+                    &lt;input type=&quot;radio&quot; name=&quot;searchby&quot; value=&quot;Name&quot; &lt;!-- TMPL_IF NAME=NAME --&gt;checked=&quot;checked&quot;&lt;!-- /TMPL_IF --&gt; /&gt;Name
+                    &lt;input type=&quot;radio&quot; name=&quot;searchby&quot; value=&quot;Address&quot; &lt;!-- TMPL_IF NAME=ADDRESS --&gt;checked=&quot;checked&quot;&lt;!-- /TMPL_IF --&gt; /&gt;Address
+                &lt;/td&gt;
+            &lt;/tr&gt;
+            &lt;tr&gt;
+                &lt;td&gt;Enter Search Value&lt;/td&gt;
+                &lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;searchkey&quot; value=&lt;!-- TMPL_VAR NAME=DEFAULT --&gt; maxlength=&quot;255&quot; length=&quot;50&quot; /&gt;&lt;/td&gt;
+            &lt;/tr&gt;
+        &lt;/table&gt;
+        &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Search&quot; /&gt;
+        &lt;input type=&quot;submit&quot; name=&quot;action&quot; value=&quot;Verify&quot; /&gt;
+        &lt;input type=&quot;submit&quot; name=&quot;.defaults&quot; value=&quot;Defaults&quot; /&gt;
+    &lt;/center&gt;
+    &lt;input type=&quot;hidden&quot; name=&quot;.cgifields&quot; value=&quot;searchby&quot; /&gt;
+&lt;/form&gt;
+&lt;/code&gt;
+
+Our Perl transforms into something vastly less elegant:
+&lt;code&gt;
+$tmpl_form-&gt;param(
+    ACTION   =&gt; &quot;/path/to/my/script.cgi&quot;,
+    DEFAULT  =&gt; $request-&gt;param(&quot;searchkey&quot;),
+    PARCEL   =&gt; $request-&gt;param(&quot;searchby&quot;) eq &quot;Parcel&quot;  ? &quot;true&quot; : &quot;&quot;,
+    NAME     =&gt; $request-&gt;param(&quot;searchby&quot;) eq &quot;Name&quot;    ? &quot;true&quot; : &quot;&quot;,
+    ADDRESS  =&gt; $request-&gt;param(&quot;searchby&quot;) eq &quot;Address&quot; ? &quot;true&quot; : &quot;&quot;,
+);
+&lt;/code&gt;
+
+What a lot of work to do when we can simply:
+&lt;code&gt;
+$tmpl_form-&gt;param( ACTION  =&gt; &quot;/path/to/my/script.cgi&quot; );
+my $html = $tmpl_form-&gt;output;
+my $form = new HTML::FillInForm;
+$html = $form-&gt;fill(scalarref =&gt; \$html,
+                    fobject =&gt; $request);
+&lt;/code&gt;
+
+and be done with it :)  And this is just a simple example.  Add more complexity to the form and your Perl will grow more complex to account for it.  With [cpan://HTML::FillInForm], you can add complexity to the above form and not have to add any additional code to handle it.&lt;p&gt;
+
+For sake of brevity, I did not include code to validate or detaint parameters here.  It goes without saying that you should &lt;strong&gt;always&lt;/strong&gt; be doing those things when processing user input.&lt;p&gt;
+
+One potential downside (note that I don't have benchmarks to back me up) is that it relies upon [cpan://HTML::Parser] to perform its magic.  While there's nothing wrong with that, there may be some overhead associated with creating an HTML::Parser object, especially on a high-traffic site (see [id://121567|this node] from [Ovid]).  I would expect this to be a rather moot issue on a site running mod_perl.&lt;p&gt;
+
+All in all, an excellent module, and a worthwhile addition to any Perl programmer's bag-of-tricks.&lt;p&gt;
+
+MrCromeDome
+&lt;/READMORE&gt;</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>79095</author_user>
+  <createtime>2003-07-15 15:16:53</createtime>
+  <itemdescription>Automagically populate HTML forms with CGI parameters</itemdescription>
+  <identifier></identifier>
+  <node_id>274534</node_id>
+  <usercomment></usercomment>
+  <title>HTML::FillInForm</title>
+  <nodeupdated>2005-08-15 03:28:18</nodeupdated>
+</node>

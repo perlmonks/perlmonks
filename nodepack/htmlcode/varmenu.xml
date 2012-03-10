@@ -1,0 +1,39 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>56</node_id>
+  <author_user>114</author_user>
+  <title>varmenu</title>
+  <createtime>1999-10-04 18:35:01</createtime>
+  <code>my ($var, @TYPES) = @_;
+return if(getId($USER)==$HTMLVARS{guest_user});
+$var or return;
+
+my ($name) = &quot;set$var&quot;;
+
+@TYPES or return;  #if no explicit types, quit
+
+foreach (@TYPES) { $_ = $DB-&gt;getType($_); }  #replace w/ node refs
+my $NODELIST = $DB-&gt;selectNodeWhere ({ type_nodetype =&gt; \@TYPES },
+  &quot;&quot;, &quot;title&quot;);
+
+my $str;
+
+my (@titlelist, %items);
+$items{&quot;0&quot;} = &quot;(default)&quot;;
+	
+push (@titlelist, &quot;0&quot;);
+       foreach my $N (@$NODELIST) {
+                $N = $DB-&gt;getNodeById($N, 'light');
+                my $id = getId $N;
+		push @titlelist, $id;
+		$items{$id} = $$N{title};
+        }
+
+my $SELECT = $$VARS{$var};
+
+if (defined(my $q = $query-&gt;param(&quot;set$var&quot;))) {$$VARS{$var} = $q;}
+elsif ($query-&gt;param(&quot;sexisgood&quot;)){ $$VARS{$var}=&quot;&quot;; } 
+
+$query-&gt;popup_menu($name, \@titlelist, $SELECT, \%items);</code>
+  <nodeupdated>2005-06-05 02:20:05</nodeupdated>
+</node>

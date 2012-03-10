@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="233821" title="allowed nodelets" created="2003-02-08 21:53:43" updated="2004-12-24 09:13:48">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+my $sn = getNode( 'sidebar nodelets', 'nodeletgroup' );
+my @default = @{ $sn-&gt;{group} };
+
+my @others;
+
+my $ED    = getNode( 'editors', 'usergroup' );
+my $PMDEV = getNode( 'pmdev',   'usergroup' );
+my $SDC   = getNode( 'SiteDocClan', 'usergroup' );
+
+push @others, 'approval nodelet'
+  if Everything::isApproved($USER, 'CanConsider');
+
+push @others, 'editors nodelet'
+  if Everything::isApproved($USER, $ED);
+
+push @others, 'PmDev Nodelet'
+  if Everything::isApproved($USER, $PMDEV);
+
+push @others, 'SiteDocClan nodelet'
+  if Everything::isApproved($USER, $SDC);
+
+if ( isGod($USER) ) {
+  my $dn = getNode( 'divine nodelets', 'nodeletgroup' );
+  push @others, @{ $dn-&gt;{group} };
+}
+
+my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare('
+  SELECT node_id
+    FROM node
+   WHERE title = ?
+     AND type_nodetype = 9
+');
+for my $nl (  @others  ) {
+  $sth-&gt;execute( $nl );
+  ( $nl )= $sth-&gt;fetchrow_array;
+};
+
+return join ',', @default, @others;
+</field>
+</data>
+</node>

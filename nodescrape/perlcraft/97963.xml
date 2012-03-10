@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="97963" title="Random Sequence generation and Filtering" created="2001-07-19 01:43:29" updated="2005-07-21 01:27:44">
+<type id="121">
+perlcraft</type>
+<author id="83012">
+bikeNomad</author>
+<data>
+<field name="doctext">
+use strict;
+# This module provides a random numeric sequence generator and a simple
+# smoothing filter for use in simulation. You can specify ranges and periods.
+# I use it to simulate the output of
+# physical sensors for data acquisition testing.
+#
+# As HyperZonk said, don't use this for crypto (you know
+# better than that, right?)
+#
+package RandomSequence;
+require Exporter;
+@RandomSequence::ISA = 'Exporter';
+@RandomSequence::EXPORT_OK = qw(randomSequenceGenerator filterGenerator);
+%RandomSequence::EXPORT_TAGS = (
+	'ALL' =&gt; [ qw(randomSequenceGenerator filterGenerator) ]
+);
+
+# Generate a closure that will generate a value that will vary
+# randomly per the specifications you give it while staying within
+# a given range.
+#
+# my $sub = randomSequenceGenerator( $min, $max, $maxSamples, $maxSlope, $minSamples );
+# my $sample = &amp;$sub; # repeat
+#
+# $min and $max are the range of the output values.
+# $maxSamples is how many samples a continuous run of the same slope will go
+# $maxSlope is how much (absolute) the value can change sample to sample
+# $minSamples (optional, default=1) is how short the shortest run will be
+#
+sub randomSequenceGenerator
+{
+ my ($min, $max, $maxSamples, $maxSlope, $minSamples) = @_;
+ $minSamples ||= 1;
+ my ($lastOutput, $samplesLeft, $slope) = (($max+$min)/2, 0, 0);
+ return sub
+ {
+  if ($samplesLeft-- &lt;= 0) # re-calculate slope and samplesLeft
+  {
+   $samplesLeft = int( rand( $maxSamples - $minSamples ) + $minSamples );
+   $slope = rand( $maxSlope * 2 ) - $maxSlope;
+  }
+  $slope = -$slope if ($lastOutput + $slope &gt; $max)
+   or ($lastOutput + $slope &lt; $min);
+  return $lastOutput += $slope;
+ }
+}
+
+# generate a simple exponential filter as a closure
+# my $sub = filterGenerator( $coefficient, $firstSample );
+# my $filtered = &amp;$sub( $value );  # repeat
+# $coefficient is how many samples to average over
+# $firstSample (optional, default=first sample) is the preset output
+sub filterGenerator
+{
+ my $coefficient = shift; # time period in samples, larger=slower
+ my $firstSample = shift;
+ my $lastValue = $firstSample;
+ return sub
+ {
+  my $newSample = shift;
+  return $lastValue = $newSample if !defined($lastValue);
+  $lastValue += $newSample/$coefficient;
+  $lastValue *= $coefficient/($coefficient+1);
+  return $lastValue;
+ }
+}
+
+1;
+__END__
+# test program:
+use RandomSequence ':ALL';
+my $sequenceGenerator = randomSequenceGenerator(0, 360.0, 30, 1.0);
+my $filter = filterGenerator(8);
+for my $i (1..10000)
+{
+ my $sample = &amp;$sequenceGenerator;
+ my $filtered = $filter-&gt;($sample);
+ print "$sample,$filtered\n";
+}</field>
+</data>
+</node>

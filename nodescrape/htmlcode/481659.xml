@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="481659" title="handle_node_edits" created="2005-08-07 08:14:09" updated="2005-08-13 21:17:56">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+=head1 NAME
+
+handle_node_edits
+
+=head1 DESCRIPTION
+
+Provides edit display type for janitors, pedagogues and SiteDocClan,
+incorporating edit histories and locking.
+
+=cut
+
+use Digest::MD5 qw(md5_hex);
+
+my ($group) = @_;
+
+my %options = (
+    editors =&gt; {
+        is_ok_type      =&gt; 'isJanitorable',
+        not_ok_type_msg =&gt; "Not a janitor editable type",
+        not_member_msg  =&gt;
+        "You're not a janitor get away, there is no Perl Illuminati",
+    },
+    SiteDocClan =&gt; {
+        is_ok_type      =&gt; 'CanSdcEdit',
+        not_ok_type_msg =&gt; "Not a SiteDocClan editable type",
+        not_member_msg  =&gt;
+        "You're not SiteDocClan get away, there is no Perl Illuminati",
+    },
+    pedagogues =&gt; {
+        is_ok_type      =&gt; 'CanPedagoguesEdit',
+        not_ok_type_msg =&gt; "Not a Pedagogues editable type",
+        not_member_msg  =&gt; "You're not a Pedagogue get away, there is no Perl Illuminati",
+    },
+    QandAEditors =&gt; {
+        is_ok_type      =&gt; 'CanQAEdit',
+        not_ok_type_msg =&gt; "Not a QandAEditors editable type",
+        not_member_msg  =&gt; "You're not a QandAEditor get away, there is no Perl Illuminati",
+    },
+);
+
+exists $options{$group}
+    or die "\$group is $group, but should be one of ". join ', ', keys %options;
+
+return $options{$group}{not_ok_type_msg}
+  unless htmlcode($options{$group}{is_ok_type});
+
+return $options{$group}{not_member_msg}
+    unless Everything::isApproved($USER, getNode($group,'usergroup'));
+
+unless(htmlcode('getOrRenewLock')){
+    return "Sorry, " . linkNode($NODE-&gt;{lockedby_user})
+       . " has a lock on this node right now";
+}
+
+my $preview_on=(!$query-&gt;param('disable preview'));
+my $update=($query-&gt;param('blah') eq "update");
+my $private = $query-&gt;param('update_private') || 0;
+
+#
+# update fields
+#
+
+my $str;
+my @fields=grep{/^update_(.+)/} $query-&gt;param();
+
+if($update){
+    my @badfields;
+    foreach(@fields){
+        my $field;
+        ($field) = /update_(.*)/;
+        next if $field eq "private";
+        next if $field eq 'group';
+        my $old_digest= $query-&gt;param("digest_$field");
+        my $new_digest= md5_hex($NODE-&gt;{$field});
+        if($new_digest eq $old_digest){
+            if($NODE-&gt;{$field} ne $query-&gt;param("update_$field")){
+                $DB-&gt;sqlInsert('edithistory',{
+                    starttext=&gt;$NODE-&gt;{$field},
+                    endtext=&gt;$query-&gt;param("update_$field"),
+                    editor_user=&gt;getId($USER),
+                    -edittime=&gt;"now()",
+                    fieldname=&gt;$field,
+                    private=&gt;$private,
+                    edithistory_id=&gt;getId($NODE)});
+                $NODE-&gt;{$field}=$query-&gt;param("update_$field");
+                $query-&gt;param("digest_$field",md5_hex($NODE-&gt;{$field}));
+            }
+        } else {
+            push @badfields, $field;
+        }
+    }
+    updateNode($NODE,-1);
+    $str.='&lt;br /&gt;&lt;font color="red"&gt;The following fields'
+        . ' weren\'t updated because they have been updated'
+        . ' since you started editing: ' . join(',',@badfields)
+        . '&lt;/font&gt;&lt;p&gt;'
+        if @badfields;
+}
+
+my $tables = $DB-&gt;getNodetypeTables($NODE-&gt;{type_nodetype});
+my %titletype;
+
+foreach my $table (@$tables,'node')
+{
+    my @fields = $DB-&gt;getFieldsHash($table);
+
+    foreach my $field (@fields)
+    {
+        $titletype{$field-&gt;{Field}} = $field-&gt;{Type};
+    }
+}
+
+local *fieldorder = sub {
+  my $f = shift;
+  local $_ = $titletype{$f}||'';
+  return 0 if /title/i;
+  return 1 if /core/;
+  return 2 if /char\(/;
+  return 3 if /text/;
+  return 4;
+};
+
+#
+# preview section
+#
+if($query-&gt;param('update_title')){
+    $str.="&lt;h3&gt;Preview title:&lt;/h3&gt;" . $query-&gt;param('update_title') . "&lt;br /&gt;"
+        if $preview_on;
+}
+
+my %Skip=(group=&gt;1, vars=&gt;1);
+
+foreach( sort { fieldorder($a) &lt;=&gt; fieldorder($b) or $a cmp $b } @fields){
+    my $field;
+    ($field)=/update_(.*)/;
+    next if $_ eq "update_title";
+    next if $Skip{$field};
+    $HTMLVARS{embed_node}{doctext}=$query-&gt;param($_);
+    if ($preview_on) {
+        $str.="&lt;h3&gt;Preview $field:&lt;/h3&gt;";
+        if ($NODE-&gt;{type}{title} eq "perlcraft") {
+            $str.=htmlcode('previewdisplayperlcraft')."&lt;br /&gt;";
+        } elsif ( $NODE-&gt;{type}{title} eq 'sitedoclet' ) {
+            $str.=htmlcode('get_sitedoclet','',
+                {   title=&gt;$query-&gt;param('update_title'),
+                    doctext=&gt;$HTMLVARS{embed_node}{doctext}
+                });
+        } else {
+            $str.=htmlcode('parselinksinstring')."&lt;br /&gt;";
+        }
+    }
+}
+$str= "&lt;hr /&gt;$str&lt;hr /&gt;&lt;br /&gt;&lt;br /&gt;" if $str;
+
+$str.="\n".htmlcode('openform', '', 'name' =&gt; 'edit_node');
+
+# This edit page displays each field of a node with a
+# (usually) appropriate form item in which to edit the
+# contents of each field.  This is useful to edit a node's
+# data that is usually not accessable through a standard
+# edit page (like createtime, or hits)
+
+local* hiddenMD5=sub{
+    my($field)=@_;
+    $query-&gt;hidden(
+        -name=&gt;"digest_$field",
+        -value=&gt;($query-&gt;param("digest_$field") or md5_hex($NODE-&gt;{$field}))
+    )."\n";
+};
+
+# This code generates the form fields and the stuff that
+# the user sees.
+
+foreach my $field ( sort { fieldorder($a) &lt;=&gt; fieldorder($b) or $a cmp $b } keys %titletype)
+{
+    next if $Skip{$field};
+    if($field eq "core"){
+    }
+    elsif($titletype{$field} =~ /char\((.*)\)/)
+    {
+        my $size = 80;
+        $str.="&lt;h3&gt;$field:&lt;/h3&gt;";
+        $size = $1 if($size &gt; $1);
+        $str .= $query-&gt;textfield(
+            -name =&gt; "update_$field",
+            -default =&gt; ($query-&gt;param("pu_$field") or $NODE-&gt;{$field}),
+            -size =&gt; $size,
+            -maxlength =&gt; $1 ) . "&lt;br&gt;\n";
+        $str.=hiddenMD5($field);
+    }
+    elsif($titletype{$field} =~ /text/)
+    {
+        $str.="&lt;h3&gt;$field:&lt;/h3&gt;";
+        $str .= $query-&gt;textarea(
+            -name=&gt;"update_$field",
+            -default=&gt;($query-&gt;param("pu_$field") or $NODE-&gt;{$field}),
+            -rows=&gt;20, -cols=&gt;80, -wrap=&gt;"virtual") . "&lt;br /&gt;\n";
+        $str.=hiddenMD5($field);
+    }
+}
+$str.=$query-&gt;checkbox('disable preview')."&lt;br /&gt;\n";
+$str.=$query-&gt;checkbox(
+    -name =&gt; 'update_private',
+    -label =&gt;'set private flag',
+    -value =&gt; '1'
+)."&lt;br /&gt;\n"
+    if $group eq 'editors';
+#$str.=htmlcode('groupeditor')."&lt;br /&gt;"
+#  if $NODE-&gt;{type}{title} eq 'faqlist';
+$str.=  $query-&gt;submit('blah','preview') . "\n"
+    .   $query-&gt;submit('blah','update') . "&lt;/form&gt;\n";
+
+if(     $update
+    &amp;&amp;  $group eq 'editors'
+    &amp;&amp;  $NODE-&gt;{author_user} != $HTMLVARS{guest_user}
+) {
+   $str .= htmlcode(
+        'msguser', $NODE-&gt;{'author_user'},
+        "I've edited ". linkNode( getId($NODE) ).
+        ". See ". linkNode( getId($NODE),
+          "node history", { displaytype =&gt; 'edithistory' } )
+   );
+}
+return $str;
+</field>
+</data>
+</node>

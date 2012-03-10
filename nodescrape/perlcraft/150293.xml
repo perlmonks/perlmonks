@@ -1,0 +1,632 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="150293" title="Unify two directory structures (make identical files hard links)" created="2002-03-08 07:24:46" updated="2005-07-21 01:30:58">
+<type id="121">
+perlcraft</type>
+<author id="86555">
+mugwumpjism</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+use strict;
+
+BEGIN {
+
+    use vars qw(@POD_HOOKS $be_random);
+    no strict 'refs';
+
+=head1 NAME
+
+unify-dirs - Make identical files in two directories the same inode
+
+=cut
+
+    push @POD_HOOKS, NAME =&gt; sub {
+	my @m;
+	( @m = m/(\S+) - (.*)/ ) &amp;&amp;
+	    do { *{PROGNAME}   = sub { $m[0] };
+		 *{SHORT_DESC} = sub { $m[1] }; }
+	};
+
+=head1 SYNOPSIS
+
+unify-dirs [options] dir1 dir2 [...]
+
+=cut
+
+    push @POD_HOOKS, SYNOPSIS =&gt; sub {
+	my $a = $_;
+	*{SYNOPSIS} = sub { $a }
+    };
+
+=head1 DESCRIPTION
+
+unify-dirs will traverse the given passed directories, and if it finds
+files that are identical (in name, contents, permission and mode), it
+will hard-link them and set the "immutable" and "immutable linkage
+invert" flags (if selected).
+
+=cut
+
+    push @POD_HOOKS, DESCRIPTION =&gt; sub {
+	my $a = $_;
+	*{DESCRIPTION} = sub { $a }
+    };
+
+=head1 COMMAND LINE OPTIONS
+
+The following command line options are available:
+
+=cut
+
+    # Extract the command line options for the "usage" screen from the
+    # POD ;-)
+    use vars qw(@options);
+
+    push @POD_HOOKS, 'COMMAND LINE OPTIONS' =&gt; sub {
+	# This hook is deleted below under RELEASE
+	&amp;Pod::Constants::add_hook
+		(#-debug =&gt; 1,
+		 '*item' =&gt; sub {
+		     my ($switches, $description) =
+			 m/^(.*?)\n\n(.*)/s;
+		     my (@switches, $longest);
+		     $longest = "";
+		     for my $switch
+			 ($switches =~ m/\G
+					 ((?:-\w|--\w+))
+					 (?:,\s*)?
+					 /gx) {
+			     push @switches, $switch;
+			     if ( length $switch &gt; length $longest) {
+				 $longest = $switch;
+			     }
+			 }
+		     $longest =~ s/^-*//;
+		     push @options,
+			 $longest, {
+				    options =&gt; \@switches,
+				    description =&gt; $description,
+				   };
+		 }
+		);
+    };
+
+=over 4
+
+=item -h, --help
+
+Display program usage
+
+=item -v, --verbose
+
+Verbose program execution
+
+=item -d, --debug
+
+Even more verbose program execution
+
+=item -V, --version
+
+Print the program version
+
+=item -i, --immutable
+
+Sets the "immutable" inode attribute.
+
+=item -l, --linkage
+
+Sets the "immutable linkage invert" inode attribute.
+
+=item -r, --random
+
+Turns on randomising of directory scanning and tree traversal.  This
+option tries to prevent against racing symlink attacks.  A better
+solution is planned.
+
+=back
+
+=head1 INODE ATTRIBUTES AND IMMUTABILITY
+
+Hard linking identical files between directories has a drawback: if
+one is changed, then the other one changes too.
+
+To counter this, you can set the "immutable" inode attribute on
+combined files (see L&lt;chattr&gt;).
+
+Setting inode attribute requires root privileges, C&lt;CAP_SYS_ATTR&gt;, and
+a filesystem that supports it.  Currently this includes default ext2
+and ext3 in any recent kernel, or reiserfs with the "inode attributes"
+patch applied (available from
+C&lt;ftp://ftp.namesys.com/pub/reiserfs-for-2.4/2.4.18.pending/&gt;).
+
+The problem with setting "immutable" is that then the file can not be
+unlinked or renamed.  In the case where you have a user without
+CAP_SYS_ATTR, but otherwise with write permission to a file, they
+cannot then change it.
+
+In comes the "immutable linkage invert" flag.  This flag will toggle
+immutability of the file E&lt;name&gt;, but leave the file E&lt;contents&gt;,
+E&lt;permissions&gt;, etc protected.  This means that you can unlink the
+file, and hence replace it, edit it with most editors, etc.
+
+This option requires a kernel patch - it is included in the s_context
+patch for the vserver project, which is at
+L&lt;http://www.solucorp.qc.ca/miscprj/s_context.hc&gt;).  It is also
+available on its own from L&lt;http://sam.vilain.net/immutable/&gt;.
+
+This works well with ext2 and ext3, but is a little trickier to get
+working with reiserfs, as inode attributes are not a standard reiserfs
+feature.  See the above link for more information.
+
+=head1 RELEASE
+
+This is unify-dirs version 0.1.
+
+=cut
+
+    push @POD_HOOKS, RELEASE =&gt; sub {
+	Pod::Constants::delete_hook("*item");
+	my $v;
+	(($v) = m/(\d+\.\d+)/) &amp;&amp; (*{VERSION} = sub {$v});
+    };
+
+
+};
+
+no strict 'subs';
+
+sub abort {
+    print STDERR &amp;PROGNAME.": aborting: @_\n", short_usage();
+    exit(1);
+}
+
+sub barf { print STDERR &amp;PROGNAME.": @_\n"; exit(1) }
+sub moan { print STDERR &amp;PROGNAME.": WARNING: @_\n"; }
+sub say { print &amp;PROGNAME.": @_\n"; }
+sub mutter { }
+sub whisper { }
+
+use strict 'subs';
+
+#=====================================================================
+#  MAIN SECTION STARTS HERE
+#=====================================================================
+my ($action, @dirs, $immutable, $linkage, $mode);
+
+{
+    use Getopt::Long;
+
+    no strict "refs", 'vars';
+    local ($^W) = 0;
+
+    $action = "unify";
+    $mode = "";
+
+    Getopt::Long::config("bundling");
+    #Getopt::Long::config("pass_through");
+    Getopt::Long::GetOptions
+	    (
+	     'help|h' =&gt; sub { $action = "show_help" },
+	     'version|V' =&gt; sub { $action = "show_version" },
+	     'verbose|v' =&gt; sub { *{"mutter"} = \&amp;say },
+	     'debug|d' =&gt; sub { *{"whisper"} = *{"mutter"} = \&amp;say },
+	     'immutable|i' =&gt; \$immutable,
+	     'linkage|l' =&gt; \$linkage,
+	     'random|r' =&gt; sub { $be_random = 1 },
+	    );
+
+    $mode .= "i" if $immutable;
+    $mode .= "I" if $linkage;
+
+    if ( ! -t STDOUT ) {
+	if ( -t STDERR ) {
+	    eval "sub say { print STDERR \"\@_\n\" }";
+	} else {
+	    eval "sub say { }";
+	}
+    }
+
+    if ($action eq "show_help") {
+	print usage();
+	exit(0);
+    } elsif ($action eq "show_version") {
+	print version(), "\n";
+	exit(0);
+    }
+
+}
+
+while ( my $dir = shift @ARGV ) {
+    -d $dir or abort "Invalid directory $dir";
+    push @dirs, $dir;
+}
+
+(@dirs &gt; 1) or abort "Need at least two paths to unify";
+
+say "Unifying: @dirs";
+
+unify_dirs($mode, @dirs);
+
+say "done";
+exit(0);
+
+=head1 INTERNAL FUNCTIONS
+
+Documented for prosperity
+
+=head2 digest_file($filename)
+
+returns a HASH ref containing stat into and a checksum of the file
+named by the given filename:
+
+    { sha1 =&gt; $sha1_checksum,
+      stat =&gt; [ stat_info ]   }
+
+"sha1" will be missing from the hash if the file is not regular (ie, a
+block special device, etc).
+
+=cut
+
+use Digest::SHA1;
+use IO::File;
+
+sub digest_file {
+    my $filename = shift;
+
+    my @stat = lstat $filename;
+
+    my %returnval = ( stat =&gt; \@stat );
+
+    if ( -f _ ) {
+
+	whisper "digesting $filename";
+
+	sysopen FILE, $filename, O_RDONLY
+	    or die "could not open $filename for reading; $!";
+
+	my $block_size = $stat[11] || 2**16;
+	my ($buffer, $bytes_read);
+	my $sha1 = Digest::SHA1-&gt;new;
+
+	$sha1-&gt;add($buffer)
+	    while ( $bytes_read = sysread FILE, $buffer, $block_size );
+
+	die "Error digesting $filename; $!" unless defined $bytes_read;
+
+	close FILE;
+	$returnval{sha1} = $sha1-&gt;hexdigest;
+	whisper "disgest is $returnval{sha1}";
+
+    } else {
+	whisper "not digesting $filename - not a regular file";
+    }
+
+    return \%returnval;
+}
+
+=head2 chattr ($filename, $attr_string)
+
+Calls the C&lt;EXT2_IOC_SETFLAGS&gt; IOCTL on $filename, setting flags as
+per $attr_string.
+
+=over
+
+=item Permitted chattr attributes
+
+The following table lists the allowed contents of $attr_string, and
+the corresponding bitmask to the IOCTL.
+
+  i =&gt; 0x00000010    ("immutable")
+  I =&gt; 0x00008000    ("immutable linkage invert")
+
+=back
+
+=cut
+
+BEGIN { use vars qw(%attr);
+	push @POD_HOOKS,
+	    "Permitted chattr attributes" =&gt; sub {
+		%attr = map {
+		    if ( m/(\w) =&gt; (0x\w+)/) {
+			$1 =&gt; pack("L", hex($2));
+		    } else { () }
+		} split /\r?\n/, $_;
+	    }; }
+
+sub chattr {
+    my( $file, $attr_str ) = @_;
+    whisper ("chattr($file, $attr_str)");
+    my $EXT2_IOC_SETFLAGS = 0x40046602;
+    my $flags = pack("L", 0);
+    while( my $flag = chop($attr_str) ){
+	$flags |= $attr{$flag};
+    }
+    open( F, $file ) or die "Can't open $file : $!";
+    ioctl( F, $EXT2_IOC_SETFLAGS, $flags ) or die "Can't set attr($flags) on $file: $!";
+    close F;
+}
+
+=head2 unify_dirs($mode, @dirs)
+
+This is the function that does the main work; it takes an arbitrary
+list of directories and combines them.
+
+This function calls itself recursively for sub-directories.  It also
+uses the same trick "find" does to avoid performing unnecessary
+C&lt;stat()&gt;'s (see L&lt;perlfunc&gt;) where possible.
+
+It is probably quite succeptible to missing possible unification in
+race condition situations; however it should never perform an
+incorrect unification.
+
+If $mode is set, it specifies arguments to the C&lt;chattr&gt; function,
+above.
+
+FIXME - should probably put a secure chdir() in here later, otherwise
+we may be vulnerable to racing symlink attacks.  To counter this, I've
+added some entropy throughout the function, to make it really hard to
+predict what order the program is going to do things.  Enable it with
+`C&lt;-r&gt;'
+
+=cut
+
+use ReadDir qw(&amp;readdir_inode);
+
+sub unify_dirs {
+    my $mode = shift;
+
+    # get rid of the invalid directories
+    my @dirs = map { -d $_ ? $_ : () } @_;
+    return if @dirs == 1;
+    (@dirs = sort { $be_random *= -1 } @dirs) if ( $be_random );
+
+    # %files is a (filename =&gt; inode) hash for this directory
+    my %files;
+
+    # This holds per-directory-to-be-unified information on the files;
+    # $dir{$dir}-&gt;{$filename} = { sha1 =&gt; $sha1_checksum,
+    #                             stat =&gt; [ stat_info ]   }
+    # or just the inode number if it hasn't been stat'd yet
+    my %dir;
+
+    # this contains a list of sub-directories of the current directory
+    my @subdirs;
+
+    for my $dir ( @dirs ) {
+	whisper "Processing $dir...";
+
+	$dir{$dir} = { };
+	my @dirents = readdir_inode $dir;
+	whisper "Readdir OK";
+	(@dirents = sort { $be_random *= -1 } @dirents)
+	    if ( $be_random );
+
+	# So we don't stat every file in a directory if we don't need
+	# to.  This is the same optimisation that "find" uses.
+	my $num_dirs = ((lstat $dir)[3]) - 2;
+
+	# for each directory entry, see if any other dir has the same
+	# filename
+	while ( my $ref = shift @dirents ) {
+	    my ($filename, $inode) = (@$ref);
+	    next if ($filename =~ m/^\.\.?$/);
+
+	    # we only have to stat entries where there are
+	    # subdirectories remaining.
+	    if ( $num_dirs ) {
+
+		# there are still sub-directories left in here.
+		# look for them.
+		$dir{$dir}-&gt;{$filename} =
+		    { stat =&gt; [ lstat "$dir/$filename" ] };
+
+		if ( -d _ ) {
+		    # found one!
+		    $num_dirs--;
+		    push @subdirs, $filename;
+		    next;
+		}
+	    } else {
+		# non-directory; remember the inode number
+		$dir{$dir}-&gt;{$filename} = $inode;
+	    }
+
+	    if ( exists $files{$filename}
+		 and $files{$filename} != $inode ) {
+
+		# some other mirror has this same filename under a
+		# different inode.  Ler's see if we can unify them.
+		my $my_files_h = $dir{$dir};
+		while ( my ($other_dir, $files_h) = each %dir ) {
+		    next if $other_dir eq $dir;
+
+		    # does this other directory have this file too?
+		    next unless exists $files_h-&gt;{$filename};
+
+		    whisper "COMPARE: $dir/$filename vs $other_dir/$filename";
+
+		    # stat both files if we haven't already
+		    $my_files_h-&gt;{$filename} =
+			{ stat =&gt; [ lstat "$dir/$filename" ] }
+			    unless ref $my_files_h-&gt;{$filename} eq "HASH";
+		    $files_h-&gt;{$filename} =
+			{ stat =&gt; [ lstat "$other_dir/$filename" ] }
+			    unless ref $files_h-&gt;{$filename} eq "HASH";
+
+		    my ($mine, $other)
+			= ($my_files_h-&gt;{$filename}, $files_h-&gt;{$filename});
+
+		    # compare file sizes, skip if different
+		    whisper "file stat() info different", next
+			if ( $mine-&gt;{stat}-&gt;[7] != $other-&gt;{stat}-&gt;[7] or
+			     $mine-&gt;{stat}-&gt;[2] != $other-&gt;{stat}-&gt;[2] or
+			     $mine-&gt;{stat}-&gt;[4] != $other-&gt;{stat}-&gt;[4] or
+			     $mine-&gt;{stat}-&gt;[5] != $other-&gt;{stat}-&gt;[5] or
+			     $mine-&gt;{stat}-&gt;[1] == $other-&gt;{stat}-&gt;[1] );
+
+		    # gather SHA1 checksums
+		    $my_files_h-&gt;{$filename} = digest_file "$dir/$filename"
+			unless exists $my_files_h-&gt;{$filename}-&gt;{sha1};
+		    $files_h-&gt;{$filename} = digest_file "$other_dir/$filename"
+			unless exists $files_h-&gt;{$filename}-&gt;{sha1};
+
+		    ($mine, $other)
+			= ($my_files_h-&gt;{$filename}, $files_h-&gt;{$filename});
+
+		    # skip if different ("sha1" won't be set if
+		    # this isn't a regular file)
+		    whisper "not suitable for unification", next
+			unless ( $mine-&gt;{sha1} and $other-&gt;{sha1} );
+
+		    whisper "sha1: $mine-&gt;{sha1} vs $other-&gt;{sha1}";
+		    next unless ( $mine-&gt;{sha1} eq $other-&gt;{sha1} );
+
+		    my $diff = ($mine-&gt;{stat}-&gt;[3] - $other-&gt;{stat}-&gt;[3]);
+
+		    my ($src, $dest)
+			= ("$dir/$filename", "$other_dir/$filename");
+
+		    if ( $diff &lt; 0 or (!$diff and rand(1) &lt; 0.5)) {
+			($src, $dest) = ($dest, $src);
+			$my_files_h-&gt;{$filename} =
+			    $files_h-&gt;{$filename};
+		    } else {
+			$files_h-&gt;{$filename} =
+			    $my_files_h-&gt;{$filename};
+		    }
+
+		    mutter "Linking $src on top of $dest";
+
+		    chattr($src, $mode) if ( $mode and $mode eq "iI" );
+		    chattr($src, "") if ( $mode and $mode eq "i" );
+
+		    link $src, $dest."unify$$" or do { 
+			die "link ($src,${dest}unify$$) failed; $!";
+			next;
+		    };
+
+		    rename $dest."unify$$", $dest or do {
+			moan "rename (${dest}unify$$, $dest) failed; $!";
+			unlink $dest."unify$$";
+			exit(1);
+			next;
+		    };
+
+		    chattr($src, $mode) if ( $mode and $mode ne "iI" );
+
+		    @{ $my_files_h-&gt;{$filename}-&gt;{stat} } = lstat $src;
+
+		}
+	    } else {
+		# first directory to have this file, just remember the
+		# inode number.
+		$files{$filename} = $inode;
+	    }
+	}
+    }
+
+    %files=%dir=();
+
+    # sponsored by the Friends of Recursion Society of Great Britain.
+    for my $subdir ( @subdirs ) {
+	unify_dirs ($mode, map { "$_/$subdir" } @dirs);
+    }
+}
+
+
+BEGIN {
+
+    eval "use Pod::Constants -trim =&gt; 1, \@POD_HOOKS";
+    die $@ if $@;
+
+}
+
+#---------------------------------------------------------------------
+#  Usage functions
+#---------------------------------------------------------------------
+
+sub short_usage {
+    return ("Usage: ${\(SYNOPSIS)}\n"
+	    ."Try `${\(PROGNAME)} --help' for a summary of options."
+	    ."\n");
+}
+
+use Text::Wrap qw(wrap fill);
+use Term::ReadKey;
+
+=head2 usage
+
+Prints the program usage (extracted from the POD).
+
+=cut
+
+sub usage {
+
+    # alright, I'm admit this function is silly.
+
+    my $options_string;
+    my $OPTIONS_INDENT = 2;
+    my $OPTIONS_WIDTH = 20;
+    my $OPTIONS_GAP = 2;
+    my $TOTAL_WIDTH = (GetTerminalSize())[0] - 10 || 70;
+
+    my $DESCRIPTION_WIDTH = ($TOTAL_WIDTH - $OPTIONS_GAP -
+			     $OPTIONS_INDENT - $OPTIONS_WIDTH);
+
+    # go through each option, and format it for the screen
+
+    for ( my $i = 0; $i &lt; (@options&gt;&gt;1); $i ++ ) {
+	my $option = $options[$i*2 + 1];
+
+	$Text::Wrap::huge = "overflow";
+	$Text::Wrap::columns = $OPTIONS_WIDTH;
+	my @lhs = map { split /\n/ }
+	    wrap("","",join ", ",
+		 sort { length $a &lt;=&gt; length $b }
+		 @{$option-&gt;{options}});
+
+	$Text::Wrap::huge = "wrap";
+	$Text::Wrap::columns = $DESCRIPTION_WIDTH;
+	my @rhs = map { split /\n/ }
+	    fill("","",$option-&gt;{description});
+
+	while ( @lhs or @rhs ) {
+	    my $left = shift @lhs;
+	    my $right = shift @rhs;
+	    chomp($left);
+	    $options_string .= join
+		("",
+		 " " x $OPTIONS_INDENT,
+		 $left . (" " x ($OPTIONS_WIDTH - length $left)),
+		 " " x $OPTIONS_GAP,
+		 $right,
+		 "\n");
+	}
+    }
+
+    $Text::Wrap::huge = "overflow";
+    $Text::Wrap::columns = $TOTAL_WIDTH;
+
+
+    return (fill("","",PROGNAME . " - " . SHORT_DESC)
+	    ."\n\n"
+	    ."Usage: ".SYNOPSIS."\n\n"
+	    .fill("  ","",DESCRIPTION)."\n\n"
+	    .fill("  ","","Command line options:")
+	    ."\n\n"
+	    .$options_string."\n"
+	    ."See `perldoc $0' for more information.\n");
+}
+
+__END__
+
+=head1 AUTHOR
+
+Sam Vilain, &lt;sam@vilain.net&gt;
+
+=cut
+
+</field>
+</data>
+</node>

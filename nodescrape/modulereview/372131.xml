@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="372131" title="PAR" created="2004-07-06 12:15:48" updated="2005-08-15 07:55:34">
+<type id="31663">
+modulereview</type>
+<author id="144850">
+rinceWind</author>
+<data>
+<field name="doctext">
+&lt;p&gt;PAR has saved my day! It will go a long way towards helping me in my crusade of Perl advocacy in the present $CLIENT (who shall remain nameless) environment.&lt;sup&gt;2&lt;/sup&gt;&lt;p&gt;
+The situation is that we have three Unix (Solaris) environments: dev, test and live. Although Solaris comes with a version of perl pre-installed, the admins have restricted access to it on all but the dev machine (under some historical edicts from senior management).&lt;p&gt;
+Now, as part of my activities in development, I have been producing a nice set of perl tools (as is my want), to get my job done. Many of these would benefit production, especially for production support, which is closer to what my current role is.
+&lt;h4&gt;PAR for the course&lt;/h4&gt;
+&lt;pre&gt;
+
+          +----+
+foo.pl===&gt;| pp |====&gt;foo
+          +----+
+
+&lt;/pre&gt;
+Just like cc, pp turns your Perl file (and all called modules) into an executable. It's not actually compiling them, just packaging them up (and compressing).&lt;p&gt;
+My colleagues feel a lot happier about the (potentially) tamper proof nature of executables, and I can deploy my perl 'scripts' into test and live environments. Funnily enough, they haven't had a problem with deploying .ksh or .awk scripts.
+&lt;p&gt;&lt;em&gt;Caveat removed (thanks are due to [PodMaster] for helping me sort this one out.&lt;/em&gt;
+&lt;p&gt;&lt;small&gt;Considered: [MUBA] move to meditations: not actually a review: it's more like giving comliments but that's it&lt;br /&gt;
+Unconsidered: [ysth] - Keep/Edit/Delete = 6/9/0 - moving from reviews isn't supported&lt;/small&gt;
+&lt;p&gt;&lt;strong&gt;Update:&lt;/strong&gt;&lt;p&gt;
+I do feel that [bibo] and [MUBA] have a point, and this node should be more of a review (see also [id://397265|this node]). Here goes...
+&lt;h4&gt;Peeping under the hood&lt;/h4&gt;
+Although PAR delivers applications that work out of the box&lt;sup&gt;1&lt;/sup&gt;, it is worth examining what the output of pp actually is. &lt;p&gt;
+The resulting executable is a self extracting zip file, and tools such as winzip or unzip -l can reveal the contents of the file. Besides the various perl modules called, you will find script/foo.pl (this being your source script) and script/main.pl. Note that you don't see Perl itself or any of the magic glue that makes your application run.&lt;p&gt;
+script/main.pl is a small bootstrap script that calls your script, and it looks like this:&lt;code&gt;
+
+my $zip = $PAR::LibCache{$ENV{PAR_PROGNAME}} || Archive::Zip-&gt;new(__FILE__);
+my $member = eval { $zip-&gt;memberNamed('script/foo.pl') }
+        or die qq(Can't open perl script "script/foo.pl": No such file or directory ($zip));
+PAR::_run_member($member, 1);
+
+&lt;/code&gt;
+The first time a PAR application is run (or a new version of the application), it is unzipped into temporary directories: $TEMP/par_$USER/cache_nnnnnnnnnnn&lt;p&gt;
+the nnnnnnnnnnn here is an MD5 checksum, hence a new version of the PAR application will generate a new cache directory.&lt;p&gt;
+The first time the application is run, there will be a significant startup time, as the zip kit is unpacked. It is worthwhile explaining this to users.
+&lt;h4&gt;Run time requires&lt;/h4&gt;
+Unfortunately, PAR (and [cpan://Module::ScanDeps]) will not detect all modules, especially those whose name is determined at run time. If you are missing a module or two, you need to include the modules in the build - either by adding explicit use or require statements in the script (useful for Tk widget modules), or by specifying -M to pp.
+&lt;h4&gt;Parlez vous?&lt;/h4&gt;
+There are circumstances where you don't want to bundle everything into a single executable. You may have several scripts (CGI scripts for example) calling the same bunch of modules, and you want to distribute this.&lt;p&gt;
+The PAR install delivers another utility called parl (PAR loader), which takes mostly the same parameters as perl. This provides the ability to run a perl script and call in one or more PAR libraries (built with pp, but called *.par).
+&lt;p&gt;Again, a Perl install is not needed on the target machine. You need to deliver parl, the scripts and the PAR libraries. On the Windows platform, you could package this up with Install Shield.
+&lt;h4&gt;tkpp&lt;/h4&gt;
+For those averse to command lines, there is a script provided called tkpp, which provides a very thin GUI Tk wrapper around pp. Far from it being a responsive GUI, it freezes while building the application. I find no benefit in using this over the command line, other than saving having to remember the command line options.&lt;p&gt;
+&lt;strong&gt;Notes:&lt;/strong&gt;&lt;p&gt;
+&lt;sup&gt;1&lt;/sup&gt; I like things that work straight out of the box.
+I am a great fan of [http://www.knopper.net/knoppix/index-en.html|Knoppix] - a Linux distro that works straight off the CD.&lt;p&gt;
+&lt;sup&gt;2&lt;/sup&gt; This was the subject of a lightning talk I gave at YAPC::Europe 2004, the slides of which are [http://un.earth.li/~ivorw/slides/par_rescue.ppt|here]</field>
+<field name="itemdescription">
+Packaging perl scripts as executables</field>
+<field name="usercomment">
+A useful tool in advocacy</field>
+<field name="identifier">
+</field>
+</data>
+</node>

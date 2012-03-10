@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="74609" title="Parse::RecDescent" created="2001-04-22 22:25:02" updated="2005-08-15 04:53:55">
+<type id="31663">
+modulereview</type>
+<author id="53423">
+Masem</author>
+<data>
+<field name="doctext">
+&lt;B&gt;Item Description&lt;/B&gt;: Provides a yacc/lex-like functionality for parsing
+input data into Perl.
+&lt;BR&gt;
+&lt;B&gt;Review Synopsis&lt;/B&gt;: Replicates most of the features of yacc/lex minus a few
+shortcomings with addition benefits of using perl to make parsing complex
+input rather simple.
+&lt;BR&gt;
+&lt;B&gt;Module Author&lt;/B&gt;: Damian Conway
+&lt;BR&gt;
+&lt;B&gt;Module Homepage&lt;/B&gt;: [http://www.cs.monash.edu.au/~damian]
+&lt;P&gt;
+
+&lt;H2&gt;Description&lt;/H2&gt;
+Those that have dealt with free-form input files, which include nearly 
+all programming languages in addition to other third party programs, 
+probably have had to deal with parsing such input using tools called 
+&lt;i&gt;lex&lt;/i&gt; (&lt;B&gt;LEX&lt;/b&gt;ical Analyzer Generator) and &lt;i&gt;yacc&lt;/i&gt; 
+(&lt;b&gt;Y&lt;/B&gt;et &lt;B&gt;A&lt;/b&gt;nother &lt;B&gt;C&lt;/b&gt;ompiler &lt;b&gt;C&lt;/B&gt;ompiler) 
+or their GNU cousins, &lt;i&gt;flex&lt;/i&gt; and &lt;i&gt;bison&lt;/i&gt;.  Using a combination
+of these tools, one could derive a grammar specification and use
+that to place data into data structures.  These tools are common around
+C and C++ folk.
+&lt;P&gt;
+However, with perl and it's strong regex engine, it's possible to 
+replicate most input functions with advanced regexs, and thus, there
+usually isn't much need to worry about grammar specifications.  However,
+there can be times where you just cannot do what you need to do with 
+regexs without additional logic, but would be well-suited to using a 
+grammar to interpret data.  For example, given 
+&lt;code&gt;
+names = John Joe "Mary Sue" James
+&lt;/code&gt;
+you cannot simply get every name after the '=' by splitting on spaces
+using a regex.  But with a grammar parser, this problem is simple.
+&lt;P&gt;
+Introducing &lt;B&gt;Parse::RecDescent&lt;/B&gt;, a grammar parser for Perl.  It mainly
+works by calling two functions: a new routine with the desired grammar 
+in order to prepare the parser, and a &lt;code&gt;startrule&lt;/code&gt; which takes
+in the input to be processed and returns whatever results are needed.  
+There are other functions available to swap rules in or out of the grammar
+set if needed, but most of the functionality is built into the initial
+description of the grammar rules set.
+&lt;P&gt;
+For example, consider simple math problems.  The grammar will look 
+something like this:
+&lt;CODE&gt;
+startrule:             calculation
+statement:             grouped_op | number
+grouped_op:            '(' calculation ')'
+calculation:           add_calculation | subtract_calculation
+add_calculation:       statement '+' statement
+subtract_calculation:  statement '-' statement
+number:                /\d+/
+&lt;/CODE&gt;
+Basically, the text on the left are rules, and the statements on the 
+right are what the parser expects to see when it is expecting those rules.
+Note that these can be recursive and the like; thus if I'm looking for
+a 'statement', and see a 'group_op', I could see yet another 'statement'
+inside that 'group_op'.  &lt;B&gt;Parse::RecDescent&lt;/B&gt; uses a special rule called "startrule" 
+as the default starting point, though you can tell it to use a different rule
+if you desire.  At the very basic level, &lt;B&gt;Parse::RecDescent&lt;/B&gt; can
+determine if the input matches that grammar, and returns true or false:
+&lt;P&gt;
+&lt;B&gt;LISTING 1&lt;/B&gt;
+&lt;CODE&gt;
+#!/usr/bin/perl -wT
+
+use strict;
+use Parse::RecDescent;
+
+my $parser = new Parse::RecDescent( q{
+startrule:             calculation eofile
+statement:             grouped_op | number
+grouped_op:            '(' calculation ')'
+calculation:           add_calculation | subtract_calculation
+add_calculation:       statement '+' statement
+subtract_calculation:  statement '-' statement
+number:                /\d+/
+eofile:                /^\Z/
+} );
+
+my @tests = (
+             "3",                    # BAD
+             "4 + ",                 # BAD
+             "4 + 8",                # GOOD
+	       "4 + 8 +",              # BAD
+             "6 + (3 - 2)",          # GOOD
+             "6 + ()3 - 2",          # BAD
+             "(6 + (3 - 2)) + 1",    # GOOD
+             "(6 + (3 - 2) + 1)",    # BAD
+             "(6 + 3"                # BAD
+             );
+
+foreach my $test ( @tests ) {
+     print $test . ': ' .
+         ( defined($parser-&gt;startrule( $test ) )?"good":"bad") . "\n";
+}
+&lt;/CODE&gt;
+&lt;P&gt;
+Obviously, my math here is not perfect, but for demonstration purposes,
+this is sufficient (One can play with grammar files indefinitely to 
+continue to improve performances).  One thing of note in the
+grammar specs is the use of 'eofile'; because of how &lt;B&gt;Parse::RecDescent&lt;/B&gt; 
+treats data (namely, trying to go left to right without any backtracking),
+it will make the most non-greedy match (think '.*?') it can, and once
+matched, it will be happy.  So, as in case 4, "4 + 8 + ", without 'eofile' in 
+the grammar rules, the parser will recognized "4 + 8" and be happy with 
+that, the trailing plus sign ignored.  The 'eofile' basically forces the
+match to work on the entire text string and not just the first parts 
+it can match.
+&lt;P&gt;
+Now, this might seem like overkill, as pattern matching is easily
+done by regexes.  However, behind most of &lt;B&gt;Parse::RecDescent&lt;/B&gt; is a powerful
+way to manipulate values that have been recognized, either for in-line
+processing or later evaluation.  Without specifying any of these 
+extra actions, the default behavior of &lt;B&gt;Parse::RecDescent&lt;/B&gt; is to return the
+value of the last item matched in the rule.  However, if you simply
+want a tree-like structure of how the input is defined, one can
+include a pragma "&amp;lt;autotree&amp;gt;" at the top of the grammar
+string that, when parsing, will return a hash with all the data in it.
+Alternatively, you could perform in-line calculations which is well
+suited to our sample program above...
+&lt;P&gt;
+&lt;B&gt;LISTING 2&lt;/B&gt;
+&lt;CODE&gt;
+#!/usr/bin/perl -wT
+
+use strict;
+use Parse::RecDescent;
+
+my $parser = new Parse::RecDescent( q{
+startrule:             calculation eofile  { $return = $item[1]; }
+statement:             grouped_op | number
+grouped_op:            '(' calculation ')' { $return = $item[2]; }
+calculation:           add_calculation | subtract_calculation
+add_calculation:       statement '+' statement { $return = $item[1]+$item[3]; }
+subtract_calculation:  statement '-' statement { $return = $item[1]-$item[3]; }
+number:                /\d+/
+eofile:                /^\Z/
+} );
+
+my @tests = (
+             "4 + 8",
+             "6 + (3 - 2)",
+             "(6 + (3 - 2)) + 1",
+             );
+
+foreach my $test ( @tests ) {
+     print $test . ': ' . $parser-&gt;startrule( $test ) . "\n";
+}
+
+# Output is:
+#4 + 8: 12
+#6 + (3 - 2): 7
+#(6 + (3 - 2)) + 1: 8
+
+&lt;/CODE&gt;
+&lt;P&gt;
+Demonstrated here are two of the special variables that are used in defining
+these actions.  &lt;code&gt;@item&lt;/code&gt; is a list of the values of what actually
+matched the rule, starting with 1 and going up, and including each 'constant' 
+as well (eg, in add_calculation, &lt;code&gt;$item[2]&lt;/code&gt; would be '+' regardless
+of other arguments.)  &lt;code&gt;$return&lt;/code&gt; is the value that will be passed up
+to previous rules as the value for that rule.  By default, as mentioned above,
+if there is no special action rule, the value of the last item matched will 
+be passed along.  As you can see here, I've created a very simple calculator
+without doing any of the logic within perl itself; you could easily extend
+this to do much more advanced calculations.
+&lt;/P&gt;
+There are many more features that will benefit those working with grammars.
+There are a number additional features of specifying the grammar itself,
+including matching on repeated items ala regex, look-aheads, passing matched
+values to further rules, as well as start-up and default actions.  Within 
+actions, there are a number of other special variables that are useful for
+parsing statements, including current line and column numbers for error
+reporting.
+&lt;P&gt;
+An addition feature of &lt;B&gt;Parse::RecDescent&lt;/B&gt; are directives that are included
+in the grammar portion of the system.  One has already been mentioned, 
+&amp;lt;autotree&amp;gt;, which automatically builds a hash tree of the parsed
+data, but there are a number of others.  There are ones that can be used to
+parse strings or perl code, ones to provide scoring to determine which rules
+of multiple ones should be used, error reporting directives, conditional
+directives, and others to help improve the speed of parsing by bailing out
+of guaranteed failed matches.
+&lt;P&gt;
+A final feature of &lt;B&gt;Parse::RecDescent&lt;/B&gt; is the ability to set debugging flags.
+These are named as $::RD_&amp;lt;feature&amp;gt;, and can be used to influence the behavior
+of the engine or to output what rules and steps it is currently processing.
+&lt;P&gt;
+Most of these features are layed out well in the included documentation,
+although it is expected that you have had previously knowledge of using
+grammars prior to using the module.  As the module is written in pure
+Perl, it should be usable on all platforms that can run Perl.
+&lt;P&gt;
+&lt;H2&gt;Benefits&lt;/H2&gt;
+&lt;P&gt;
+The grammar specification has tried to stick as close as possible to 
+lex/yacc's grammar definitions as to make the use of existing grammars easy
+within &lt;B&gt;Parse::RecDescent&lt;/B&gt;.  In addition, several additional features have
+been added to make grammar work in a more perl-like way, making it very 
+easy to add such features to an existing perl framework.
+&lt;P&gt;
+&lt;H2&gt;Pitfalls/Caveats&lt;/H2&gt;
+&lt;P&gt;
+One thing that has been mentioned is that unlike perl's regex engine, which
+is 'greedy' and tries to consume as much as the string as possible when matching,
+&lt;B&gt;Parse::RecDescent&lt;/B&gt; is the opposite and tends to be less greedy.  This may
+cause problems such as letting trailing characters go through or missing parts
+of matches.  Grammars that worker perfectly in lex/yacc may not work straight
+into &lt;B&gt;Parse::RecDescent&lt;/B&gt;.  
+&lt;P&gt;
+&lt;P&gt;
+&lt;H2&gt;Conclusions&lt;/H2&gt;
+&lt;P&gt;
+If you have any data input that is free form, then you should be using a
+grammar system to read that data into your program to avoid pitfalls with
+balancing quotes, whitespace, and other features.  &lt;B&gt;Parse::RecDescent&lt;/B&gt; provides
+an excellent equivalent for lex/yacc within perl, and assuming you have
+previous knowledge of using grammars, you'll be up and running this in 
+no time.
+&lt;P&gt;</field>
+<field name="itemdescription">
+Lex/Yacc-like grammar parser for perl</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="393426" title="Including files" created="2004-09-24 05:28:38" updated="2005-08-15 12:23:20">
+<type id="956">
+perltutorial</type>
+<author id="132236">
+Juerd</author>
+<data>
+<field name="doctext">
+&lt;h2&gt;No include&lt;/h2&gt;
+&lt;p&gt;
+Some simple languages, like PHP, offer an &lt;tt&gt;include()&lt;/tt&gt; to include a file literally. Perl does not. Then how can you still load code from other files?
+&lt;/p&gt;
+&lt;p&gt;
+There are many ways to do this in Perl, but there is no easy way to get close to what most people expect of an &lt;tt&gt;include()&lt;/tt&gt;. People who want to include files usually come from simpler languages, or have no programming experience at all. The hardest thing they will have to learn is that &lt;b&gt;you should not want to include a file&lt;/b&gt;.
+&lt;/p&gt;
+&lt;p&gt;
+That may sound harsh, but it's a Perl reality. In Perl, we don't include or link libraries and code reuse isn't usually done by copying and pasting. Instead, Perl programmers use &lt;b&gt;modules&lt;/b&gt;. The keywords [use] and [require] are meant for use with modules. Only in the simplest of situations you can get away with abusing [require] as if it were some kind of &lt;tt&gt;include()&lt;/tt&gt;, but it's easy to get bitten by how it works: it only loads any given file &lt;b&gt;once&lt;/b&gt;.
+&lt;/p&gt;
+&lt;h2&gt;Creating a module&lt;/h2&gt;
+&lt;p&gt;
+What is a module, anyway? [perlmod] defines it as: &lt;em&gt;just a set of related functions in a library file, i.e., a Perl package with the same name as the file.&lt;/em&gt;
+&lt;/p&gt;
+&lt;p&gt;
+Creating a module is EASY, but it is a little more work than just creating a file with code in it. First, you need to think of a module name. This is the basis for both the filename and the package name, and these have to be synchronised for some features to work. For project specific modules, I always create a new top-level namespace with the name of the project. For example, &lt;tt&gt;NameOfTheProject/SomeModule.pm&lt;/tt&gt; is a good filename (in real life, use something a little more meaningful). The corresponding package is &lt;tt&gt;NameOfTheProject::SomeModule&lt;/tt&gt;. Use CamelCaps like this, because everyone else does too.
+&lt;/p&gt;
+&lt;p&gt;
+The file must be in a directory that is listed in &lt;tt&gt;@INC&lt;/tt&gt;. To find out what your &lt;tt&gt;@INC&lt;/tt&gt; is, run &lt;tt&gt;perl -V&lt;/tt&gt;. The current working directory (listed as its symbolic name &lt;tt&gt;.&lt;/tt&gt; (a single dot)) should be listed. To begin with, putting the module in the script's directory is a good idea. It is the easiest way to keep things organized. If you want to put the module somewhere else, you will have to update &lt;tt&gt;@INC&lt;/tt&gt;, so that perl knows where to find it. An easy way to do get code like this in the main script:
+&lt;code&gt;
+use lib 'path/to/the/modules';
+# The example module could be path/to/the/modules/NameOfTheProject/SomeModule.pm
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;
+What goes in the module itself doesn't require much explanation. I'll just give a complete example of a simple NameOfTheProject::SomeModule:
+&lt;code&gt;
+use strict;
+package NameOfTheProject::SomeModule;
+
+sub some_function {
+    # put sane code here
+    return 123;
+}
+
+1;
+&lt;/code&gt;
+Just list all the subs as you usually would, put a [package] statement at the top and a true value at the bottom (&lt;tt&gt;1&lt;/tt&gt; will suffice). Obviously, [use] [strict] is a good idea. You should never code a module that does not have this. Beware: A &lt;tt&gt;use strict;&lt;/tt&gt; statement in the main script has no effect on the module.
+&lt;/p&gt;
+&lt;p&gt;
+A module runs only once. That means that for code to be reusable, it &lt;b&gt;must&lt;/b&gt; be in a sub. In fact, it's considered very bad style to do anything (except declaring and initializing some variables) in the module's main code. Just don't do that.
+&lt;/p&gt;
+&lt;p&gt;
+You can now load the module and use its sub, simply by doing:
+&lt;code&gt;
+use NameOfTheProject::SomeModule;
+
+print NameOfTheProject::SomeModule::some_function();  # prints 123
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;
+You can have the module export its sub(s) to the caller's namespace (that is: the package the [use] statement is in. By default, this is &lt;tt&gt;main&lt;/tt&gt;). For this, put after the [package] statement:
+&lt;code&gt;
+use base 'Exporter';
+our @EXPORT_OK = ('some_function');
+&lt;/code&gt;
+Then, when [use]ing the module, you can request that &lt;tt&gt;some_function&lt;/tt&gt; be imported to your namespace with:
+&lt;code&gt;
+use NameOfTheProject::SomeModule ('some_function');
+
+print some_function();  # prints 123
+&lt;/code&gt;
+To have it exported automatically, use &lt;tt&gt;@EXPORT&lt;/tt&gt; instead of &lt;tt&gt;@EXPORT_OK&lt;/tt&gt;. This will eventually bite you if the function names are generic. For example, many people get bitten by [cpan://LWP::Simple]'s &lt;tt&gt;get&lt;/tt&gt; function. It is not unlikely that you already have one.
+&lt;/p&gt;
+&lt;p&gt;
+There are more ways to export functions. I of course prefer to use my own module [cpan://Exporter::Tidy]. Not only because it's smaller and often faster, but mostly because it lets the user of a module define a prefix to avoid clashes. Read its documentation for instructions.
+&lt;/p&gt;
+&lt;p&gt;
+For the export/import mechanism, it is very important that the filename, the package name and the name used with [use] are equal. This is case sensitive. (Ever wondered why under Windows, &lt;tt&gt;use Strict;&lt;/tt&gt; doesn't enable [strict], but also doesn't emit any warning or error message? It has everything to do with the case insensitive filesystem that Windows uses.)
+&lt;/p&gt;
+&lt;h2&gt;Stubbornly still wanting to include&lt;/h2&gt;
+&lt;p&gt;
+Sometimes, a module just isn't logical. For example, when you want to use an external configuration file. (Many beginners and people who post code online put configuration in the script itself for ease of use, but this makes upgrading the script harder.) There are many configuration file reader modules you can use, but why use one of those if you can just use bare Perl?
+&lt;/p&gt;
+&lt;p&gt;
+This is where [do] comes in. What [do] does is very close to what an [include] would do, but with a very annoying exception: the new file gets its own lexical scope. In other words: a variable declared with [my] is not accessible externally. This follows all logical rules attached to lexical variables, but can be very annoying. Fortunately, this does not have to be a problem. [do] returns whatever the included script returned, and if you make that script just the contents of a hash, here's my favourite way to offer configurability:
+&lt;code&gt;
+# This is config.pl
+mirror     =&gt; 'http://www.nl.example.com/mirror',
+path       =&gt; '/var/www/example',
+skip_files =&gt; [ 'png', 'gif', 'jpg' ],
+&lt;/code&gt;
+(The last &lt;code&gt;,&lt;/code&gt; is optional, but it's included to make adding a line easier.)
+&lt;code&gt;
+# This is script.pl
+use strict;
+
+my %config = do 'config.pl';
+
+chdir $config{path};
+
+...
+&lt;/code&gt;
+Error checking is left as an excercise.
+&lt;/p&gt;
+&lt;p&gt;
+Because we used only the return value of the script, and never even touched a variable in &lt;tt&gt;config.pl&lt;/tt&gt;, the inaccessibility of lexical variables is no longer a problem. Besides that, the code looks very clean and we have a very powerful config file format that automatically supports comments and all kinds of useful functions. How about &lt;tt&gt;interval =&gt; 24 * 60 * 60,&lt;/tt&gt; for self-documentation? :)
+&lt;/p&gt;
+&lt;h2&gt;Still not good enough&lt;/h2&gt;
+&lt;p&gt;
+[do] updates &lt;tt&gt;%INC&lt;/tt&gt;, which you may or may not want. To avoid this, use [eval] [cpan://File::Slurp|read_file] instead. To find out if you want this, read [perlvar].
+&lt;/p&gt;
+&lt;p&gt;
+There is a way to get an &lt;tt&gt;include()&lt;/tt&gt; the way other languages have it. This is a very ugly hack that uses an internal exception made for Perl's debugger, and is possibly not future proof. As said before, you should not want to include a file. Still, because it is possible, I feel I have to tell you how. Just don't actually use it.
+&lt;/p&gt;
+&lt;p&gt;
+If you read the documentation for [eval] (which you of course should (don't use an operator without having read its documentation first)), you see that if it is called from within the &lt;tt&gt;DB&lt;/tt&gt; package, it is executed in the caller's scope. This means that lexical values are made visible and the file behaves as a code block.
+&lt;/p&gt;
+&lt;p&gt;
+Here is an example to get an &lt;tt&gt;include()&lt;/tt&gt; function that actually works the way most people expect:
+&lt;code&gt;
+use strict;
+package Acme::Include;
+use base 'Exporter';
+use File::Slurp ();
+our @EXPORT = 'include';
+
+{
+    package DB;
+
+    # The sub's name is fully qualified to avoid getting a B::Include
+    sub Acme::Include::include ($) {
+        my ($filename) = @_;
+        my $code = qq[#line 1 "$filename"\n] .
+            File::Slurp::read_file($filename);
+        eval $code;
+    }
+}
+
+1;
+&lt;/code&gt;
+Documentation for the &lt;tt&gt;#line&lt;/tt&gt; directive is in [perlsyn].
+&lt;/p&gt;
+&lt;p&gt;
+To test this new module, save it as Acme/Include.pm and create:
+&lt;code&gt;
+# This is foo.pl
+use strict;
+use Acme::Include;
+
+my $lexical = 'set in foo.pl';
+
+include 'bar.pl';
+
+print $lexical;  # Should print: set in bar.pl
+&lt;/code&gt;
+and:
+&lt;code&gt;
+# This is bar.pl
+use strict;
+$lexical = 'set in bar.pl';
+
+# There is no "my" here, because that would create a *new* lexical
+# variable, hiding the existing one.
+&lt;/code&gt;
+and then run &lt;tt&gt;perl foo.pl&lt;/tt&gt;.
+&lt;/p&gt;
+&lt;p&gt;
+This example Acme::Include does not have any error checking. In practice, you will want to check &lt;tt&gt;$@&lt;/tt&gt; somewhere (but you also want to retain the value returned by the included file, and context to propagate properly. Good luck!).
+&lt;/p&gt;
+&lt;h2&gt;Learning more&lt;/h2&gt;
+&lt;p&gt;
+I wrote this tutorial to have an answer ready for the &lt;i&gt;n&lt;/i&gt;th time someone in EFnet's #perlhelp asks why [require] works only once, or asks how to really include a file. Explaining the same thing over and over gets annoying over time. This is not a good guide to writing modules. For that, read chapter 10 of [http://learn.perl.org/library/beginning_perl/|Beginning Perl] and [perlmod] and [perlnewmod]. Of course, good code always comes with good documentation; so learn [id://252477].
+&lt;/p&gt;
+
+&lt;h2&gt;One last thing&lt;/h2&gt;
+&lt;p&gt;
+If you name your module &lt;tt&gt;Test&lt;/tt&gt;, don't be surprised if it doesn't work. The current working directory comes &lt;b&gt;last&lt;/b&gt; in &lt;tt&gt;@INC&lt;/tt&gt;, so the [perldoc://Test] module that is in the Perl distribution is probably loaded instead. This bites me at least once per year, this time while writing this tutorial :).
+&lt;/p&gt;</field>
+</data>
+</node>

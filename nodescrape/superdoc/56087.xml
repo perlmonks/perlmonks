@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="56087" title="borg's belly" created="2001-02-02 19:26:21" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+&lt;p&gt;This is where you end up when somebody uses the &lt;tt&gt;[id://539865|/borg]&lt;/tt&gt; command on you.&lt;/p&gt;
+[%
+   my $BUN= getNode('borged users','setting');
+   my $BU= getVars( $BUN );
+   my $str= '';
+   my $changed= 0;
+   my $cnt= 0;
+   my $PU= getNode( 'power users', 'usergroup' );
+   my $isPU= $DB-&gt;isApproved( $USER, $PU );
+   if(  $q-&gt;param('unborgid')  &amp;&amp;  $DB-&gt;isApproved($USER,$PU)  ) {
+      ++$changed   if  delete $BU-&gt;{$query-&gt;param('unborgid')};
+   }
+   $str .= "&lt;table&gt;&lt;tr&gt;";
+   $str .= "&lt;td&gt;&lt;/td&gt;"   if  $isPU;
+   $str .= "&lt;td&gt;User&lt;/td&gt;&lt;td&gt;Time left&lt;/td&gt;&lt;/tr&gt;";
+   my $now= time();
+   foreach(  keys %$BU  ) {
+       if(  $BU-&gt;{$_} &lt; $now  ) {
+          ++$changed;
+          delete $BU-&gt;{$_};
+       } else {
+          $str .= "&lt;tr&gt;";
+          $str .= "&lt;td&gt;" . htmlcode('openform')
+             . $q-&gt;submit( -name=&gt;'unborg' )
+             . $q-&gt;hidden( -name=&gt;'unborgid', -value=&gt;$_, -override=&gt;1 )
+             . "&lt;/form&gt;&lt;/td&gt;"
+             if  $isPU;
+          my $sec= $BU-&gt;{$_} - $now;
+          my $lt = ($sec%60)." sec";
+          $lt = (($sec/60)%60)." minutes $lt" if $sec &gt; 60;
+          $lt = int($sec/3600)." hours $lt" if $sec &gt; 3600;
+          $str .= "&lt;td&gt;" . linkNode($_) . "&lt;/td&gt;&lt;td&gt;$lt&lt;/td&gt;&lt;/tr&gt;";
+          ++$cnt;
+       }
+   }
+   if(  $changed  ) {
+      setVars( $BUN, $BU );
+   }
+   $str .= "&lt;/table&gt;";
+
+   return $cnt ? $str : "&lt;b&gt;No users are currently borged&lt;/b&gt;";
+%]</field>
+</data>
+</node>

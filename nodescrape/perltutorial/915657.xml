@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="915657" title="Catalyst Models Definitive Guide" created="2011-07-20 09:56:42" updated="2011-07-20 09:56:42">
+<type id="956">
+perltutorial</type>
+<author id="437266">
+ait</author>
+<data>
+<field name="doctext">
+&lt;h2&gt;Updates and Errata&lt;/h2&gt;
+
+&lt;h3&gt;Update July 28th 2011&lt;/h3&gt;
+&lt;p&gt;
+The initial release of the code had a possible bug related to the order that the Catalyst instances get loaded. The risk being that the HomeGrownModel glue class could load before the DBIx::Class one. The new version delays the initialization of the HomeGrownModel class instance, until &lt;b&gt;after&lt;/b&gt; the application has fully loaded by means of using the Moose &lt;b&gt;after&lt;/b&gt; feature on the Catalyst method &lt;b&gt;setup_components&lt;/b&gt;. The code explanations below were adjusted to reflect this.
+&lt;/p&gt;
+
+&lt;h3&gt;Update August 2nd 2011&lt;/h3&gt;
+&lt;p&gt;
+There was still a bug on modelthree that needed fixing. That's what happens when you don't write tests, so I will be creating these tests soon.
+&lt;/p&gt;
+
+&lt;h2&gt;Introduction&lt;/h2&gt;
+
+
+&lt;p&gt;
+A lot of information is available about models, both in the Catalyst POD, books, this Wiki and the many discussion on the topic in mailing lists forums and IRC. Everywhere you read you will find comments like "make your controllers thin", "keep your model independent from Catalyst", "the model is just a thin layer", etc. but none of them actually tell you HOW to do it.
+&lt;/p&gt;
+
+&lt;p&gt;
+This guide was developed with actual code to help you understand quickly and easily the different "Model" options you have at your hands when developing with Catalyst. in the best Perl tradition, TMTOWTDI so you are invited to continue your study after going through this guide.
+&lt;/p&gt;
+
+&lt;h2&gt;The idea behind the "Model"&lt;/h2&gt;
+
+&lt;p&gt;
+By now you should have a pretty good idea of the MVC design pattern, so to correctly separate the concerns, your business logic should be written as generic re-usable code that is independent from Catalyst itself. So the first distinction we must make is the difference between YOUR Model and the Catalyst Model Layer. Like everyone agrees: your model should be implementation-independent code that can be re-used, and hopefully published on the CPAN for anyone to use, with or without Catalyst, and the Catalyst Model should be a thin wrapper that connects your model with the catalyst M layer.
+&lt;/p&gt;
+&lt;p&gt;
+The biggest confusion comes from the fact that both in Catalyst and almost every other MVC Web development framework, the M layer is analogous to the ORM (DBIx::Class in Catalyst's case).
+&lt;/p&gt;
+&lt;p&gt;
+This makes some sense because after all, in many Web applications, the M code is very much CRUD with some simple logic. But models can, and should be much more than that...
+&lt;/p&gt;
+
+&lt;h2&gt;Three Patterns for M&lt;/h2&gt;
+
+In the scope of this guide we will explore three ways to implement your M layer and code your own Models.
+
+&lt;h3&gt;Download the Sample Code&lt;/h3&gt;
+
+Before we continue, you must download the latest version of the code for this tutorial. You can check-out the latest version anonymously at:
+
+&lt;pre&gt;
+  svn co svn://svn.yabarana.com/catalyst/Models
+&lt;/pre&gt;
+
+This will download a very simple Catalyst application that demonstrates the three model options described in this guide.
+
+&lt;h2&gt;M Pattern #1: Using the DBIC Model Directly&lt;/h2&gt;
+
+What you learn from tutorials and books is usually that the M layer is in fact the ORM, and in many cases it is, as many Web-based applications are mostly Forms and CRUD. But once you start adding a little bit of logic, your controller code will get messy really fast.
+
+You could of course, factorize code as private methods in the controller (or Action Classes, etc.) but this would be cumbersome and worthless for re-use by other controllers, and of course, impossible to use outside of Catalyst.
+
+But, since this is the most common "Model", let's explore this first pattern in order to understand it's limitations.
+
+In the sample code you can see that we use the ORM directly as the M layer like so (in the class Models::Controller::modelone):
+
+&lt;code&gt;
+sub index :Path :Args(0) {
+  my ( $self, $c ) = @_;
+  my @people = $c-&gt;model('Models::People')-&gt;all();
+  $c-&gt;stash-&gt;{people} = \@people;
+}
+&lt;/code&gt;
+
+Pretty straight forward, except that it's very deceiving for the inadvertent coder. Many people don't realize that the line:
+
+&lt;pre&gt;
+  $c-&gt;model('Models::People')-&gt;all()
+&lt;/pre&gt;
+
+is actually a shortcut for this:
+
+&lt;pre&gt;
+  $c-&gt;model('Models')-&gt;schema-&gt;resultset('People');
+&lt;/pre&gt;
+
+Remember that "Models" is the name of the Catalyst application developed for this guide.
+
+&lt;h3&gt;Disadvantages of M Pattern #1&lt;/h3&gt;
+
+The main disadvantage of this first approach to M is that the only methods in the actual model itself are the query and CRUD methods of the ORM. Everything else must be coded in the controller or in libraries loaded directly on the controller, which somewhat violates the principles of separation of concerns of the MVC pattern in the first place.
+
+By now I hope you are beginning to understand that your DBIC Schema is just one particular Model and that you can have more than one model in a Catalyst application. It can be another DBIC model (actually a DBIC Schema), an extension of the schema, or it can be a completely homegrown one.
+
+&lt;h2&gt;M Pattern #2: Extending the DBIC Model&lt;/h2&gt;
+
+This second pattern allows for you to extend the Schema files in order to add your own methods, so instead of calling the ORM methods directly, you can wrap them in the business logic, which is hidden neatly away in the Schema extension classes.
+
+The mechanism for doing this is described in the "Create a ResultSet Class" section of the Catalyst::Manual::Tutorial::04_BasicCRUD POD.
+
+From the controller perspective the approach isolates your controller code completely by calling more intelligent methods. In this case it's just a simple wrapper to the previous example, but it illustrates the point:
+
+In Models::Controller::modeltwo you will find the index method to be:
+
+&lt;code&gt;
+sub index :Path :Args(0) {
+    my ( $self, $c ) = @_;
+
+    $c-&gt;stash-&gt;{people} =  $c-&gt;model('Models::People')-&gt;listall();
+
+}
+&lt;/code&gt;
+
+&lt;p&gt;
+Here the extended method "listall" hides away any complexity inside the extended class which is simply a common DBIC overlay class like so:
+&lt;/p&gt;
+
+&lt;code&gt;
+package Models::Schema::ModelsDB::ResultSet::People;
+
+use strict;
+use warnings;
+use base 'DBIx::Class::ResultSet';
+
+sub listall {
+  my $self = shift;
+
+  my @people = $self-&gt;all();
+  return \@people;
+
+}
+
+1;
+&lt;/code&gt;
+
+For many applications this way of coding your models will be more than adequate, but only if the business code is closely related to the RDBMS model. In this pattern, you will probably hang your business method to the closest DBIC class and from there you might wind up using other DBIC classes (i.e. a method in one class that updates several tables). To accomplish this you will need a handle to the DBIC schema itself and the next pattern will show you how.
+
+&lt;h2&gt;M Pattern #3: Homegrown Model&lt;/h2&gt;
+
+The third and final M pattern in this guide is a more generic approach which will allow you to craft your code completely independent from Catalyst and then connect it to Catalyst using a Catalyst Model Wrapper. It's also very probable that your homegrown model classes will need access to the DBIC Schema and we will also show you how to do that.
+
+From the controller (Models::Controller::modelthree) your homegrown model works much like the DBIC model in the first and second examples above:
+
+&lt;code&gt;
+sub index :Path :Args(0) {
+    my ( $self, $c ) = @_;
+
+    $c-&gt;stash-&gt;{people} =  $c-&gt;model('HomeGrownModel')-&gt;homegrown_people();
+
+}
+&lt;/code&gt;
+
+This example demonstrates two things. Firstly, is the Catalyst Model wrapper which acts as an interface between your homegrown independent Perl class and the Catalyst framework:
+
+&lt;code&gt;
+package Models::Model::HomeGrownModel;
+
+use base 'Catalyst::Model';
+use HomeGrown;
+use Moose;
+
+our $AUTOLOAD;
+
+has 'HomeGrownInstance' =&gt; (
+  is =&gt; 'rw',
+  isa =&gt; 'HomeGrown',
+);
+
+# Gotcha: using the COMPONENT method like shown below may get you in
+# trouble because your component mat very well be loaded before the
+# DBIC model does. The initialize_after_setup hack shown further down,
+# is a work-around to deferr the instatiation of things, or at least
+# making sure that your model initializes lastly.
+
+#sub COMPONENT {
+#  my ( $self, $app ) = @_;
+#  my $dbic_schema = $app-&gt;model('ModelsDB')-&gt;schema;
+#  return HomeGrown-&gt;new( schema =&gt; $dbic_schema );
+#}
+
+sub initialize_after_setup {
+  my ( $self, $app ) = @_;
+  $app-&gt;log-&gt;debug('Initializing Homegrown with schema AFTER app is fully loaded...');
+  $self-&gt;HomeGrownInstance(
+    HomeGrown-&gt;new( schema =&gt; $app-&gt;model('ModelsDB')-&gt;schema )
+  );
+}
+
+# Here you would map your Catalyst Model methods to the actual model
+# in this example we will just forward everything as is to our
+# HomeGrown external Model
+
+sub AUTOLOAD {
+  my $self = shift;
+  my $name = $AUTOLOAD;
+  $name =~ s/.*://;
+  $self-&gt;HomeGrownInstance-&gt;$name(@_);
+}
+
+1;
+&lt;/code&gt;
+
+&lt;p&gt;
+As you can see this is just a very thin wrapper around your homegrown class. We also demonstrate &lt;b&gt;a correct way&lt;/b&gt; (YMMV) of passing the instantiated DBIC schema to your homegrown external class so you can access the database from there whilst taking advantage of all the connection and re-connection magic of DBIC which is already set-up and working for you thanks to Catalyst.
+&lt;/p&gt;
+
+&lt;p&gt;
+Finally, for this to work correctly, your model class should be instantiated lastly by Catalyst. This bit of Moose &lt;b&gt;after&lt;/b&gt; magic in the main application class (Models.pm) will do the trick. This code must be placed before the application configuration setup sections, preferably right after the $VERSION declarations. See actual sample code for details.
+
+&lt;/p&gt;
+
+&lt;code&gt;
+
+after 'setup_components' =&gt; sub {
+  my $app = shift;
+  for (keys %{ $app-&gt;components }) {
+    $app-&gt;components-&gt;{$_}-&gt;initialize_after_setup($app) 
+      if $app-&gt;components-&gt;{$_}-&gt;can('initialize_after_setup');
+  }
+};
+
+&lt;/code&gt;
+
+&lt;p&gt;
+How this hack works: The &lt;b&gt;after&lt;/b&gt; feature of this Moose declaration will call the inline sub after the setup_components sub of the main application class has been called, that is, after all other components have been set up. The loop in this sample sub will go through every loaded component and identify those that have the initialize_after_setup method and call it if it exists.
+&lt;/p&gt;
+
+
+&lt;p&gt;
+Your Model class would look something like this:
+&lt;p/&gt;
+
+&lt;code&gt;
+package HomeGrown;
+use Moose;
+use namespace::autoclean;
+
+has 'schema' =&gt; (
+  is =&gt; 'rw',
+  required =&gt; 1,
+  isa =&gt; 'DBIx::Class::Schema',
+);
+
+sub homegrown_people {
+  my $self = shift;
+  my @people = $self-&gt;schema-&gt;resultset('People')-&gt;all();
+  return \@people;
+
+}
+
+1;
+&lt;/code&gt;
+
+Notice how your model (or more precisely your business logic implementation) class is completely independent from Catalyst and can be used for any purpose. In our example above, it still depends on a specific database schema and of course DBIC but it's just for illustration of the concept. another approach could be to do the DBIC stuff in the Catalyst model layer (the thin layer above) and only pass specific data to the actual implementation class, this way keeping the latter independent even from that particular database model.
+
+As always TMTOWTDI and your mileage may vary, but hopefully this guide has served you as an opening these possibilities and variants on the same idea: keep your logic code in the M layer and the Catalyst M layer should be as thin as possible.
+
+&lt;h2&gt;Things to avoid at all cost&lt;/h2&gt;
+
+As almost every single document about Catalyst will tell you, the worst thing you could do is make your Model dependent of the context of the HTTP request. In other words, passing $c from the controller to your model, because "it's pretty brain dead".
+
+If for any reason you do in fact need information from the context there is a method called ACCEPT_CONTEXT but stay away from that unless you really justify it. 
+
+And this is just scratching the surface. For most applications though, it will be more than enough to work within the guidelines of M Pattern #3 above
+
+&lt;h2&gt;See Also&lt;/h2&gt;
+
+For more information about Context-dependent models please refer to:
+
+&lt;ul&gt;
+&lt;li&gt;"Models and Views" in [mod://Catalyst::Manual::ExtendingCatalyst]&lt;/li&gt;
+&lt;li&gt;[mod://Catalyst::Component::InstancePerContext]&lt;/li&gt;
+&lt;li&gt;[mod://Catalyst::Model::Factory::PerRequest]&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Links to similar Tutorials&lt;/h3&gt;
+
+&lt;ul&gt;
+&lt;li&gt;10 Catalyst models in 10 days [http://sedition.com/a/2733], example code here: [https://github.com/pangyre/p5-myapp-10in10]&lt;/li&gt;
+&lt;/ul&gt;
+
+
+</field>
+</data>
+</node>

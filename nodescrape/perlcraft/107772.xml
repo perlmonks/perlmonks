@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="107772" title="JPEG Files ReSize" created="2001-08-25 02:12:40" updated="2005-08-03 08:53:28">
+<type id="121">
+perlcraft</type>
+<author id="89780">
+shadox</author>
+<data>
+<field name="doctext">
+# This is a simple program to resize one jpeg size or all 
+# the jpeg files from a given directory
+# script.pl -d directory height width , will change all the 
+# files to that new size, 
+# script -a file.jpg height width , will change just a file
+# If a image is 100 x 200 then the program will try to 
+# adjust a given height and width to mantain the scale
+# I know this program must have some bug, or maybe i use    
+# too much code for something, but this was one of my first 
+# perl scripts :)
+# The script has some comments in spanish cuz here in Costa
+# Rica we speak spanish 
+
+use GD;
+use strict;
+
+sub changeSize{
+
+   if ( @_ ) {
+      
+      my $file = "$_[0]" ;
+      my $newFile = "new".$file;
+      open(JPEG,"&gt;$newFile");
+      binmode JPEG;
+      my $newWidth = $_[1];
+      my $newHeight = $_[2];
+      my $quality = 100;
+      if ( $_[3] ) { $quality = $_[3] if ( $_[3] =~ /[1..100]/ ) ; }
+        
+      my $myImage = newFromJpeg GD::Image($file);
+
+
+      my @size = $myImage-&gt;getBounds( ) ;
+      my $currentWidth = $size[0];
+      my $currentHeight = $size[1];
+
+
+
+      if ( $currentWidth != $currentHeight ) { 
+
+         my $factor = ($currentWidth / $currentHeight);
+         $factor = $newWidth / $factor;
+	 $newHeight = int($factor);
+
+      }
+
+      my $newImage = new GD::Image($newWidth,$newHeight);
+
+
+      $newImage-&gt;copyResized($myImage,0,0,0,0,$newWidth,$newHeight,$currentWidth,$currentHeight);
+
+      print JPEG $newImage-&gt;jpeg($quality);
+      close(JPEG);
+      
+            
+   }
+
+}
+
+my $param = "$ARGV[0]";
+my $dir = "$ARGV[1]" ;
+my $newWidth = "$ARGV[2]" ;
+my $newHeight= "$ARGV[3]" ;
+my $newQuality = "$ARGV[4]" ;
+
+my @tmp = split(/\\/,$0);
+my $name = $tmp[-1];
+
+if ( $param eq "-a" ) {
+
+   if ( -f $dir ){
+
+      &amp;changeSize($dir,$newWidth,$newHeight,$newQuality) if ( $dir =~ /.*\.jpg/);   
+
+
+   } else { print "Estas seguro que $dir es un archivo ? :) "; } 
+
+} elsif ( $param eq "-d" ) {
+
+   opendir(DIR,$dir) or die "Error abriendo directorio $dir\n";
+
+   my @onlyFiles = grep {-f "$dir/$_"} readdir(DIR); # I get this trick from the Q/A area :)
+
+   foreach my $file (@onlyFiles) {
+
+
+      if ( $file =~ /.*\.jpg/ ) {
+
+         &amp;changeSize($file,$newWidth,$newHeight,$newQuality);
+
+      }
+
+
+   }
+
+} else { print "Error :( "; }
+
+</field>
+</data>
+</node>

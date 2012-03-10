@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="20895" title="shownodesoftypesince" created="2000-01-13 17:11:47" updated="2003-01-20 12:33:01">
+<type id="4">
+htmlcode</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="code">
+my ($type,$days,$descon,$authoron)=@_;
+$days||=1;
+my $str;
+$str.="&lt;TR COLSPAN=2&gt;&lt;TD&gt;$type&lt;/TD&gt;&lt;/TR&gt;" if $descon;
+my $type=getId(getType($type));
+my $N;
+my $time_condition =
+  $$VARS{lastviewednewestnodes}
+    ? "&gt;= $$VARS{lastviewednewestnodes}"
+    : "&gt; (unix_timestamp(now())-86400*$days)";
+
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare("
+    SELECT * FROM node
+    WHERE type_nodetype=$type
+      and unix_timestamp(createtime) $time_condition
+    ORDER BY createtime DESC
+");
+
+$csr-&gt;execute or return "SHIT";
+while($N = $csr-&gt;fetchrow_hashref){
+   $str.="&lt;TR&gt;&lt;TD&gt;".linkNode($N)."&lt;/TD&gt;";
+   $str.="&lt;TD&gt;by ".linkNode($$N{author_user})."&lt;/TD&gt;" if($authoron);
+   $str.="&lt;/TR&gt;";
+}
+return "&lt;TABLE&gt;$str&lt;/TABLE&gt;" if $str;
+"";
+</field>
+</data>
+</node>

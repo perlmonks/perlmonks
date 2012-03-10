@@ -1,0 +1,250 @@
+<node>
+  <doctext>&lt;p&gt;&lt;small&gt;Translated to spanish from [id://23317]'s original [id://66677].&lt;/small&gt;&lt;/p&gt;
+
+&lt;h1&gt;&#193;mbito&lt;/h1&gt;
+
+&lt;p&gt;Una de las cosas necesarias para dominar Perl es c&#243;mo manejar los mecanismos de &#225;mbito que te ofrece. &#191;Que queremos globales? Las tenemos. &#191;Que queremos evitar &quot;colisiones&quot; (dos variables con el mismo nombre pis&#225;ndose una a la otra)? Podemos, y hay m&#225;s de una forma de conseguirlo. Pero las reglas de &#225;mbito de Perl no son siempre tan claras, y no es s&#243;lo la diferencia entre &lt;tt&gt;my&lt;/tt&gt; y &lt;tt&gt;local&lt;/tt&gt; lo que hace tropezar a la gente, aunque aclarar eso es uno de mis objetivos.&lt;/p&gt;
+
+&lt;p&gt;He aprendido mucho de &lt;a href=&quot;http://perl.plover.com/FAQs/Namespaces.html&quot;&gt;Coping with scoping&lt;/a&gt; y de varios libros de Perl (por ejemplo, &lt;a href=&quot;http://www.perlmonks.org/?node=Effective%20Perl%20Programming&quot;&gt;Effective Perl Programming&lt;/a&gt;), por lo que debo dar cr&#233;dito a sus autores ([Dominus] por el primero, y Joseph N. Hall y [merlyn] por el segundo). [Dominus] tambi&#233;n ha hecho varias correcciones a los errores (algunos de ellos notables) de una versi&#243;n anterior de este tutorial, as&#237; que &#233;l deber&#237;a considerarse como m&#237;nimo el segundo autor (N del T: aunque [Dominus] no est&#225; de acuerdo con esto). Sin embargo la documentaci&#243;n que viene con tu versi&#243;n de Perl es la m&#225;s actualizada que puedes consultar, as&#237; que no dudes en usar &lt;tt&gt;perldoc perlop&lt;/tt&gt; y &lt;tt&gt;perldoc -f foo&lt;/tt&gt; en tu propio sistema.&lt;/p&gt;
+
+&lt;h3&gt;Resumen&lt;/h3&gt;
+
+&lt;p&gt;S&#237;, al principio...&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;tt&gt;my&lt;/tt&gt; proporciona &#225;mbito l&#233;xico; una variable declarada con &lt;tt&gt;my&lt;/tt&gt; s&#243;lo es visible en el bloque en que ha sido declarada.&lt;/li&gt;
+  &lt;li&gt;Los bloques de c&#243;digo son trozos delimitados por llaves { }. Un archivo tambi&#233;n se considera un bloque.&lt;/li&gt;
+  &lt;li&gt;Usar &lt;tt&gt;use vars qw(&amp;#91;nombres de variables&amp;#93;)&lt;/tt&gt; o &lt;tt&gt;our (&amp;#91;nombres de variables&amp;#93;)&lt;/tt&gt; para crear globales.&lt;/li&gt;
+  &lt;li&gt;&lt;tt&gt;local&lt;/tt&gt; guarda el valor de una global y lo sustituye por un valor nuevo a efectos del c&#243;digo que est&#225; en el bloque
+actual y al que llamemos desde tal bloque.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h2&gt;Espacios de nombres&lt;/h2&gt;
+
+&lt;p&gt;Una de las ideas b&#225;sicas, aunque no es necesario dominarla para muchos programas, es la de &lt;i&gt;espacios de nombres&lt;/i&gt;. Las variables globales (las que no se declaran con &lt;tt&gt;my&lt;/tt&gt;) est&#225;n en un paquete. Los paquetes proporcionan &lt;i&gt;espacios de nombres&lt;/i&gt;, que voy a explicar usando como met&#225;fora los apellidos. En los pa&#237;ses de habla hispana, &quot;Roberto&quot; es un nombre bastante com&#250;n, as&#237; que es posible que conozcamos a m&#225;s de un &quot;Roberto&quot; (asumiendo que vivimos en uno de estos pa&#237;ses). Normalmente, para los humanos, el contexto de la conversaci&#243;n basta para que nuestra audiencia sepa de qu&#233; &quot;Roberto&quot; estamos hablando (en el vest&#237;bulo de la piscina, &quot;Roberto&quot; es el que controla de dardos; pero en el trabajo &quot;Roberto&quot; es el director de la empresa).&lt;/p&gt;
+
+&lt;p&gt;Por supuesto, estas personas tambi&#233;n tienen &lt;i&gt;apellidos&lt;/i&gt; (pero existen personas distintas con el mismo apellido, as&#237; que despu&#233;s de todo esta met&#225;fora no es perfecta), y si quisi&#233;ramos ser expl&#237;citos podr&#237;amos a&#241;adirlos para que quien nos oye sepa de qu&#233; &quot;Roberto&quot; hablamos. $Garcia::Roberto es una cosa distinta de $Gonzalez::Roberto. Cuando tenemos dos variables distintas con el mismo &quot;nombre de pila&quot;, podemos referirnos a cualquiera de ellas, sin importar el lugar del c&#243;digo en que nos encontremos, usando el nombre completo de la variable.&lt;/p&gt;
+
+&lt;p&gt;Se usa el operador &lt;tt&gt;package&lt;/tt&gt; para cambiar el paquete actual. Cuando usamos &lt;tt&gt;package Garcia&lt;/tt&gt; en el programa, estamos, en efecto, diciendo que todas las variables y funciones no calificadas (es decir, que no tienen &quot;apellido&quot; expl&#237;cito) deben ser entendidas como si estuvieran en el paquete Garcia. Es como decir &quot;en esta parte del programa, voy a hablar de la familia Garcia&quot;.&lt;/p&gt;
+
+&lt;p&gt;De forma impl&#237;cita, hay un &lt;tt&gt;package main&lt;/tt&gt; al principio de los programas, esto es, excepto que declaremos expl&#237;citamente un paquete distinto, todas las variables que se declaren (teniendo en cuenta el uso de &lt;tt&gt;my&lt;/tt&gt;) estar&#225;n en &lt;tt&gt;main&lt;/tt&gt;. A las variables que est&#225;n en un paquete se les llama, y con raz&#243;n, &quot;globales de paquete&quot;, porque se puede acceder a ellas sin m&#225;s desde todos los operadores y subrutinas que est&#225;n en tal paquete (y si somos expl&#237;citos con sus nombres, tambi&#233;n son accesibles desde fuera de &#233;l).&lt;/p&gt;
+
+&lt;p&gt;Usar paquetes hace que acceder a las variables sea como moverse en distintos c&#237;rculos. Por ejemplo, en el trabajo, se entiende que &quot;Roberto&quot; es &quot;Roberto Szywiecki&quot;, el jefe. En la piscina, &quot;Roberto&quot; es &quot;Roberto Yamauchi&quot;, el experto en dardos. Aqu&#237; tenemos un peque&#241;o programa para mostrar el uso de paquetes:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+package Szywiecki;
+
+$Robert = &quot;el jefe&quot;;
+
+sub terminate {
+  my $name = shift;
+  print &quot;$Robert ha despedido a ${name}\n&quot;;
+}
+
+terminate(&quot;arturo&quot;); # muestra &quot;el jefe ha despedido a arturo&quot;
+
+package main;
+
+# terminate(&quot;arturo&quot;); # produce un error si se descomenta
+__OUTPUT__
+el jefe ha despedido a arturo&lt;/code&gt;
+
+&lt;p&gt;El nombre completo de la variable &lt;tt&gt;$Robert&lt;/tt&gt; es &lt;tt&gt;$Szywiecki::Robert&lt;/tt&gt; (n&#243;tese que el &lt;tt&gt;$&lt;/tt&gt; se desplaza al principio, antes del nombre del paquete, indicando que este es el escalar  &lt;tt&gt;Robert&lt;/tt&gt; que est&#225; en el paquete &lt;tt&gt;Szywiecki&lt;/tt&gt;). Para el c&#243;digo y, m&#225;s importante, las subrutinas del paquete &lt;tt&gt;Szywiecki&lt;/tt&gt;, un &lt;tt&gt;$Robert&lt;/tt&gt; sin calificar se refiere a &lt;tt&gt;$Szywiecki::Robert&lt;/tt&gt; -- &lt;i&gt;excepto&lt;/i&gt; que &lt;tt&gt;$Robert&lt;/tt&gt; haya sido &quot;enmascarado&quot; por una declaraci&#243;n &lt;tt&gt;my&lt;/tt&gt; o &lt;tt&gt;local&lt;/tt&gt; (hablaremos de esto despu&#233;s).&lt;/p&gt;
+
+&lt;p&gt;Ahora, al hacer &lt;tt&gt;use strict&lt;/tt&gt; (y se deber&#237;a! consulta [strict.pm] por ejemplo), tendremos que declarar todas esas variables globales antes de poder usarlas, EXCEPTO que querramos usar siempre sus nombres completos. Esa es la raz&#243;n por la que la segunda llamada a &lt;tt&gt;terminate&lt;/tt&gt; fallar&#237;a si  la descoment&#225;ramos. Perl espera encontrar una subrutina &lt;tt&gt;terminate&lt;/tt&gt; 
+en el paquete &lt;tt&gt;main&lt;/tt&gt;, pero no la hemos definido. Es decir, esto:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+
+$Robert = &quot;el jefe&quot;;  # error!
+print &quot;\$Robert = $Robert\n&quot;;&lt;/code&gt;
+
+&lt;p&gt;producir&#225; un error, mientras que si ponemos el nombre entero (recordando que existe un &lt;tt&gt;package main&lt;/tt&gt; impl&#237;cito), no hay problema:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+
+$main::Robert = &quot;el jefe&quot;;
+print &quot;\$main::Robert = $main::Robert\n&quot;;&lt;/code&gt;
+
+&lt;p&gt;Para satisfacer a &lt;tt&gt;strict 'vars'&lt;/tt&gt; (la parte de &lt;tt&gt;strict&lt;/tt&gt; que se encarga de las declaraciones de variables), tenemos dos opciones; producen resultados distintos y una de ellas s&#243;lo est&#225; disponible en Perl 5.6.0 y m&#225;s recientes:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;El operador &lt;tt&gt;our ($foo, $bar)&lt;/tt&gt; (en Perl 5.6.0 y superiores) declara &lt;tt&gt;$foo&lt;/tt&gt; como una variable en el paquete actual.&lt;/li&gt;
+  &lt;li&gt;&lt;tt&gt;use vars qw($foo $bar)&lt;/tt&gt; (versiones anteriores, pero todav&#237;a funciona en 5.6) le dice a &lt;tt&gt;strict 'vars'&lt;/tt&gt; que es correcto usar estas variables sin calificarlas del todo.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Una de las diferencias entre &lt;tt&gt;our&lt;/tt&gt; y el m&#225;s antiguo &lt;tt&gt;use vars&lt;/tt&gt; es que &lt;tt&gt;our&lt;/tt&gt; proporciona &lt;i&gt;&#225;mbito l&#233;xico&lt;/i&gt; (m&#225;s acerca de esto en la secci&#243;n de &lt;tt&gt;my&lt;/tt&gt;, m&#225;s abajo).&lt;/p&gt;
+
+&lt;p&gt;Otra diferencia es que con &lt;tt&gt;use vars&lt;/tt&gt;, debemos usar un array de &lt;i&gt;nombres&lt;/i&gt; de variables, no las variables propiamente dichas (tal como con &lt;tt&gt;our&lt;/tt&gt;). Ambos mecanismos nos permiten usar globales al mismo tiempo que mantenemos uno de los principales beneficios de &lt;tt&gt;strict 'vars'&lt;/tt&gt;: el estar protegidos de crear variables accidentalmente si nos equivocamos al teclear. &lt;tt&gt;strict 'vars'&lt;/tt&gt; exige que las variables se declaren expl&#237;citamente (como diciendo &quot;estas son las globales que voy a usar&quot;). Los dos mecanismos permiten hacer esto con globales de paquete.&lt;/p&gt;
+
+&lt;p&gt;Algo que debemos tener en cuenta (que es potencialmente algo malo, dependiendo de lo fan&#225;tico que uno sea de la privacidad&quot;) es que las variables globales no son s&#243;lo globales a ese paquete, sino que son accesibles desde &lt;i&gt;cualquier parte del c&#243;digo&lt;/i&gt;, siempre que se usen sus nombres completos. Podemos hablar de Roberto, el experto de dardos, en el trabajo si decimos &quot;Roberto Yamauchi&quot; (en este c&#243;digo no uso &lt;tt&gt;strict&lt;/tt&gt; por brevedad):&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+package Szywiecki;
+
+$Robert = &quot;el jefe&quot;;
+
+package PoolHall;
+
+$Robert = &quot;el experto en dardos&quot;;
+
+package Szywiecki; # a trabajar otra vez!
+
+print &quot;Aqu&#237; en el trabajo, 'Robert' es $Robert, pero en la piscina, 'Robert' es $PoolHall::Robert\n&quot;;
+__OUTPUT__
+Aqu&#237; en el trabajo, 'Robert' es el jefe, pero en la piscina, 'Robert' es el experto en dardos&lt;/code&gt;
+
+&lt;p&gt;&#191;Lo veis? Entender los paquetes no es tan dif&#237;cil. En t&#233;rminos generales, un paquete es como una familia de variables (&#161;y de subrutinas! el nombre completo de aquel &lt;tt&gt;terminate&lt;/tt&gt; en un ejemplo anterior es &lt;tt&gt;&amp;Szywiecki::terminate&lt;/tt&gt; -- lo mismo sirve para hashes y arrays, por supuesto).&lt;/p&gt;
+
+&lt;h2&gt;&lt;tt&gt;my&lt;/tt&gt; (y un poco m&#225;s sobre &lt;tt&gt;our&lt;/tt&gt;) &lt;i&gt;a.k.a&lt;/i&gt; &#225;mbito l&#233;xico&lt;/h2&gt;
+
+&lt;p&gt;Las variables declaradas con &lt;tt&gt;my&lt;/tt&gt; no son globales, aunque pueden actuar como tales. Uno de los usos principales de &lt;tt&gt;my&lt;/tt&gt; es operar con una variable que s&#243;lo sirva en un bucle o subrutina, pero desde luego que hay muchos m&#225;s. He aqu&#237; algunos conceptos acerca de &lt;tt&gt;my&lt;/tt&gt;:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;El &#225;mbito de una variable &lt;tt&gt;my&lt;/tt&gt; es un &lt;i&gt;bloque&lt;/i&gt; de c&#243;digo.&lt;/li&gt;
+  &lt;li&gt;Un bloque se define normalmente con llaves { }, pero en lo que a Perl concierne, un archivo tambi&#233;n es un bloque.&lt;/li&gt;
+  &lt;li&gt;Las variables declaradas con &lt;tt&gt;my&lt;/tt&gt; &lt;i&gt;&lt;b&gt;no pertenecen a ning&#250;n paquete&lt;/b&gt;&lt;/i&gt;, s&#243;lo &quot;pertenecen&quot; a su bloque.&lt;/li&gt;
+  &lt;li&gt;Aunque podemos dar nombre a los bloques (por ejemplo, &lt;tt&gt;BEGIN&lt;/tt&gt;), no podemos calificar el nombre del bloque para acceder a la variable &lt;tt&gt;my&lt;/tt&gt;.&lt;/li&gt;
+  &lt;li&gt;Las variables &lt;tt&gt;my&lt;/tt&gt; a nivel de archivo son las que se declaran en un archivo pero fuera de un bloque de c&#243;digo.&lt;/li&gt;
+  &lt;li&gt;No se puede acceder a una variable &lt;tt&gt;my&lt;/tt&gt; de archivo desde fuera del archivo en que se declare (&lt;i&gt;excepto&lt;/i&gt; que sea el valor de retorno de una subrutina, por ejemplo).&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Mientras s&#243;lo escribamos programas de un solo archivo (por ejemplo, los que no importan m&#243;dulos), algunos de estos conceptos no importan mucho. Pero si estamos interesados en privacidad y encapsulaci&#243;n (por ejemplo, si escribimos m&#243;dulos), tendremos que entender todas esas cosas.&lt;/p&gt;
+
+&lt;p&gt;He aqu&#237; un programa comentado para explicar algunas:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+
+#recordemos que estamos en el paquete main
+
+use vars qw($foo);
+
+$foo = &quot;Yo!&quot;; # damos valor a $main::foo
+
+print &quot;\$foo: $foo\n&quot;; # muestra &quot;Yo!&quot;
+
+my $foo = &quot;Hey!&quot;; # variable my a nivel de archivo
+
+print &quot;\$foo: $foo\n&quot;; # muestra &quot;Hey!&quot; -- la variable nueva 'pisa' a la vieja
+
+{ # comenzamos un bloque 
+  my $foo = &quot;Yacht-Z&quot;;   
+  print &quot;\$foo: $foo\n&quot;; 
+  # muestra &quot;Yacht-Z&quot; -- hay una nueva variable $foo visible
+  print &quot;\$main::foo: $main::foo\n&quot;;
+  # todav&#237;a podemos ver $main::foo
+  subroutine();   
+} # fin del bloque
+
+print &quot;\$foo: $foo\n&quot;; # nuestra variable $foo a nivel de archivo se ve otra vez!
+
+print &quot;\$main::foo: $main::foo\n&quot;; # $main::foo todav&#237;a est&#225; aqu&#237;
+
+sub subroutine {
+  print &quot;\$foo: $foo\n&quot;; # muestra &quot;Hey!&quot;
+  # &#191;Por qu&#233;? porque la variable declarada en el bloque sin nombre est&#225; en  
+  # su &#225;mbito -- ahora tenemos otras llaves distintas rodeando esto. Pero la
+  # variable de archivo todav&#237;a est&#225; en &#225;mbito, y todav&#237;a &quot;pisa&quot; a la
+  # declaraci&#243;n de $main::foo.
+}
+
+package Bar;
+
+print &quot;\$foo: $foo\n&quot;; # muestra &quot;Hey!&quot; -- la variable my todav&#237;a es visible
+# si no hubi&#233;ramos hecho la declaraci&#243;n arriba, esto provocar&#237;a un error: el
+# int&#233;rprete nos dir&#237;a que Bar::foo no ha sido definida.
+__OUTPUT__   
+$foo: Yo!      
+$foo: Hey!     
+$foo: Yacht-Z  
+$main::foo: Yo!
+$foo: Hey!
+$foo: Hey!
+$main::foo: Yo!  
+$foo: Hey!&lt;/code&gt;
+
+&lt;p&gt;Tal como la parte de abajo del ejemplo nos dice, dado que no est&#225;n en ning&#250;n paquete, las variables &lt;tt&gt;my&lt;/tt&gt; &lt;i&gt;pueden ser&lt;/i&gt; visibles incluso aunque hayamos declarado un paquete nuevo, &lt;i&gt;dado que el bloque de c&#243;digo es el archivo&lt;/i&gt; (al menos en este ejemplo).&lt;/p&gt;
+
+&lt;p&gt;Este ejemplo usa un bloque sin nombre, no hay estructura de control asociada (por ejemplo &lt;tt&gt;if&lt;/tt&gt; o &lt;tt&gt;while&lt;/tt&gt;). Pero de ser as&#237; tampoco habr&#237;a diferencias.&lt;/p&gt;
+
+&lt;p&gt;Las variables &lt;tt&gt;my&lt;/tt&gt; de archivo SON accesibles desde los bloques definidos en ese archivo (tal como el ejemplo muestra), esta es una manera de la que pueden actuar como globales. Si, no obstante, &lt;tt&gt;subroutine&lt;/tt&gt; se hubiera definido en otro archivo, tendr&#237;amos un error en tiempo de ejecuci&#243;n. Una vez sabemos c&#243;mo funciona &lt;tt&gt;my&lt;/tt&gt;, podemos saber, s&#243;lo fij&#225;ndonos en la sintaxis del archivo, d&#243;nde va a ser visible. Esta es una raz&#243;n por la que el &#225;mbito que proporciona se llama &quot;l&#233;xico&quot;. En esto, &lt;tt&gt;use vars&lt;/tt&gt; y el nuevo operador &lt;tt&gt;our&lt;/tt&gt; difieren: si ponemos &lt;tt&gt;our $foo&lt;/tt&gt; en el paquete &lt;tt&gt;Bar&lt;/tt&gt; pero &lt;i&gt;fuera de un bloque&lt;/i&gt;, estamos diciendo que (hasta que aparezca otro operador de &#225;mbito) debe entenderse que las ocurrencias de &lt;tt&gt;$foo&lt;/tt&gt; se refieren a &lt;tt&gt;$Bar::foo&lt;/tt&gt;. Esto ilustra la diferencia entre &lt;tt&gt;use vars&lt;/tt&gt; y el nuevo &lt;tt&gt;our&lt;/tt&gt;:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+
+our ($bob);
+use vars qw($carol);
+$carol = &quot;ted&quot;;
+$bob = &quot;alice&quot;;
+
+print &quot;Bob =&gt; $bob, Carol =&gt; $carol\n&quot;;
+
+package Movie;
+
+print &quot;Bob =&gt; $bob, Carol =&gt; $carol\n&quot;;&lt;/code&gt;
+
+&lt;p&gt;El segundo &lt;tt&gt;print&lt;/tt&gt; produce un error, porque &lt;tt&gt;$carol&lt;/tt&gt; se toma como &lt;tt&gt;$Movie::carol&lt;/tt&gt;, mientras que &lt;tt&gt;$bob&lt;/tt&gt; es &lt;tt&gt;$main::bob&lt;/tt&gt;.&lt;/p&gt;
+
+&lt;p&gt;Mientras que esta &quot;expansi&#243;n sobre paquetes&quot; (que s&#243;lo se muestra en el caso de &lt;tt&gt;our&lt;/tt&gt;) es una similaridad funcional entre los dos tipos distintos de operadores de &#225;mbito, no debemos olvidar la diferencia entre ellos, que es que &lt;tt&gt;our&lt;/tt&gt; declara una global, pero &lt;tt&gt;my&lt;/tt&gt; no.&lt;/p&gt;
+
+&lt;h2&gt;&lt;tt&gt;local&lt;/tt&gt; &lt;i&gt;a.k.a.&lt;/i&gt; &#225;mbito din&#225;mico&lt;/h2&gt;
+
+&lt;p&gt;Ahora llegamos a &lt;tt&gt;local&lt;/tt&gt;, que es como &lt;tt&gt;my&lt;/tt&gt;, pero debido a su nombre, su funci&#243;n se confunde con frecuencia con la de &lt;tt&gt;my&lt;/tt&gt;. Aqu&#237; est&#225; el detalle: &lt;tt&gt;local $foo&lt;/tt&gt; &lt;i&gt;almacena&lt;/i&gt; el valor actual de la variable &lt;b&gt;global&lt;/b&gt; &lt;tt&gt;$foo&lt;/tt&gt;, y hace que en el bloque actual y en el c&#243;digo al que se llame desde el bloque actual, &lt;tt&gt;$foo&lt;/tt&gt; se refiera al valor que le demos en tal bloque (hacer &lt;tt&gt;local $foo&lt;/tt&gt; le dar&#225; a &lt;tt&gt;$foo&lt;/tt&gt; el valor &lt;tt&gt;undef&lt;/tt&gt;, lo mismo que con &lt;tt&gt;my&lt;/tt&gt;). Actualmente, &lt;tt&gt;local&lt;/tt&gt; s&#243;lo funciona en &lt;b&gt;globales&lt;/b&gt;, no se puede usar sobre una variable &lt;tt&gt;my&lt;/tt&gt;.&lt;/p&gt;
+
+&lt;p&gt;Ya que &lt;tt&gt;local&lt;/tt&gt; puede afectar a cosas que ocurren fuera del bloque en que lo hemos usado, &lt;tt&gt;local&lt;/tt&gt; proporciona &#225;mbito denominado &lt;i&gt;din&#225;mico&lt;/i&gt;, ya que su efecto se determina a partir de lo que ocurre cuando se ejecuta el programa. Esto es, el compilador no puede saber cuando &lt;tt&gt;local&lt;/tt&gt; har&#225; efecto o no durante la compilaci&#243;n del programa (que ocurre antes de la ejecuci&#243;n del mismo). Esto distingue el &#225;mbito din&#225;mico del l&#233;xico proporcionado por &lt;tt&gt;my&lt;/tt&gt; y &lt;tt&gt;our&lt;/tt&gt;, que tienen efectos visibles en tiempo de compilaci&#243;n.&lt;/p&gt;
+
+&lt;p&gt;El resultado b&#225;sico de esta diferencia es que si &lt;tt&gt;local&lt;/tt&gt;izamos una variable dentro de un bloque y llamamos a una subrutina desde ese bloque, la subrutina ver&#225; el valor de la variable &lt;tt&gt;local&lt;/tt&gt;izada. Esta es una diferencia importante entre &lt;tt&gt;my&lt;/tt&gt; y &lt;tt&gt;local&lt;/tt&gt;. Comparar el ejemplo anterior con este:&lt;/p&gt;
+
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+
+use vars qw ($foo); # &quot;our $foo&quot; si usamos 5.6
+
+$foo = &quot;global value&quot;;
+
+print &quot;\$foo: $foo\n&quot;; # muestra &quot;global value&quot;
+
+print &quot;mysub    result '&quot;, &amp;mysub(),    &quot;'\n&quot;; # &quot;global value&quot;
+print &quot;localsub result '&quot;, &amp;localsub(), &quot;'\n&quot;; # &quot;local value&quot;
+print &quot;no sub   result '&quot;, &amp;showfoo(),  &quot;'\n&quot;; # &quot;global value&quot;
+
+sub mysub {
+ my $foo = &quot;my value&quot;;
+ showfoo();
+}
+
+sub localsub {
+ local $foo = &quot;local value&quot;;
+ showfoo(); # SIEMPRE muestra &quot;local value&quot;
+}
+
+sub showfoo { 
+ return $foo;
+}
+__OUTPUT__
+$foo: global value
+mysub    result 'global value'
+localsub result 'local value'
+no sub   result 'global value'&lt;/code&gt;
+
+&lt;p&gt;N&#243;tese que &lt;tt&gt;showfoo&lt;/tt&gt; ignora (en apariencia) la declaraci&#243;n &lt;tt&gt;my&lt;/tt&gt; de &lt;tt&gt;mysub&lt;/tt&gt; (ya que hemos abandonado el bloque en el que la declaraci&#243;n &lt;tt&gt;my&lt;/tt&gt; tiene efecto) pero la declaraci&#243;n &lt;tt&gt;local&lt;/tt&gt; de &lt;tt&gt;localsub&lt;/tt&gt; no se ignora. Y despu&#233;s de abandonar ese bloque, el valor original de &lt;tt&gt;$foo&lt;/tt&gt; se vuelve a ver.&lt;/p&gt;
+
+&lt;p&gt;Espero que hay&#225;is aprendido tanto al leer esto como yo al escribirlo!&lt;/p&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>559011</node_id>
+  <author_user>489671</author_user>
+  <title>&#193;mbito de variables en Perl: lo b&#225;sico</title>
+  <createtime>2006-07-03 12:13:13</createtime>
+  <nodeupdated>2006-07-03 08:13:13</nodeupdated>
+</node>

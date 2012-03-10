@@ -1,0 +1,195 @@
+<node>
+  <doctext>&lt;h2&gt;split and join&lt;/h2&gt;&lt;p&gt;
+Regular expressions are used to match delimiters with the [doc://split|split] function, to break up strings into a list of substrings.  The [doc://join|join] function is in some ways the inverse of split. It takes a list of strings and joins them together again, optionally, with a delimiter.  We'll discuss split first, and then move on to join.
+&lt;/p&gt;
+&lt;h2&gt;A simple example...&lt;/h2&gt;
+&lt;p&gt;
+Let's first consider a simple use of split: split a string on whitespace.
+&lt;/p&gt;
+&lt;code&gt;
+    $line = &quot;Bart  Lisa Maggie Marge Homer&quot;;
+    @simpsons = split ( /\s/, $line ); 
+        # Splits line and uses single whitespaces 
+        # as the delimiter.
+&lt;/code&gt;
+&lt;p&gt;
+@simpsons now contains &quot;Bart&quot;, &quot;&quot;, &quot;Lisa&quot;, &quot;Maggie&quot;, &quot;Marge&quot;, and &quot;Homer&quot;.  
+&lt;/p&gt;&lt;p&gt;
+There is an empty element in the list that split placed in &lt;code&gt;@simpsons&lt;/code&gt;.  That is because &lt;code&gt;\s&lt;/code&gt; matched exactly one whitespace character.  But in our string, &lt;code&gt;$line&lt;/code&gt;, there were two spaces between Bart and Lisa.  Split, using single whitespaces as delimiters, created an empty string at the point where two whitespaces were found next to each other.  That also includes preceding whitespace.  In fact, empty delimiters found anywhere in the string will result in empty strings being returned as part of the list of strings.
+&lt;/p&gt;
+&lt;readmore&gt;
+&lt;p&gt;
+We can specify a more flexible delimiter that eliminates the creation of an empty string in the list.
+&lt;/p&gt;
+&lt;code&gt;
+    @simpsons = split ( /\s+/, $line ); 
+    #Now splits on one-or-more whitespaces.
+&lt;/code&gt;
+&lt;p&gt;
+&lt;code&gt;@simpsons&lt;/code&gt; now contains &quot;Bart&quot;, &quot;Lisa&quot;, &quot;Maggie&quot;, &quot;Marge&quot;, and &quot;Homer&quot;, because the delimiter match is seen as one or more whitespaces,  multiple whitespaces next to each other are consumed as one delimiter.
+&lt;/p&gt;
+&lt;h2&gt;Where do delimiters go?&lt;/h2&gt;
+&lt;p&gt;
+&quot;What does split do with the delimiters?&quot;  Usually it discards them, returning only what is found to either side of the delimiters (including empty strings if two delimiters are next to each other, as seen in our first example).  Let's examine that point in the following example:
+&lt;/p&gt;
+&lt;code&gt;
+    $string = &quot;Just humilityanother humilityPerl humilityhacker.&quot;;
+    @japh = split ( /humility/, $string );
+&lt;/code&gt;
+&lt;p&gt;
+The delimiter is something visible: 'humility'.  And after this code executes, &lt;code&gt;@japh&lt;/code&gt; contains four strings, &quot;Just &quot;, &quot;another &quot;, &quot;Perl &quot;, and &quot;hacker.&quot;.  'humility' bit the bit-bucket, and was tossed aside.
+&lt;/p&gt;
+&lt;h2&gt;Preserving delimiters&lt;/h2&gt;
+&lt;p&gt;
+If you want to keep the delimiters you can.  Here's an example of how.  &lt;em&gt;Hint, you use capturing parenthesis.&lt;/em&gt;
+&lt;/p&gt;
+&lt;code&gt;
+    $string = &quot;alpha-bravo-charlie-delta-echo-foxtrot&quot;;
+    @list = split ( /(-)/, $string );
+&lt;/code&gt;
+&lt;p&gt;
+&lt;code&gt;@list&lt;/code&gt; now contains &quot;alpha&quot;,&quot;-&quot;, &quot;bravo&quot;,&quot;-&quot;, &quot;charlie&quot;, and so on.  The parenthesis caused the delimiters to be captured into the list passed to @list right alongside the stuff between the delimiters.
+&lt;/p&gt;
+&lt;h2&gt;The null delimiter&lt;/h2&gt;
+&lt;p&gt;
+What happens if the delimiter is indicated to be a null string (a string of zero characters)?  Let's find out.
+&lt;/p&gt;
+&lt;code&gt;
+    $string = &quot;Monk&quot;;
+    @letters = split ( //, $string );
+&lt;/code&gt;
+&lt;p&gt;
+Now &lt;code&gt;@letters&lt;/code&gt; contains a list of four letters, &quot;M&quot;, &quot;o&quot;, &quot;n&quot;, and &quot;k&quot;.  If split is given a null string as a delimiter, it splits on each null position in the string, or in other words, every character boundary.  The effect is that the split returns a list broken into individual characters of &lt;code&gt;$string&lt;/code&gt;.
+&lt;/p&gt;
+&lt;h2&gt;Split's return value&lt;/h2&gt;
+&lt;p&gt;
+Earlier I mentioned that split returns a list.  That list, of course, can be stored in an array, and often is.  But another use of split is to store its return values in a list of scalars.  Take the following code:
+&lt;/p&gt;
+&lt;code&gt;
+    @mydata = ( &quot;Simpson:Homer:1-800-000-0000:40:M&quot;,
+                &quot;Simpson:Marge:1-800-111-1111:38:F&quot;,
+                &quot;Simpson:Bart:1-800-222-2222:11:M&quot;,
+                &quot;Simpson:Lisa:1-800-333-3333:9:F&quot;,
+                &quot;Simpson:Maggie:1-800-444-4444:2:F&quot; );
+    foreach ( @mydata ) {
+        ( $last, $first, $phone, $age ) = split ( /:/ ); 
+        print &quot;You may call $age year old $first $last at $phone.\n&quot;;
+    }
+&lt;/code&gt;
+&lt;p&gt;
+What happened to the person's sex?  It's just discarded because we're only accepting four of the five fields into our list of scalars.  And how does split know what string to split up?  When split isn't explicitly given a string to split up, it assumes you want to split the contents of &lt;code&gt;$_&lt;/code&gt;.  That's handy, because foreach aliases &lt;code&gt;$_&lt;/code&gt; to each element (one at a time) of &lt;code&gt;@mydata&lt;/code&gt;.
+&lt;/p&gt;
+&lt;h2&gt;Words about Context&lt;/h2&gt;
+&lt;p&gt;
+Put to its normal use, split is used in list context.  It may also be used in scalar context, though its use in scalar context is deprecated.  In scalar context, split returns the number of fields found, and splits into the @_ array.  It's easy to see why that might not be desirable, and thus, why using split in scalar context is frowned upon.
+&lt;/p&gt;
+&lt;h2&gt;The limit argument&lt;/h2&gt;
+&lt;p&gt;
+Split can optionally take a third argument.  If you specify a third argument to split, as in &lt;code&gt;@list = split ( /\s+/, $string, 3 );&lt;/code&gt; split returns no more than the number of fields you specify in the third argument.  So if you combine that with our previous example.....
+&lt;/p&gt;
+&lt;code&gt;
+    ( $last, $first, $everything_else) = split ( /:/, $_, 3 );
+&lt;/code&gt;
+&lt;p&gt;
+Now, &lt;code&gt;$everything_else&lt;/code&gt; contains Bart's phone number, his age, and his sex, delimited by &quot;:&quot;, because we told split to stop early.  If you specify a negative limit value, split understands that as being the same as an arbitrarily large limit.
+&lt;/p&gt;
+&lt;h2&gt;Unspecified split pattern&lt;/h2&gt;
+&lt;p&gt;
+As mentioned before, &lt;code&gt;limit&lt;/code&gt; is an optional parameter.  If you leave limit off, you may also, optionally, choose to not specify the split string.  Leaving out the split string causes split to attempt to split the string contained in $_.  And if you leave off the split string (and limit), you may also choose to not specify a delimiter pattern.
+&lt;/p&gt;&lt;p&gt;
+If you leave off the pattern, split assumes you want to split on &lt;code&gt;/\s+/&lt;/code&gt;.  Not specifying a pattern also causes split to skip leading whitespace. It then splits on any whitespace field (of one or more whitespaces), and skips past any trailing whitespace.  One special case is when you specify the string literal, &quot; &quot;  (a quoted space), which does the same thing as specifying no delimiter at all (no argument).
+&lt;/p&gt;
+&lt;h2&gt;The star quantifier (zero or more)&lt;/h2&gt;
+&lt;p&gt;
+Finally, consider what happens if we specify a split delimiter of &lt;code&gt;/\s*/&lt;/code&gt;.  The quantifier &quot;*&quot; means zero or more of the item it is quantifying.  So this split can split on nothing (character boundaries), any amount of whitespace.  And remember, delimiters get thrown away.  See this in action:
+&lt;/p&gt;
+&lt;code&gt;
+    $string = &quot;Hello world!&quot;;
+    @letters = split ( /\s*/, $string );
+&lt;/code&gt;
+&lt;p&gt;
+&lt;code&gt;@letters&lt;/code&gt; now contains &quot;H&quot;, &quot;e&quot;, &quot;l&quot;, &quot;l&quot;, &quot;o&quot;, &quot;w&quot;, &quot;o&quot;, &quot;r&quot;, &quot;l&quot;, &quot;d&quot;, and &quot;!&quot;.  
+&lt;br&gt;Notice that the whitespace is gone.  You just split &lt;code&gt;$string&lt;/code&gt;, character by character (because null matches boundaries), &lt;em&gt;and&lt;/em&gt; on whitespace (which gets discarded because it's a delimiter).
+&lt;/p&gt;
+&lt;h2&gt;Using split versus Regular Expressions&lt;/h2&gt;
+&lt;p&gt;
+There are cases where it is equally easy to use a regexp in list context to split a string as it is to use the split function.  Consider the following examples:
+&lt;/p&gt;
+&lt;code&gt;
+    my @list = split /\s+/, $string;
+    my @list = $string =~ /(\S+)/g;
+&lt;/code&gt;
+&lt;p&gt;
+In the first example you're defining what to throw away.  In the second, you're defining what to keep.  But you're getting the same results.  That is a case where it's equally easy to use either syntax.
+&lt;/p&gt;&lt;p&gt;
+But what if you need to be more specific as to what you keep, and perhaps are a little less concerned with what comes between what you're keeping?  That's a situation where a regexp is probably a better choice.  See the following example:
+&lt;/p&gt;
+&lt;code&gt;
+    my @bignumbers = $string =~ /(\d{4,})/g;
+&lt;/code&gt;
+&lt;p&gt;
+That type of a match would be difficult to accomplish with split.  Try not to fall into the pitfall of using one where the other would be handier.  In general, if you know what you want to keep, use a regexp.  If you know what you want to get rid of, use split.  That's an oversimplification, but start there and if you start tearing your hair out over the code, consider taking another approach.  &lt;i&gt;There is &lt;b&gt;always&lt;/b&gt; more than one way to do it&lt;/i&gt;.
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;
+That's enough for split, let's take a look at [doc://join|join].
+&lt;/p&gt;
+&lt;h2&gt;join: Putting it back together&lt;/h2&gt;
+&lt;p&gt;
+If you're exhausted by the many ways to use split, you can rest assured that join isn't nearly so complicated.  We can over-simplify by saying that join, does the inverse of split.  If we said that, we would be mostly accurate.  But  there are no pattern matches going on.  Join takes a string that specifies the delimiter to be concatenated between each item in the list supplied by subsequent parameter(s).  Where split accommodates delimiters through a regular expression, allowing for different delimiters as long as they match the regexp, join makes no attempt to allow for differing delimiters.  You specify the same delimiter for each item in the list being joined, or you specify no delimiter at all.  Those are your choices.  Easy.
+&lt;/p&gt;&lt;p&gt;
+To join a list of scalars together into one colon delimited string, do this:
+&lt;/p&gt;
+&lt;code&gt;
+    $string = join ( ':', $last, $first, $phone, $age, $sex );
+&lt;/code&gt;
+&lt;p&gt;
+Whew, that was easy.  You can also join lists contained in arrays:
+&lt;/p&gt;
+&lt;code&gt;
+    $string = join ( ':', @array );
+&lt;/code&gt;
+
+&lt;h2&gt;Use join to concatenate&lt;/h2&gt;
+&lt;p&gt;
+It turns out that join is the most efficient way to concatenate many strings together at once; better than the '.' operator.
+&lt;/p&gt;&lt;p&gt;
+How do you do that?  Like this:
+&lt;/p&gt;
+&lt;code&gt;
+    $string = join ( '', @array );
+&lt;/code&gt;
+&lt;p&gt;
+As any good Perlish function should, join will accept an actual list, not just an array holding a list.  So you can say this:
+&lt;/p&gt;
+&lt;code&gt;
+    $string = join ( '*', &quot;My&quot;, &quot;Name&quot;, &quot;Is&quot;, &quot;Dave&quot; );
+&lt;/code&gt;
+&lt;p&gt;
+Or even...
+&lt;/p&gt;
+&lt;code&gt;
+    $string = join ( 'humility', ( qw/My name is Dave/ ) );
+&lt;/code&gt;
+&lt;p&gt;
+Which puts &lt;code&gt;humility&lt;/code&gt; between each word in the list.
+&lt;/p&gt;&lt;p&gt;
+By specifying a null delimiter (nothing between the quotes), you're telling join to join up the elements in @array, one after another, with nothing between them.  Easy.
+&lt;/p&gt;&lt;p&gt;
+Hopefully you've still got some energy left.  If you do, dive back into the [Tutorial].
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Credits and updates&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Portions of this node are adaptations of the original [id://970|split and join tutorial] provided by [root].&lt;/li&gt;
+&lt;li&gt;See also [id://287544] to review the earlier rough draft for this node, as well as additional credits.&lt;/li&gt;
+&lt;li&gt;This tutorial was proposed in [id://287544] back in August 2003, and with a few minor tweaks has now been posted to the [Tutorials] section by request of [pedagogues].&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/readmore&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>591988</node_id>
+  <author_user>281137</author_user>
+  <title>Understanding Split and Join</title>
+  <createtime>2006-12-28 02:05:25</createtime>
+  <nodeupdated>2006-12-27 21:05:25</nodeupdated>
+</node>

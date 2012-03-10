@@ -1,0 +1,49 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>61447</node_id>
+  <author_user>929</author_user>
+  <title>removelinks</title>
+  <createtime>2001-02-28 21:21:10</createtime>
+  <code>my $ED = getNode('editors','usergroup');
+return   unless  Everything::isApproved($USER,$ED);
+
+return   unless  grep $_ eq $NODE-&gt;{type}{title},
+   qw( perlcraft monkdiscuss perlquestion
+       perlmeditation obfuscated poem CUFP );
+
+if(  $query-&gt;param('removelink') eq 'yes'  ) {
+   my $linktype = 0+$query-&gt;param('linktype');
+   if(  $linktype  ) {
+      $DB-&gt;sqlDelete(
+         &quot;links&quot;,
+         &quot;linktype=$linktype and to_node=$NODE-&gt;{node_id}&quot;
+      );
+   }
+}
+
+my $csr = $Everything::dbh-&gt;prepare_cached(
+   &quot;select distinct linktype from links where to_node=? and linktype!=0&quot;
+);
+
+return &quot;Ack!  Something's broken...&quot;
+   unless  $csr-&gt;execute( $NODE-&gt;{node_id} );
+
+my @links;
+my $N;
+while(  $N = $csr-&gt;fetchrow_hashref()  ) {
+   my $ND = getNodeById( $N-&gt;{linktype} );
+   my( $title ) = $ND-&gt;{title} =~ /(.*?) (approved )?linktype/i;
+   $title = $title
+      ? &quot;remove approval from $title&quot;
+      : &quot;remove $ND-&gt;{title}&quot;;
+   push @links, linkNode( $NODE, $title, {
+      displaytype =&gt; $query-&gt;param('displaytype') || &quot;&quot;,
+      removelink =&gt; 'yes',
+      linktype =&gt; $N-&gt;{linktype},
+      op =&gt; 'approve',
+      getId($NODE) =&gt; $N-&gt;{linktype} == 482 ? 'unfp' : 'unok'
+   } );
+}
+return join &quot;&lt;br /&gt;\n&quot;, @links;</code>
+  <nodeupdated>2005-01-01 14:11:46</nodeupdated>
+</node>

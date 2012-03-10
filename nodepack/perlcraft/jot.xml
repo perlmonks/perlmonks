@@ -1,0 +1,150 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+# Simple notes script.
+
+use XML::Simple;
+
+print &quot;\nWelcome to jot\n&quot;;
+print &quot;Type 'h' for help.\n&quot;;
+do {
+    print &quot;%&gt; &quot;;
+    my $command = &lt;STDIN&gt;;
+    chomp($command);
+    $command = short($command);
+    &amp;q() if ($command =~ m/^q/);
+    &amp;{$command}();
+} until $command eq 'q';
+
+sub a {
+    # Add to a file
+
+    while (&lt;*.idea&gt;) {
+	print $_,&quot;\n&quot;;
+    }
+    print &quot;Name of file to edit : &quot;;
+    my $cfile = &lt;STDIN&gt;;
+    chomp($cfile);
+    if (! -e $cfile) {
+	warn &quot;jot : $cfile doesn't exist\n&quot;;
+    } else {
+	my $simple = XML::Simple-&gt;new();
+	
+	$cdata = $simple-&gt;XMLin($cfile, searchpath =&gt; &quot;.&quot;);
+
+	print &quot;Project name(s) : &quot;, $cdata-&gt;{name};
+	my $cname = &lt;STDIN&gt;;
+	chomp($cname);
+
+	print &quot;Description : &quot;, $cdata-&gt;{desc};
+	my $cdesc = &lt;STDIN&gt;;
+	chomp($cdesc);
+
+	my $oname = $cdata-&gt;{name}; # get all the old to concat with new
+	my $odesc = $cdata-&gt;{desc};
+
+	%cdata = (name =&gt; &quot;$oname$cname&quot;,
+		  desc =&gt; &quot;$odesc$cdesc&quot;);
+
+	my $xml = $simple-&gt;XMLout(\%cdata, noattr =&gt; 1, rootname =&gt; &quot;idea&quot;, outputfile =&gt; &quot;$cfile&quot;);
+    }
+}
+
+sub b {
+    # Backup all idea files
+
+    while (my $cfile = &lt;*.idea&gt;) {
+	# read, output to $cfile.idea~
+	my $simple = XML::Simple-&gt;new(); # this is slow. better way?
+	my $cdata = $simple-&gt;XMLin($cfile, searchpath =&gt; '.');
+	my $xml = $simple-&gt;XMLout($cdata, noattr =&gt; 1, rootname =&gt; &quot;idea&quot;, outputfile =&gt; &quot;$cfile~&quot;);
+	print &quot;Backup of $cfile unsuccesfull : $!\n&quot; if $!;
+    }
+}
+
+sub d {
+    # Delete an idea file
+
+    while (&lt;*.idea&gt;) {
+	print $_,&quot;\n&quot;;
+    }
+    print &quot;File to delete : &quot;;
+    my $cfile = &lt;STDIN&gt;;
+    chomp($cfile);
+    unlink($cfile);
+}
+
+sub h {
+    print &quot;a - Add info to a project\n&quot;;
+    print &quot;b - Backup all project files\n&quot;;
+    print &quot;d - Delete a project file\n&quot;;
+    print &quot;h - Display this message\n&quot;;
+    print &quot;l - List all projects\n&quot;;
+    print &quot;n - New project\n&quot;;
+    print &quot;q - Quit\n&quot;;
+    print &quot;r - Restore project files\n&quot;;
+}
+
+sub l {
+    # List all idea files and their contents in quasi-nicely formatted way
+
+    while (my $cfile = &lt;*.idea&gt;) {
+	my $simple = XML::Simple-&gt;new();
+	print &quot;\n$cfile\n&quot;;
+	my $idea = $simple-&gt;XMLin($cfile, searchpath =&gt; '.');
+	print &quot;\t&quot;, $idea-&gt;{name}, &quot;\n\t&quot;, $idea-&gt;{desc}, &quot;\n\t&quot;;
+    }
+}
+
+sub n {
+    # New project file
+
+    my $simple = XML::Simple-&gt;new();
+    print &quot;Project name(s) : &quot;;
+    my $cname = &lt;STDIN&gt;;
+    chomp($cname);
+    print &quot;Description : &quot;;
+    my $cdesc = &lt;STDIN&gt;;
+    chomp($cdesc);
+
+    my $ofile = short($cname);
+
+    my %pdata = (name =&gt; $cname,
+		 desc =&gt; $cdesc,);
+
+    my $xml = $simple-&gt;XMLout(\%pdata, noattr =&gt; 1, rootname =&gt; &quot;idea&quot;, outputfile =&gt; &quot;$ofile.idea&quot;);
+}
+
+sub q {
+    print &quot;bye\n&quot;;
+    exit;
+}
+
+sub r {
+    # Restore backup files
+
+    my $simple = XML::Simple-&gt;new();
+    while (my $cfile = &lt;*.idea~&gt;) {
+	my $ofile = $cfile;
+	chop($ofile); # remove the ~
+
+	my $cdata = $simple-&gt;XMLin($cfile, searchpath =&gt; &quot;.&quot;);
+	my $xml = $simple-&gt;XMLout($cdata, noattr =&gt; 1, rootname =&gt; &quot;idea&quot;, outputfile =&gt; $ofile);
+
+	print &quot;Restoration of $cfile unsuccesfull : $!\n&quot; if $!;
+    }
+}
+
+sub short {
+    (my $word) = @_;
+    $word =~ s/\W.*//;
+    $word =~ tr/A-Z/a-z/;
+    return $word;
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>154069</node_id>
+  <author_user>154057</author_user>
+  <title>jot</title>
+  <createtime>2002-03-25 06:43:38</createtime>
+  <nodeupdated>2005-07-21 01:31:11</nodeupdated>
+</node>

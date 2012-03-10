@@ -1,0 +1,1065 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="376" title="perlman:perlre" created="1999-08-25 02:05:30" updated="2005-08-15 14:38:37">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<keywords>
+<keyword rating="">
+regex</keyword>
+</keywords>
+<field name="doctext">
+
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME="NAME"&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlre - Perl regular expressions
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DESCRIPTION"&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This page describes the syntax of regular expressions in Perl. For a
+description of how to &lt;EM&gt;use&lt;/EM&gt; regular expressions in matching operations, plus various examples of the
+same, see discussion of [perlman:perlop], [perlman:perlop], [perlman:perlop] and &lt;CODE&gt;??&lt;/CODE&gt; in [perlman:perlop].
+
+&lt;P&gt;
+The matching operations can have various modifiers. The modifiers that
+relate to the interpretation of the regular expression inside are listed
+below. For the modifiers that alter the way a regular expression is used by
+Perl, see [perlman:perlop] and 
+[perlman:perlop].
+
+&lt;DL COMPACT&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_i"&gt;i&lt;/A&gt;&lt;/STRONG&gt;
+&lt;DD&gt;
+Do case-insensitive pattern matching.
+
+&lt;P&gt;
+If &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, the case map is taken from the current locale. See [perlman:perllocale|the perllocale manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_m"&gt;m&lt;/A&gt;&lt;/STRONG&gt;
+&lt;DD&gt;
+Treat string as multiple lines. That is, change ``^'' and ``$'' from
+matching at only the very start or end of the string to the start or end of
+any line anywhere within the string,
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_s"&gt;s&lt;/A&gt;&lt;/STRONG&gt;
+&lt;DD&gt;
+Treat string as single line. That is, change ``.'' to match any character
+whatsoever, even a newline, which it normally would not match.
+
+&lt;P&gt;
+The &lt;A HREF="#item_s"&gt;/s&lt;/A&gt; and &lt;A HREF="#item_m"&gt;/m&lt;/A&gt; modifiers both override the &lt;CODE&gt;$*&lt;/CODE&gt; setting. That is, no matter what &lt;CODE&gt;$*&lt;/CODE&gt; contains, &lt;A HREF="#item_s"&gt;/s&lt;/A&gt; without &lt;A HREF="#item_m"&gt;/m&lt;/A&gt; will force ``^'' to match only at the beginning of the string and ``$'' to
+match only at the end (or just before a newline at the end) of the string.
+Together, as &lt;CODE&gt;/ms&lt;/CODE&gt;, they let the ``.'' match any character whatsoever, while
+yet allowing ``^'' and ``$'' to match, respectively, just after and just
+before newlines within the string.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_x"&gt;x&lt;/A&gt;&lt;/STRONG&gt;
+&lt;DD&gt;
+Extend your pattern's legibility by permitting whitespace and comments.
+
+&lt;/DL&gt;
+&lt;P&gt;
+These are usually written as ``the &lt;CODE&gt;/x&lt;/CODE&gt; modifier'', even though the delimiter in question might not actually be a
+slash. In fact, any of these modifiers may also be embedded within the
+regular expression itself using the new &lt;CODE&gt;(?...)&lt;/CODE&gt; construct. See below.
+
+&lt;P&gt;
+The &lt;CODE&gt;/x&lt;/CODE&gt; modifier itself needs a little more explanation. It tells the regular
+expression parser to ignore whitespace that is neither backslashed nor
+within a character class. You can use this to break up your regular
+expression into (slightly) more readable parts. The &lt;CODE&gt;#&lt;/CODE&gt;
+character is also treated as a metacharacter introducing a comment, just as
+in ordinary Perl code. This also means that if you want real whitespace or &lt;CODE&gt;#&lt;/CODE&gt; characters in the pattern (outside of a character class, where they are
+unaffected by &lt;CODE&gt;/x&lt;/CODE&gt;), that you'll either have to escape them or encode them using octal or hex
+escapes. Taken together, these features go a long way towards making Perl's
+regular expressions more readable. Note that you have to be careful not to
+include the pattern delimiter in the comment--perl has no way of knowing
+you did not intend to close the pattern early. See the C-comment deletion
+code in [perlman:perlop|the perlop manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Regular_Expressions"&gt;Regular Expressions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The patterns used in pattern matching are regular expressions such as those supplied in the Version 8 regex routines. (In fact, the routines are derived (distantly) from Henry Spencer's freely redistributable reimplementation of the 
+&lt;FONT SIZE=-1&gt;V8&lt;/FONT&gt; routines.) See
+ &lt;A HREF="#Version_8_Regular_Expressions"&gt;Version 8 Regular Expressions&lt;/A&gt; for details.
+
+&lt;P&gt;
+In particular the following metacharacters have their standard &lt;EM&gt;egrep&lt;/EM&gt;-ish meanings:
+
+&lt;P&gt;
+&lt;PRE&gt;    \   Quote the next metacharacter
+    ^   Match the beginning of the line
+    .   Match any character (except newline)
+    $   Match the end of the line (or before newline at the end)
+    |   Alternation
+    ()  Grouping
+    &amp;#091;&amp;#093;  Character class
+&lt;/PRE&gt;
+&lt;P&gt;
+By default, the ``^'' character is guaranteed to match at only the
+beginning of the string, the ``$'' character at only the end (or before the
+newline at the end) and Perl does certain optimizations with the assumption
+that the string contains only one line. Embedded newlines will not be
+matched by ``^'' or ``$''. You may, however, wish to treat a string as a
+multi-line buffer, such that the ``^'' will match after any newline within
+the string, and ``$'' will match before any newline. At the cost of a
+little more overhead, you can do this by using the &lt;CODE&gt;/m&lt;/CODE&gt; modifier on the
+pattern match operator. (Older programs did this by setting &lt;CODE&gt;$*&lt;/CODE&gt;, but this practice is now deprecated.)
+
+&lt;P&gt;
+To facilitate multi-line substitutions, the ``.'' character never matches a
+newline unless you use the &lt;A HREF="#item_s"&gt;/s&lt;/A&gt; modifier, which in effect tells Perl to pretend the string is a single
+line--even if it isn't. The &lt;A HREF="#item_s"&gt;/s&lt;/A&gt; modifier also overrides the setting of &lt;CODE&gt;$*&lt;/CODE&gt;, in case you have some (badly behaved) older code that sets it in another
+module.
+
+&lt;P&gt;
+The following standard quantifiers are recognized:
+
+&lt;P&gt;
+&lt;PRE&gt;    *      Match 0 or more times
+    +      Match 1 or more times
+    ?      Match 1 or 0 times
+    {n}    Match exactly n times
+    {n,}   Match at least n times
+    {n,m}  Match at least n but not more than m times
+&lt;/PRE&gt;
+&lt;P&gt;
+(If a curly bracket occurs in any other context, it is treated as a regular
+character.) The ``*'' modifier is equivalent to &lt;CODE&gt;{0,}&lt;/CODE&gt;, the ``+'' modifier to &lt;CODE&gt;{1,}&lt;/CODE&gt;, and the ``?'' modifier to &lt;CODE&gt;{0,1}&lt;/CODE&gt;. n and m are limited to integral values less than 65536.
+
+&lt;P&gt;
+By default, a quantified subpattern is ``greedy'', that is, it will match
+as many times as possible (given a particular starting location) while
+still allowing the rest of the pattern to match. If you want it to match
+the minimum number of times possible, follow the quantifier with a ``?''.
+Note that the meanings don't change, just the ``greediness'':
+
+&lt;P&gt;
+&lt;PRE&gt;    *?     Match 0 or more times
+    +?     Match 1 or more times
+    ??     Match 0 or 1 time
+    {n}?   Match exactly n times
+    {n,}?  Match at least n times
+    {n,m}? Match at least n but not more than m times
+&lt;/PRE&gt;
+&lt;P&gt;
+Because patterns are processed as double quoted strings, the following also
+work:
+
+&lt;P&gt;
+&lt;PRE&gt;    \t          tab                   (HT, TAB)
+    \n          newline               (LF, NL)
+    \r          return                (CR)
+    \f          form feed             (FF)
+    \a          alarm (bell)          (BEL)
+    \e          escape (think troff)  (ESC)
+    \033        octal char (think of a PDP-11)
+    \x1B        hex char
+    \c&amp;#091;         control char
+    \l          lowercase next char (think vi)
+    \u          uppercase next char (think vi)
+    \L          lowercase till \E (think vi)
+    \U          uppercase till \E (think vi)
+    \E          end case modification (think vi)
+    \Q          quote (disable) pattern metacharacters till \E
+&lt;/PRE&gt;
+&lt;P&gt;
+If &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, the case map used by &lt;CODE&gt;\l&lt;/CODE&gt;, &lt;CODE&gt;\L&lt;/CODE&gt;, &lt;CODE&gt;\u&lt;/CODE&gt;
+and &lt;CODE&gt;\U&lt;/CODE&gt; is taken from the current locale. See [perlman:perllocale|the perllocale manpage].
+
+&lt;P&gt;
+You cannot include a literal &lt;CODE&gt;$&lt;/CODE&gt; or &lt;CODE&gt;@&lt;/CODE&gt; within a &lt;CODE&gt;\Q&lt;/CODE&gt; sequence. An unescaped &lt;CODE&gt;$&lt;/CODE&gt; or &lt;CODE&gt;@&lt;/CODE&gt; interpolates the corresponding variable, while escaping will cause the
+literal string &lt;CODE&gt;\$&lt;/CODE&gt; to be matched. You'll need to write something like &lt;CODE&gt;m/\Quser\E\@\Qhost/&lt;/CODE&gt;.
+
+&lt;P&gt;
+In addition, Perl defines the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    \w  Match a &amp;quot;word&amp;quot; character (alphanumeric plus &amp;quot;_&amp;quot;)
+    \W  Match a non-word character
+    \s  Match a whitespace character
+    \S  Match a non-whitespace character
+    \d  Match a digit character
+    \D  Match a non-digit character
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; &lt;CODE&gt;\w&lt;/CODE&gt; matches a single alphanumeric character, not a whole word. To match a word
+you'd need to say &lt;CODE&gt;\w+&lt;/CODE&gt;. If &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, the list of alphabetic characters generated by &lt;CODE&gt;\w&lt;/CODE&gt; is taken from the current locale. See [perlman:perllocale|the perllocale manpage]. You may use &lt;CODE&gt;\w&lt;/CODE&gt;, &lt;CODE&gt;\W&lt;/CODE&gt;,
+&lt;CODE&gt;\s&lt;/CODE&gt;, &lt;CODE&gt;\S&lt;/CODE&gt;, &lt;CODE&gt;\d&lt;/CODE&gt;, and &lt;CODE&gt;\D&lt;/CODE&gt; within character classes (though not as either end of a range).
+
+&lt;P&gt;
+Perl defines the following zero-width assertions:
+
+&lt;P&gt;
+&lt;PRE&gt;    \b  Match a word boundary
+    \B  Match a non-(word boundary)
+    \A  Match only at beginning of string
+    \Z  Match only at end of string, or before newline at the end
+    \z  Match only at end of string
+    \G  Match only where previous m//g left off (works only with /g)
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; word boundary (&lt;CODE&gt;\b&lt;/CODE&gt;) is defined as a spot between two characters that has a &lt;CODE&gt;\w&lt;/CODE&gt; on one side of it and a &lt;CODE&gt;\W&lt;/CODE&gt; on the other side of it (in either order), counting the imaginary
+characters off the beginning and end of the string as matching a &lt;CODE&gt;\W&lt;/CODE&gt;. (Within character classes &lt;CODE&gt;\b&lt;/CODE&gt;
+represents backspace rather than a word boundary.) The &lt;CODE&gt;\A&lt;/CODE&gt; and &lt;CODE&gt;\Z&lt;/CODE&gt; are just like ``^'' and ``$'', except that they won't match multiple times
+when the
+[perlman:perlop] modifier is used, while ``^'' and ``$'' will match at every internal line
+boundary. To match the actual end of the string, not ignoring newline, you
+can use &lt;CODE&gt;\z&lt;/CODE&gt;. The &lt;CODE&gt;\G&lt;/CODE&gt; assertion can be used to chain global matches (using &lt;CODE&gt;m//g&lt;/CODE&gt;), as described in
+[perlman:perlop].
+
+&lt;P&gt;
+It is also useful when writing &lt;CODE&gt;lex&lt;/CODE&gt;-like scanners, when you have several patterns that you want to match
+against consequent substrings of your string, see the previous reference.
+The actual location where &lt;CODE&gt;\G&lt;/CODE&gt; will match can also be influenced by using [perlfunc:pos|pos()] as an lvalue. See [perlfunc:pos|pos].
+
+&lt;P&gt;
+When the bracketing construct &lt;CODE&gt;( ... )&lt;/CODE&gt; is used, \&amp;lt;digit&amp;gt; matches the digit'th substring. Outside of the pattern, always use ``$'' instead of ``\'' in front of the digit. (While the \&amp;lt;digit&amp;gt; notation can on rare occasion work outside the current pattern, this should not be relied upon. See the 
+&lt;FONT SIZE=-1&gt;WARNING&lt;/FONT&gt; below.) The scope of $&amp;lt;digit&amp;gt; (and
+ &lt;CODE&gt;$`&lt;/CODE&gt;, &lt;CODE&gt;$&amp;amp;&lt;/CODE&gt;, and &lt;CODE&gt;$'&lt;/CODE&gt;) extends to the end of the enclosing 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; or eval string, or to the next successful
+pattern match, whichever comes first. If you want to use parentheses to
+delimit a subpattern (e.g., a set of alternatives) without saving it as a
+subpattern, follow the ( with a ?:.
+
+&lt;P&gt;
+You may have as many parentheses as you wish. If you have more than 9
+substrings, the variables $10, $11, ... refer to the corresponding
+substring. Within the pattern, \10, \11, etc. refer back to substrings if
+there have been at least that many left parentheses before the
+backreference. Otherwise (for backward compatibility) \10 is the same as
+\010, a backspace, and \11 the same as \011, a tab. And so on. (\1 through
+\9 are always backreferences.)
+
+&lt;P&gt;
+&lt;CODE&gt;$+&lt;/CODE&gt; returns whatever the last bracket match matched.  &lt;CODE&gt;$&amp;amp;&lt;/CODE&gt; returns the entire matched string. (&lt;CODE&gt;$0&lt;/CODE&gt; used to return the same thing, but not any more.)  &lt;CODE&gt;$`&lt;/CODE&gt; returns everything before the matched string.  &lt;CODE&gt;$'&lt;/CODE&gt; returns everything after the matched string. Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    s/^(&amp;#091;^ &amp;#093;*) *(&amp;#091;^ &amp;#093;*)/$2 $1/;     # swap first two words
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if (/Time: (..):(..):(..)/) {
+        $hours = $1;
+        $minutes = $2;
+        $seconds = $3;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Once perl sees that you need one of &lt;CODE&gt;$&amp;amp;&lt;/CODE&gt;, &lt;CODE&gt;$`&lt;/CODE&gt; or &lt;CODE&gt;$'&lt;/CODE&gt; anywhere in the program, it has to provide them on each and every pattern
+match. This can slow your program down. The same mechanism that handles
+these provides for the use of $1, $2, etc., so you pay the same price for
+each pattern that contains capturing parentheses. But if you never use
+$&amp;amp;, etc., in your script, then patterns &lt;EM&gt;without&lt;/EM&gt; capturing parentheses won't be penalized. So avoid $&amp;amp;, $', and $` if
+you can, but if you can't (and some algorithms really appreciate them),
+once you've used them once, use them at will, because you've already paid
+the price. As of 5.005, $&amp;amp; is not so costly as the other two.
+
+&lt;P&gt;
+Backslashed metacharacters in Perl are alphanumeric, such as &lt;CODE&gt;\b&lt;/CODE&gt;, &lt;CODE&gt;\w&lt;/CODE&gt;, &lt;CODE&gt;\n&lt;/CODE&gt;. Unlike some other regular expression languages, there are no backslashed
+symbols that aren't alphanumeric. So anything that looks like \\, \(, \),
+\&amp;lt;, \&amp;gt;, \{, or \} is always interpreted as a literal character, not
+a metacharacter. This was once used in a common idiom to disable or quote
+the special meanings of regular expression metacharacters in a string that
+you want to use for a pattern. Simply quote all non-alphanumeric
+characters:
+
+&lt;P&gt;
+&lt;PRE&gt;    $pattern =~ s/(\W)/\\$1/g;
+&lt;/PRE&gt;
+&lt;P&gt;
+Now it is much more common to see either the 
+&lt;CODE&gt;quotemeta()&lt;/CODE&gt; function or
+the &lt;CODE&gt;\Q&lt;/CODE&gt; escape sequence used to disable all metacharacters' special meanings like
+this:
+
+&lt;P&gt;
+&lt;PRE&gt;    /$unquoted\Q$quoted\E$unquoted/
+&lt;/PRE&gt;
+&lt;P&gt;
+Perl defines a consistent extension syntax for regular expressions. The
+syntax is a pair of parentheses with a question mark as the first thing
+within the parentheses (this was a syntax error in older versions of Perl).
+The character after the question mark gives the function of the extension.
+Several extensions are already supported:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__text_"&gt;(?#text)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; comment. The text is ignored. If the &lt;CODE&gt;/x&lt;/CODE&gt; switch is used to enable whitespace formatting, a simple &lt;CODE&gt;#&lt;/CODE&gt; will suffice. Note that perl closes the comment as soon as it sees a &lt;CODE&gt;)&lt;/CODE&gt;, so there is no way to put a literal
+&lt;CODE&gt;)&lt;/CODE&gt; in the comment.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__pattern_"&gt;(?:pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__imsx_imsx_pattern_"&gt;(?imsx-imsx:pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is for clustering, not capturing; it groups subexpressions like
+``()'', but doesn't make backreferences as ``()'' does. So
+
+&lt;P&gt;
+&lt;PRE&gt;    @fields = split(/\b(?:a|b|c)\b/)
+&lt;/PRE&gt;
+&lt;P&gt;
+is like
+
+&lt;P&gt;
+&lt;PRE&gt;    @fields = split(/\b(a|b|c)\b/)
+&lt;/PRE&gt;
+&lt;P&gt;
+but doesn't spit out extra fields.
+
+&lt;P&gt;
+The letters between &lt;CODE&gt;?&lt;/CODE&gt; and &lt;CODE&gt;:&lt;/CODE&gt; act as flags modifiers, see
+&lt;EM&gt;&lt;CODE&gt;(?imsx-imsx)&lt;/CODE&gt;&lt;/EM&gt;. In particular,
+
+&lt;P&gt;
+&lt;PRE&gt;    /(?s-i:more.*than).*million/i
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to more verbose
+
+&lt;P&gt;
+&lt;PRE&gt;    /(?:(?s-i)more.*than).*million/i
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__pattern_"&gt;(?=pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; zero-width positive lookahead assertion. For
+example, &lt;CODE&gt;/\w+(?=\t)/&lt;/CODE&gt;
+matches a word followed by a tab, without including the tab in &lt;CODE&gt;$&amp;amp;&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__pattern_"&gt;(?!pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; zero-width negative lookahead assertion. For example &lt;CODE&gt;/foo(?!bar)/&lt;/CODE&gt;
+matches any occurrence of ``foo'' that isn't followed by ``bar''. Note however that lookahead and lookbehind are 
+&lt;FONT SIZE=-1&gt;NOT&lt;/FONT&gt; the same thing. You cannot use this for lookbehind.
+
+&lt;P&gt;
+If you are looking for a ``bar'' that isn't preceded by a ``foo'', &lt;CODE&gt;/(?!foo)bar/&lt;/CODE&gt;
+will not do what you want. That's because the &lt;CODE&gt;(?!foo)&lt;/CODE&gt; is just saying that the next thing cannot be ``foo''--and it's not, it's a
+``bar'', so ``foobar'' will match. You would have to do something like &lt;CODE&gt;/(?!foo)...bar/&lt;/CODE&gt; for that. We say ``like'' because there's the case of your ``bar'' not
+having three characters before it. You could cover that this way: &lt;CODE&gt;/(?:(?!foo)...|^.{0,2})bar/&lt;/CODE&gt;. Sometimes it's still easier just to say:
+
+&lt;P&gt;
+&lt;PRE&gt;    if (/bar/ &amp;amp;&amp;amp; $` !~ /foo$/)
+&lt;/PRE&gt;
+&lt;P&gt;
+For lookbehind see below.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__lt_pattern_"&gt;(?&amp;lt;=pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; zero-width positive lookbehind assertion. For
+example, &lt;CODE&gt;/(?&amp;lt;=\t)\w+/&lt;/CODE&gt;
+matches a word following a tab, without including the tab in &lt;CODE&gt;$&amp;amp;&lt;/CODE&gt;. Works only for fixed-width lookbehind.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_C"&gt;(?&amp;lt;!pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; zero-width negative lookbehind assertion. For
+example &lt;CODE&gt;/(?&amp;lt;!bar)foo/&lt;/CODE&gt;
+matches any occurrence of ``foo'' that isn't following ``bar''. Works only
+for fixed-width lookbehind.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;(?{ code })&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Experimental ``evaluate any Perl code'' zero-width assertion. Always
+succeeds.  &lt;CODE&gt;code&lt;/CODE&gt; is not interpolated. Currently the rules to determine where the &lt;CODE&gt;code&lt;/CODE&gt; ends are somewhat convoluted.
+
+&lt;P&gt;
+The &lt;CODE&gt;code&lt;/CODE&gt; is properly scoped in the following sense: if the assertion is backtracked
+(compare &lt;A HREF="#Backtracking"&gt;Backtracking&lt;/A&gt;), all the changes introduced after
+[perlfunc:local|local]isation are undone, so
+
+&lt;P&gt;
+&lt;PRE&gt;  $_ = 'a' x 8;
+  m&amp;lt; 
+     (?{ $cnt = 0 })                    # Initialize $cnt.
+     (
+       a 
+       (?{
+           local $cnt = $cnt + 1;       # Update $cnt, backtracking-safe.
+       })
+     )*  
+     aaaa
+     (?{ $res = $cnt })                 # On success copy to non-localized
+                                        # location.
+   &amp;gt;x;
+&lt;/PRE&gt;
+&lt;P&gt;
+will set &lt;CODE&gt;$res = 4&lt;/CODE&gt;. Note that after the match &lt;CODE&gt;$cnt&lt;/CODE&gt; returns to the globally
+introduced value 0, since the scopes which restrict [perlfunc:local|local] statements are unwound.
+
+&lt;P&gt;
+This assertion may be used as &lt;EM&gt;(?(condition)yes-pattern)&lt;/EM&gt;
+switch. If &lt;EM&gt;not&lt;/EM&gt; used in this way, the result of evaluation of &lt;CODE&gt;code&lt;/CODE&gt;
+is put into variable 
+&lt;FONT SIZE=-1&gt;$^R.&lt;/FONT&gt; This happens immediately, so 
+&lt;FONT SIZE=-1&gt;$^R&lt;/FONT&gt; can be used from other
+ &lt;CODE&gt;(?{ code })&lt;/CODE&gt; assertions inside the same regular expression.
+
+&lt;P&gt;
+The above assignment to 
+&lt;FONT SIZE=-1&gt;$^R&lt;/FONT&gt; is properly localized, thus the old value of 
+&lt;FONT SIZE=-1&gt;$^R&lt;/FONT&gt; is restored if the assertion is backtracked (compare
+ &lt;A HREF="#Backtracking"&gt;Backtracking&lt;/A&gt;).
+
+&lt;P&gt;
+Due to security concerns, this construction is not allowed if the regular
+expression involves run-time interpolation of variables, unless 
+&lt;CODE&gt;use re 'eval'&lt;/CODE&gt; pragma is used (see &lt;U&gt;the re manpage&lt;/U&gt;&lt;!--../lib/re.html--&gt;), or the variables contain results of 
+&lt;CODE&gt;qr()&lt;/CODE&gt; operator (see [perlman:perlop]).
+
+&lt;P&gt;
+This restriction is due to the wide-spread (questionable) practice of using
+the construct
+
+&lt;P&gt;
+&lt;PRE&gt;    $re = &amp;lt;&amp;gt;;
+    chomp $re;
+    $string =~ /$re/;
+&lt;/PRE&gt;
+&lt;P&gt;
+without tainting. While this code is frowned upon from security point of
+view, when &lt;CODE&gt;(?{})&lt;/CODE&gt; was introduced, it was considered bad to add 
+&lt;EM&gt;new&lt;/EM&gt; security holes to existing scripts.
+
+&lt;P&gt;
+&lt;STRONG&gt;NOTE:&lt;/STRONG&gt;  Use of the above insecure snippet without also enabling taint mode is to be
+severely frowned upon.  &lt;CODE&gt;use re 'eval'&lt;/CODE&gt; does not disable tainting checks, thus to allow &lt;CODE&gt;$re&lt;/CODE&gt; in the
+above snippet to contain &lt;CODE&gt;(?{})&lt;/CODE&gt;
+
+&lt;EM&gt;with tainting enabled&lt;/EM&gt;, one needs both &lt;CODE&gt;use re 'eval'&lt;/CODE&gt; and untaint the $re.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__gtpattern_"&gt;(?&amp;gt;pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+An ``independent'' subexpression. Matches the substring that a
+&lt;EM&gt;standalone&lt;/EM&gt;  &lt;CODE&gt;pattern&lt;/CODE&gt; would match if anchored at the given position,
+&lt;STRONG&gt;and only this substring&lt;/STRONG&gt;.
+
+&lt;P&gt;
+Say, &lt;CODE&gt;^(?&amp;gt;a*)ab&lt;/CODE&gt; will never match, since &lt;CODE&gt;(?&amp;gt;a*)&lt;/CODE&gt; (anchored at the beginning of string, as above) will match &lt;EM&gt;all&lt;/EM&gt; characters
+&lt;CODE&gt;a&lt;/CODE&gt; at the beginning of string, leaving no &lt;CODE&gt;a&lt;/CODE&gt; for &lt;CODE&gt;ab&lt;/CODE&gt; to match. In contrast, &lt;CODE&gt;a*ab&lt;/CODE&gt; will match the same as &lt;CODE&gt;a+b&lt;/CODE&gt;, since the match of the subgroup &lt;CODE&gt;a*&lt;/CODE&gt; is influenced by the following group &lt;CODE&gt;ab&lt;/CODE&gt; (see
+&lt;A HREF="#Backtracking"&gt;Backtracking&lt;/A&gt;). In particular, &lt;CODE&gt;a*&lt;/CODE&gt; inside &lt;CODE&gt;a*ab&lt;/CODE&gt; will match fewer characters than a standalone &lt;CODE&gt;a*&lt;/CODE&gt;, since this makes the tail match.
+
+&lt;P&gt;
+An effect similar to &lt;CODE&gt;(?&amp;gt;pattern)&lt;/CODE&gt; may be achieved by
+
+&lt;P&gt;
+&lt;PRE&gt;   (?=(pattern))\1
+&lt;/PRE&gt;
+&lt;P&gt;
+since the lookahead is in &lt;EM&gt;"logical"&lt;/EM&gt; context, thus matches the same substring as a standalone &lt;CODE&gt;a+&lt;/CODE&gt;. The following &lt;CODE&gt;\1&lt;/CODE&gt; eats the matched string, thus making a zero-length assertion into an
+analogue of
+&lt;CODE&gt;(?&amp;gt;...)&lt;/CODE&gt;. (The difference between these two constructs is that the second one uses
+a catching group, thus shifting ordinals of backreferences in the rest of a
+regular expression.)
+
+&lt;P&gt;
+This construct is useful for optimizations of ``eternal'' matches, because
+it will not backtrack (see &lt;A HREF="#Backtracking"&gt;Backtracking&lt;/A&gt;).  
+
+&lt;P&gt;
+&lt;PRE&gt;    m{ \(
+          ( 
+            &amp;#091;^()&amp;#093;+ 
+          | 
+            \( &amp;#091;^()&amp;#093;* \)
+          )+
+       \) 
+     }x
+&lt;/PRE&gt;
+&lt;P&gt;
+That will efficiently match a nonempty group with matching
+two-or-less-level-deep parentheses. However, if there is no such group, it
+will take virtually forever on a long string. That's because there are so
+many different ways to split a long string into several substrings. This is
+what &lt;CODE&gt;(.+)+&lt;/CODE&gt; is doing, and &lt;CODE&gt;(.+)+&lt;/CODE&gt; is similar to a subpattern of the above pattern. Consider that the above
+pattern detects no-match on &lt;CODE&gt;((()aaaaaaaaaaaaaaaaaa&lt;/CODE&gt; in several seconds, but that each extra letter doubles this time. This
+exponential performance will make it appear that your program has hung.
+
+&lt;P&gt;
+However, a tiny modification of this pattern 
+
+&lt;P&gt;
+&lt;PRE&gt;    m{ \( 
+          ( 
+            (?&amp;gt; &amp;#091;^()&amp;#093;+ )
+          | 
+            \( &amp;#091;^()&amp;#093;* \)
+          )+
+       \) 
+     }x
+&lt;/PRE&gt;
+&lt;P&gt;
+which uses &lt;CODE&gt;(?&amp;gt;...)&lt;/CODE&gt; matches exactly when the one above does (verifying this yourself would be a
+productive exercise), but finishes in a fourth the time when used on a
+similar string with 1000000 &lt;CODE&gt;a&lt;/CODE&gt;s. Be aware, however, that this pattern currently triggers a warning
+message under
+&lt;STRONG&gt;-w&lt;/STRONG&gt; saying it &lt;CODE&gt;&amp;quot;matches the null string many times&amp;quot;&lt;/CODE&gt;):
+
+&lt;P&gt;
+On simple groups, such as the pattern &lt;CODE&gt;(?&lt;/CODE&gt; &amp;#091;^()&amp;#093;+ )&amp;gt;, a comparable effect may be achieved by negative lookahead, as
+in &lt;CODE&gt;&amp;#091;^()&amp;#093;+ (?! &amp;#091;^()&amp;#093; )&lt;/CODE&gt;. This was only 4 times slower on a string with 1000000 &lt;CODE&gt;a&lt;/CODE&gt;s.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__condition_yes_pattern_no_patt"&gt;(?(condition)yes-pattern|no-pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__condition_yes_pattern_"&gt;(?(condition)yes-pattern)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Conditional expression.  &lt;CODE&gt;(condition)&lt;/CODE&gt; should be either an integer in parentheses (which is valid if the
+corresponding pair of parentheses matched), or
+lookahead/lookbehind/evaluate zero-width assertion.
+
+&lt;P&gt;
+Say,
+
+&lt;P&gt;
+&lt;PRE&gt;    m{ ( \( )? 
+       &amp;#091;^()&amp;#093;+ 
+       (?(1) \) ) 
+     }x
+&lt;/PRE&gt;
+&lt;P&gt;
+matches a chunk of non-parentheses, possibly included in parentheses
+themselves.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__imsx_imsx_"&gt;(?imsx-imsx)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+One or more embedded pattern-match modifiers. This is particularly useful
+for patterns that are specified in a table somewhere, some of which want to
+be case sensitive, and some of which don't. The case insensitive ones need
+to include merely &lt;CODE&gt;(?i)&lt;/CODE&gt; at the front of the pattern. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $pattern = &amp;quot;foobar&amp;quot;;
+    if ( /$pattern/i ) { } 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # more flexible:
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $pattern = &amp;quot;(?i)foobar&amp;quot;;
+    if ( /$pattern/ ) { } 
+&lt;/PRE&gt;
+&lt;P&gt;
+Letters after &lt;CODE&gt;-&lt;/CODE&gt; switch modifiers off.
+
+&lt;P&gt;
+These modifiers are localized inside an enclosing group (if any). Say,
+
+&lt;P&gt;
+&lt;PRE&gt;    ( (?i) blah ) \s+ \1
+&lt;/PRE&gt;
+&lt;P&gt;
+(assuming &lt;CODE&gt;x&lt;/CODE&gt; modifier, and no &lt;CODE&gt;i&lt;/CODE&gt; modifier outside of this group) will match a repeated (&lt;EM&gt;including the case&lt;/EM&gt;!) word &lt;CODE&gt;blah&lt;/CODE&gt; in any case.
+
+&lt;/DL&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; question mark was chosen for this and for the new
+minimal-matching construct because 1) question mark is pretty rare in older
+regular expressions, and 2) whenever you see one, you should stop and
+``question'' exactly what is going on. That's psychology...
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Backtracking"&gt;Backtracking&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; fundamental feature of regular expression matching
+involves the notion called &lt;EM&gt;backtracking&lt;/EM&gt;, which is currently used (when needed) by all regular expression
+quantifiers, namely &lt;CODE&gt;*&lt;/CODE&gt;, &lt;CODE&gt;*?&lt;/CODE&gt;, &lt;CODE&gt;+&lt;/CODE&gt;,
+&lt;CODE&gt;+?&lt;/CODE&gt;, &lt;CODE&gt;{n,m}&lt;/CODE&gt;, and &lt;CODE&gt;{n,m}?&lt;/CODE&gt;.
+
+&lt;P&gt;
+For a regular expression to match, the &lt;EM&gt;entire&lt;/EM&gt; regular expression must match, not just part of it. So if the beginning of
+a pattern containing a quantifier succeeds in a way that causes later parts
+in the pattern to fail, the matching engine backs up and recalculates the
+beginning part--that's why it's called backtracking.
+
+&lt;P&gt;
+Here is an example of backtracking: Let's say you want to find the word
+following ``foo'' in the string ``Food is on the foo table.'':
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = &amp;quot;Food is on the foo table.&amp;quot;;
+    if ( /\b(foo)\s+(\w+)/i ) {
+        print &amp;quot;$2 follows $1.\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+When the match runs, the first part of the regular expression (&lt;CODE&gt;\b(foo)&lt;/CODE&gt;) finds a possible match right at the beginning of the string, and loads up
+&lt;CODE&gt;$1&lt;/CODE&gt; with ``Foo''. However, as soon as the matching engine sees
+that there's no whitespace following the ``Foo'' that it had saved in $1,
+it realizes its mistake and starts over again one character after where it
+had the tentative match. This time it goes all the way until the next
+occurrence of ``foo''. The complete regular expression matches this time,
+and you get the expected output of ``table follows foo.''
+
+&lt;P&gt;
+Sometimes minimal matching can help a lot. Imagine you'd like to match
+everything between ``foo'' and ``bar''. Initially, you write something like
+this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ =  &amp;quot;The food is under the bar in the barn.&amp;quot;;
+    if ( /foo(.*)bar/ ) {
+        print &amp;quot;got &amp;lt;$1&amp;gt;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Which perhaps unexpectedly yields:
+
+&lt;P&gt;
+&lt;PRE&gt;  got &amp;lt;d is under the bar in the &amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+That's because &lt;CODE&gt;.*&lt;/CODE&gt; was greedy, so you get everything between the
+&lt;EM&gt;first&lt;/EM&gt; ``foo'' and the &lt;EM&gt;last&lt;/EM&gt; ``bar''. In this case, it's more effective to use minimal matching to make
+sure you get the text between a ``foo'' and the first ``bar'' thereafter.
+
+&lt;P&gt;
+&lt;PRE&gt;    if ( /foo(.*?)bar/ ) { print &amp;quot;got &amp;lt;$1&amp;gt;\n&amp;quot; }
+  got &amp;lt;d is under the &amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's another example: let's say you'd like to match a number at the end
+of a string, and you also want to keep the preceding part the match. So you
+write this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = &amp;quot;I have 2 numbers: 53147&amp;quot;;
+    if ( /(.*)(\d*)/ ) {                                # Wrong!
+        print &amp;quot;Beginning is &amp;lt;$1&amp;gt;, number is &amp;lt;$2&amp;gt;.\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+That won't work at all, because &lt;CODE&gt;.*&lt;/CODE&gt; was greedy and gobbled up the whole string. As &lt;CODE&gt;\d*&lt;/CODE&gt; can match on an empty string the complete regular expression matched
+successfully.
+
+&lt;P&gt;
+&lt;PRE&gt;    Beginning is &amp;lt;I have 2 numbers: 53147&amp;gt;, number is &amp;lt;&amp;gt;.
+&lt;/PRE&gt;
+&lt;P&gt;
+Here are some variants, most of which don't work:
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = &amp;quot;I have 2 numbers: 53147&amp;quot;;
+    @pats = qw{
+        (.*)(\d*)
+        (.*)(\d+)
+        (.*?)(\d*)
+        (.*?)(\d+)
+        (.*)(\d+)$
+        (.*?)(\d+)$
+        (.*)\b(\d+)$
+        (.*\D)(\d+)$
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    for $pat (@pats) {
+        printf &amp;quot;%-12s &amp;quot;, $pat;
+        if ( /$pat/ ) {
+            print &amp;quot;&amp;lt;$1&amp;gt; &amp;lt;$2&amp;gt;\n&amp;quot;;
+        } else {
+            print &amp;quot;FAIL\n&amp;quot;;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+That will print out:
+
+&lt;P&gt;
+&lt;PRE&gt;    (.*)(\d*)    &amp;lt;I have 2 numbers: 53147&amp;gt; &amp;lt;&amp;gt;
+    (.*)(\d+)    &amp;lt;I have 2 numbers: 5314&amp;gt; &amp;lt;7&amp;gt;
+    (.*?)(\d*)   &amp;lt;&amp;gt; &amp;lt;&amp;gt;
+    (.*?)(\d+)   &amp;lt;I have &amp;gt; &amp;lt;2&amp;gt;
+    (.*)(\d+)$   &amp;lt;I have 2 numbers: 5314&amp;gt; &amp;lt;7&amp;gt;
+    (.*?)(\d+)$  &amp;lt;I have 2 numbers: &amp;gt; &amp;lt;53147&amp;gt;
+    (.*)\b(\d+)$ &amp;lt;I have 2 numbers: &amp;gt; &amp;lt;53147&amp;gt;
+    (.*\D)(\d+)$ &amp;lt;I have 2 numbers: &amp;gt; &amp;lt;53147&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+As you see, this can be a bit tricky. It's important to realize that a
+regular expression is merely a set of assertions that gives a definition of
+success. There may be 0, 1, or several different ways that the definition
+might succeed against a particular string. And if there are multiple ways
+it might succeed, you need to understand backtracking to know which variety
+of success you will achieve.
+
+&lt;P&gt;
+When using lookahead assertions and negations, this can all get even
+tricker. Imagine you'd like to find a sequence of non-digits not followed
+by ``123''. You might try to write that as
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = &amp;quot;ABC123&amp;quot;;
+    if ( /^\D*(?!123)/ ) {              # Wrong!
+        print &amp;quot;Yup, no 123 in $_\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+But that isn't going to match; at least, not the way you're hoping. It
+claims that there is no 123 in the string. Here's a clearer picture of why
+it that pattern matches, contrary to popular expectations:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = 'ABC123' ;
+    $y = 'ABC445' ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;1: got $1\n&amp;quot; if $x =~ /^(ABC)(?!123)/ ;
+    print &amp;quot;2: got $1\n&amp;quot; if $y =~ /^(ABC)(?!123)/ ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;3: got $1\n&amp;quot; if $x =~ /^(\D*)(?!123)/ ;
+    print &amp;quot;4: got $1\n&amp;quot; if $y =~ /^(\D*)(?!123)/ ;
+&lt;/PRE&gt;
+&lt;P&gt;
+This prints
+
+&lt;P&gt;
+&lt;PRE&gt;    2: got ABC
+    3: got AB
+    4: got ABC
+&lt;/PRE&gt;
+&lt;P&gt;
+You might have expected test 3 to fail because it seems to a more general
+purpose version of test 1. The important difference between them is that
+test 3 contains a quantifier (&lt;CODE&gt;\D*&lt;/CODE&gt;) and so can use backtracking, whereas test 1 will not. What's happening is
+that you've asked ``Is it true that at the start of $x, following 0 or more
+non-digits, you have something that's not 123?'' If the pattern matcher had
+let &lt;CODE&gt;\D*&lt;/CODE&gt; expand to 
+&lt;FONT SIZE=-1&gt;``ABC'',&lt;/FONT&gt; this would have caused the whole pattern to
+fail. The search engine will initially match &lt;CODE&gt;\D*&lt;/CODE&gt; with 
+&lt;FONT SIZE=-1&gt;``ABC''.&lt;/FONT&gt; Then it will try to match &lt;CODE&gt;(?!123&lt;/CODE&gt; with ``123'', which of course fails. But because a quantifier (&lt;CODE&gt;\D*&lt;/CODE&gt;) has been used in the regular expression, the search engine can backtrack
+and retry the match differently in the hope of matching the complete
+regular expression.
+
+&lt;P&gt;
+The pattern really, &lt;EM&gt;really&lt;/EM&gt; wants to succeed, so it uses the standard pattern back-off-and-retry and
+lets &lt;CODE&gt;\D*&lt;/CODE&gt; expand to just 
+&lt;FONT SIZE=-1&gt;``AB''&lt;/FONT&gt; this time. Now there's indeed something following 
+&lt;FONT SIZE=-1&gt;``AB''&lt;/FONT&gt; that is not ``123''. It's in fact 
+&lt;FONT SIZE=-1&gt;``C123'',&lt;/FONT&gt; which suffices.
+
+&lt;P&gt;
+We can deal with this by using both an assertion and a negation. We'll say
+that the first part in &lt;CODE&gt;$1&lt;/CODE&gt; must be followed by a digit, and in
+fact, it must also be followed by something that's not ``123''. Remember
+that the lookaheads are zero-width expressions--they only look, but don't
+consume any of the string in their match. So rewriting this way produces
+what you'd expect; that is, case 5 will fail, but case 6 succeeds:
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;5: got $1\n&amp;quot; if $x =~ /^(\D*)(?=\d)(?!123)/ ;
+    print &amp;quot;6: got $1\n&amp;quot; if $y =~ /^(\D*)(?=\d)(?!123)/ ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    6: got ABC
+&lt;/PRE&gt;
+&lt;P&gt;
+In other words, the two zero-width assertions next to each other work as
+though they're ANDed together, just as you'd use any builtin assertions:  &lt;CODE&gt;/^$/&lt;/CODE&gt;
+matches only if you're at the beginning of the line 
+&lt;FONT SIZE=-1&gt;AND&lt;/FONT&gt; the end of the line simultaneously. The deeper underlying truth is that juxtaposition in regular expressions always means 
+&lt;FONT SIZE=-1&gt;AND,&lt;/FONT&gt; except when you write an explicit 
+&lt;FONT SIZE=-1&gt;OR&lt;/FONT&gt; using the vertical bar.
+  &lt;CODE&gt;/ab/&lt;/CODE&gt; means match ``a'' 
+&lt;FONT SIZE=-1&gt;AND&lt;/FONT&gt; (then) match ``b'', although the attempted matches
+are made at different positions because ``a'' is not a zero-width
+assertion, but a one-width assertion.
+
+&lt;P&gt;
+One warning: particularly complicated regular expressions can take
+exponential time to solve due to the immense number of possible ways they
+can use backtracking to try match. For example this will take a very long
+time to run
+
+&lt;P&gt;
+&lt;PRE&gt;    /((a{0,5}){0,5}){0,5}/
+&lt;/PRE&gt;
+&lt;P&gt;
+And if you used &lt;CODE&gt;*&lt;/CODE&gt;'s instead of limiting it to 0 through 5 matches, then it would take
+literally forever--or until you ran out of stack space.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; powerful tool for optimizing such beasts is
+``independent'' groups, which do not backtrace (see &lt;EM&gt;&lt;CODE&gt;(?&amp;gt;pattern)&lt;/CODE&gt;&lt;/EM&gt;). Note also that zero-length lookahead/lookbehind assertions will not
+backtrace to make the tail match, since they are in ``logical'' context:
+only the fact whether they match or not is considered relevant. For an
+example where side-effects of a lookahead &lt;EM&gt;might&lt;/EM&gt; have influenced the following match, see &lt;EM&gt;&lt;CODE&gt;(?&amp;gt;pattern)&lt;/CODE&gt;&lt;/EM&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Version_8_Regular_Expressions"&gt;Version 8 Regular Expressions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In case you're not familiar with the ``regular'' Version 8 regex routines,
+here are the pattern-matching rules not described above.
+
+&lt;P&gt;
+Any single character matches itself, unless it is a &lt;EM&gt;metacharacter&lt;/EM&gt;
+with a special meaning described here or above. You can cause characters that normally function as metacharacters to be interpreted literally by prefixing them with a ``\'' (e.g., ``\.'' matches a ``.'', not any character; ``\\'' matches a ``\''). 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; series of characters matches that series of characters in the target string, so the pattern
+ &lt;CODE&gt;blurfl&lt;/CODE&gt;
+would match ``blurfl'' in the target string.
+
+&lt;P&gt;
+You can specify a character class, by enclosing a list of characters in &lt;CODE&gt;&amp;#091;&amp;#093;&lt;/CODE&gt;, which will match any one character from the list. If the first character
+after the ``&amp;#091;'' is ``^'', the class matches any character not in the list.
+Within a list, the ``-'' character is used to specify a range, so that &lt;CODE&gt;a-z&lt;/CODE&gt; represents all characters between ``a'' and ``z'', inclusive. If you want
+``-'' itself to be a member of a class, put it at the start or end of the
+list, or escape it with a backslash. (The following all specify the same
+class of three characters: &lt;CODE&gt;&amp;#091;-az&amp;#093;&lt;/CODE&gt;,
+&lt;CODE&gt;&amp;#091;az-&amp;#093;&lt;/CODE&gt;, and &lt;CODE&gt;&amp;#091;a\-z&amp;#093;&lt;/CODE&gt;. All are different from &lt;CODE&gt;&amp;#091;a-z&amp;#093;&lt;/CODE&gt;, which specifies a class containing twenty-six characters.)
+
+&lt;P&gt;
+Characters may be specified using a metacharacter syntax much like that used in 
+&lt;FONT SIZE=-1&gt;C:&lt;/FONT&gt; ``\n'' matches a newline, ``\t'' a tab, ``\r'' a carriage return, ``\f'' a form feed, etc. More generally, \
+&lt;EM&gt;nnn&lt;/EM&gt;, where &lt;EM&gt;nnn&lt;/EM&gt; is a string of octal digits, matches the character whose 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; value is &lt;EM&gt;nnn&lt;/EM&gt;. Similarly, \x&lt;EM&gt;nn&lt;/EM&gt;, where &lt;EM&gt;nn&lt;/EM&gt; are hexadecimal digits, matches the character whose 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; value is &lt;EM&gt;nn&lt;/EM&gt;. The expression \c&lt;EM&gt;x&lt;/EM&gt; matches the 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; character control-&lt;EM&gt;x&lt;/EM&gt;. Finally, the ``.'' metacharacter matches any character except ``\n''
+(unless you use &lt;A HREF="#item_s"&gt;/s&lt;/A&gt;).
+
+&lt;P&gt;
+You can specify a series of alternatives for a pattern using ``|'' to
+separate them, so that &lt;CODE&gt;fee|fie|foe&lt;/CODE&gt; will match any of ``fee'', ``fie'', or ``foe'' in the target string (as
+would &lt;CODE&gt;f(e|i|o)e&lt;/CODE&gt;). The first alternative includes everything from the last pattern
+delimiter (``('', ``&amp;#091;'', or the beginning of the pattern) up to the first
+``|'', and the last alternative contains everything from the last ``|'' to
+the next pattern delimiter. For this reason, it's common practice to
+include alternatives in parentheses, to minimize confusion about where they
+start and end.
+
+&lt;P&gt;
+Alternatives are tried from left to right, so the first alternative found
+for which the entire expression matches, is the one that is chosen. This
+means that alternatives are not necessarily greedy. For example: when
+mathing &lt;CODE&gt;foo|foot&lt;/CODE&gt; against ``barefoot'', only the ``foo'' part will match, as that is the
+first alternative tried, and it successfully matches the target string.
+(This might not seem important, but it is important when you are capturing
+matched text using parentheses.)
+
+&lt;P&gt;
+Also remember that ``|'' is interpreted as a literal within square
+brackets, so if you write &lt;CODE&gt;&amp;#091;fee|fie|foe&amp;#093;&lt;/CODE&gt; you're really only matching &lt;CODE&gt;&amp;#091;feio|&amp;#093;&lt;/CODE&gt;.
+
+&lt;P&gt;
+Within a pattern, you may designate subpatterns for later reference by
+enclosing them in parentheses, and you may refer back to the &lt;EM&gt;n&lt;/EM&gt;th subpattern later in the pattern using the metacharacter \&lt;EM&gt;n&lt;/EM&gt;. Subpatterns are numbered based on the left to right order of their opening parenthesis. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; backreference matches whatever actually matched the subpattern in the string being examined, not the rules for that subpattern. Therefore,
+ &lt;CODE&gt;(0|0x)\d*\s\1\d*&lt;/CODE&gt; will match ``0x1234 0x4321'', but not ``0x1234 01234'', because subpattern
+1 actually matched ``0x'', even though the rule &lt;CODE&gt;0|0x&lt;/CODE&gt; could potentially match the leading 0 in the second number.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="WARNING_on_1_vs_1"&gt;WARNING on \1 vs $1&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Some people get too used to writing things like:
+
+&lt;P&gt;
+&lt;PRE&gt;    $pattern =~ s/(\W)/\\\1/g;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is grandfathered for the 
+&lt;FONT SIZE=-1&gt;RHS&lt;/FONT&gt; of a substitute to avoid shocking the
+&lt;STRONG&gt;sed&lt;/STRONG&gt; addicts, but it's a dirty habit to get into. That's because in PerlThink,
+the righthand side of a [perlman:perlop] is a double-quoted string.  &lt;CODE&gt;\1&lt;/CODE&gt; in the usual double-quoted string means a control-A. The customary Unix
+meaning of &lt;CODE&gt;\1&lt;/CODE&gt; is kludged in for [perlman:perlop]. However, if you get into the habit of doing that, you get yourself into
+trouble if you then add an &lt;CODE&gt;/e&lt;/CODE&gt;
+modifier.
+
+&lt;P&gt;
+&lt;PRE&gt;    s/(\d+)/ \1 + 1 /eg;        # causes warning under -w
+&lt;/PRE&gt;
+&lt;P&gt;
+Or if you try to do
+
+&lt;P&gt;
+&lt;PRE&gt;    s/(\d+)/\1000/;
+&lt;/PRE&gt;
+&lt;P&gt;
+You can't disambiguate that by saying &lt;CODE&gt;\{1}000&lt;/CODE&gt;, whereas you can fix it with
+&lt;CODE&gt;${1}000&lt;/CODE&gt;. Basically, the operation of interpolation should not be confused with the
+operation of matching a backreference. Certainly they mean two different
+things on the &lt;EM&gt;left&lt;/EM&gt; side of the [perlman:perlop].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Repeated_patterns_matching_zero_"&gt;Repeated patterns matching zero-length substring&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;WARNING:&lt;/FONT&gt; Difficult material (and prose) ahead. This
+section needs a rewrite.
+
+&lt;P&gt;
+Regular expressions provide a terse and powerful programming language. As
+with most other power tools, power comes together with the ability to wreak
+havoc.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; common abuse of this power stems from the ability to
+make infinite loops using regular expressions, with something as innocous
+as:
+
+&lt;P&gt;
+&lt;PRE&gt;    'foo' =~ m{ ( o? )* }x;
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;o?&lt;/CODE&gt; can match at the beginning of &lt;CODE&gt;'foo'&lt;/CODE&gt;, and since the position in the string is not moved by the match, &lt;CODE&gt;o?&lt;/CODE&gt; would match again and again due to the &lt;CODE&gt;*&lt;/CODE&gt; modifier. Another common way to create a similar cycle is with the looping
+modifier &lt;CODE&gt;//g&lt;/CODE&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;    @matches = ( 'foo' =~ m{ o? }xg );
+&lt;/PRE&gt;
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;match: &amp;lt;$&amp;amp;&amp;gt;\n&amp;quot; while 'foo' =~ m{ o? }xg;
+&lt;/PRE&gt;
+&lt;P&gt;
+or the loop implied by 
+&lt;CODE&gt;split().&lt;/CODE&gt;
+
+&lt;P&gt;
+However, long experience has shown that many programming tasks may be
+significantly simplified by using repeated subexpressions which may match
+zero-length substrings, with a simple example being:
+
+&lt;P&gt;
+&lt;PRE&gt;    @chars = split //, $string;           # // is not magic in split
+    ($whitewashed = $string) =~ s/()/ /g; # parens avoid magic s// /
+&lt;/PRE&gt;
+&lt;P&gt;
+Thus Perl allows the &lt;CODE&gt;/()/&lt;/CODE&gt; construct, which &lt;EM&gt;forcefully breaks
+the infinite loop&lt;/EM&gt;. The rules for this are different for lower-level loops given by the
+greedy modifiers &lt;CODE&gt;*+{}&lt;/CODE&gt;, and for higher-level ones like the &lt;CODE&gt;/g&lt;/CODE&gt; modifier or 
+&lt;CODE&gt;split()&lt;/CODE&gt; operator.
+
+&lt;P&gt;
+The lower-level loops are &lt;EM&gt;interrupted&lt;/EM&gt; when it is detected that a repeated expression did match a zero-length
+substring, thus
+
+&lt;P&gt;
+&lt;PRE&gt;   m{ (?: NON_ZERO_LENGTH | ZERO_LENGTH )* }x;
+&lt;/PRE&gt;
+&lt;P&gt;
+is made equivalent to 
+
+&lt;P&gt;
+&lt;PRE&gt;   m{   (?: NON_ZERO_LENGTH )* 
+      | 
+        (?: ZERO_LENGTH )? 
+    }x;
+&lt;/PRE&gt;
+&lt;P&gt;
+The higher level-loops preserve an additional state between iterations:
+whether the last match was zero-length. To break the loop, the following
+match after a zero-length match is prohibited to have a length of zero.
+This prohibition interacts with backtracking (see &lt;A HREF="#Backtracking"&gt;Backtracking&lt;/A&gt;), and so the &lt;EM&gt;second best&lt;/EM&gt; match is chosen if the &lt;EM&gt;best&lt;/EM&gt; match is of zero length.
+
+&lt;P&gt;
+Say,
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = 'bar';
+    s/\w??/&amp;lt;$&amp;amp;&amp;gt;/g;
+&lt;/PRE&gt;
+&lt;P&gt;
+results in &lt;CODE&gt;&amp;quot;&amp;lt;&lt;/CODE&gt;&amp;lt;b&amp;gt;&amp;lt;&amp;gt;&amp;lt;a&amp;gt;&amp;lt;&amp;gt;&amp;lt;r&amp;gt;&amp;lt;&amp;gt;``&amp;gt;. At each position of the string the best match given by
+non-greedy &lt;CODE&gt;??&lt;/CODE&gt; is the zero-length match, and the &lt;EM&gt;second 
+best&lt;/EM&gt; match is what is matched by &lt;CODE&gt;\w&lt;/CODE&gt;. Thus zero-length matches alternate with one-character-long matches.
+
+&lt;P&gt;
+Similarly, for repeated &lt;CODE&gt;m/()/g&lt;/CODE&gt; the second-best match is the match at the position one notch further in the
+string.
+
+&lt;P&gt;
+The additional state of being &lt;EM&gt;matched with zero-length&lt;/EM&gt; is associated to the matched string, and is reset by each assignment to 
+&lt;CODE&gt;pos().&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Creating_custom_RE_engines"&gt;Creating custom RE engines&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Overloaded constants (see &lt;U&gt;the overload manpage&lt;/U&gt;&lt;!--../lib/overload.html--&gt;) provide a simple way to extend the functionality of the 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; engine.
+
+&lt;P&gt;
+Suppose that we want to enable a new 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; escape-sequence &lt;CODE&gt;\Y|&lt;/CODE&gt; which matches at boundary between white-space characters and non-whitespace
+characters. Note that &lt;CODE&gt;(?=\S)(?&amp;lt;!\S)|(?!\S)(?&amp;lt;=\S)&lt;/CODE&gt; matches exactly at these positions, so we want to have each &lt;CODE&gt;\Y|&lt;/CODE&gt; in the place of the more complicated version. We can create a module &lt;CODE&gt;customre&lt;/CODE&gt; to do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    package customre;
+    use overload;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub import {
+      shift;
+      die &amp;quot;No argument to customre::import allowed&amp;quot; if @_;
+      overload::constant 'qr' =&amp;gt; \&amp;amp;convert;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub invalid { die &amp;quot;/$_&amp;#091;0&amp;#093;/: invalid escape '\\$_&amp;#091;1&amp;#093;'&amp;quot;}
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my %rules = ( '\\' =&amp;gt; '\\', 
+                  'Y|' =&amp;gt; qr/(?=\S)(?&amp;lt;!\S)|(?!\S)(?&amp;lt;=\S)/ );
+    sub convert {
+      my $re = shift;
+      $re =~ s{ 
+                \\ ( \\ | Y . )
+              }
+              { $rules{$1} or invalid($re,$1) }sgex; 
+      return $re;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Now &lt;CODE&gt;use customre&lt;/CODE&gt; enables the new escape in constant regular expressions, i.e., those without
+any runtime variable interpolations. As documented in &lt;U&gt;the overload manpage&lt;/U&gt;&lt;!--../lib/overload.html--&gt;, this conversion will work only over literal parts of regular expressions.
+For &lt;CODE&gt;\Y|$re\Y|&lt;/CODE&gt; the variable part of this regular expression needs to be converted
+explicitly (but only if the special meaning of &lt;CODE&gt;\Y|&lt;/CODE&gt; should be enabled inside $re):
+
+&lt;P&gt;
+&lt;PRE&gt;    use customre;
+    $re = &amp;lt;&amp;gt;;
+    chomp $re;
+    $re = customre::convert $re;
+    /\Y|$re\Y|/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+[perlman:perlop].
+
+&lt;P&gt;
+[perlman:perlop].
+
+&lt;P&gt;
+[perlfunc:pos|pos].
+
+&lt;P&gt;
+[perlman:perllocale|the perllocale manpage].
+
+&lt;P&gt;
+&lt;EM&gt;Mastering Regular Expressions&lt;/EM&gt; (see [perlman:perlbook|the perlbook manpage]) by Jeffrey Friedl.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

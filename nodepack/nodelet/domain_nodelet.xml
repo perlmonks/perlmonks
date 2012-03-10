@@ -1,0 +1,43 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>357600</author_user>
+  <createtime>2004-08-17 21:00:51</createtime>
+  <node_id>383824</node_id>
+  <title>Domain Nodelet</title>
+  <nlcode>[%
+  my $displaytype= $q-&gt;param('displaytype');
+  my $base= linkNode( $NODE, '*site*',
+      !$displaytype ? () : { displaytype =&gt; $displaytype } );
+  my $NS= getVars(getNode('domain nodelet settings','setting'));
+  my @links;
+  foreach my $type (sort keys %$NS) {
+    my $host=$ENV{HTTP_HOST};
+    my @link;
+    foreach my $label ('www','') {
+      next unless $NS-&gt;{$type};
+      (my $fixed=$NS-&gt;{$type})=~s!(http://)!$1.($label ? &quot;$label.&quot; : &quot;&quot;)!e;
+      if ($fixed=~m!/\Q$host\E/!) {
+        push @link,&quot;&lt;span class='currentdomain'&gt;&quot;.($label||$type).&quot;&lt;/span&gt;&quot;;
+        next;
+      }
+      (my $link=$base)=~s/\*site\*/$label||$type/e;
+      $fixed=~s!/$!!;
+      $link=~s!(&lt;a href=&quot;)(\?)!$1$fixed$ENV{SCRIPT_NAME}$2!i
+        or printLog &quot;Bad: '$type' '$label' '$host' '$link'&quot;;
+      $link=~s!(&lt;a)( href)!$1 class='${label}domainlink'$2!gi;
+      push @link,$link;
+    }
+    push @links,join '.',@link;
+  }
+  my $r=&quot;&lt;p class='domain_link' align='center'&gt;&quot;.join(&quot; | &quot;,@links).&quot;&lt;/p&gt;&quot;;
+  $r=&quot;&lt;p class='domain_link'&gt;&lt;span class='nodelink'&gt;&quot;
+     . &quot;&amp;#91;id://&lt;span class='node_id'&gt;&quot;
+     .&quot;$NODE-&gt;{node_id}&lt;/span&gt;&amp;#93;&lt;/span&gt;&lt;br id='nodelinkbreak'/&gt; &quot;
+     . join(&quot; | &quot;,@links).&quot;&lt;/p&gt;&quot;
+    if $VARS-&gt;{DomainNodeletExtras};
+  return $r;
+%]
+</nlcode>
+  <nodeupdated>1095059030</nodeupdated>
+</node>

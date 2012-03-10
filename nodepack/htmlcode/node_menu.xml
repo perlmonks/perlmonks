@@ -1,0 +1,75 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>39</node_id>
+  <author_user>114</author_user>
+  <title>node_menu</title>
+  <createtime>1999-10-04 18:34:59</createtime>
+  <code>my ($field, @VALUES) = @_;
+my @idlist;
+my %items;
+my @TYPES;
+
+$field or return;
+my ($fieldname, $type) = split /\_/, $field;
+my ($name) = $$NODE{type}{title} .'_'. $field;
+
+#if no explicit types, use the field name to determine
+@VALUES or push @VALUES, $type;
+
+foreach (@VALUES)
+{
+        next if $_ eq &quot;user&quot;;
+	if(/^-/)
+	{
+		# If one of the types is in the form of
+		# -name_value, we need to split it apart
+		# and store it.	
+		my ($name, $value);
+		$_ =~ s/^-//;
+		
+		($name, $value) = split '_', $_;
+		push @idlist, $value;
+		$items{$value} = $name;
+
+		undef $_;  # This is not a type	
+	}
+	else
+	{
+		my $TYPE = $DB-&gt;getType($_); 
+		push @TYPES, $TYPE if(defined $TYPE); #replace w/ node refs
+	}
+}
+
+my $NODELIST = $DB-&gt;selectNodeWhere({ type_nodetype =&gt; \@TYPES }, &quot;&quot;, &quot;title&quot;) if @TYPES;
+
+foreach my $N (@$NODELIST) {
+	$N = $DB-&gt;getNodeById($N, 'light');
+	my $id = getId $N;
+	push @idlist, $id;
+	$items{$id} = $$N{title};
+}
+
+# The default thing to select
+my $SELECT = $$NODE{$field};
+
+if(not defined $items{&quot;0&quot;})
+{
+	# We have no value for zero, make it a default
+	$items{&quot;0&quot;} = &quot;none&quot;;
+	push @idlist, &quot;0&quot;;
+}
+if(not defined $items{$SELECT}) {
+    my $n= getNodeById($SELECT,&quot;light&quot;);
+    $items{$SELECT}= $n-&gt;{title}   if  $n;
+    $items{$SELECT} ||= $SELECT;
+    push @idlist, $SELECT;
+}
+if(not defined $items{$USER-&gt;{node_id}}) {
+    $items{$USER-&gt;{node_id}}= $USER-&gt;{title};
+    push @idlist, $USER-&gt;{node_id};
+}
+
+$query-&gt;popup_menu($name, \@idlist, $SELECT, \%items);
+</code>
+  <nodeupdated>2004-11-30 07:56:01</nodeupdated>
+</node>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="182342" title="insertmessage" created="2002-07-17 01:52:21" updated="2004-10-21 11:31:40">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+# used by [chat/msg] and [testmessage]  
+
+   my( $text, $recipient, $author )= @_;
+   $recipient ||= 0;
+   $author ||= getId($USER);
+   return   if  htmlcode( 'chatrepeated', '',
+      $text, $recipient, $author );
+
+   $DB-&gt;sqlInsert( "message", {
+      msgtext =&gt; $text,
+      author_user =&gt; $author,
+      for_user =&gt; $recipient,
+   } );
+   return   if  $recipient;
+
+   my $msgid= sprintf "%011d",
+      $DB-&gt;getDatabaseHandle()-&gt;{mysql_insertid};
+   $msgid =~ tr/0123456789/9876543210/; # MySQL optimizer sucks
+   my $code_id= getId( getNode("message","opcode") );
+   
+   $DB-&gt;sqlInsert( "datacache", {
+      datacache_id =&gt; $code_id,
+      cachekey =&gt; "html$msgid",
+      data =&gt; $author . ":"
+         . htmlcode( 'htmlchatter', '', $text ),
+   } );
+   $DB-&gt;sqlInsert( "datacache", {
+      datacache_id =&gt; $code_id,
+      cachekey =&gt; "xmlraw$msgid",
+      data =&gt; $author . ":"
+         . htmlcode( 'xmlrawchatter', ' ', $text ),
+   } );</field>
+</data>
+</node>

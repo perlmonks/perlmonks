@@ -1,0 +1,68 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>edits</displaytype>
+  <page>[%
+  return &quot;Tough cookies!&quot;
+    if !$DB-&gt;canReadNode( $USER, $NODE) 
+    or ($NODE-&gt;{type}{title} eq 'wiki' 
+    and !htmlcode('hasWikiPermission','read',$NODE));
+
+  #return unless $DB-&gt;isApproved($USER, getNode( 'editors', 'usergroup' ) );
+
+  use lib $HTMLVARS{uselib};
+  use Algorithm::Diff qw/diff/;
+
+  my @edits;
+
+  my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare('
+    SELECT   *
+    FROM     edithistory
+    WHERE    edithistory_id = ?
+    ORDER BY edittime DESC
+  ');
+
+  $sth-&gt;execute( getId($NODE) );
+
+  while ( my $edit = $sth-&gt;fetchrow_hashref ) {
+    my $old = [ split /\n/, $edit-&gt;{starttext} ];
+    my $new = [ split /\n/, $edit-&gt;{endtext} ];
+
+    $edit-&gt;{diff} = diff( $old, $new );
+
+    push @edits, $edit;
+  }
+
+  return $q-&gt;table(
+    $q-&gt;Tr(
+      $q-&gt;td( { valign =&gt; 'top' }, $q-&gt;b( 'Time' ) ),
+      $q-&gt;td( { valign =&gt; 'top' }, $q-&gt;b( 'Editor' ) ),
+      $q-&gt;td( { valign =&gt; 'top' }, $q-&gt;b( 'Field' ) ),
+      $q-&gt;td( { valign =&gt; 'top' }, $q-&gt;b( 'Diff' ) )
+    ),
+    map {
+      $q-&gt;Tr(
+        $q-&gt;td( $_-&gt;{edittime} ),
+        $q-&gt;td( linkNode( $_-&gt;{editor_user} ) ),
+        $q-&gt;td( $_-&gt;{fieldname} ),
+        $q-&gt;td(
+          join '&lt;p&gt;---&lt;/p&gt;', map {
+            map {
+              &quot;&lt;pre&gt;\n$_\n&lt;/pre&gt;&quot;
+            } map {
+              sprintf '%s %03d: %s',
+                ($_-&gt;[0] eq '+' ? '&gt;' : '&lt;'),
+                $_-&gt;[1] + 1,
+                $q-&gt;escapeHTML($_-&gt;[2])
+            } @$_
+          } @{ $_-&gt;{diff} }
+        )
+      )
+    } @edits
+  );
+%]</page>
+  <author_user>929</author_user>
+  <createtime>2002-07-22 02:36:20</createtime>
+  <node_id>183956</node_id>
+  <title>node edits page</title>
+  <nodeupdated>2004-07-14 00:21:13</nodeupdated>
+</node>

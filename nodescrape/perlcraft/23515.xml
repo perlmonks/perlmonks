@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="23515" title="mailtosql.pl" created="2000-07-21 00:31:20" updated="2005-07-21 01:13:57">
+<type id="121">
+perlcraft</type>
+<author id="23075">
+lindex</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+#############################################################
+# Usage... | mailtosql &lt;dbname&gt; &lt;dbusername&gt; &lt;dbpass&gt;       #
+# Pipe mail to this script and it will stick it in a mysql  #
+# table called Email. This is usefull for writing web       #
+# interfaces to email :) or other stuff.                    #
+#############################################################
+
+use DBI;
+use Mail::Internet;
+use strict;
+use vars qw/$line $header @header @dats @fields $dbh $mail @arr $sth $statement $body $col @cols @body/;
+
+$dbh = DBI-&gt;connect("DBI:mysql:$ARGV[0]",$ARGV[1],$ARGV[2],{
+        'RaiseError' =&gt; 0,
+        'PrintError' =&gt; 1
+});
+
+$mail = new Mail::Internet \*STDIN;
+$header = $mail-&gt;head();
+
+if (!($dbh-&gt;do("desc Email"))) {
+        $statement = "CREATE TABLE Email \(ID INT NOT NULL AUTO_INCREMENT PRIMARY KEY,ETo varchar\(150\),EFrom varchar\(150\),ESender varchar\(150\),ECc varchar\(150\),EDate varchar\(150\),ESubject varchar\(150\),EHeader text,EBody text\);";
+        $dbh-&gt;do($statement) || die "Could not create table \"Email\" on DB \"$ARGV[0]\"\n";
+}
+
+die "Bad mail file\n" unless(defined($mail));
+
+
+# get fields 
+$sth = $dbh-&gt;prepare("desc Email");
+$sth-&gt;execute;
+while(@arr = $sth-&gt;fetchrow_array) {
+        push(@cols,$arr[0]);
+}
+
+map {
+        chomp($line = $header-&gt;get($_));
+        $line = $dbh-&gt;quote($line);
+        $_ = "E".$_;
+        foreach $col(@cols) {
+                if ($_ eq $col) {
+                        push(@fields,$_);
+                        push(@dats,$line);
+                }
+        }
+} $header-&gt;tags;
+
+map {
+        push(@header,$dbh-&gt;quote("$_: ".$header-&gt;get($_)));
+} $header-&gt;tags;
+push(@fields,"EHeader");
+push(@dats,"@header");
+
+push(@fields,"EBody");
+@body = map {$dbh-&gt;quote($_)} @{$mail-&gt;body};
+push(@dats,"@body");
+
+$statement = "INSERT INTO Email (".join(',',@fields).") VALUES(".join(',',@dats).");";
+$sth = $dbh-&gt;prepare($statement);
+$sth-&gt;execute;</field>
+</data>
+</node>

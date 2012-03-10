@@ -1,0 +1,170 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>363671</node_id>
+  <author_user>357600</author_user>
+  <title>createpatchfrom</title>
+  <createtime>2004-06-12 19:29:25</createtime>
+  <code>#[createpatchfrom] opcode
+use HTTP::Request::Common;
+use LWP::Simple ('get', '$ua');
+use XML::Simple;
+
+my $node_id = $query-&gt;param('node_id');
+my $node = getNodeById($node_id);
+printLog(&quot;createpatchfrom: No Node '$node_id'\n&quot;), return unless($node);
+
+my $target_id = $query-&gt;param('for_node') || $node_id;
+my $target=getNodeById($target_id);
+printLog(&quot;createpatchfrom: No Target '$target_id'\n&quot;), return unless($node);
+
+my $pinned_id = $query-&gt;param('pinned_id') || $target_id;
+
+my $user     = $VARS-&gt;{external_user};
+my $pass     = $VARS-&gt;{external_passwd};
+
+my $title=$target-&gt;{title}.&quot; - (patch)&quot;;
+my $pinned_hash={
+            node_id =&gt; $pinned_id,
+            user    =&gt; $user,
+            passwd  =&gt; $pass,
+          };
+
+# this needs refactoring with [get_external_node]
+my ($other_site,$OSN,$TSN);  #other site name/this site name
+if ($HTMLVARS{site_url}=~/flux8/i) {
+  $other_site=&quot;perlmonks.org&quot;;
+  $OSN=&quot;PM&quot;;
+  $TSN=&quot;DEV&quot;;
+} else {
+  $other_site=&quot;pmdev.flux8.com&quot;;
+  $OSN=&quot;DEV&quot;;
+  $TSN=&quot;PM&quot;;
+}
+
+if ($query-&gt;param('makepatch_to') eq 'here')
+{
+
+
+  my $code=htmlcode('get_external_node','',$pinned_hash);
+
+  printLog(&quot;createpatchfrom: No XMLContent pinned_id=$pinned_id\n&quot;), return
+     unless $code;
+
+  $query-&gt;param('op', 'new');
+  $query-&gt;param('type', 'patch');
+  $query-&gt;param('node', $title);
+  $query-&gt;param('patch_for_node', $target_id);
+  $query-&gt;param('patch_reason', &quot;$OSN Update &quot; . gmtime())
+      unless $query-&gt;param('patch_reason');
+  $query-&gt;param('patch_field', $pinned_hash-&gt;{code_field});
+  $query-&gt;param('patch_code', $code);
+
+  Everything::HTML::execOpCode();
+}
+
+if($query-&gt;param('makepatch_to') eq 'external')
+{
+
+  my $codefields = getVars( getNode('code fields setting','setting') );
+  my $src_xmlfield = $codefields-&gt;{$node-&gt;{type_nodetype}};
+  my $dst_xmlfield = $codefields-&gt;{$target-&gt;{type_nodetype}};
+
+  printLog(&quot;createpatchfrom: No SRC XMLField $node-&gt;{type_nodetype}\n&quot;), return
+       unless $src_xmlfield;
+  printLog(&quot;createpatchfrom: No SRC XMLField $target-&gt;{type_nodetype}\n&quot;), return
+       unless $dst_xmlfield;
+  printLog(&quot;createpatchfrom: No PM password!\n&quot;), return
+       unless $pass;
+  my $reason=$query-&gt;param('patch_reason')||$node-&gt;{reason}||'';
+  $reason=&quot;:&quot;.$reason if $reason;
+  $reason=&quot;From $TSN$reason&quot;;
+
+  my $response=$ua-&gt;request(POST &quot;http://$other_site&quot;,
+    [ op             =&gt; 'login',
+      user           =&gt; $user,
+      passwd         =&gt; $pass,
+      ticker         =&gt; 'yes',
+      op             =&gt; 'new',
+      type           =&gt; 'patch',
+      node           =&gt; $title,
+      patch_for_node =&gt; $pinned_id,
+      patch_reason   =&gt; $reason,
+      patch_field    =&gt; $dst_xmlfield,
+      patch_code     =&gt; $node-&gt;{$src_xmlfield},
+      displaytype    =&gt; 'xml'
+    ] );
+  if ($response-&gt;is_success) {
+     my $parse= XML::Simple::XMLin($response-&gt;content);
+     if ($parse-&gt;{id} and $node-&gt;{type}{title} eq 'patch') {
+          htmlcode('handle_node_pin','',{
+                                         node_id=&gt;$node_id,
+                                         pinned_id=&gt;$parse-&gt;{id},
+                                         pinner_user=&gt;$USER-&gt;{node_id},
+                                        })
+             or printLog(&quot;No pin returned for $node_id $parse-&gt;{id}&quot;);
+     }
+  }
+
+}
+if($query-&gt;param('makepatch_to') eq 'synch_external')
+{
+
+  my $codefields = getVars( getNode('code fields setting','setting') );
+  my $src_xmlfield = $codefields-&gt;{$node-&gt;{type_nodetype}};
+
+  printLog(&quot;createpatchfrom: No SRC XMLField $node-&gt;{type_nodetype}\n&quot;), return
+       unless $src_xmlfield;
+  printLog(&quot;createpatchfrom: No PM password!\n&quot;), return
+       unless $pass;
+  my $reason=$query-&gt;param('patch_reason')||$node-&gt;{reason}||'';
+
+  $reason=&quot;:&quot;.$reason if $reason;
+  $reason=&quot;From $TSN$reason&quot;;
+
+  my $response=$ua-&gt;request(POST &quot;http://$other_site&quot;,
+    [ op             =&gt; 'login',
+      user           =&gt; $user,
+      passwd         =&gt; $pass,
+      ticker         =&gt; 'yes',
+      node_id        =&gt; $pinned_id,
+      patch_reason   =&gt; $reason,
+      patch_code     =&gt; $node-&gt;{$src_xmlfield},
+      sexisgood      =&gt; 'stumbit',
+      displaytype    =&gt; 'xml',
+    ] );
+
+  my $parse= XML::Simple::XMLin($response-&gt;content);
+  unless ($parse-&gt;{id}) {
+        require Data::Dumper;
+        printLog(&quot;Synch to $other_site failed.&quot;
+         . Data::Dumper::Dumper($response-&gt;content,$parse));
+  } else {
+        printLog(&quot;Synch looks good for $node_id =&gt; $pinned_id&quot;);
+  }
+}
+if($query-&gt;param('makepatch_to') eq 'synch_here')
+{
+
+  printLog(&quot;createpatchfrom: No PM password!\n&quot;), return
+       unless $pass;
+
+
+  my $code=htmlcode('get_external_node','',$pinned_hash);
+
+  if ($code) {
+      my $reason=$pinned_hash-&gt;{reason};
+      s/\A(\s*\n)+|(\s*\n)+\z//g
+            for $reason,$code;
+      $q-&gt;param(node_id      =&gt; $node_id);
+      $q-&gt;param(patch_reason =&gt; $reason);
+      $q-&gt;param(patch_code   =&gt; $code);
+      $q-&gt;param(sexisgood    =&gt; 'stumbit');
+      $q-&gt;param(displaytype  =&gt; 'display');
+  } else {
+      require Data::Dumper;
+      printLog(&quot;No return on external fetch: $pinned_id&quot;.Dumper($pinned_hash));
+  }
+}
+</code>
+  <nodeupdated>2005-08-14 06:08:32</nodeupdated>
+</node>

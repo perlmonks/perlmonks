@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="82834" title="Homegrown getline" created="2001-05-24 06:33:58" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="1598">
+Rhandom</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -wT
+
+# This is designed to show a homegrown getline routine.
+# It is intended to be a drop in for modules such as
+# IO::Socket::SSL which currently (v0.78) does not have a
+# getline method.
+# 
+# To try this out, save the entire chunk to a file and run it.
+# It will show some tests, and then a benchmark between it,
+# a straight call to the parent class, and a placebo class which
+# has the same number of method lookups.  It actually fairs 
+# pretty well against all the things that perl and the kernel
+# are doing for you.
+#
+# For early adopters, you can actually put this in place in a 
+# sub class of IO::Socket::SSL and get getline support now. (I've
+# submitted the code to the author and am waiting to see if it
+# meets his approval.  I know the code looks simple, but it makes
+# a lot of things possible.
+#
+# TODO: See if I can use Tie::Handle and get &lt;$fh&gt; to work.
+
+### sample package containing the getline methods
+package MYO::File;
+
+### ISA can be any IO::Handle object (including IO::Socket::SSL)
+use strict;
+use vars qw(@ISA);
+use IO::File ();
+@ISA = qw(IO::File);
+
+### declare some package globals (to create aliases later
+use vars qw( $buffer $b_read );
+
+sub new {
+  my $type  = shift;
+  my $class = ref($type) || $type || __PACKAGE__;
+  my $fh    = __PACKAGE__-&gt;SUPER::new( @_ );
+
+  return undef unless defined $fh;
+  
+  $ { *$fh }{read_length} = 2 ** 11; # (2k)
+  $ { *$fh }{buffer}      = '';
+  $ { *$fh }{bytes_read}  = 0;
+  $ { *$fh }{eol}         = "\012";
+
+  bless $fh, $class;
+}
+
+sub getline {
+  @_ == 1 or die 'usage: $io-&gt;getline()';
+  my $fh = shift;
+  local *buffer = \${ *$fh }{buffer};
+  local *b_read = \${ *$fh }{bytes_read};
+  my $read_len  = $ { *$fh }{read_length};
+  my $eol       = $ { *$fh }{eol};
+
+  my $index = index($buffer, $eol);
+  
+  while( $index == -1 ){
+    $fh-&gt;sysread( $buffer, $read_len, length($buffer) )
+      or return undef;
+    
+    $index = index($buffer, $eol);
+  }
+
+  $index  += length($eol);
+  $b_read += $index;
+
+  return substr($buffer, 0, $index, '');
+} 
+
+sub seek {
+  my $fh = shift;
+  $fh-&gt;SUPER::seek( @_ );
+  $ { *$fh }{buffer} = '';
+  $ { *$fh }{bytes_read} = 0;
+}
+
+sub tell {
+  my $fh = shift;
+  $ { *$fh }{bytes_read};
+}
+
+### allow for modification of eol
+sub end_of_line {
+  my $fh = shift;
+  return $ { *$fh }{eol} unless @_;
+  $ { *$fh }{eol} = shift;
+}
+
+### allow for modification of read_length
+sub getline_read_length {
+  my $fh = shift;
+  return $ { *$fh }{read_length} unless @_;
+  $ { *$fh }{read_length} = shift;
+}
+
+###------------------------------------------------###
+
+### control group (check the effect of method lookups
+package Placebo;
+use vars qw(@ISA);
+use IO::File ();
+@ISA = qw(IO::File);
+sub getline{ shift()-&gt;SUPER::getline() }
+sub seek{    shift()-&gt;SUPER::seek( @_ ) }
+sub tell{    shift()-&gt;SUPER::tell( @_ ) }
+
+###------------------------------------------------###
+
+### back to package main to do some tests
+package main;
+
+use IO::File ();
+
+### set up three file handles
+my $fh1 =  IO::File-&gt;new($0,'r');
+my $fh2 = MYO::File-&gt;new($0,'r');
+my $fh3 =   Placebo-&gt;new($0,'r');
+
+### read line test
+for( 1..3 ){
+  print "$_ fh1: ".$fh1-&gt;getline();
+  print "$_ fh2: ".$fh2-&gt;getline();
+  print "$_ fh3: ".$fh3-&gt;getline();
+}
+
+### seek and tell test
+print "tell fh1: ", $fh1-&gt;tell(), "\n";
+print "tell fh2: ", $fh2-&gt;tell(), "\n";
+print "tell fh3: ", $fh3-&gt;tell(), "\n";
+$fh1-&gt;seek(0,0);
+$fh2-&gt;seek(0,0);
+$fh3-&gt;seek(0,0);
+print "tell fh1: ", $fh1-&gt;tell(), "\n";
+print "tell fh2: ", $fh2-&gt;tell(), "\n";
+print "tell fh3: ", $fh3-&gt;tell(), "\n";
+
+###------------------------------------------------###
+
+### do a benchmark
+use Benchmark qw(cmpthese);
+cmpthese(1000,{
+  IO_File  =&gt; sub { $fh1-&gt;seek(0,0);
+                    for(1..70){ my $line = $fh1-&gt;getline(); } },
+  MYO_File =&gt; sub { $fh2-&gt;seek(0,0);
+                    for(1..70){ my $line = $fh2-&gt;getline(); } },
+  Placebo  =&gt; sub { $fh3-&gt;seek(0,0);
+                    for(1..70){ my $line = $fh3-&gt;getline(); } },
+});
+exit;
+</field>
+</data>
+</node>

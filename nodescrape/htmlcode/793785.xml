@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="793785" title="generate_activation_hash" created="2009-09-06 11:24:23" updated="2009-09-06 11:24:23">
+<type id="4">
+htmlcode</type>
+<author id="518801">
+Co-Rion</author>
+<data>
+<field name="code">
+require Digest::MD5; # hey, that's better than using crypt(), no?
+
+my ($user,$expiry) = @_;
+# expiry is a MySQL timestamp
+
+my $user_id = getId( $user );
+
+my $secret_salt = "Perlmonks Secret Activation Spice";
+
+my @expiry =( 'expires' =&gt; $expiry );
+if( ! $expiry ) {
+    $expiry = 'from_unixtime( unix_timestamp(now()) + 12*60*60)'; # 12 hours
+    @expiry = ('-expires' =&gt; $expiry);
+};
+
+# Here, we want to make it "impossible" to guess the generated hash
+# This is hard without requiring a suitable (external) source of
+# entropy...
+
+# $Config{randbits} is 48 on FreeBSD
+# Hopefully it's large enough elsewhere too. On Windows,
+# it's only 15 bits, which isn't enough, at least if $secret_salt
+# gets known, at least unless there is (ip-based) rate limiting
+# for the reactivation link page.
+
+my $activation_hash =
+    Digest::MD5::md5_base64(
+        join "\0",
+        $secret_salt,
+        rand(),
+        localtime(),
+    );
+
+$DB-&gt;sqlInsert('pending_activations', {
+    user_id =&gt; $user_id,
+    activation_hash =&gt; $activation_hash,
+    @expiry
+});
+
+return $activation_hash</field>
+</data>
+</node>

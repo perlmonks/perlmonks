@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="30061" title="randomnode" created="2000-08-28 19:22:15" updated="2004-02-07 09:56:16">
+<type id="3545">
+opcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my $min= 922168001; # Tue 1999-03-23 05:46:41 GMT
+my $max= time();
+my $randtime= $min + int(rand($max-$min));
+
+my @users= split( /,/, $q-&gt;param('users') );
+@users= ()
+    if  20 &lt; @users;
+my $users= join ',', grep $_, map {
+    ! /\D/  ?  $_  :  getId( getNode($_,'user') );
+} @users;
+my @types= split( /,/, $q-&gt;param('types') );
+@types= ()
+    if  20 &lt; @types;
+my $types= join ',', grep $_, map {
+    ! /\D/  ?  $_  :  getId( getNode($_,'type') );
+} @types;
+
+my $sql= join ' ',
+    "select node_id from node",
+    "where createtime &lt; from_unixtime($randtime)",
+    ! $types ? () : "and type_nodetype in($types)",
+    ! $users ? () : "and author_user in($users)",
+    "order by createtime asc limit 20",
+;
+if(  $randtime &lt; ($min+$max)/2  ) {
+    $sql =~ s/ &lt; / &gt; /;
+    $sql =~ s/ asc / desc /;
+}
+Everything::printLog("randomnode: $sql");
+
+my $ar= $DB-&gt;getDatabaseHandle()-&gt;selectall_arrayref($sql);
+if(  @$ar  ) {
+    $q-&gt;param( 'node_id', $ar-&gt;[rand @$ar]-&gt;[0] )
+} else {
+    $q-&gt;param( 'node_id', $HTMLVARS{notFound_node} );
+}
+</field>
+</data>
+</node>

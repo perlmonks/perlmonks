@@ -1,0 +1,71 @@
+<node>
+  <doctext>&lt;form type=&quot;post&quot;&gt;
+&lt;input type=&quot;hidden&quot; name=&quot;node_id&quot; value=&quot;[&quot;$$NODE{node_id}&quot;]&quot;&gt;
+Node ID: &lt;input type=&quot;text&quot; name=&quot;dumpid&quot; size=&quot;9&quot;&gt;&lt;br&gt;
+ &amp;nbsp; - or -&lt;br&gt;
+Title: &lt;input type=&quot;text&quot; name=&quot;dumptitle&quot; size=&quot;40&quot;&gt;&lt;br&gt;
+Type: &lt;input type=&quot;text&quot; name=&quot;dumptype&quot; size=&quot;20&quot; 
+ maxsize=&quot;40&quot;&gt;&lt;br&gt;
+&lt;input type=&quot;submit&quot; name=&quot;dump_it&quot; value=&quot;Dump It&quot;&gt;
+&lt;/form&gt;
+[%
+my $WHAT = { Nothing =&gt; &quot;Here&quot; };
+
+if(  &quot;&quot; ne $q-&gt;param(&quot;dumpid&quot;)  ) {
+    $WHAT = getNodeById($q-&gt;param(&quot;dumpid&quot;))
+         or return &quot;ID &quot; . $q-&gt;param(&quot;dumpid&quot;) . &quot; not found.&quot;;
+}
+elsif(  &quot;&quot; ne $q-&gt;param(&quot;dumptitle&quot;)  ) {
+    if(  &quot;&quot; ne $q-&gt;param(&quot;dumptype&quot;)  ) {
+        $WHAT = getNode( $q-&gt;param(&quot;dumptitle&quot;),
+                $q-&gt;param(&quot;dumptype&quot;) )
+             or return &quot;Node (&quot; . $q-&gt;param(&quot;dumptitle&quot;)
+                     . &quot;) of type &quot; . $q-&gt;param(&quot;dumptype&quot;)
+                     . &quot; not found.&quot;;
+    }
+    else {
+        my @list = getNodeWhere(
+                    {title =&gt; $q-&gt;param(&quot;dumptitle&quot;)} )
+                or return &quot;Node (&quot; . $q-&gt;param(&quot;dumptitle&quot;) . &quot;) not found.&quot;;
+
+        return join &quot;, &quot;, map {
+            my $id= $_-&gt;{node_id};
+            qq(&lt;a href=&quot;/?node_id=$NODE-&gt;{node_id}&amp;dumpid=$id&quot;&gt;$id&lt;/a&gt;)
+        } @list  if  1 &lt; @list;
+        $WHAT = getNodeById($list[0]);
+    }
+}
+else {
+    return '';
+}
+
+return qq(&lt;div class=&quot;tough-beans&quot;&gt;Dump permission denied.&lt;/div&gt;)
+    if !isGod($USER) &amp;&amp; !canUpdateNode($USER,$WHAT);
+
+return join $/,
+    qq|&lt;table border cellspacing=&quot;0&quot;&gt;&lt;tr&gt;&lt;th&gt;Field&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;,
+       &lt;tr&gt;&lt;td&gt;node type&lt;/td&gt;&lt;td&gt;$WHAT-&gt;{type}{title}&lt;/td&gt;&lt;tr&gt;|,
+    map(
+        {
+            my( $x, $y ) = ( $_, $WHAT-&gt;{$_} );
+            if ($x eq &quot;passwd&quot;) {
+               $y = &quot;&lt;em&gt;hidden&lt;/em&gt;&quot;;
+            } elsif ($x eq 'vars') {
+               $y = htmlcode('displayvars','','vars',undef,$WHAT,'safe')
+            } elsif ($x eq 'type' &amp;&amp; ref $y) {
+               $y = qq(&lt;a href=&quot;?node_id=$y-&gt;{node_id}&quot;&gt;$y-&gt;{title}&lt;/a&gt;)
+            } else {
+               $y= $q-&gt;escapeHTML($y);       
+            }
+            $x= $q-&gt;escapeHTML($x);
+            &quot;&lt;tr&gt;&lt;td&gt;$x&lt;/td&gt;&lt;td&gt;$y&lt;/td&gt;&lt;/tr&gt;&quot;
+        } sort keys %$WHAT
+    ), '&lt;/table&gt;';
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>153451</node_id>
+  <author_user>106850</author_user>
+  <title>Dump node fields</title>
+  <createtime>2002-03-21 17:44:03</createtime>
+  <nodeupdated>2005-08-22 15:40:20</nodeupdated>
+</node>

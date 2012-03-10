@@ -1,0 +1,110 @@
+<node>
+  <doctext>*Recently I was charged with creating a two node Veritas Cluster
+*server. Everything in VCS resolves around this config file.
+*Since all of the binaries in VCS are written in Perl and with
+*the increasing popularity of this product I thought some monks
+*might find this useful. This configuration fails over four
+*resources, Apache, Sendmail, SMMS and the RAID. When any
+*of the apps fail Veritas umounts /var/md and mounts it on
+*the other system and then starts up the apps. you must write
+*a small monitoring script for each app and place it in
+*/opt/VRTSvcs/bin. The monitoring script simply needs to
+*return &quot;online&quot; or &quot;offline&quot; (pgrep works well)
+*Anyways I hope someone finds this useful
+*the config file is pretty easy to read. Cheers!!!
+
+
+
+include &quot;types.cf&quot;
+
+cluster Mail (
+        UserNames = { admin = &quot;cDRpdxPmHpzS.&quot; }
+        CounterInterval = 5
+        Factor = { runque = 5, memory = 1, disk = 10, cpu = 25,
+                 network = 5 }
+        MaxFactor = { runque = 100, memory = 10, disk = 100, cpu = 100,
+                 network = 100 }
+        )
+
+system wgmail1a
+
+system wgmail1b
+
+snmp vcs (
+        TrapList = { 1 = &quot;A new system has joined the VCS Cluster&quot;,
+                 2 = &quot;An existing system has changed its state&quot;,
+                 3 = &quot;A service group has changed its state&quot;,
+                 4 = &quot;One or more heartbeat links has gone down&quot;,
+                 5 = &quot;An HA service has done a manual restart&quot;,
+                 6 = &quot;An HA service has been manually idled&quot;,
+                 7 = &quot;An HA service has been successfully started&quot; }
+        )
+
+group mailgroup (
+        SystemList = { wgmail1a, wgmail1b }
+        AutoStartList = { wgmail1a }
+        )
+
+        Application Apache (
+                User = root
+                StartProgram = &quot;/etc/init.d/apache start&quot;
+                StopProgram = &quot;/etc/init.d/apache stop&quot;
+                MonitorProgram = &quot;/opt/VRTSvcs/bin/monitor_scripts/monitor_http&quot;
+                )
+
+        Application SMMS (
+                User = root
+                StartProgram = &quot;/etc/init.d/smmsd start&quot;
+                StopProgram = &quot;/etc/init.d/smmsd stop&quot;
+                MonitorProgram = &quot;/opt/VRTSvcs/bin/monitor_scripts/monitor_smms&quot;
+                )
+
+        Application sendmail (
+                User = root
+                StartProgram = &quot;/etc/init.d/sendmail start&quot;
+                StopProgram = &quot;/etc/init.d/sendmail stop&quot;
+                MonitorProgram = &quot;/opt/VRTSvcs/bin/monitor_scripts/monitor_sendmail&quot;
+                )
+
+        IP ip_eri0 (
+                Device = eri0
+                Address = &quot;199.6.154.34&quot;
+                NetMask = &quot;255.255.255.0&quot;
+                )
+
+        Mount the_raid (
+                MountPoint = &quot;/var/md&quot;
+                BlockDevice = &quot;/dev/dsk/c2t5d1s0&quot;
+                FSType = ufs
+                MountOpt = logging
+                )
+
+        NIC nic_eri (
+                Device = eri0
+                NetworkType = ether
+                )
+
+        sendmail requires the_raid
+
+
+        // resource dependency tree
+        //
+        //      group mailgroup
+        //      {
+        //      Application Apache
+        //      Application SMMS
+        //      IP ip_eri0
+        //      NIC nic_eri
+        //      Application sendmail
+        //          {
+        //          Mount the_raid
+        //          }
+        //      }
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>146760</node_id>
+  <author_user>57097</author_user>
+  <title>Veritas Cluster Server Failover</title>
+  <createtime>2002-02-21 09:32:28</createtime>
+  <nodeupdated>2005-07-21 01:30:50</nodeupdated>
+</node>

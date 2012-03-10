@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="74973" title="Pseudo End" created="2001-04-24 06:28:25" updated="2005-07-21 01:26:44">
+<type id="121">
+perlcraft</type>
+<author id="1598">
+Rhandom</author>
+<data>
+<field name="doctext">
+# This is designed to simulate END blocks using objects.  This 
+# is very useful when you want to do something when scope is
+# left.
+# 
+# To use it, pass either the new or the add routine one or 
+# more code refs.  When the object leaves scope, the subs will
+# play.  This is useful for closing files, removing temp 
+# files... all of the things you normally use END{} for
+# But, you can call "END" any time by simply undefing the 
+# object.
+#
+# # you can do things like this.
+# while(1){
+#   my $end = Pseudo::End-&gt;new( sub{ warn "Out of the loop" } );
+# 
+#   last if 0;
+#   $end-&gt;add( sub{ warn "Out of the loop2" } );
+#   last if 1;
+#   last if 0;
+# }
+#
+# Simple, but try it.  It is addictive.
+
+package Pseudo::End;
+sub new {
+  my $type = shift;
+  my $s = bless [], ref($type) || $type;
+  foreach (@_){
+    unshift @$s, $_ if ref $_ eq 'CODE';
+  }
+  $s;
+}
+sub add {
+  my $s = shift;
+  foreach (@_){
+    unshift @$s, $_ if ref $_ eq 'CODE';
+  }
+}
+sub DESTROY {
+  my $s = shift;
+  &amp;$_ foreach @$s;
+}
+1;
+</field>
+</data>
+</node>

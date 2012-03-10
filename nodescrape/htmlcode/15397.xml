@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="15397" title="timesince" created="2000-05-30 14:26:00" updated="2005-06-06 12:11:52">
+<type id="4">
+htmlcode</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="code">
+my ($timestamp,$difference)=@_;
+
+# if $timestamp, then $difference can be used as a different base time,
+# otherwise we assume the difference is provided.
+
+if ($timestamp) {
+   my ($date, $time) = split / /,$timestamp;
+   my ($hrs, $min, $sec) = split /:/, $time;
+   my ($yy, $mm, $dd) = split /-/, $date;
+   return "never" unless(int($mm) and int($yy) and int($dd));
+   my $last_here=timelocal( $sec, $min, $hrs, $dd, $mm-1, $yy);
+   $difference = ($difference||time) - $last_here;
+} 
+
+use Time::Local;
+my $SECOND = 1;
+my $MINUTE = 60 * $SECOND; # i know, i know
+my $HOUR = 60 * $MINUTE;
+my $DAY = 24 * $HOUR;
+my $WEEK = 7 * $DAY;
+my $YEAR = 365.25 * $DAY; # I know that too.
+
+
+my @params = ();
+
+if ($difference &gt;= $YEAR) {
+        push @params, $YEAR, 'year', 'years';
+} elsif ($difference &gt;= $WEEK) {
+        push @params, $WEEK, 'week', 'weeks';
+} elsif ($difference &gt;= $DAY) {
+        push @params, $DAY, 'day', 'days';
+} elsif ($difference &gt;= $HOUR) {
+        push @params, $HOUR, 'hour', 'hours';
+} elsif ($difference &gt;= $MINUTE) {
+        push @params, $MINUTE, 'minute', 'minutes';
+} else {
+        push @params, $SECOND, 'second', 'seconds';
+}
+
+# assume $difference is positive
+my $lapse = int($difference / $params[0] + 0.5);
+sprintf "%d %s ago", $lapse, $params[$lapse == 1 ? 1 : 2];</field>
+</data>
+</node>

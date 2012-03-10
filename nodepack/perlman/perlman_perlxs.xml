@@ -1,0 +1,1741 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlxs - 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; language reference manual
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Introduction&quot;&gt;Introduction&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; is a language used to create an extension interface between Perl and some 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library which one wishes to use with Perl. The 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; interface is combined with the library to create a new library which can be linked to Perl. An
+ &lt;STRONG&gt;XSUB&lt;/STRONG&gt;
+is a function in the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; language and is the core component of the Perl
+application interface.
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; compiler is called &lt;STRONG&gt;xsubpp&lt;/STRONG&gt;. This compiler will embed the constructs necessary to let an 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; which is really a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function in disguise, manipulate Perl values and creates the glue necessary to let Perl access the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; The compiler uses
+ &lt;STRONG&gt;typemaps&lt;/STRONG&gt; to determine how to map 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function parameters and variables to Perl values. The default typemap handles many common 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; types. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; supplement typemap must be created to handle special structures and types for the library being linked.
+
+&lt;P&gt;
+See [perlman:perlxstut|the perlxstut manpage] for a tutorial on the whole extension creation process.
+
+&lt;P&gt;
+Note: For many extensions, Dave Beazley's 
+&lt;FONT SIZE=-1&gt;SWIG&lt;/FONT&gt; system provides a significantly more convenient mechanism for creating the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; glue code. See
+ &lt;EM&gt;http:&lt;/EM&gt; for more information.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;On_The_Road&quot;&gt;On The Road&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Many of the examples which follow will concentrate on creating an interface between Perl and the 
+&lt;FONT SIZE=-1&gt;ONC+&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;RPC&lt;/FONT&gt; bind library functions. The 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function is used to demonstrate many features of the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; language. This function has two parameters; the first is an input parameter and the second is an output parameter. The function also returns a status value.
+
+&lt;P&gt;
+&lt;PRE&gt;        bool_t rpcb_gettime(const char *host, time_t *timep);
+&lt;/PRE&gt;
+&lt;P&gt;
+From 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; this function will be called with the following
+statements.
+
+&lt;P&gt;
+&lt;PRE&gt;     #include &amp;lt;rpc/rpc.h&amp;gt;
+     bool_t status;
+     time_t timep;
+     status = rpcb_gettime( &amp;quot;localhost&amp;quot;, &amp;amp;timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+If an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is created to offer a direct translation between this function and Perl, then this 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will be used from Perl with the following code. The &lt;CODE&gt;$status&lt;/CODE&gt; and &lt;CODE&gt;$timep&lt;/CODE&gt; variables will contain the output of the function.
+
+&lt;P&gt;
+&lt;PRE&gt;     use RPC;
+     $status = rpcb_gettime( &amp;quot;localhost&amp;quot;, $timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; file shows an 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; subroutine, or 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; which demonstrates one possible interface to the 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function. This 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; represents a direct translation between 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; and Perl and so preserves the interface even from Perl. This 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will be invoked from Perl with the usage shown above. Note that the first three #include statements, for
+
+&lt;CODE&gt;EXTERN.h&lt;/CODE&gt;, &lt;CODE&gt;perl.h&lt;/CODE&gt;, and &lt;CODE&gt;XSUB.h&lt;/CODE&gt;, will always be present at the beginning of an 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; file. This approach and others will be expanded
+later in this document.
+
+&lt;P&gt;
+&lt;PRE&gt;     #include &amp;quot;EXTERN.h&amp;quot;
+     #include &amp;quot;perl.h&amp;quot;
+     #include &amp;quot;XSUB.h&amp;quot;
+     #include &amp;lt;rpc/rpc.h&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+Any extension to Perl, including those containing XSUBs, should have a Perl
+module to serve as the bootstrap which pulls the extension into Perl. This
+module will export the extension's functions and variables to the Perl
+program and will cause the extension's XSUBs to be linked into Perl. The
+following module will be used for most of the examples in this document and
+should be used from Perl with the [perlfunc:use|use]
+command as shown earlier. Perl modules are explained in more detail later
+in this document.
+
+&lt;P&gt;
+&lt;PRE&gt;     package RPC;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     require Exporter;
+     require DynaLoader;
+     @ISA = qw(Exporter DynaLoader);
+     @EXPORT = qw( rpcb_gettime );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     bootstrap RPC;
+     1;
+&lt;/PRE&gt;
+&lt;P&gt;
+Throughout this document a variety of interfaces to the 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will be explored. The XSUBs will take their parameters in different orders or will take different numbers of parameters. In each case the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is an abstraction between Perl and the real 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function, and the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; must always ensure that the real 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function is called with the correct parameters. This abstraction will allow the programmer to create a more Perl-like interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_Anatomy_of_an_XSUB&quot;&gt;The Anatomy of an XSUB&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; allows a Perl program to access a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library function called 
+&lt;CODE&gt;sin().&lt;/CODE&gt; The 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will imitate the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function which takes a single argument and returns a single value.
+
+&lt;P&gt;
+&lt;PRE&gt;     double
+     sin(x)
+       double x
+&lt;/PRE&gt;
+&lt;P&gt;
+When using 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; pointers the indirection operator &lt;CODE&gt;*&lt;/CODE&gt; should be considered part of the type and the address operator &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; should be considered part of the variable, as is demonstrated in the 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function above. See the section on typemaps for more about handling qualifiers and unary operators in 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; types.
+
+&lt;P&gt;
+The function name and the return type must be placed on separate lines.
+
+&lt;P&gt;
+&lt;PRE&gt;  INCORRECT                        CORRECT
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  double sin(x)                    double
+    double x                       sin(x)
+                                     double x
+&lt;/PRE&gt;
+&lt;P&gt;
+The function body may be indented or left-adjusted. The following example
+shows a function with its body left-adjusted. Most examples in this
+document will indent the body.
+
+&lt;P&gt;
+&lt;PRE&gt;  CORRECT
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  double
+  sin(x)
+  double x
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_Argument_Stack&quot;&gt;The Argument Stack&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The argument stack is used to store the values which are sent as parameters to the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; and to store the XSUB's return value. In reality all Perl functions keep their values on this stack at the same time, each limited to its own range of positions on the stack. In this document the first position on that stack which belongs to the active function will be referred to as position 0 for that function.
+
+&lt;P&gt;
+XSUBs refer to their stack arguments with the macro &lt;STRONG&gt;ST(x)&lt;/STRONG&gt;, where &lt;EM&gt;x&lt;/EM&gt;
+refers to a position in this XSUB's part of the stack. Position 0 for that function would be known to the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; as 
+&lt;CODE&gt;ST(0).&lt;/CODE&gt; The XSUB's incoming parameters and outgoing return values always begin at 
+&lt;CODE&gt;ST(0).&lt;/CODE&gt; For many simple cases the
+ &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler will generate the code necessary to handle the argument stack by
+embedding code fragments found in the typemaps. In more complex cases the
+programmer must supply the code.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_RETVAL_Variable&quot;&gt;The RETVAL Variable&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable is a magic variable which always matches the return type of the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library function. The
+ &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler will supply this variable in each 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; and by default will use it to hold the return value of the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library function being called. In simple cases the value of 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; will be placed in 
+&lt;CODE&gt;ST(0)&lt;/CODE&gt; of the argument stack where it can be received by Perl as the return value of the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt;
+
+&lt;P&gt;
+If the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; has a return type of [perlman:perlguts] then the compiler will not supply a 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable for that function. When using the 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; directive the 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable is not needed, unless used explicitly.
+
+&lt;P&gt;
+If 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; directive is not used, [perlman:perlguts] return value should be used only for subroutines which do not return a
+value, &lt;EM&gt;even if&lt;/EM&gt; 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; directive is used which sets 
+&lt;CODE&gt;ST(0)&lt;/CODE&gt; explicitly.
+
+&lt;P&gt;
+Older versions of this document recommended to use [perlman:perlguts] return value in such cases. It was discovered that this could lead to segfaults in cases when 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; was
+ &lt;EM&gt;truely&lt;/EM&gt;  [perlman:perlguts]. This practice is now deprecated, and may be not supported at some future
+version. Use the return value [perlman:perlguts] in such cases. (Currently &lt;CODE&gt;xsubpp&lt;/CODE&gt; contains some heuristic code which tries to disambiguate between
+``truely-void'' and ``old-practice-declared-as-void'' functions. Hence your
+code is at mercy of this heuristics unless you use [perlman:perlguts] as return value.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_MODULE_Keyword&quot;&gt;The MODULE Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; keyword is used to start the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code and to specify the package of the functions which are being defined. All text preceding the first 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; keyword is considered 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; code and is passed through to the output untouched. Every 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module will have a bootstrap function which is used to hook the XSUBs into Perl. The package name of this bootstrap function will match the value of the last 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; statement in the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; source files. The value of 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; should always remain constant within the same 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; file, though this is not required.
+
+&lt;P&gt;
+The following example will start the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code and will place all functions in a package named 
+&lt;FONT SIZE=-1&gt;RPC.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_PACKAGE_Keyword&quot;&gt;The PACKAGE Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When functions within an 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; source file must be separated into packages the 
+&lt;FONT SIZE=-1&gt;PACKAGE&lt;/FONT&gt; keyword should be used. This keyword is used with the 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; keyword and must follow immediately after it when used.
+
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     &amp;#091; XS code in package RPC &amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPCB
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     &amp;#091; XS code in package RPCB &amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     &amp;#091; XS code in package RPC &amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+Although this keyword is optional and in some cases provides redundant
+information it should always be used. This keyword will ensure that the
+XSUBs appear in the desired package.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_PREFIX_Keyword&quot;&gt;The PREFIX Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; keyword designates prefixes which should be removed from the Perl function names. If the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function is
+
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; and the 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; value is &lt;CODE&gt;rpcb_&lt;/CODE&gt; then Perl will see this function as &lt;CODE&gt;gettime()&lt;/CODE&gt;.
+
+&lt;P&gt;
+This keyword should follow the 
+&lt;FONT SIZE=-1&gt;PACKAGE&lt;/FONT&gt; keyword when used. If 
+&lt;FONT SIZE=-1&gt;PACKAGE&lt;/FONT&gt; is not used then 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; should follow the 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; keyword.
+
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PREFIX = rpc_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPCB  PREFIX = rpcb_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_OUTPUT_Keyword&quot;&gt;The OUTPUT: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;OUTPUT:&lt;/FONT&gt; keyword indicates that certain function parameters should be updated (new values made visible to Perl) when the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; terminates or that certain values should be returned to the calling Perl function. For simple functions, such as the 
+&lt;CODE&gt;sin()&lt;/CODE&gt; function above, the 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable is automatically designated as an output value. In more complex functions the
+ &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler will need help to determine which variables are output variables.
+
+&lt;P&gt;
+This keyword will normally be used to complement the 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; keyword. The 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable is not recognized as an output variable when the 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; keyword is present. The 
+&lt;FONT SIZE=-1&gt;OUTPUT:&lt;/FONT&gt; keyword is used in this situation to tell the compiler that 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; really is an output variable.
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;OUTPUT:&lt;/FONT&gt; keyword can also be used to indicate that
+function parameters are output variables. This may be necessary when a
+parameter has been modified within the function and the programmer would
+like the update to be seen by Perl.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;OUTPUT:&lt;/FONT&gt; keyword will also allow an output parameter to
+be mapped to a matching piece of code rather than to a typemap.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          OUTPUT:
+          timep sv_setnv(ST(1), (double)timep);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;xsubpp&lt;/STRONG&gt; emits an automatic [perlman:perlguts] for all parameters in the 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; section of the 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; except 
+&lt;FONT SIZE=-1&gt;RETVAL.&lt;/FONT&gt; This is the usually desired behavior, as it takes care of properly invoking 'set' magic on output parameters (needed for hash or array element parameters that must be created if they didn't exist). If for some reason, this behavior is not desired, the 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; section may contain a
+ &lt;CODE&gt;SETMAGIC: DISABLE&lt;/CODE&gt; line to disable it for the remainder of the parameters in the 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; section. Likewise,  &lt;CODE&gt;SETMAGIC: ENABLE&lt;/CODE&gt; can be used to reenable it for the remainder of the 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; section. See [perlman:perlguts|the perlguts manpage] for more details about 'set' magic.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_CODE_Keyword&quot;&gt;The CODE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This keyword is used in more complicated XSUBs which require special handling for the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function. The 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable is available but will not be returned unless it is specified under the 
+&lt;FONT SIZE=-1&gt;OUTPUT:&lt;/FONT&gt; keyword.
+
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is for a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function which requires special handling of its parameters. The Perl usage is given first.
+
+&lt;P&gt;
+&lt;PRE&gt;     $status = rpcb_gettime( &amp;quot;localhost&amp;quot;, $timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; follows.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          char *host
+          time_t timep
+          CODE:
+               RETVAL = rpcb_gettime( host, &amp;amp;timep );
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_INIT_Keyword&quot;&gt;The INIT: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;INIT:&lt;/FONT&gt; keyword allows initialization to be inserted into the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; before the compiler generates the call to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function. Unlike the 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; keyword above, this keyword does not affect the way the compiler handles 
+&lt;FONT SIZE=-1&gt;RETVAL.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          INIT:
+          printf(&amp;quot;# Host is %s\n&amp;quot;, host );
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_NO_INIT_Keyword&quot;&gt;The NO_INIT Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;NO_INIT&lt;/FONT&gt; keyword is used to indicate that a function
+parameter is being used only as an output value. The &lt;STRONG&gt;xsubpp&lt;/STRONG&gt;
+compiler will normally generate code to read the values of all function parameters from the argument stack and assign them to 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variables upon entry to the function. 
+&lt;FONT SIZE=-1&gt;NO_INIT&lt;/FONT&gt; will tell the compiler that some parameters will be used for output rather than for input and that they will be handled before the function terminates.
+
+&lt;P&gt;
+The following example shows a variation of the 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt;
+function. This function uses the timep variable only as an output variable
+and does not care about its initial contents.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep = NO_INIT
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Initializing_Function_Parameters&quot;&gt;Initializing Function Parameters&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Function parameters are normally initialized with their values from the argument stack. The typemaps contain the code segments which are used to transfer the Perl values to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; parameters. The programmer, however, is allowed to override the typemaps and supply alternate (or additional) initialization code.
+
+&lt;P&gt;
+The following code demonstrates how to supply initialization code for
+function parameters. The initialization code is eval'd within double quotes
+by the compiler before it is added to the output so anything which should
+be interpreted literally &amp;#091;mainly &lt;CODE&gt;$&lt;/CODE&gt;, &lt;CODE&gt;@&lt;/CODE&gt;, or &lt;CODE&gt;\\&lt;/CODE&gt;&amp;#093; must be protected with backslashes. The variables &lt;CODE&gt;$var&lt;/CODE&gt;, &lt;CODE&gt;$arg&lt;/CODE&gt;, and &lt;CODE&gt;$type&lt;/CODE&gt; can be used as in typemaps.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          char *host = (char *)SvPV($arg,PL_na);
+          time_t &amp;amp;timep = 0;
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+This should not be used to supply default values for parameters. One would
+normally use this when a function parameter must be processed by another
+library function before it can be used. Default parameters are covered in
+the next section.
+
+&lt;P&gt;
+If the initialization begins with &lt;CODE&gt;=&lt;/CODE&gt;, then it is output on the same line where the input variable is declared.
+If the initialization begins with &lt;CODE&gt;;&lt;/CODE&gt; or &lt;CODE&gt;+&lt;/CODE&gt;, then it is output after all of the input variables have been declared.
+The &lt;CODE&gt;=&lt;/CODE&gt; and &lt;CODE&gt;;&lt;/CODE&gt;
+cases replace the initialization normally supplied from the typemap. For
+the &lt;CODE&gt;+&lt;/CODE&gt; case, the initialization from the typemap will preceed the initialization
+code included after the &lt;CODE&gt;+&lt;/CODE&gt;. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; global variable, &lt;CODE&gt;%v&lt;/CODE&gt;, is available for the truely rare case where information from one
+initialization is needed in another initialization.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(host,timep)
+          time_t &amp;amp;timep ; /*\$v{time}=@{&amp;#091;$v{time}=$arg&amp;#093;}*/
+          char *host + SvOK($v{time}) ? SvPV($arg,PL_na) : NULL;
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Default_Parameter_Values&quot;&gt;Default Parameter Values&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Default values can be specified for function parameters by placing an
+assignment statement in the parameter list. The default value may be a
+number or a string. Defaults should always be used on the right-most
+parameters only.
+
+&lt;P&gt;
+To allow the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; for 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; to have a default host value the parameters to the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; could be rearranged. The 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will then call the real 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function with the parameters in the correct order. Perl will call this 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; with either of the following statements.
+
+&lt;P&gt;
+&lt;PRE&gt;     $status = rpcb_gettime( $timep, $host );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $status = rpcb_gettime( $timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will look like the code which follows. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; block is used to call the real 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function with the parameters in the correct order for that function.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(timep,host=&amp;quot;localhost&amp;quot;)
+          char *host
+          time_t timep = NO_INIT
+          CODE:
+               RETVAL = rpcb_gettime( host, &amp;amp;timep );
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_PREINIT_Keyword&quot;&gt;The PREINIT: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;PREINIT:&lt;/FONT&gt; keyword allows extra variables to be declared before the typemaps are expanded. If a variable is declared in a 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; block then that variable will follow any typemap code. This may result in a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; syntax error. To force the variable to be declared before the typemap code, place it into a 
+&lt;FONT SIZE=-1&gt;PREINIT:&lt;/FONT&gt; block. The 
+&lt;FONT SIZE=-1&gt;PREINIT:&lt;/FONT&gt; keyword may be used one or more times within an 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt;
+
+&lt;P&gt;
+The following examples are equivalent, but if the code is using complex
+typemaps then the first example is safer.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(timep)
+          time_t timep = NO_INIT
+          PREINIT:
+          char *host = &amp;quot;localhost&amp;quot;;
+          CODE:
+          RETVAL = rpcb_gettime( host, &amp;amp;timep );
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; correct, but error-prone example.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(timep)
+          time_t timep = NO_INIT
+          CODE:
+          char *host = &amp;quot;localhost&amp;quot;;
+          RETVAL = rpcb_gettime( host, &amp;amp;timep );
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_SCOPE_Keyword&quot;&gt;The SCOPE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;SCOPE:&lt;/FONT&gt; keyword allows scoping to be enabled for a particular 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; If enabled, the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will invoke 
+&lt;FONT SIZE=-1&gt;ENTER&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;LEAVE&lt;/FONT&gt; automatically.
+
+&lt;P&gt;
+To support potentially complex type mappings, if a typemap entry used by this 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; contains a comment like
+ &lt;CODE&gt;/*scope*/&lt;/CODE&gt; then scoping will automatically be enabled for that 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt;
+
+&lt;P&gt;
+To enable scoping:
+
+&lt;P&gt;
+&lt;PRE&gt;    SCOPE: ENABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+To disable scoping:
+
+&lt;P&gt;
+&lt;PRE&gt;    SCOPE: DISABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_INPUT_Keyword&quot;&gt;The INPUT: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The XSUB's parameters are usually evaluated immediately after entering the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; The 
+&lt;FONT SIZE=-1&gt;INPUT:&lt;/FONT&gt; keyword can be used to force those parameters to be evaluated a little later. The 
+&lt;FONT SIZE=-1&gt;INPUT:&lt;/FONT&gt; keyword can be used multiple times within an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; and can be used to list one or more input variables. This keyword is used with the 
+&lt;FONT SIZE=-1&gt;PREINIT:&lt;/FONT&gt; keyword.
+
+&lt;P&gt;
+The following example shows how the input parameter &lt;CODE&gt;timep&lt;/CODE&gt; can be evaluated late, after a 
+&lt;FONT SIZE=-1&gt;PREINIT.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          char *host
+          PREINIT:
+          time_t tt;
+          INPUT:
+          time_t timep
+          CODE:
+               RETVAL = rpcb_gettime( host, &amp;amp;tt );
+               timep = tt;
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+The next example shows each input parameter evaluated late.
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          PREINIT:
+          time_t tt;
+          INPUT:
+          char *host
+          PREINIT:
+          char *h;
+          INPUT:
+          time_t timep
+          CODE:
+               h = host;
+               RETVAL = rpcb_gettime( h, &amp;amp;tt );
+               timep = tt;
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Variable_length_Parameter_Lists&quot;&gt;Variable-length Parameter Lists&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+XSUBs can have variable-length parameter lists by specifying an ellipsis
+&lt;CODE&gt;(...)&lt;/CODE&gt; in the parameter list. This use of the ellipsis is similar to that found in 
+&lt;FONT SIZE=-1&gt;ANSI&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt; The programmer is able to determine the number of arguments passed to the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; by examining the
+ [perlman:perlguts] variable which the
+&lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler supplies for all XSUBs. By using this mechanism one can create an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; which accepts a list of parameters of unknown
+length.
+
+&lt;P&gt;
+The &lt;EM&gt;host&lt;/EM&gt; parameter for the 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; can be optional so the ellipsis can be used to indicate that the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will take a variable number of parameters. Perl should be able to call this 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; with either of the following statements.
+
+&lt;P&gt;
+&lt;PRE&gt;     $status = rpcb_gettime( $timep, $host );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $status = rpcb_gettime( $timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code, with ellipsis, follows.
+
+&lt;P&gt;
+&lt;PRE&gt;     bool_t
+     rpcb_gettime(timep, ...)
+          time_t timep = NO_INIT
+          PREINIT:
+          char *host = &amp;quot;localhost&amp;quot;;
+          CODE:
+                  if( items &amp;gt; 1 )
+                       host = (char *)SvPV(ST(1), PL_na);
+                  RETVAL = rpcb_gettime( host, &amp;amp;timep );
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_C_ARGS_Keyword&quot;&gt;The C_ARGS: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;C_ARGS:&lt;/FONT&gt; keyword allows creating of 
+&lt;FONT SIZE=-1&gt;XSUBS&lt;/FONT&gt; which have different calling sequence from Perl than from 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; without a need to write 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;CPPCODE:&lt;/FONT&gt; section. The contents of the 
+&lt;FONT SIZE=-1&gt;C_ARGS:&lt;/FONT&gt; paragraph is put as the argument to the called 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function without any change.
+
+&lt;P&gt;
+For example, suppose that 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function is declared as
+
+&lt;P&gt;
+&lt;PRE&gt;    symbolic nth_derivative(int n, symbolic function, int flags);
+&lt;/PRE&gt;
+&lt;P&gt;
+and that the default flags are kept in a global 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable
+&lt;CODE&gt;default_flags&lt;/CODE&gt;. Suppose that you want to create an interface which is called as
+
+&lt;P&gt;
+&lt;PRE&gt;    $second_deriv = $function-&amp;gt;nth_derivative(2);
+&lt;/PRE&gt;
+&lt;P&gt;
+To do this, declare the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; as
+
+&lt;P&gt;
+&lt;PRE&gt;    symbolic
+    nth_derivative(function, n)
+        symbolic        function
+        int             n
+    C_ARGS:
+        n, function, default_flags
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_PPCODE_Keyword&quot;&gt;The PPCODE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; keyword is an alternate form of the 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; keyword and is used to tell the
+ &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler that the programmer is supplying the code to control the argument stack for the XSUBs return values. Occasionally one will want an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; to return a list of values rather than a single value. In these cases one must use 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; and then explicitly push the list of values on the stack. The 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; keywords are not used together within the same 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt;
+
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will call the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function and will return its two output values, timep and status, to Perl as a single list.
+
+&lt;P&gt;
+&lt;PRE&gt;     void
+     rpcb_gettime(host)
+          char *host
+          PREINIT:
+          time_t  timep;
+          bool_t  status;
+          PPCODE:
+          status = rpcb_gettime( host, &amp;amp;timep );
+          EXTEND(SP, 2);
+          PUSHs(sv_2mortal(newSViv(status)));
+          PUSHs(sv_2mortal(newSViv(timep)));
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice that the programmer must supply the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; code necessary to have the real 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function called and to have the return values properly placed on the argument stack.
+
+&lt;P&gt;
+The [perlman:perlguts] return type for this function tells the &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler that the 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; variable is not needed or used and that it should not be created. In most scenarios the void return type should be used with the 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; directive.
+
+&lt;P&gt;
+The 
+&lt;CODE&gt;EXTEND()&lt;/CODE&gt; macro is used to make room on the argument stack for 2 return values. The 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; directive causes the
+
+&lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler to create a stack pointer available as [perlman:perlguts], and it is this pointer which is being used in the 
+&lt;CODE&gt;EXTEND()&lt;/CODE&gt; macro. The values are then pushed onto the stack with the 
+&lt;CODE&gt;PUSHs()&lt;/CODE&gt; macro.
+
+&lt;P&gt;
+Now the 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function
+can be used from Perl with the following statement.
+
+&lt;P&gt;
+&lt;PRE&gt;     ($status, $timep) = rpcb_gettime(&amp;quot;localhost&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+When handling output parameters with a 
+&lt;FONT SIZE=-1&gt;PPCODE&lt;/FONT&gt; section, be sure to handle 'set' magic
+properly. See [perlman:perlguts|the perlguts manpage] for details about 'set' magic.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Returning_Undef_And_Empty_Lists&quot;&gt;Returning Undef And Empty Lists&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Occasionally the programmer will want to return simply
+[perlfunc:undef|undef] or an empty list if a function fails rather than a separate status value. The 
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function offers just this situation. If the function succeeds we would like to have it return the time and if it fails we would like to have undef returned. In the following Perl code the value of &lt;CODE&gt;$timep&lt;/CODE&gt; will either be undef or it will be a valid time.
+
+&lt;P&gt;
+&lt;PRE&gt;     $timep = rpcb_gettime( &amp;quot;localhost&amp;quot; );
+&lt;/PRE&gt;
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; uses the [perlman:perlguts] return type as a mnemonic only, and uses a 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; block to indicate to the compiler that the programmer has supplied all the necessary code. The 
+&lt;CODE&gt;sv_newmortal()&lt;/CODE&gt; call will initialize the return value to undef, making that the default return value.
+
+&lt;P&gt;
+&lt;PRE&gt;     SV *
+     rpcb_gettime(host)
+          char *  host
+          PREINIT:
+          time_t  timep;
+          bool_t x;
+          CODE:
+          ST(0) = sv_newmortal();
+          if( rpcb_gettime( host, &amp;amp;timep ) )
+               sv_setnv( ST(0), (double)timep);
+&lt;/PRE&gt;
+&lt;P&gt;
+The next example demonstrates how one would place an explicit undef in the
+return value, should the need arise.
+
+&lt;P&gt;
+&lt;PRE&gt;     SV *
+     rpcb_gettime(host)
+          char *  host
+          PREINIT:
+          time_t  timep;
+          bool_t x;
+          CODE:
+          ST(0) = sv_newmortal();
+          if( rpcb_gettime( host, &amp;amp;timep ) ){
+               sv_setnv( ST(0), (double)timep);
+          }
+          else{
+               ST(0) = &amp;amp;PL_sv_undef;
+          }
+&lt;/PRE&gt;
+&lt;P&gt;
+To return an empty list one must use a 
+&lt;FONT SIZE=-1&gt;PPCODE:&lt;/FONT&gt; block and then not push return values on the
+stack.
+
+&lt;P&gt;
+&lt;PRE&gt;     void
+     rpcb_gettime(host)
+          char *host
+          PREINIT:
+          time_t  timep;
+          PPCODE:
+          if( rpcb_gettime( host, &amp;amp;timep ) )
+               PUSHs(sv_2mortal(newSViv(timep)));
+          else{
+          /* Nothing pushed on stack, so an empty */
+          /* list is implicitly returned. */
+          }
+&lt;/PRE&gt;
+&lt;P&gt;
+Some people may be inclined to include an explicit [perlfunc:return|return] in the above 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; rather than letting control fall through to the
+end. In those situations [perlman:perlguts] should be used, instead. This will ensure that the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; stack is properly adjusted. Consult [perlman:perlguts] for other [perlman:perlguts] macros.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_REQUIRE_Keyword&quot;&gt;The REQUIRE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;REQUIRE:&lt;/FONT&gt; keyword is used to indicate the minimum
+version of the
+&lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler needed to compile the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module. An 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module which contains the following statement will compile with only
+ &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; version 1.922 or greater:
+
+&lt;P&gt;
+&lt;PRE&gt;        REQUIRE: 1.922
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_CLEANUP_Keyword&quot;&gt;The CLEANUP: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This keyword can be used when an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; requires special cleanup procedures before it terminates. When the 
+&lt;FONT SIZE=-1&gt;CLEANUP:&lt;/FONT&gt; keyword is used it must follow any 
+&lt;FONT SIZE=-1&gt;CODE:,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PPCODE:,&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;OUTPUT:&lt;/FONT&gt; blocks which are present in the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; The code specified for the cleanup block will be added as the last statements in the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_BOOT_Keyword&quot;&gt;The BOOT: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;BOOT:&lt;/FONT&gt; keyword is used to add code to the extension's
+bootstrap function. The bootstrap function is generated by the &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler and normally holds the statements necessary to register any XSUBs with Perl. With the 
+&lt;FONT SIZE=-1&gt;BOOT:&lt;/FONT&gt; keyword the programmer can tell the compiler to add extra statements to the bootstrap function.
+
+&lt;P&gt;
+This keyword may be used any time after the first 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; keyword and should appear on a line by itself.
+The first blank line after the keyword will terminate the code block.
+
+&lt;P&gt;
+&lt;PRE&gt;     BOOT:
+     # The following message will be printed when the
+     # bootstrap function executes.
+     printf(&amp;quot;Hello from the bootstrap!\n&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_VERSIONCHECK_Keyword&quot;&gt;The VERSIONCHECK: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;VERSIONCHECK:&lt;/FONT&gt; keyword corresponds to &lt;STRONG&gt;xsubpp&lt;/STRONG&gt;'s &lt;CODE&gt;-versioncheck&lt;/CODE&gt; and
+&lt;CODE&gt;-noversioncheck&lt;/CODE&gt; options. This keyword overrides the command line options. Version checking is enabled by default. When version checking is enabled the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module will attempt to verify that its version matches the version of the 
+&lt;FONT SIZE=-1&gt;PM&lt;/FONT&gt; module.
+
+&lt;P&gt;
+To enable version checking:
+
+&lt;P&gt;
+&lt;PRE&gt;    VERSIONCHECK: ENABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+To disable version checking:
+
+&lt;P&gt;
+&lt;PRE&gt;    VERSIONCHECK: DISABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_PROTOTYPES_Keyword&quot;&gt;The PROTOTYPES: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;PROTOTYPES:&lt;/FONT&gt; keyword corresponds to &lt;STRONG&gt;xsubpp&lt;/STRONG&gt;'s &lt;CODE&gt;-prototypes&lt;/CODE&gt; and
+&lt;CODE&gt;-noprototypes&lt;/CODE&gt; options. This keyword overrides the command line options. Prototypes are enabled by default. When prototypes are enabled XSUBs will be given Perl prototypes. This keyword may be used multiple times in an 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module to enable and disable prototypes for different parts of the module.
+
+&lt;P&gt;
+To enable prototypes:
+
+&lt;P&gt;
+&lt;PRE&gt;    PROTOTYPES: ENABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+To disable prototypes:
+
+&lt;P&gt;
+&lt;PRE&gt;    PROTOTYPES: DISABLE
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_PROTOTYPE_Keyword&quot;&gt;The PROTOTYPE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This keyword is similar to the 
+&lt;FONT SIZE=-1&gt;PROTOTYPES:&lt;/FONT&gt; keyword above but can be used to force &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; to use a specific prototype for the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; This keyword overrides all other prototype options and keywords but affects only the current 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; Consult
+ [perlman:perlsub] for information about Perl prototypes.
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(timep, ...)
+          time_t timep = NO_INIT
+          PROTOTYPE: $;$
+          PREINIT:
+          char *host = &amp;quot;localhost&amp;quot;;
+          CODE:
+                  if( items &amp;gt; 1 )
+                       host = (char *)SvPV(ST(1), PL_na);
+                  RETVAL = rpcb_gettime( host, &amp;amp;timep );
+          OUTPUT:
+          timep
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_ALIAS_Keyword&quot;&gt;The ALIAS: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;ALIAS:&lt;/FONT&gt; keyword allows an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; to have two or more unique Perl names and to know which of those names was used when it was invoked. The Perl names may be fully-qualified with package names. Each alias is given an index. The compiler will setup a variable called
+ [perlman:perlguts] which contain the index of the alias which was used. When the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is called with its declared name [perlman:perlguts] will be 0.
+
+&lt;P&gt;
+The following example will create aliases &lt;CODE&gt;FOO::gettime()&lt;/CODE&gt; and
+&lt;CODE&gt;BAR::getit()&lt;/CODE&gt; for this function.
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          ALIAS:
+            FOO::gettime = 1
+            BAR::getit = 2
+          INIT:
+          printf(&amp;quot;# ix = %d\n&amp;quot;, ix );
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_INTERFACE_Keyword&quot;&gt;The INTERFACE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This keyword declares the current 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; as a keeper of the given calling signature. If
+some text follows this keyword, it is considered as a list of functions
+which have this signature, and should be attached to XSUBs.
+
+&lt;P&gt;
+Say, if you have 4 functions 
+&lt;CODE&gt;multiply(),&lt;/CODE&gt; 
+&lt;CODE&gt;divide(),&lt;/CODE&gt; 
+&lt;CODE&gt;add(),&lt;/CODE&gt; 
+&lt;CODE&gt;subtract()&lt;/CODE&gt; all having the signature
+
+&lt;P&gt;
+&lt;PRE&gt;    symbolic f(symbolic, symbolic);
+&lt;/PRE&gt;
+&lt;P&gt;
+you code them all by using 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    symbolic
+    interface_s_ss(arg1, arg2)  
+        symbolic        arg1
+        symbolic        arg2
+    INTERFACE:
+        multiply divide 
+        add subtract
+&lt;/PRE&gt;
+&lt;P&gt;
+The advantage of this approach comparing to 
+&lt;FONT SIZE=-1&gt;ALIAS:&lt;/FONT&gt; keyword is that one can attach an extra function 
+&lt;CODE&gt;remainder()&lt;/CODE&gt; at runtime by using 
+&lt;FONT SIZE=-1&gt;CV&lt;/FONT&gt; &lt;CODE&gt;*mycv&lt;/CODE&gt; = 
+&lt;CODE&gt;newXSproto(``Symbolic::remainder'',&lt;/CODE&gt; XS_Symbolic_interface_s_ss, 
+&lt;FONT SIZE=-1&gt;__FILE__,&lt;/FONT&gt; ``$$''); 
+&lt;CODE&gt;XSINTERFACE_FUNC_SET(mycv,&lt;/CODE&gt; remainder);
+
+&lt;P&gt;
+(This example supposes that there was no 
+&lt;FONT SIZE=-1&gt;INTERFACE_MACRO:&lt;/FONT&gt; section, otherwise one needs to use
+something else instead of
+&lt;CODE&gt;XSINTERFACE_FUNC_SET&lt;/CODE&gt;.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_INTERFACE_MACRO_Keyword&quot;&gt;The INTERFACE_MACRO: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This keyword allows one to define an 
+&lt;FONT SIZE=-1&gt;INTERFACE&lt;/FONT&gt; using a different way to extract a function pointer from an 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; The text which follows this keyword should give the name of macros which would extract/set a function pointer. The extractor macro is given return type,
+ &lt;CODE&gt;CV*&lt;/CODE&gt;, and &lt;CODE&gt;XSANY.any_dptr&lt;/CODE&gt; for this &lt;CODE&gt;CV*&lt;/CODE&gt;. The setter macro is given cv, and the function pointer.
+
+&lt;P&gt;
+The default value is &lt;CODE&gt;XSINTERFACE_FUNC&lt;/CODE&gt; and &lt;CODE&gt;XSINTERFACE_FUNC_SET&lt;/CODE&gt;. An 
+&lt;FONT SIZE=-1&gt;INTERFACE&lt;/FONT&gt; keyword with an empty list of functions can be omitted if 
+&lt;FONT SIZE=-1&gt;INTERFACE_MACRO&lt;/FONT&gt; keyword is used.
+
+&lt;P&gt;
+Suppose that in the previous example functions pointers for 
+&lt;CODE&gt;multiply(),&lt;/CODE&gt; 
+&lt;CODE&gt;divide(),&lt;/CODE&gt; 
+&lt;CODE&gt;add(),&lt;/CODE&gt; 
+&lt;CODE&gt;subtract()&lt;/CODE&gt; are kept in a global 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; array
+
+&lt;CODE&gt;fp&amp;#091;&amp;#093;&lt;/CODE&gt; with offsets being &lt;CODE&gt;multiply_off&lt;/CODE&gt;, &lt;CODE&gt;divide_off&lt;/CODE&gt;, &lt;CODE&gt;add_off&lt;/CODE&gt;,
+&lt;CODE&gt;subtract_off&lt;/CODE&gt;. Then one can use 
+
+&lt;P&gt;
+&lt;PRE&gt;    #define XSINTERFACE_FUNC_BYOFFSET(ret,cv,f) \
+        ((XSINTERFACE_CVT(ret,))fp&amp;#091;CvXSUBANY(cv).any_i32&amp;#093;)
+    #define XSINTERFACE_FUNC_BYOFFSET_set(cv,f) \
+        CvXSUBANY(cv).any_i32 = CAT2( f, _off )
+&lt;/PRE&gt;
+&lt;P&gt;
+in 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; section,
+
+&lt;P&gt;
+&lt;PRE&gt;    symbolic
+    interface_s_ss(arg1, arg2)  
+        symbolic        arg1
+        symbolic        arg2
+    INTERFACE_MACRO: 
+        XSINTERFACE_FUNC_BYOFFSET
+        XSINTERFACE_FUNC_BYOFFSET_set
+    INTERFACE:
+        multiply divide 
+        add subtract
+&lt;/PRE&gt;
+&lt;P&gt;
+in 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; section.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_INCLUDE_Keyword&quot;&gt;The INCLUDE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This keyword can be used to pull other files into the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module. The other files may have 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code. 
+&lt;FONT SIZE=-1&gt;INCLUDE:&lt;/FONT&gt; can also be used to run a command to generate the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code to be pulled into the module.
+
+&lt;P&gt;
+The file &lt;EM&gt;Rpcb1.xsh&lt;/EM&gt; contains our &lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; function:
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; module can use 
+&lt;FONT SIZE=-1&gt;INCLUDE:&lt;/FONT&gt; to pull that file into it.
+
+&lt;P&gt;
+&lt;PRE&gt;    INCLUDE: Rpcb1.xsh
+&lt;/PRE&gt;
+&lt;P&gt;
+If the parameters to the 
+&lt;FONT SIZE=-1&gt;INCLUDE:&lt;/FONT&gt; keyword are followed by a pipe (&lt;CODE&gt;|&lt;/CODE&gt;) then the compiler will interpret the parameters as a command.
+
+&lt;P&gt;
+&lt;PRE&gt;    INCLUDE: cat Rpcb1.xsh |
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_CASE_Keyword&quot;&gt;The CASE: Keyword&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;CASE:&lt;/FONT&gt; keyword allows an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; to have multiple distinct parts with each part acting as a virtual 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CASE:&lt;/FONT&gt; is greedy and if it is used then all other 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; keywords must be contained within a 
+&lt;FONT SIZE=-1&gt;CASE:.&lt;/FONT&gt; This means nothing may precede the first 
+&lt;FONT SIZE=-1&gt;CASE:&lt;/FONT&gt; in the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; and anything following the last 
+&lt;FONT SIZE=-1&gt;CASE:&lt;/FONT&gt; is included in that case.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CASE:&lt;/FONT&gt; might switch via a parameter of the 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; via the
+ [perlman:perlguts] 
+&lt;FONT SIZE=-1&gt;ALIAS:&lt;/FONT&gt; variable (see &lt;A HREF=&quot;#The_ALIAS_Keyword&quot;&gt;The ALIAS: Keyword&lt;/A&gt;), or maybe via the [perlman:perlguts] variable (see &lt;A HREF=&quot;#Variable_length_Parameter_Lists&quot;&gt;Variable-length Parameter Lists&lt;/A&gt;). The last 
+&lt;FONT SIZE=-1&gt;CASE:&lt;/FONT&gt; becomes the
+&lt;STRONG&gt;default&lt;/STRONG&gt; case if it is not associated with a conditional. The following example shows 
+&lt;FONT SIZE=-1&gt;CASE&lt;/FONT&gt; switched via
+ [perlman:perlguts] with a function &lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt;
+having an alias &lt;CODE&gt;x_gettime()&lt;/CODE&gt;. When the function is called as
+&lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; its parameters are the usual &lt;CODE&gt;(char *host, time_t *timep)&lt;/CODE&gt;, but when the function is called as &lt;CODE&gt;x_gettime()&lt;/CODE&gt; its parameters are reversed, &lt;CODE&gt;(time_t *timep, char *host)&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    long
+    rpcb_gettime(a,b)
+      CASE: ix == 1
+          ALIAS:
+          x_gettime = 1
+          INPUT:
+          # 'a' is timep, 'b' is host
+          char *b
+          time_t a = NO_INIT
+          CODE:
+               RETVAL = rpcb_gettime( b, &amp;amp;a );
+          OUTPUT:
+          a
+          RETVAL
+      CASE:
+          # 'a' is host, 'b' is timep
+          char *a
+          time_t &amp;amp;b = NO_INIT
+          OUTPUT:
+          b
+          RETVAL
+&lt;/PRE&gt;
+&lt;P&gt;
+That function can be called with either of the following statements. Note
+the different argument lists.
+
+&lt;P&gt;
+&lt;PRE&gt;        $status = rpcb_gettime( $host, $timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $status = x_gettime( $timep, $host );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_Unary_Operator&quot;&gt;The &amp; Unary Operator&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &amp;amp; unary operator is used to tell the compiler that it should dereference the object when it calls the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function. This is used when a 
+&lt;FONT SIZE=-1&gt;CODE:&lt;/FONT&gt; block is not used and the object is a not a pointer type (the object is an
+ [perlfunc:int|int] or
+&lt;CODE&gt;long&lt;/CODE&gt; but not a [perlfunc:int] or &lt;CODE&gt;long*&lt;/CODE&gt;).
+
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will generate incorrect 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; code. The xsubpp compiler will turn this into code which calls
+ &lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; with parameters &lt;CODE&gt;(char
+*host, time_t timep)&lt;/CODE&gt;, but the real &lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; wants the &lt;CODE&gt;timep&lt;/CODE&gt;
+parameter to be of type &lt;CODE&gt;time_t*&lt;/CODE&gt; rather than &lt;CODE&gt;time_t&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          char *host
+          time_t timep
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+That problem is corrected by using the &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; operator. The xsubpp compiler will now turn this into code which calls &lt;CODE&gt;rpcb_gettime()&lt;/CODE&gt; correctly with parameters &lt;CODE&gt;(char *host, time_t *timep)&lt;/CODE&gt;. It does this by carrying the
+&lt;CODE&gt;&amp;amp;&lt;/CODE&gt; through, so the function call looks like &lt;CODE&gt;rpcb_gettime(host, &amp;amp;timep)&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    bool_t
+    rpcb_gettime(host,timep)
+          char *host
+          time_t &amp;amp;timep
+          OUTPUT:
+          timep
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Inserting_Comments_and_C_Preproc&quot;&gt;Inserting Comments and C Preprocessor Directives&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; preprocessor directives are allowed within 
+&lt;FONT SIZE=-1&gt;BOOT:,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PREINIT:&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INIT:,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CODE:,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PPCODE:,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;CLEANUP:&lt;/FONT&gt; blocks, as well as outside the functions. Comments are allowed anywhere after the 
+&lt;FONT SIZE=-1&gt;MODULE&lt;/FONT&gt; keyword. The compiler will pass the preprocessor directives through untouched and will remove the commented lines.
+
+&lt;P&gt;
+Comments can be added to XSUBs by placing a &lt;CODE&gt;#&lt;/CODE&gt; as the first non-whitespace of a line. Care should be taken to avoid making the comment look like a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; preprocessor directive, lest it be interpreted as such. The simplest way to prevent this is to put whitespace in front of the
+ &lt;CODE&gt;#&lt;/CODE&gt;.
+
+&lt;P&gt;
+If you use preprocessor directives to choose one of two versions of a
+function, use
+
+&lt;P&gt;
+&lt;PRE&gt;    #if ... version1
+    #else /* ... version2  */
+    #endif
+&lt;/PRE&gt;
+&lt;P&gt;
+and not
+
+&lt;P&gt;
+&lt;PRE&gt;    #if ... version1
+    #endif
+    #if ... version2
+    #endif
+&lt;/PRE&gt;
+&lt;P&gt;
+because otherwise xsubpp will believe that you made a duplicate definition
+of the function. Also, put a blank line before the #else/#endif so it will
+not be seen as part of the function body.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Using_XS_With_C_&quot;&gt;Using XS With C++&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If a function is defined as a 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; method then it will assume its first argument is an object pointer. The object pointer will be stored in a variable called 
+&lt;FONT SIZE=-1&gt;THIS.&lt;/FONT&gt; The object should have been created by 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; with the 
+&lt;CODE&gt;new()&lt;/CODE&gt; function and should be blessed by Perl with the 
+&lt;CODE&gt;sv_setref_pv()&lt;/CODE&gt; macro. The blessing of the object by Perl can be handled by a typemap. An example typemap is shown at the end of this section.
+
+&lt;P&gt;
+If the method is defined as static it will call the 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; function using the class::method() syntax. If the
+method is not static the function will be called using the
+THIS-&amp;gt;method() syntax.
+
+&lt;P&gt;
+The next examples will use the following 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; class.
+
+&lt;P&gt;
+&lt;PRE&gt;     class color {
+          public:
+          color();
+          ~color();
+          int blue();
+          void set_blue( int );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;          private:
+          int c_blue;
+     };
+&lt;/PRE&gt;
+&lt;P&gt;
+The XSUBs for the 
+&lt;CODE&gt;blue()&lt;/CODE&gt; and 
+&lt;CODE&gt;set_blue()&lt;/CODE&gt; methods are defined with the class name but the parameter for the object 
+&lt;FONT SIZE=-1&gt;(THIS,&lt;/FONT&gt; or ``self'') is implicit and is not listed.
+
+&lt;P&gt;
+&lt;PRE&gt;     int
+     color::blue()
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     void
+     color::set_blue( val )
+          int val
+&lt;/PRE&gt;
+&lt;P&gt;
+Both functions will expect an object as the first parameter. The xsubpp
+compiler will call that object [perlman:perlguts] and will use it to call the specified method. So in the 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; code the 
+&lt;CODE&gt;blue()&lt;/CODE&gt; and 
+&lt;CODE&gt;set_blue()&lt;/CODE&gt; methods will be called in the following manner.
+
+&lt;P&gt;
+&lt;PRE&gt;     RETVAL = THIS-&amp;gt;blue();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     THIS-&amp;gt;set_blue( val );
+&lt;/PRE&gt;
+&lt;P&gt;
+If the function's name is &lt;STRONG&gt;DESTROY&lt;/STRONG&gt; then the 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; [perlfunc:delete|delete] function will be called and [perlman:perlguts] will be given as its parameter.
+
+&lt;P&gt;
+&lt;PRE&gt;     void
+     color::DESTROY()
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; code will call [perlfunc:delete|delete].
+
+&lt;P&gt;
+&lt;PRE&gt;     delete THIS;
+&lt;/PRE&gt;
+&lt;P&gt;
+If the function's name is &lt;STRONG&gt;new&lt;/STRONG&gt; then the 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; &lt;CODE&gt;new&lt;/CODE&gt; function will be called to create a dynamic 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; object. The 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will expect the class name, which will be kept in a variable called
+ [perlman:perlguts], to be given as the first argument.
+
+&lt;P&gt;
+&lt;PRE&gt;     color *
+     color::new()
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; code will call &lt;CODE&gt;new&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;        RETVAL = new color();
+&lt;/PRE&gt;
+&lt;P&gt;
+The following is an example of a typemap that could be used for this 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; example.
+
+&lt;P&gt;
+&lt;PRE&gt;    TYPEMAP
+    color *             O_OBJECT
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    OUTPUT
+    # The Perl object is blessed into 'CLASS', which should be a
+    # char* having the name of the package for the blessing.
+    O_OBJECT
+        sv_setref_pv( $arg, CLASS, (void*)$var );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    INPUT
+    O_OBJECT
+        if( sv_isobject($arg) &amp;amp;&amp;amp; (SvTYPE(SvRV($arg)) == SVt_PVMG) )
+                $var = ($type)SvIV((SV*)SvRV( $arg ));
+        else{
+                warn( \&amp;quot;${Package}::$func_name() -- $var is not a blessed SV reference\&amp;quot; );
+                XSRETURN_UNDEF;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Interface_Strategy&quot;&gt;Interface Strategy&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When designing an interface between Perl and a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library a straight translation from 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; to 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; is often sufficient. The interface will often be very C-like and occasionally nonintuitive, especially when the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function modifies one of its parameters. In cases where the programmer wishes to create a more Perl-like interface the following strategy may help to identify the more critical parts of the interface.
+
+&lt;P&gt;
+Identify the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; functions which modify their parameters. The XSUBs
+for these functions may be able to return lists to Perl, or may be
+candidates to return undef or an empty list in case of failure.
+
+&lt;P&gt;
+Identify which values are used by only the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; functions themselves. If Perl does not need to access the contents of the value then it may not be necessary to provide a translation for that value from 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; to Perl.
+
+&lt;P&gt;
+Identify the pointers in the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function parameter lists and return values. Some pointers can be handled in 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; with the &amp;amp; unary operator on the variable name while others will require the use of the * operator on the type name. In general it is easier to work with the &amp;amp; operator.
+
+&lt;P&gt;
+Identify the structures used by the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; functions. In many cases it may be helpful to use the 
+&lt;FONT SIZE=-1&gt;T_PTROBJ&lt;/FONT&gt; typemap for these structures so they can be manipulated by Perl as blessed objects.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Perl_Objects_And_C_Structures&quot;&gt;Perl Objects And C Structures&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When dealing with 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structures one should select either
+&lt;STRONG&gt;T_PTROBJ&lt;/STRONG&gt; or &lt;STRONG&gt;T_PTRREF&lt;/STRONG&gt; for the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; type. Both types are designed to handle pointers to complex objects. The 
+&lt;FONT SIZE=-1&gt;T_PTRREF&lt;/FONT&gt; type will allow the Perl object to be unblessed while the 
+&lt;FONT SIZE=-1&gt;T_PTROBJ&lt;/FONT&gt; type requires that the object be blessed. By using 
+&lt;FONT SIZE=-1&gt;T_PTROBJ&lt;/FONT&gt; one can achieve a form of type-checking because the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; will attempt to verify that the Perl object is of the expected type.
+
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code shows the 
+&lt;CODE&gt;getnetconfigent()&lt;/CODE&gt; function which is used with 
+&lt;FONT SIZE=-1&gt;ONC+&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;TIRPC.&lt;/FONT&gt; The 
+&lt;CODE&gt;getnetconfigent()&lt;/CODE&gt; function will return a pointer to a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structure and has the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; prototype shown below. The example will demonstrate how the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; pointer will become a Perl reference. Perl will consider this reference to be a pointer to a blessed object and will attempt to call a destructor for the object. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; destructor will be provided in the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; source to free the memory used by 
+&lt;CODE&gt;getnetconfigent().&lt;/CODE&gt; Destructors in 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; can be created by specifying an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; function whose name ends with the word
+ &lt;STRONG&gt;DESTROY&lt;/STRONG&gt;. 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; destructors can be used to free memory which may have been malloc'd by another 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;     struct netconfig *getnetconfigent(const char *netid);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; &lt;CODE&gt;typedef&lt;/CODE&gt; will be created for &lt;CODE&gt;struct netconfig&lt;/CODE&gt;. The Perl object will be blessed in a class matching the name of the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; type, with the tag &lt;CODE&gt;Ptr&lt;/CODE&gt; appended, and the name should not have embedded spaces if it will be a Perl package name. The destructor will be placed in a class corresponding to the class of the object and the 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; keyword will be used to trim the name to the word 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; as Perl will expect.
+
+&lt;P&gt;
+&lt;PRE&gt;     typedef struct netconfig Netconfig;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     Netconfig *
+     getnetconfigent(netid)
+          char *netid
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = NetconfigPtr  PREFIX = rpcb_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     void
+     rpcb_DESTROY(netconf)
+          Netconfig *netconf
+          CODE:
+          printf(&amp;quot;Now in NetconfigPtr::DESTROY\n&amp;quot;);
+          free( netconf );
+&lt;/PRE&gt;
+&lt;P&gt;
+This example requires the following typemap entry. Consult the typemap
+section for more information about adding new typemaps for an extension.
+
+&lt;P&gt;
+&lt;PRE&gt;     TYPEMAP
+     Netconfig *  T_PTROBJ
+&lt;/PRE&gt;
+&lt;P&gt;
+This example will be used with the following Perl statements.
+
+&lt;P&gt;
+&lt;PRE&gt;     use RPC;
+     $netconf = getnetconfigent(&amp;quot;udp&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+When Perl destroys the object referenced by &lt;CODE&gt;$netconf&lt;/CODE&gt; it will send the object to the supplied 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; function. Perl cannot determine, and does not care, that this object is a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; struct and not a Perl object. In this sense, there is no difference between the object created by the 
+&lt;CODE&gt;getnetconfigent()&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; and an object created by a normal Perl subroutine.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_Typemap&quot;&gt;The Typemap&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The typemap is a collection of code fragments which are used by the &lt;STRONG&gt;xsubpp&lt;/STRONG&gt;
+compiler to map 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function parameters and values to Perl values. The
+typemap file may consist of three sections labeled &lt;CODE&gt;TYPEMAP&lt;/CODE&gt;, &lt;CODE&gt;INPUT&lt;/CODE&gt;, and
+&lt;CODE&gt;OUTPUT&lt;/CODE&gt;. The 
+&lt;FONT SIZE=-1&gt;INPUT&lt;/FONT&gt; section tells the compiler how to translate Perl values into variables of certain 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; types. The 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; section tells the compiler how to translate the values from certain 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; types into values Perl can understand. The 
+&lt;FONT SIZE=-1&gt;TYPEMAP&lt;/FONT&gt; section tells the compiler which of the 
+&lt;FONT SIZE=-1&gt;INPUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; code fragments should be used to map a given 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; type to a Perl value. Each of the sections of the typemap must be preceded by one of the 
+&lt;FONT SIZE=-1&gt;TYPEMAP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INPUT,&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; keywords.
+
+&lt;P&gt;
+The default typemap in the &lt;CODE&gt;ext&lt;/CODE&gt; directory of the Perl source contains many useful types which can be used by Perl extensions. Some extensions define additional typemaps which they keep in their own directory. These additional typemaps may reference 
+&lt;FONT SIZE=-1&gt;INPUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; maps in the main typemap. The
+ &lt;STRONG&gt;xsubpp&lt;/STRONG&gt; compiler will allow the extension's own typemap to override any mappings
+which are in the default typemap.
+
+&lt;P&gt;
+Most extensions which require a custom typemap will need only the 
+&lt;FONT SIZE=-1&gt;TYPEMAP&lt;/FONT&gt; section of the typemap file. The custom typemap used in the 
+&lt;CODE&gt;getnetconfigent()&lt;/CODE&gt; example shown earlier demonstrates what may be the typical use of extension typemaps. That typemap is used to equate a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structure with the 
+&lt;FONT SIZE=-1&gt;T_PTROBJ&lt;/FONT&gt; typemap. The typemap used by 
+&lt;CODE&gt;getnetconfigent()&lt;/CODE&gt; is shown here. Note that the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; type is separated from the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; type with a tab and that the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; unary operator
+ &lt;CODE&gt;*&lt;/CODE&gt; is considered to be a part of the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; type name.
+
+&lt;P&gt;
+&lt;PRE&gt;     TYPEMAP
+     Netconfig *&amp;lt;tab&amp;gt;T_PTROBJ
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's a more complicated example: suppose that you wanted &lt;CODE&gt;struct
+netconfig&lt;/CODE&gt; to be blessed into the class &lt;CODE&gt;Net::Config&lt;/CODE&gt;. One way to do this is to use underscores (_) to separate package names,
+as follows:
+
+&lt;P&gt;
+&lt;PRE&gt;        typedef struct netconfig * Net_Config;
+&lt;/PRE&gt;
+&lt;P&gt;
+And then provide a typemap entry &lt;CODE&gt;T_PTROBJ_SPECIAL&lt;/CODE&gt; that maps underscores to double-colons (::), and declare &lt;CODE&gt;Net_Config&lt;/CODE&gt; to be of that type:
+
+&lt;P&gt;
+&lt;PRE&gt;        TYPEMAP
+        Net_Config      T_PTROBJ_SPECIAL
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        INPUT
+        T_PTROBJ_SPECIAL
+                if (sv_derived_from($arg, \&amp;quot;${(my $ntt=$ntype)=~s/_/::/g;\$ntt}\&amp;quot;)) {
+                        IV tmp = SvIV((SV*)SvRV($arg));
+                $var = ($type) tmp;
+                }
+                else
+                        croak(\&amp;quot;$var is not of type ${(my $ntt=$ntype)=~s/_/::/g;\$ntt}\&amp;quot;)
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        OUTPUT
+        T_PTROBJ_SPECIAL
+                sv_setref_pv($arg, \&amp;quot;${(my $ntt=$ntype)=~s/_/::/g;\$ntt}\&amp;quot;,
+                (void*)$var);
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;INPUT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; sections substitute underscores for double-colons on the fly, giving the desired effect. This example demonstrates some of the power and versatility of the typemap facility.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;EXAMPLES&quot;&gt;EXAMPLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+File &lt;CODE&gt;RPC.xs&lt;/CODE&gt;: Interface to some 
+&lt;FONT SIZE=-1&gt;ONC+&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;RPC&lt;/FONT&gt; bind library functions.
+
+&lt;P&gt;
+&lt;PRE&gt;     #include &amp;quot;EXTERN.h&amp;quot;
+     #include &amp;quot;perl.h&amp;quot;
+     #include &amp;quot;XSUB.h&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     #include &amp;lt;rpc/rpc.h&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     typedef struct netconfig Netconfig;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = RPC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     SV *
+     rpcb_gettime(host=&amp;quot;localhost&amp;quot;)
+          char *host
+          PREINIT:
+          time_t  timep;
+          CODE:
+          ST(0) = sv_newmortal();
+          if( rpcb_gettime( host, &amp;amp;timep ) )
+               sv_setnv( ST(0), (double)timep );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     Netconfig *
+     getnetconfigent(netid=&amp;quot;udp&amp;quot;)
+          char *netid
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     MODULE = RPC  PACKAGE = NetconfigPtr  PREFIX = rpcb_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     void
+     rpcb_DESTROY(netconf)
+          Netconfig *netconf
+          CODE:
+          printf(&amp;quot;NetconfigPtr::DESTROY\n&amp;quot;);
+          free( netconf );
+&lt;/PRE&gt;
+&lt;P&gt;
+File &lt;CODE&gt;typemap&lt;/CODE&gt;: Custom typemap for RPC.xs.
+
+&lt;P&gt;
+&lt;PRE&gt;     TYPEMAP
+     Netconfig *  T_PTROBJ
+&lt;/PRE&gt;
+&lt;P&gt;
+File &lt;CODE&gt;RPC.pm&lt;/CODE&gt;: Perl module for the 
+&lt;FONT SIZE=-1&gt;RPC&lt;/FONT&gt; extension.
+
+&lt;P&gt;
+&lt;PRE&gt;     package RPC;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     require Exporter;
+     require DynaLoader;
+     @ISA = qw(Exporter DynaLoader);
+     @EXPORT = qw(rpcb_gettime getnetconfigent);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     bootstrap RPC;
+     1;
+&lt;/PRE&gt;
+&lt;P&gt;
+File &lt;CODE&gt;rpctest.pl&lt;/CODE&gt;: Perl test program for the 
+&lt;FONT SIZE=-1&gt;RPC&lt;/FONT&gt; extension.
+
+&lt;P&gt;
+&lt;PRE&gt;     use RPC;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $netconf = getnetconfigent();
+     $a = rpcb_gettime();
+     print &amp;quot;time = $a\n&amp;quot;;
+     print &amp;quot;netconf = $netconf\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $netconf = getnetconfigent(&amp;quot;tcp&amp;quot;);
+     $a = rpcb_gettime(&amp;quot;poplar&amp;quot;);
+     print &amp;quot;time = $a\n&amp;quot;;
+     print &amp;quot;netconf = $netconf\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;XS_VERSION&quot;&gt;XS VERSION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This document covers features supported by &lt;CODE&gt;xsubpp&lt;/CODE&gt; 1.935.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Dean Roehrich &amp;lt;&lt;EM&gt;roehrich@cray.com&lt;/EM&gt;&amp;gt; Jul 8, 1996
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>409</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlxs</title>
+  <createtime>1999-08-25 02:50:32</createtime>
+  <nodeupdated>2005-08-12 20:38:58</nodeupdated>
+</node>

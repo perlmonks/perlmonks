@@ -1,0 +1,55 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>display</displaytype>
+  <page>[%
+   use Everything::Experience;
+
+   my $notes=$DB-&gt;getDatabaseHandle()-&gt;selectcol_arrayref(
+     'select note_id from note where parent_node=' 
+     . getId($NODE)
+   );
+
+   my $html=&quot;&lt;!--\nQ&amp;A_Section display page :\n&quot;
+            . &quot;Group: &quot; . join(&quot; &quot;,@{$NODE-&gt;{group}||[]})
+            . &quot;\nNotes: &quot; . join(&quot; &quot;,@{$notes||[]}) . &quot;\n--&gt;&quot;;
+
+   # Filter dupes out of the group and notes list that we get.
+   my %unique=map { ( $_ =&gt; 1 ) } (@{$NODE-&gt;{group} || []}, @{$notes || []});
+   
+   $html .= qq[&lt;p&gt;&lt;b&gt;Questions:&lt;/b&gt;&lt;ul&gt;\n];
+   foreach my $N (  sort {$b &lt;=&gt; $a} keys  %unique  ) {
+      my $id= $N;
+      $N= $DB-&gt;getNodeById( $N, 'light' );
+      if(  ! $N  ) {
+         # We used to have rows in [note] w/o a node where node_id=note_id:
+         $html .= &quot;&lt;!-- $id --&gt;&quot;;
+      } else {
+         $html .= &quot;&lt;li&gt;&quot; . linkNode($N);
+         my $replies= $DB-&gt;sqlSelect(
+            'count(*)', 'note', 'parent_node=' . (getId($N)||0)
+         );
+         $html .= &quot;&amp;nbsp;&amp;nbsp; $replies answer&quot;;
+         $html .= &quot;s&quot;   if  1 != $replies;
+         $html .= &quot;&lt;/li&gt;\n&quot;;
+      }
+   }
+   $html .= &quot;&lt;/ul&gt;&lt;/p&gt;&lt;p&gt;\n&quot;;
+   if( ! Everything::isApproved($USER,'CanAskQuestion') ) {
+       $html .= &quot;Please add new questions to &quot;
+          . linkNode(getNode('Seekers of perl Wisdom','superdoc'))
+          . &quot; instead (Categorized Questions should be FAQs carefully
+              chosen and worded by more experienced monks).&quot;;
+   } else {
+       $html .= htmlcode('addnewquestion');
+   }
+   if(  canUpdateNode($USER,$NODE)  ) {
+      $html .= &quot;&lt;br /&gt;&quot; . htmlcode('windowview','editor,launch editor');
+   }
+   return  $html . &quot;&lt;/p&gt;&quot;;
+%]</page>
+  <author_user>929</author_user>
+  <createtime>2000-01-07 18:43:24</createtime>
+  <node_id>1859</node_id>
+  <title>Q&amp;A_Section display page</title>
+  <nodeupdated>2005-08-09 07:29:50</nodeupdated>
+</node>

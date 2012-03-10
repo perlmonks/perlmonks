@@ -1,0 +1,42 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>20167</node_id>
+  <author_user>929</author_user>
+  <title>placequestionincategory</title>
+  <createtime>2000-06-28 14:20:49</createtime>
+  <code>my $OG=getNode('Categorized Q&amp;A Sections','nodegroup');
+my @array;
+my %labels;
+my $default=$$NODE{parent_node};
+push @array,0;
+$labels{0}=&quot;Unchosen&quot;;
+foreach my $OPTION(@{$$OG{group}}){
+    my $N=getNodeById($OPTION);
+    push @array, getId($OPTION);
+    $labels{getId($OPTION)}=$$N{title};
+}
+
+if(defined $query-&gt;param('changegroup')){
+   my $NEWGROUP=$query-&gt;param('changegroup');
+   getRef $NEWGROUP;
+   my $OLDGROUP=$$NODE{parent_node};
+   if($OLDGROUP){
+     getRef($OLDGROUP);
+     $DB-&gt;removeFromNodegroup($OLDGROUP,$NODE,$USER);
+   }
+   unless($NEWGROUP==0){
+   my %members;
+   foreach my $member(@{$$NEWGROUP{group}}){
+       $members{$member}=1;
+   }
+   if(!$members{getId($NODE)}){
+      $DB-&gt;insertIntoNodegroup($NEWGROUP,$USER,$NODE);
+   }
+   }
+   $$NODE{parent_node}=$query-&gt;param('changegroup');
+   updateNode($NODE,-1);
+}
+$query-&gt;popup_menu('changegroup',\@array,$default,\%labels);
+</code>
+  <nodeupdated>2005-01-08 23:41:50</nodeupdated>
+</node>

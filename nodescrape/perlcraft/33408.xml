@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="33408" title="Fake DBI" created="2000-09-20 21:49:40" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="19316">
+jimt</author>
+<data>
+<field name="doctext">
+=pod
+So I'm cranking away on a database script, when I realize "OOPS,
+I'm trying to make a query to a database that I can't connect to
+yet" (dang difficulties with DBD::ODBC).  Well, what I'm doing is
+correct and all, but I obviously can't test it.  The only way to
+connect to the DB currently is to use a seperate ODBC program.  I
+didn't want to go rip out my DBI code and put in stuff to display
+the queries since it was just temporary.
+
+So polymorphism to the rescue.  :)  And the FakeDB package was
+born.  It does one thing, it recognizes prepares, executes and
+finishes (trivially).  So you can prepare your query, and then
+instead of executing it, dump those queries out to a file to be
+imported elsewhere.
+
+You can use it with just:
+
+use FakeDB; 
+$dbh = "FakeDB";	#or whatever your database handle is
+
+and everything else works the same as before, it just now dumps
+your queries to a file upon executions.
+
+Useful to you?  Dunno, but it sure was to me.  :)
+
+
+=end
+
+package FakeDB;
+
+open QUERIES, "&gt;./query.txt";
+
+sub prepare {
+	my ($class, $query) = @_;
+	return bless \$query, $class;
+};
+
+sub execute {
+	my $self = shift;
+	my @values = @_;
+	
+	my $tpl = $$self;
+	
+	foreach (@values){
+		$tpl =~ s/\?/$_/;
+	};
+	
+	$tpl =~ s/\n//g;
+	$tpl =~ s/\s+/ /g;
+	print QUERIES "$tpl\n";
+	return 1;
+};
+
+sub finish {return 1};
+
+1;</field>
+</data>
+</node>

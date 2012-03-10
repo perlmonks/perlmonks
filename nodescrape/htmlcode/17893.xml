@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="17893" title="parselinks2" created="1999-10-04 18:35:00" updated="2005-05-16 14:41:01">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+ 	my ($field) = @_;
+        my $text = $$NODE{$field};
+        my $begin="&lt;TT&gt;";
+        my $end="&lt;/TT&gt;";
+        $begin.="&lt;font size=-1&gt;" unless $$VARS{codebig};
+        $end="&lt;/font&gt;$end" unless $$VARS{codebig};
+        while($text=~/(&lt;CODE&gt;((.|\n)*?)&lt;\/CODE&gt;)/i){
+           my $whole=$1;
+           my $code=$2;
+           $HTMLVARS{code}=$code; 
+           my ($multiline)=$code=~/\n/;
+           htmlcode "perlfuncadder";
+           $code=~s/\&amp;quot;/\"/g;
+           $code=~s/\&amp;/&amp;amp;/g;
+           $code=~s/\[/&amp;#091;/g;
+           $code=~s/\]/&amp;#093;/g;
+           $code=~s/&lt;/&amp;lt;/g;
+           $code=~s/&gt;/&amp;gt;/g;
+           $code=~s/\"/&amp;quot;/g;
+           
+           if($multiline){
+              $text=~s/\Q$whole/&lt;PRE&gt;$begin$code$end&lt;\/PRE&gt;/;
+           } else{
+              $text=~s/\Q$whole/$begin$code$end/;
+           }
+        }
+
+   while($text=~/(\[(.*?):\/\/(.*?)\])/g){
+       my $whole=$1;
+       my $prefix=$2;
+       my $nodename=$3;
+       my $escapedname=$query-&gt;escape($nodename);
+       if($prefix=~/^cpan$/i){
+          $text=~s/\Q$whole/&lt;A HREF="http:\/\/search.cpan.org\/search\?mode=module&amp;query=$escapedname"&gt;$nodename&lt;\/A&gt;/;
+       }
+       elsif($prefix=~/^id$/i and $nodename!~/\D/){
+          $text=~s/\Q$whole/linkNode($nodename)/egs;
+       }
+   }
+
+	$text =~ s/\[(.*?)\]/linkNodeTitle ($1, $NODE)/egs;
+	$text;</field>
+</data>
+</node>

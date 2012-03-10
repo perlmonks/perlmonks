@@ -1,0 +1,102 @@
+<node>
+  <doctext>I don`t know if this is Craft, or a hack, I DO know that
+it comes in handy (For me, since I am not a complete master 
+of regular expressions (not until japhy's) book at least ;))
+
+I am sure there is something like this out there, but I haven`t
+bothered to look (sometimes it is just more fun to do something 
+yourself ;)
+
+What does it do ?
+
+It draws you a little Tk window, and allows you to enter a string
+and let a RegEx loose on it.
+Dynamically the result of the RegEx is shown, and updated, so you
+can see exactly what the result is of a change in the RegEx, or the
+string.
+
+TODO: 
+
+     - Do something about that UI! ;)
+     - Put an another eval in the function so $1..n are really
+       1..n, instead of 1..5 ;)
+     - Support for @+ @-
+     - Clean up code ;)
+     - Loads of stuff
+
+Code will be updated soon, I hope ;)
+
+Update: Implemented List context feature, as suggested by Jepri
+
+The Code: 
+#!/usr/bin/perl -w
+use strict;
+use Tk;
+
+sub KeyPress;
+
+my $MW=MainWindow-&gt;new;
+
+my $AsList;
+my %Border=qw(-relief raised);
+my %Fill=qw(-fill both);
+
+my $Top   =$MW-&gt;Frame-&gt;pack(-side=&gt;'top');
+my $TopLeft  =$Top-&gt;Frame(%Border)-&gt;pack(-side=&gt;'left');
+my $TopRight =$Top-&gt;Frame(%Border)-&gt;pack(-side=&gt;'left');
+
+my $RegLabel=$TopLeft-&gt;Label(%Border,-text=&gt;'RegExp')-&gt;pack(%Fill);
+my $TextLabel=$TopLeft-&gt;Label(%Border,-text=&gt;'Text')-&gt;pack(%Fill);
+my $AsListBox=$Top-&gt;Checkbutton(-text=&gt;'List context',-variable=&gt;\$AsList,-command=&gt;\&amp;KeyPress)-&gt;pack();
+$Border{-bd}=1;
+my $RegExp=$TopRight-&gt;Entry(-width=&gt;30)-&gt;pack();
+my $Text=$TopRight-&gt;Entry(-width=&gt;30)-&gt;pack();
+
+my $ResultTextFrame =$MW-&gt;Frame(%Border)-&gt;pack(-side=&gt;'left');
+my $ResultTextLabel=$ResultTextFrame-&gt;Label(-justify=&gt;'left',-text=&gt;&quot;PreMatch:\nMatch:\nPostMatch:\nResult:\n\$1..n&quot;)-&gt;pack(%Fill);
+
+my $ResultFrame  =$MW-&gt;Frame(%Border)-&gt;pack(-side=&gt;'left',%Fill);
+my $ResultLabel=$ResultFrame-&gt;Label(-justify=&gt;'left',-text=&gt;&quot;none\nnone\nnone\nnone&quot;)-&gt;pack(%Fill);
+
+
+$MW-&gt;bind('all', '&lt;KeyPress&gt;', \&amp;KeyPress);
+MainLoop();
+
+sub KeyPress
+{
+ local $^W=0;
+ my $RegEx=$RegExp-&gt;get;
+ my $Text =$Text-&gt;get;
+ my (@Dollar,@Result,$Result,$Match,$PreMatch,$PostMatch);
+ my $Function;
+ my $FieldCodes=join &quot;&quot;,'$Match=$&amp;;',
+                        '$PreMatch=$`;',
+                        &quot;\$PostMatch=\$';&quot;,
+                        &quot;\$Dollar[0]=\$1;&quot;,
+                        &quot;\$Dollar[1]=\$2;&quot;,
+                        &quot;\$Dollar[2]=\$3;&quot;,
+                        &quot;\$Dollar[3]=\$4;&quot;,
+                        &quot;\$Dollar[4]=\$5;&quot;;
+ if (!$AsList)
+ {
+  $Function=join &quot;&quot;,'($Result=$Text)=~',&quot;$RegEx;&quot;,$FieldCodes;
+ }
+ else 
+ {
+  $Function=join &quot;&quot;,'@Result=($Text=~',&quot;$RegEx);&quot;,$FieldCodes;
+ };
+ eval $Function;
+ $Result||=join &quot;|&quot;,@Result;
+ $Match||='none'; $PreMatch||='none'; $PostMatch||='none';
+ $ResultLabel-&gt;configure(-text=&gt;&quot;$PreMatch\n$Match\n$PostMatch\n$Result\n@Dollar&quot;); 
+ $ResultLabel-&gt;update;
+};
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>109829</node_id>
+  <author_user>3568</author_user>
+  <title>Test-a-Rex</title>
+  <createtime>2001-09-03 08:05:55</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

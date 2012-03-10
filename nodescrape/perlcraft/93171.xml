@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="93171" title="XML2PDF" created="2001-07-02 13:12:17" updated="2005-08-09 08:17:55">
+<type id="121">
+perlcraft</type>
+<author id="90713">
+holygrail</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+##############################################################################
+#
+# XML2PDF
+#
+# Author : HolyGrail
+# Version: 0.7
+#
+# Usage: xml2pdf {&lt;xmlfile&gt;}
+#
+# This conversionprogram translates XML into PDF. You can specify more than one
+# xmlfile at the commandline and they will all be processed. The PDF files will
+# replace ".xml" with ".pdf" or add ".pdf" if the sourcefile does not end with 
+# ".xml". It does no XML validation at all. The XML file should conform to the 
+# following DTD:
+#
+# &lt;!ELEMENT document (section1)+&gt;
+# &lt;!ATTLIST document
+#     title CDATA #REQUIRED
+# &gt;
+# 
+# &lt;!ELEMENT section1 (section2 | p | img)+&gt;
+# &lt;!ATTLIST section1
+#     title CDATA #REQUIRED
+# &gt;
+#
+# &lt;!ELEMENT section2 (p | img)+&gt;
+# &lt;!ATTLIST section2
+#     title CDATA #REQUIRED
+# &gt;
+#
+# &lt;!ELEMENT p (img | #PCDATA)&gt;
+#
+# &lt;!ELEMENT img&gt;
+# &lt;!ATTLIST img
+#     src CDATA #REQUIRED
+# &gt;
+# 
+# Known issues:
+# * 'img'-elements are processed after a complete 'p' element is processed, 
+#   so the images that are meant to come 'in' the text, come 'after' the 
+#   text. The workaround for this should be to split the text up in multiple 
+#   p-elements and put the img-element between two p-elements.
+# * Images that are wider than the page fall off the page on the right side
+#
+# Bugs:
+# * Lots of them, no doubt
+#
+# Changes:
+#
+# 0.7: 'img' tags can now also be url's and no longer just local files
+# 0.6: It now also accepts images (JPG, GIF and PNG), changed the DTD 
+#      accordingly.
+# 0.5: Changed the program call, so you can process multiple files in one call
+# 0.4: It now can handle sections that don't fit on one page. It starts new 
+#      pages if needed.
+# 0.3: Adapted it to conform to OeufMayo's DTD
+# 0.2: Minor change (0.1 re-declared the global vars as 'my', thanks to davorg
+# 0.1: First release
+#
+##############################################################################
+use strict;
+use PDFLib;
+use XML::XPath;
+use LWP::Simple;
+use vars qw ( $TOPMARGIN 
+              $BOTTOMMARGIN 
+              $LEFTMARGIN 
+              $RIGHTMARGIN 
+              $PAGEHEIGHTPOINTS 
+              $PAGEWIDTHPOINTS
+	      $MAXYPOS
+	      %FONTDEFINITION
+	      %IMAGES
+             );
+# Define the fonts for each element
+%FONTDEFINITION = ( section1  =&gt; [face =&gt; "Helvetica-Bold", size =&gt; "16.0"],
+                    section2  =&gt; [face =&gt; "Helvetica-Bold", size =&gt; "14.0"],
+                    p         =&gt; [face =&gt; "Helvetica", size =&gt; "12.0"]
+                    );
+
+# Pagesetup
+my $pagename      = "a4";
+$PAGEHEIGHTPOINTS = 842; # See PDFLib's documentation for 
+$PAGEWIDTHPOINTS  = 595; # the size of your page
+($TOPMARGIN, $BOTTOMMARGIN, $LEFTMARGIN, $RIGHTMARGIN) = (10, 10, 15, 15);
+
+foreach (@ARGV)
+{
+  # Documentsetup
+  my $xmlfile = $_;
+  my $xml = XML::XPath-&gt;new(filename =&gt; $xmlfile);
+  s/\.xml$/\.pdf/i if /\.xml$/i;
+  my $pdffile =  /\.pdf$/i ? $_ : "$_.pdf";
+  my $pdf = PDFLib-&gt;new( filename =&gt; $pdffile,
+                         papersize=&gt; $pagename,
+                         creator  =&gt; "XML2PDF",
+                         title    =&gt; (($xml-&gt;findnodes('document'))[0]-&gt;getAttribute('name'))
+                        );
+  print "Converting $xmlfile to $pdffile \n";
+
+  # pre-process the images:
+  foreach my $img ($xml-&gt;findnodes('//img'))
+  {
+    my $filetype = 'jpeg' if $img-&gt;getAttribute('src')=~ /[jpg|jpeg]$/i;
+    $filetype = 'gif' if $img-&gt;getAttribute('src')=~ /gif$/i;
+    $filetype = 'png' if $img-&gt;getAttribute('src')=~ /png$/i;
+
+    my $filename = $img-&gt;getAttribute('src');
+
+    if ($filename =~ /^http:\/\//i)
+    {
+      $filename =~ /.*\/(.*\..*)/;
+      print $1."\n";
+      getstore($img-&gt;getAttribute('src'), $1);
+      $filename=$1;
+    }  
+
+    $IMAGES{$img-&gt;getAttribute('src')} =  
+       $pdf-&gt;load_image(filetype =&gt; $filetype || 'gif',
+                        filename =&gt; $filename );
+  }
+
+  # Process the document
+  foreach my $section ($xml-&gt;findnodes('document/section1'))
+  {
+    #start every section on a new page
+    $pdf-&gt;start_page();
+    
+    # Calculate the starting Y-axis value
+    $MAXYPOS = $PAGEHEIGHTPOINTS - $TOPMARGIN - $BOTTOMMARGIN;
+    
+    # Print the header
+    printpdf($pdf, $FONTDEFINITION{section1}, 
+             "\n".$section-&gt;getAttribute('title')."\n\n", $MAXYPOS);
+    
+    processsection($pdf, $section);
+  }
+}
+
+sub printpdf
+{
+    my ($pdf, $font, $what, $ypos) = @_;
+    $pdf-&gt;set_font( @{$font} );
+    my $charsnotprinted = length($what);
+    
+    while ($charsnotprinted)
+    {
+      $charsnotprinted = $pdf-&gt;print_boxed($what,
+                          mode =&gt; "left",
+                          x    =&gt; $LEFTMARGIN,
+                          y    =&gt; $BOTTOMMARGIN,
+                          w    =&gt; $PAGEWIDTHPOINTS - $RIGHTMARGIN - 
+                                   $LEFTMARGIN,
+                          h    =&gt; $ypos || $pdf-&gt;get_value("texty")
+                       );
+       $what = substr($what, (length($what) - $charsnotprinted), length($what));
+       $pdf-&gt;start_page() if $charsnotprinted;
+       $ypos = $PAGEHEIGHTPOINTS - $TOPMARGIN - $BOTTOMMARGIN;
+     }           
+}
+
+sub processsection
+{
+  my ($pdf, $section) = @_;
+  foreach my $node ($section-&gt;findnodes('*'))
+  {
+    my $text;
+    if ($node-&gt;getName() eq "section2")
+    {
+      printpdf($pdf, $FONTDEFINITION{$node-&gt;getName()}, 
+               "\n".$node-&gt;getAttribute('title')."\n");
+      processsection($pdf, $node); #recurse!
+    }
+    if ($node-&gt;getName() eq "p")
+    {
+      printpdf($pdf, $FONTDEFINITION{$node-&gt;getName()}, 
+               "\n".$node-&gt;string_value()."\n");
+      processsection($pdf, $node); #recurse!
+    }
+    if ($node-&gt;getName() eq "img")
+    {
+      if ($pdf-&gt;get_value('texty')-$IMAGES{$node-&gt;getAttribute('src')}-&gt;height() &lt; 0)
+      {
+        $pdf-&gt;start_page();
+        $pdf-&gt;set_text_pos($pdf-&gt;get_value('textx'), $PAGEHEIGHTPOINTS - $TOPMARGIN);
+      }
+      $pdf-&gt;add_image(img =&gt; $IMAGES{$node-&gt;getAttribute('src')},
+                      x   =&gt; $LEFTMARGIN,
+		      y   =&gt; $pdf-&gt;get_value('texty')-$IMAGES{$node-&gt;getAttribute('src')}-&gt;height());
+      $pdf-&gt;set_text_pos($pdf-&gt;get_value('textx'), 
+                         $pdf-&gt;get_value('texty')-$IMAGES{$node-&gt;getAttribute('src')}-&gt;height());
+    }
+    
+  }
+
+}
+</field>
+</data>
+</node>

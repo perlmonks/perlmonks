@@ -1,0 +1,121 @@
+<node>
+  <doctext>[%
+  return 'You suck.' if not isGod($USER);
+
+  my $what = $q-&gt;param('what');
+
+  return '' unless $what;
+
+  my @par = grep defined, map {
+    $q-&gt;param($_)
+  } map {
+    substr($what, 0, 1) . $_
+  } qw/which position neighbour/;
+
+  $par[1] = { before =&gt; -1, after =&gt; 0 }-&gt;{$par[1]} || 0;
+
+  if (@par) {
+    return qq[Need all params: ] . join ',', @par
+      unless 3 == @par;
+
+    return qq[Can't move same node: ] . join ',', @par
+      if $par[0] == $par[2];
+
+    my @n = split /,/, $VARS-&gt;{fpnodelets};
+    grep $_ ne $par[0], @n if $what eq 'move';
+
+    foreach (0..$#n) {
+      if ( $n[$_] == $par[2] ) {
+        my $pos = $_ + $par[1];
+        splice @n, $pos, 1, $par[0];
+      }
+    }
+
+    $VARS-&gt;{fpnodelets} = join ',', @n;
+    setVars $USER, $VARS;
+  }
+
+  return substr($what, 0, 3) . 'ed' if $what;
+  return '';
+%]
+[%
+  return 'Seriously, just go away' unless isGod($USER);
+
+  my @nodelets = grep {
+    $_-&gt;[1]
+  } map {
+    [ $_, $DB-&gt;sqlSelect('title', 'node', &quot;node_id = $_&quot;) ]
+  } split /,/, $VARS-&gt;{fpnodelets};
+
+  my @all = grep {
+    my $id = $_-&gt;[0];
+    not scalar grep { $id == $_ } @nodelets
+  } map [
+    $_-&gt;{node_id}, $_-&gt;{title}
+  ], getNodeWhere({ 1 =&gt; 1 }, 'nodelet', 'title');
+
+  my $add = $q-&gt;div(
+    join '',
+      htmlcode('openform'),
+      $q-&gt;hidden( -name =&gt; 'what', -value =&gt; 'add', -force =&gt; 1 ),
+      'Add ',
+      $q-&gt;popup_menu(
+        'awhich',
+        [ map $_-&gt;[0], @all ],
+        0,
+        { map { $_-&gt;[0] =&gt; $_-&gt;[1] } @all }
+      ),
+      $q-&gt;popup_menu(
+        'aposition',
+        [ qw(before after) ],
+        'after'
+      ),
+      $q-&gt;popup_menu(
+        'aneighbour',
+        [ map { $_-&gt;[0] } @nodelets ],
+        0,
+        { map { $_-&gt;[0] =&gt; $_-&gt;[1] } @nodelets }
+      ),
+      htmlcode('closeform', 'add')
+  );
+
+  my @nodelets = grep {
+    $_-&gt;[1]
+  } map {
+    [ $_, $DB-&gt;sqlSelect('title', 'node', &quot;node_id = $_&quot;) ]
+  } split /,/, $VARS-&gt;{fpnodelets};
+
+  my $move = $q-&gt;div(
+    join '',
+      htmlcode('openform'),
+      $q-&gt;hidden( -name =&gt; 'what', -value =&gt; 'move', -force =&gt; 1 ),
+      'Move ',
+      $q-&gt;popup_menu(
+        'mwhich',
+        [ map $_-&gt;[0], @nodelets ],
+        0,
+        { map { $_-&gt;[0] =&gt; $_-&gt;[1] } @nodelets }
+      ),
+      $q-&gt;popup_menu(
+        'mposition',
+        [ qw(before after) ],
+        'after'
+      ),
+      $q-&gt;popup_menu(
+        'mneighbour',
+        [ map { $_-&gt;[0] } @nodelets ],
+        0,
+        { map { $_-&gt;[0] =&gt; $_-&gt;[1] } @nodelets }
+      ),
+      htmlcode('closeform', 'move')
+  );
+
+  return qq[$add&lt;br /&gt;$move];
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>45799</node_id>
+  <author_user>485628</author_user>
+  <title>Edit nodelet list</title>
+  <createtime>2000-12-08 19:54:55</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

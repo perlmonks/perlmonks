@@ -1,0 +1,146 @@
+<node>
+  <doctext>&lt;H4&gt;Description&lt;/H4&gt;
+The C::Scan module performs fast,                       
+accurate scanning of C source code.                      
+It provides an object interface                          
+for accessing information about                          
+a particular C source file.                              
+The main interface                                       
+(after creating the initial object)                      
+is to use a get() method                                 
+that will fetch information using                        
+a set of pre-defined keywords                            
+which specify the type of information                    
+you want:                                                
+&lt;UL&gt;                                                     
+&lt;LI&gt;function declarations                                
+&lt;LI&gt;(in-line) function definitions                       
+&lt;LI&gt;macro definitions, with our without macro arguments  
+&lt;LI&gt;typedefs                                             
+&lt;LI&gt;extern variables                                     
+&lt;LI&gt;included files                                       
+&lt;/UL&gt;                                                    
+A lot of the information is available                    
+either raw or parsed, depending                          
+on the specific keyword used                             
+(for example, 'fdecls' vs. 'parsed_fdecls').             
+&lt;H4&gt;Why should you use it?&lt;/H4&gt;                          
+You want to use Perl                                     
+to extract information about                             
+C source code,                                           
+including the functions declared or defined,             
+arguments to functions,                                  
+typedefs,                                                
+macros defined, etc.                                     
+&lt;H4&gt;Why should you NOT use it?&lt;/H4&gt;                      
+&lt;UL&gt;                                                     
+&lt;LI&gt;You need a full-blown C parser.                      
+C::Scan is not that.                                     
+&lt;LI&gt;You need to scan C++.                                
+&lt;/UL&gt;                                                    
+&lt;H4&gt;Any bad points?&lt;/H4&gt;                                 
+The documentation is lacking.                            
+This is really annoying                                  
+because almost all of the keyword fetches                
+that try to parse the text                               
+use complex and arbitrary structures for return values:  
+an array ref of refs to arrays                           
+that each hold five defined values,                      
+an array ref of,                                         
+a hash ref where the hash values are array refs          
+to two-element arrays,                                   
+etc.                                                     
+Don't be surprised if you have to dive in                
+to the code to really figure out                         
+what's being returned.                                   
+&lt;H4&gt;Related Modules&lt;/H4&gt;                                 
+C::Scan is an example of extremely                       
+powerful use of the                                      
+[Data::Flow] module                                      
+(not surprising,                                         
+as both were originally                                  
+written by Ilya).                                        
+The keywords you use to fetch information                
+are the underlying Data::Flow recipe keywords.           
+&lt;H4&gt;Personal notes&lt;/H4&gt;
+I used C::Scan
+to create a code pre-processor
+that would scan our C source
+and dump various information
+into structures
+for use by an administrative interface.
+This ended up eliminating several
+steps in our process that would
+always break when someone
+added a new command function
+but didn't update the right help-text table,
+etc.
+&lt;BR&gt;&lt;BR&gt;
+I learned a &lt;I&gt;lot&lt;/I&gt;
+from threading my way through
+the C::Scan source code.
+It makes liberal use of \G in regexes
+to loop through text looking
+for pieces it can identify
+as a function, typedef, etc.,
+and the pos builtin to fetch
+and set the offset for the searches.
+This allows the module to use
+multiple copies of the text side-by-side,
+one with the comments and strings whited out
+and the other with full text.
+This way, it can scan a &quot;sanitized&quot; version
+to identify C syntax by position,
+but then return full text from the other string.
+This is an extremely effective
+and astonishingly efficient technique.
+&lt;H4&gt;Example&lt;/H4&gt;
+Examples of a few ways
+to pull information from C::Scan:
+&lt;CODE&gt;
+$c = new C::Scan(filename =&gt; 'foo.c',
+                 filename_filter =&gt; 'foo.c',
+                 add_cppflags =&gt; '-DFOOBAR',
+                 includeDirs =&gt; [ 'dir1', 'dir2' ]
+                );
+
+#
+# Fetch and iterate through information about function declarations.
+#
+my $array_ref = $c-&gt;get('parsed_fdecls');
+foreach my $func (@$array_ref) {
+    my ($type, $name, $args, $full_text, undef) = @$func;
+    foreach my $arg (@$args) {
+        my ($atype, $aname, $aargs, $full_text, $array_modifiers) = @$arg;
+    }
+}
+
+#
+# Fetch and iterate through information about #define values w/out args.
+#
+my $hash_ref = $c-&gt;get('defines_no_args');
+foreach my $macro_name (keys %$hash_ref) {
+    my $macro_text = $hash_ref{$macro_name};
+}
+
+#
+# Fetch and iterate through information about #define macros w/args.
+#
+my $hash_ref = $c-&gt;get('defines_args');
+foreach my $macro_name (keys %$hash_ref) {
+    my $array_ref = $macros_hash{$macro_name};
+    my ($arg_ref, $macro_text) = @$array_ref;
+    my @macro_args = @$arg_ref;
+}
+&lt;/CODE&gt;
+</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>20220</author_user>
+  <createtime>2000-09-11 15:36:08</createtime>
+  <itemdescription>Scans C source code for functions, typedefs, macros, variables, etc.</itemdescription>
+  <identifier></identifier>
+  <node_id>31899</node_id>
+  <usercomment>A useful module for extracting information from C source files, with a lot of cool Perl inside.</usercomment>
+  <title>C::Scan</title>
+  <nodeupdated>2005-08-04 06:58:13</nodeupdated>
+</node>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="189373" title="Tail trace log" created="2002-08-11 21:45:09" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+   return "8:14am- I think I've traced the guy who is tailing
+     me to a 'think tank' in DC"   if  ! isGod($USER);
+
+   my $html= '';
+
+   local( *ERRLOG );
+   open( ERRLOG, "&lt; /tmp/everything.errlog" )
+      or   return $html . "Can't open trace log: $!\n";
+
+   my $seek= ($q-&gt;param("seek"))[-1];
+   my $skipk= 0+($q-&gt;param("skipk"))[-1] || 4;
+   if(  "" ne $seek  ) {
+      $skipk= int( ( (-s ERRLOG) - $seek ) / 102.4 ) / 10;
+      $html .= "&lt;!-- seek=$seek, -s=" . ( -s ERRLOG ) . ", dif="
+         . ( (-s ERRLOG) - $seek ) . ", skipk=$skipk --&gt;\n";
+   }
+   $q-&gt;param( skipk =&gt; $skipk );
+   my $showk= 0+($q-&gt;param("showk"))[-1] || 4;
+   $showk= 64   if  64 &lt; $showk;
+   $q-&gt;param( showk =&gt; $showk );
+
+   my $whence= 0;
+   if(  "" eq $seek  ) {
+       $whence= 2;
+       $seek= -1024*$skipk-160;
+   }
+   if(  ! seek( ERRLOG, $seek, $whence )  ) {
+      $html .= "&lt;h3&gt;Can't seek trace log: $!&lt;/h3&gt;\n";
+   }
+   $seek= tell( ERRLOG );
+
+   $html .= htmlcode("openform")
+      . qq[\nShow approximately&lt;br /&gt;\n]
+      . $q-&gt;textfield("showk")
+      . qq[ kB of trace log, starting approximately&lt;br /&gt;\n]
+      . $q-&gt;textfield("skipk")
+      . qq[ kB from the end.&lt;br /&gt;\n]
+      . $q-&gt;submit("","Submit") . "&lt;/form&gt;&lt;br /&gt;\n";
+   if(   0 &lt; $seek  ) {
+      my $prev= $seek - 1024*$showk;
+      $prev= 0   if  $prev &lt; 0;
+      $html .= linkNode( $NODE, "Previous chunk", {
+         seek =&gt; $prev,
+         showk =&gt; $showk,
+      } ) . " ";
+   }
+   $html .= linkNode( $NODE, "Next chunk", {
+      seek =&gt; $seek+1024*$showk,
+      showk =&gt; $showk,
+   } ) . "&lt;br /&gt;\n";
+
+   my $data;
+   if(  ! read( ERRLOG, $data, $showk*1024+160 )  ) {
+      $html .= "Can't read from trace log: $!\n";
+   } else {
+      $data =~ s/^[^\n]*\n//;
+      $data =~ s/\n[^\n]*\z/\n/;
+      $data = $q-&gt;escapeHTML($data);
+      $data =~ s!^!&lt;br /&gt;&amp;#8226; !mg;
+      $data =~ s/\t/    /g;
+      $data =~ s/  /&amp;nbsp; /g;
+      $html .= "&lt;tt&gt;$data&lt;/tt&gt;\n";
+   }
+   close( ERRLOG );
+   return $html;
+%]</field>
+</data>
+</node>

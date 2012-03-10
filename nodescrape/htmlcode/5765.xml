@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="5765" title="voteit" created="2000-03-21 00:10:20" updated="2005-08-09 11:29:55">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+return ''
+    if  getId($USER) == $HTMLVARS{default_user};
+
+my( $N )= @_;
+$N= $NODE unless $N;
+getRef($N);
+
+# for contributed nodes (e.g. Q&amp;A questions and answers), get real author
+my $A= getNodeById( $N-&gt;{original_author}  ||  $N-&gt;{author_user} );
+my $VSETTINGS= getVars( getNode('vote settings','setting') );
+my $str= '';
+
+use Everything::Experience qw( hasVoted );
+if(  getId($USER) == getId($A)  ||  hasVoted($N,$USER)
+   ||  ( $A-&gt;{nick} || $A-&gt;{title} ) eq ( $USER-&gt;{nick} || $USER-&gt;{title} ) ) {
+
+    $str = 'Reputation: ' . $N-&gt;{reputation};
+
+    if ( $VARS-&gt;{nodetension} ) {
+        my $up   = ($N-&gt;{reputation} + $N-&gt;{votescast}) / 2;
+        my $down = $up - $N-&gt;{reputation};
+
+        # don't show node tension if non-negative rep and just a few downvotes
+        if ( $down &lt;= $up &amp;&amp; $down &lt;= int( $VSETTINGS-&gt;{norm} / 2 ) )  {
+            $str .= ' (no significant downvotes)&lt;sup&gt;&lt;a href="?node_id=453652"&gt;?&lt;/a&gt;&lt;/sup&gt;'
+                if ! $VARS-&gt;{nodetensionquiet};
+        } else {
+           $str .= " (+$up -$down)";
+        }
+    }
+}
+
+return $VSETTINGS-&gt;{showRepHeader} . $str . $VSETTINGS-&gt;{showRepFooter}
+    if $str;
+
+return ''
+    if  ! $USER-&gt;{votesleft}  ||  'print' eq $q-&gt;param('displaytype');
+
+if(  $VARS-&gt;{dropdownvote}  ) {
+    $str .= $q-&gt;popup_menu(
+        -name    =&gt; 'vote__' . getId($N),
+        -values  =&gt; [ 0, 1, -1 ],
+        -labels  =&gt; { 0 =&gt; '0', 1 =&gt; '+1', -1 =&gt; '-1' },
+        -default =&gt; 0
+    );
+} else {
+    my $labels= {
+         1 =&gt; $VSETTINGS-&gt;{upLabel} || 'up',
+        -1 =&gt; $VSETTINGS-&gt;{downLabel} || 'down'
+    };
+    my $values= [ 1, -1 ];
+    if(  'on' eq $VARS-&gt;{nullvote}  ) {
+        $labels-&gt;{0}= $VSETTINGS-&gt;{nullLabel} || 'none';
+        push @$values, 0;
+    } elsif(  'mid' eq $VARS-&gt;{nullvote}  ) {
+        $labels-&gt;{0}= $VSETTINGS-&gt;{nullLabel} || 'none';
+        splice @$values, 1, 0, 0;
+    }
+    $str .= join " &amp;nbsp; &amp;nbsp; ",
+        $q-&gt;radio_group(
+            -name    =&gt; 'vote__' . getId($N),
+            -values  =&gt; $values,
+            -labels  =&gt; $labels,
+            -default =&gt; '0',
+        );
+}
+
+return $VSETTINGS-&gt;{voteHeader} . $str . $VSETTINGS-&gt;{voteFooter};</field>
+</data>
+</node>

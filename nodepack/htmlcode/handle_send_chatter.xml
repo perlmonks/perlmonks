@@ -1,0 +1,37 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>460583</node_id>
+  <author_user>357600</author_user>
+  <title>handle_send_chatter</title>
+  <createtime>2005-05-26 05:03:57</createtime>
+  <code>#originally from [send chatter], htmlcode'ified to allow XML passthrough
+   my $resp = $q-&gt;param(&quot;sentmessage&quot;);
+   my $nothing_to_do= ! grep &quot;message&quot; eq $_, $q-&gt;param(&quot;op&quot;);
+   if ($q-&gt;param('displaytype') ne 'xml') {
+       my $hd= getHttpHeader(&quot;text/html&quot;); # text/plain
+       return $hd . $resp   
+           if  $resp;
+       return $hd . &quot;No chatter to send.&quot;
+           if  $nothing_to_do;
+       return $hd . &quot;Chatter accepted.&quot;;
+   } else {
+
+       my($xml,@data,%xmlstyle);
+       return &quot;&lt;error&gt;Error creating fling object&lt;/error&gt;&quot;
+          unless htmlcode('new_xml_fling','',\($xml,@data,%xmlstyle));
+       $xml-&gt;start('send_chatter_result');
+       if  ( $resp ) {
+          $xml-&gt;element( $resp=~/^(&lt;[^&gt;]+&gt;|\s+)*Whoa/ ? 'error' : 'sent', $resp );
+       } elsif ( $nothing_to_do ) {
+          $xml-&gt;element( error =&gt; 'Nothing To Send' );
+       } else {
+          $xml-&gt;element( accept =&gt; 'Chatter Accepted' );
+       }
+       $xml-&gt;end( 'send_chatter_result' );
+       my $data = join &quot;&quot;,@data;       
+       htmlcode('postProcessXML','',\$data);
+       return $data;
+
+   }</code>
+  <nodeupdated>2005-08-05 20:13:32</nodeupdated>
+</node>

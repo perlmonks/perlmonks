@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="11836" title="upolduserimage" created="2000-05-16 13:26:24" updated="2005-03-21 04:48:16">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my $status  = "";
+my $field   = shift(@_);
+my $param   = $field . "_file";
+my $maxsize = shift(@_) || 80 * 1024;
+
+if ( !$query-&gt;param($param) ) {
+  return &lt;&lt;"END";
+  &lt;small&gt;
+    The rules are simple: only upload jpeg, png or gif.  No larger
+    than 80 kB.  Suggested maximum width is 500 pixels.  We &lt;b&gt;will&lt;/b&gt;
+    take away this privilege if what you post is copyrighted or obscene.
+  &lt;/small&gt;
+  &lt;br /&gt;
+  &lt;input type="file" name="$param" /&gt;
+END
+}
+
+my $file    = $query-&gt;param($param);
+my $fh      = $query-&gt;upload($param);
+
+my $size    = -s $file;
+my $header  = $query-&gt;uploadInfo($file)-&gt;{"Content-Type"};
+
+return "Image too big: $size bytes ($maxsize is max)"
+  if $size &gt; $maxsize;
+
+return "Invalid image type: $header\n"
+  if $header !~ m!^(image/(?:p?jpeg|gif|png))$!i;
+
+if ($NODE-&gt;{$field} &amp;&amp; $NODE-&gt;{$field} !~ /\D/) {
+  my $img = getNodeById($NODE-&gt;{$field});
+
+  $img-&gt;{databytes} = join '', &lt;$fh&gt;;
+  $img-&gt;{datatype}  = $header;
+
+  updateNode($img, -1);
+} else {
+  if($NODE-&gt;{$field} =~ /\D/) {
+    $status .= htmlcode('deluserimagefile','imgsrc');
+  }
+  my $title = $NODE-&gt;{title} . "'s user image";
+    
+  my $id = $DB-&gt;insertNode(
+    $title,
+    getType('rawdata'),
+    getNode('root','user'),
+    {
+      databytes =&gt; join('', &lt;$fh&gt;),
+      datatype  =&gt; $header
+    }
+  );
+
+  if( $NODE-&gt;{node_id} == $USER-&gt;{node_id}  ) {
+    $USER-&gt;{$field}= $id;
+  }
+  $NODE-&gt;{$field} = $id;
+
+  updateNode($NODE, $USER);
+}
+
+return "$status Received $size bytes.";</field>
+</data>
+</node>

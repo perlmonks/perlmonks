@@ -1,0 +1,68 @@
+<node>
+  <doctext>[%
+  if ( getId($USER) == $HTMLVARS{guest_user} ) {
+    return &quot;Sorry, not available to [Anonymous Monk]s.\n&quot;;
+  }
+  if ( $USER-&gt;{experience} &lt; 20 ) {
+    return &quot;Sorry, not available to [id://21211|Initiate]s.\n&quot;;
+  }
+
+  my $since_when = time - 24*60*60;
+
+  my $csr = $Everything::dbh-&gt;prepare(&lt;&lt;EOF);
+    select node_id,title,experience,vars,createtime,lasttime
+    from user
+    left join node on node_id=user_id
+    left join setting on setting_id=user_id
+    where (unix_timestamp(lasttime)) &gt; $since_when
+      and nick &lt;&gt; '[NodeReaper]' -- user is not locked for spamming
+    order by lasttime desc
+EOF
+
+  return &quot;Ack!  Something's broken...&quot; unless $csr-&gt;execute;
+
+  my $html = join &quot;\n&quot;,
+    '&lt;p&gt;Showing users who have visited since',
+    htmlcode('convertEpochSecs',$since_when),
+    '&lt;/p&gt;';
+  $html .= &lt;&lt;EOF;
+&lt;table border=&quot;0&quot; align=&quot;center&quot;&gt;
+&lt;tr&gt;
+  &lt;th&gt;User&lt;/th&gt; &lt;th&gt;Last Here&lt;/th&gt; &lt;th&gt;User Since&lt;/th&gt;
+  &lt;th&gt;Experience&lt;/th&gt; &lt;th&gt;&lt;a href=&quot;?node_id=3557&quot;&gt;Writeups&lt;/a&gt;&lt;/th&gt;
+&lt;/tr&gt;
+EOF
+  my $index = 1;
+  my $node;
+  # The default format makes the table too wide; override it temporarily
+  { local $VARS-&gt;{timeformat} = '%Y-%m-%d';
+    while ( $node = $csr-&gt;fetchrow_hashref() ) {
+      my $vars = getVars($node);
+      $node-&gt;{Link} = linkNode($node);
+      $node-&gt;{Since} = htmlcode(
+        'parseTimeInString','', $node-&gt;{createtime}, '', '', 'short' );
+      $node-&gt;{NumWr} = linkNode(
+        6364,
+        $vars-&gt;{numwriteups} || &quot;None&quot;,
+        { usersearch =&gt; $node-&gt;{title} },
+      );
+      $html .= ( 1 &amp; $index++ ) ? qq[&lt;tr class=&quot;highlight&quot;&gt;] : qq[&lt;tr&gt;];
+      $html .= qq(&lt;td class=&quot;user&quot;&gt;$node-&gt;{Link}&lt;/td&gt;);
+      $html .= qq(&lt;td class=&quot;last-visited-time&quot;&gt;$node-&gt;{lasttime}&lt;/td&gt;);
+      $html .= qq(&lt;td class=&quot;user-since-time&quot;&gt;$node-&gt;{Since}&lt;/td&gt;);
+      $html .= qq(&lt;td align=&quot;right&quot;&gt;$node-&gt;{experience}&lt;/td&gt;);
+      $html .= qq(&lt;td align=&quot;right&quot;&gt;$node-&gt;{NumWr}&lt;/td&gt;);
+      $html .= qq(&lt;/tr&gt;\n);
+    }
+  } # end local
+  $html .= qq(&lt;/table&gt;\n);
+  return $html;
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>771455</node_id>
+  <author_user>485628</author_user>
+  <title>Monks Last Here</title>
+  <createtime>2009-06-14 14:48:17</createtime>
+  <nodeupdated>2009-06-14 14:48:17</nodeupdated>
+</node>

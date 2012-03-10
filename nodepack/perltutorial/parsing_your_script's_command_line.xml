@@ -1,0 +1,406 @@
+<node>
+  <doctext>&lt;p&gt;This tutorial describes how to deal with information passed in on
+the command line. Not the switches passed to the Perl interpreter,
+but the switches and file names that are passed to your script.&lt;/p&gt;
+
+&lt;h1&gt;The first steps&lt;/h1&gt;
+
+&lt;p&gt;Let's assume that you have written your first hello world script,
+which looks something like this:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  print &quot;Hello, world\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;Instead of greeting the world, you would like to greet whatever is
+passed in on the command line. To do that, you should know that the
+
+command-line arguments are stored in the &lt;tt&gt;@ARGV&lt;/tt&gt; array. To get
+at the first element, we could index it using &lt;tt&gt;$ARGV&amp;#091;0]&lt;/tt&gt;. The
+usual idiom, however, is to remove the element from the array and then
+deal with it and/or throw it way. [shift] is used to get at the first
+element of an array, thus we would write something like:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  my $thing = shift(@ARGV);
+  print &quot;Hello, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;As it turns out, Perl offers a convenient short-cut. If you use
+&lt;tt&gt;shift&lt;/tt&gt; outside a subroutine context with no parameters, it will
+implicitly use &lt;tt&gt;@ARGV&lt;/tt&gt;, so the above can be rewritten as:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  my $thing = shift;
+  print &quot;Hello, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;This is will be familiar to people used to Unix shell programming. This
+is all well and good; the script's behaviour is controlled by
+the parameters appearing on the command line. There is a problem,
+however, in that now a parameter &lt;i&gt;must&lt;/i&gt; be supplied, for if it is
+omitted, the script will cough up a &lt;tt&gt;Use of uninitialized value in
+concatenation&lt;/tt&gt; error, and all that will be printed is &quot;Hello, &quot;.&lt;/p&gt;
+
+&lt;h1&gt;Using default values&lt;/h1&gt;
+
+&lt;p&gt;It would be nice to be able to provide the script with a sensible
+default value, so that should no parameter be supplied, it will be able
+to continue and do something reasonable. For this we can use the ||
+operator:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  my $thing = shift || 'world';
+  print &quot;Hello, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;What this does is assign &lt;tt&gt;$thing&lt;/tt&gt; the value of the first
+parameter on the command line or 'world', should the command line be
+empty. Of course, sometimes an empty command line is not reasonable, in
+which case the best thing is to stop the script and print out a message
+so that the user can take corrective action:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  my $thing = shift or die &quot;Nothing specified on the command line.\n&quot;;
+  print &quot;Hello, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;Note that the correct idioms are to say &lt;tt&gt;shift || $value&lt;/tt&gt; but
+&lt;tt&gt;shift or die&lt;/tt&gt;. Read up on Perl's precedence rules to understand
+why.&lt;/p&gt;
+&lt;p&gt;There's another gotcha to be aware of, if ever 0 is a
+valid value to pass in on the command line:
+&lt;code&gt;
+  my $thing = shift || 'default';
+&lt;/code&gt;
+&lt;p&gt;... will not do the right thing if you pass 0 to the script.
+It boils down to what Perl considers truth. It just so
+happens that 0 is treated as false, so the left hand side of the
+&lt;tt&gt;||&lt;/tt&gt; operator as a whole is false, and thus &lt;tt&gt;$thing&lt;/tt&gt;
+winds up being assigned the value of 'default'.&lt;/p&gt;
+
+&lt;p&gt;There is a simple two step process way around this. First assign what
+comes out of &lt;tt&gt;shift&lt;/tt&gt;. Then, depending on whether &lt;tt&gt;$thing&lt;/tt&gt;
+is defined (not whether it is true or false, thus side-stepping the
+issue), use the wonderful-but-cryptic &lt;tt&gt;||=&lt;/tt&gt; to possibly
+assign to &lt;tt&gt;$thing&lt;/tt&gt;, based on the outcome of the conditional.
+&lt;code&gt;
+  my $thing = shift;
+  $thing ||= 'default' unless defined $thing;
+&lt;/code&gt;
+
+&lt;h1&gt;Introducing comand line switches&lt;/h1&gt;
+
+&lt;p&gt;Now supposing we wanted to modify the script to say &quot;Goodbye&quot;
+according to whether the &lt;tt&gt;-g&lt;/tt&gt; switch was used. We would like to say
+things like:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;tt&gt;greet&lt;/tt&gt;
+&lt;li&gt;&lt;tt&gt;greet sailor&lt;/tt&gt;
+&lt;li&gt;&lt;tt&gt;greet -g&lt;/tt&gt;
+&lt;li&gt;&lt;tt&gt;greet -g 'cruel world'&lt;/tt&gt;
+&lt;/ul&gt;
+
+&lt;/p&gt;Let us first consider The Wrong Way to do it:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  my( $switch, $thing );
+  $switch = shift;
+  if( $switch and $switch eq &quot;-g&quot; ) {
+    $thing = shift || 'world';
+  } else {
+    $thing = $switch || shift || 'world';
+     $switch = undef if $switch;
+  }
+  print $switch ? 'Goodbye' : 'Hello', &quot;, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;The above code is difficult to understand. It does, however, work
+according to spec. The main problem is that it will fail to consider
+&lt;tt&gt;-t&lt;/tt&gt; or &lt;tt&gt;-&lt;/tt&gt; anything as a switch, and complain that the
+switch has no effect on the program. For example, consider what &lt;tt&gt;greet
+-h harry&lt;/tt&gt; will print out. Even worse, the code will become horribly
+obfuscated should the script have to deal with two, three or more command
+line switches.&lt;/p&gt;
+
+&lt;p&gt;Obviously, a better approach is called required. Above all, it would
+be nice not to have to write it oneself, but rather use something that
+exists already. That must mean that packages exist to do what we need.&lt;/p&gt;
+
+&lt;p&gt;What we are looking for is something that will look for switch-like
+instances on the command line, set some corresponding Perl variables and
+above all remove them from &lt;tt&gt;@ARGV&lt;/tt&gt; so that we don't have to bother
+with them.&lt;/p&gt;
+
+&lt;h1&gt;What can perl offer?&lt;/h1&gt;
+
+&lt;p&gt;Note the distinction between Perl the language and perl the
+interpreter. As it turns out perl, the Perl interpreter can do some rudimentary
+command line processing all by itself. Sometimes this is sufficient. All
+you have to do is feed the interpreter the &lt;tt&gt;-s&lt;/tt&gt; switch:
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -sw
+  use strict;
+  use vars qw/$g/;
+  my $thing = shift || 'world';
+  print $g ? 'Goodbye' : 'Hello', &quot;, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;&lt;tt&gt;&amp;lt;aside&amp;gt;&lt;/tt&gt;Do not get confused by perl's switches
+and your script's switches. Remember that with a shebang line of
+&lt;tt&gt;#! /usr/local/perl -sw&lt;/tt&gt; and the switches -xy,
+the shell actually runs &lt;tt&gt;/usr/local/bin/perl -sw script -xy&lt;/tt&gt;. Perl
+sees &lt;tt&gt;-sw script -xy&lt;/tt&gt;. It processes the -sw, sees that 'script'
+looks like a file name and opens it and starts interpreting. Your
+script only sees &lt;tt&gt;-xy&lt;/tt&gt; (although to a certain extent it can
+detect what switches were passed to perl, such as by reading the value
+of &lt;tt&gt;$^W&lt;/tt&gt;).&lt;tt&gt;&amp;lt;/aside&amp;gt;&lt;/tt&gt;&lt;/p&gt;
+
+&lt;p&gt;Now we have a much smaller script that should be easier to
+understand. There is, however, a small problem due to interactions with
+&lt;tt&gt;use strict&lt;/tt&gt; pragma. The &lt;tt&gt;-s&lt;/tt&gt; functionality harks back to
+before the age of lexical variables. It refers to package variables that
+have to be explicitly declared in a &lt;/tt&gt;use vars&lt;/tt&gt; pragma when
+&lt;tt&gt;strict&lt;/tt&gt; is in use. This is not really a problem, except that
+if the script is run with the -h switch and warnings are switched on,
+the program will complete but it will spit out a &lt;tt&gt;Name &quot;main::h&quot;
+used only once: possible typo.&lt;/tt&gt; warning message.&lt;/p&gt;
+
+&lt;p&gt;Before turning away from &lt;tt&gt;-s&lt;/tt&gt; as a viable solution, consider
+the other feature that Perl provides. If the above script is run with
+&lt;tt&gt;-g&lt;/tt&gt;, the package variable &lt;tt&gt;$g&lt;/tt&gt; is set to 1. Alternatively,
+the script could be run with &lt;tt&gt;-g=foo&lt;/tt&gt;, in which case instead of
+being set to 1, &lt;tt&gt;$g&lt;/tt&gt; would contain 'foo'. Sometimes this limited
+functionality is enough to get the job done, and the fact that you don't
+have to drag around an external package file can be a win in certain
+circumstances.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;&amp;lt;update date=&quot;2001/11/15&quot;&gt;&lt;/b&gt; It appears that
+&lt;tt&gt;-s&lt;/tt&gt; has some rather nasty side effects, which means that scripts that use it should only be used in safely controlled environments (if such a thing exists). For more information, read the thread &quot;[id://125480]&quot;.&lt;b&gt;&amp;lt;/update&gt;&lt;/b&gt;&lt;/p&gt;
+
+&lt;h1&gt;&lt;tt&gt;getopt&lt;/tt&gt;: the heavy artillery&lt;/h1&gt;
+
+&lt;p&gt;More Unix culture: the traditional way to parse command line arguments
+in C was through a library call named &lt;tt&gt;getopt&lt;/tt&gt; or &lt;tt&gt;getopts&lt;/tt&gt;,
+short for &lt;b&gt;get opt&lt;/b&gt;ions. This has been carried over to Perl in the
+form of &lt;tt&gt;Getopt::Std&lt;/tt&gt; and &lt;tt&gt;Getopt::Long&lt;/tt&gt; which are bundled
+in the core distribution.&lt;/p&gt;
+
+&lt;h2&gt;&lt;tt&gt;Getopt::Std&lt;/tt&gt;&lt;/h2&gt;
+
+&lt;p&gt;&lt;tt&gt;[cpan://Getopt::Std]&lt;/tt&gt; performs command line processing and pulls
+out anything that resembles a &lt;tt&gt;-[letter]&lt;/tt&gt; switch and its value, leaving
+the remaining values in &lt;tt&gt;@ARGV&lt;/tt&gt;. It offers two interfaces,
+&lt;tt&gt;getopt&lt;/tt&gt; and &lt;tt&gt;getopts&lt;/tt&gt;. You almost always want to use the
+second variant. Let's see why:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  use Getopt::Std;
+  use vars qw/$opt_g/;
+  getopt('g');
+  my $thing = shift || 'world';
+  print $opt_g ? 'Goodbye' : 'Hello', &quot;, $thing\n&quot;;
+&lt;/code&gt;
+&lt;p&gt;Before going any further, the first thing to point out is that
+&lt;tt&gt;Getopt::Std&lt;/tt&gt; has been retrofitted to get around the uncomfortable
+use of package variables. If you pass a reference to a hash as the
+second parameter to the &lt;tt&gt;getopt&lt;/tt&gt; call, it will populate the
+hash, instead of using package variables, which allows the script to be
+rewritten as:&lt;/p&gt;
+
+&lt;code&gt;
+  #! /usr/local/bin/perl -w
+  use strict;
+  use Getopt::Std;
+  my %args;
+  getopt('g', \%args);
+  my $thing = shift || 'world';
+  print $args{g} ? 'Goodbye' : 'Hello', &quot;, $thing\n&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;This script will silently ignore a non-specified switch, which
+is usually A Good Thing. There is, however, a serious bug lurking in
+this code. Try to get the script to print &quot;Goodbye, foo&quot;. It's rather
+difficult to do because &lt;tt&gt;getopt&lt;/tt&gt; is &lt;i&gt;greedy&lt;/i&gt;. When it sees
+a specified switch, it tries hard to assign that switch a meaningful
+value, which means either the characters following the switch (as in
+&lt;tt&gt;-gparam&lt;/tt&gt;) or &lt;i&gt;the next parameter on the command line&lt;/i&gt;
+(as in &lt;tt&gt;-g param&lt;/tt&gt;). Which means if you run the above script as
+&lt;tt&gt;script -g foo&lt;/tt&gt;, &lt;tt&gt;$arg{g}&lt;/tt&gt; will contain 'foo', but there
+will be nothing left on the command line, so &lt;tt&gt;$thing&lt;/tt&gt; will be
+assigned the default value of 'world'.&lt;/p&gt;
+
+&lt;p&gt;In order to get around this &quot;feature&quot;, the second interface, via
+&lt;tt&gt;getopts&lt;/tt&gt; should be used instead. In this case, the specification
+string ('g' in the above) is interpreted differently. By default, all
+letters specify boolean parameters. To force a parameter to pick up
+a value (&lt;i&gt;i.e.&lt;/i&gt; to get the behaviour we so much wanted to avoid
+above), a ':' (colon) is appended. Therefore, to make &lt;tt&gt;-g&lt;/tt&gt;
+greedy, it should be specified as 'g:'.&lt;/p&gt;
+
+&lt;p&gt;This means that all we have to do in the above script is to call
+&lt;tt&gt;getopts&lt;/tt&gt; instead of &lt;tt&gt;getopt&lt;/tt&gt; and the job is done.&lt;/p&gt;
+&lt;p&gt;If you want to look at a real-life example of code that
+uses Getopt::Std, you can look at a script I uploaded
+here named [id://66636|pinger], a little tool designed
+to scan a range of IP addresses via ping.&lt;/p&gt;
+
+&lt;h2&gt;&lt;tt&gt;Getopt::Long&lt;/tt&gt;&lt;/h2&gt;
+
+&lt;p&gt;That is all well and good, but what happens when you reimplement
+&lt;tt&gt;tar&lt;/tt&gt; [http://language.perl.com/ppt/src/tar/index.html|in
+Perl]? How do you remember what all those pesky single character switches
+do in the string &lt;tt&gt;-cznTfoo&lt;/tt&gt;?  It's much easy to understand what's
+going on with &lt;tt&gt;--create --gzip --norecurse --files-from foo&lt;/tt&gt;
+instead. Enter &lt;tt&gt;[cpan://Getopt::Long]&lt;/tt&gt;.&lt;/p&gt;
+&lt;p&gt;This module lets you build up a specification that adheres to the
+POSIX syntax for command line options, which generally introduces
+switches with the double-dash notation. Unfortunately, this precludes
+the use of single-dash switches ([bikeNomad] points out that this is not true. My bad for not paying closer attention
+to the documentation). Even worse, you cannot include both
+&lt;tt&gt;Getopt::Std&lt;/tt&gt; and &lt;tt&gt;Getopt::Long&lt;/tt&gt; in the same program,
+as they will fight over @ARGV and the results will be... undefined.&lt;/p&gt;
+
+&lt;p&gt;Since I originally wrote this tutorial, I have used Getopt::Long a bit more (figured that I had to since I wrote this). Once you understand Getopt::Simple, Getopt::Long is pretty easy to pick up, and has much sophistication to offer, once you scratch below the surface.&lt;/p&gt;
+
+&lt;p&gt;That said, all of the processing goes on behind the scenes. You can attach a callback to deal with the processing of individual options, but this can become unwieldy. Sometimes you need more fine-grained control of the parsing of the switches, as they come in one by one.&lt;/p&gt;
+
+&lt;p&gt;While the following module is no longer being actively developed, it is just what you need in some instances, because it deals with parsing options only, and lets you deal with the rest. It turns the parsing inside out, and lets you act on options on the fly, and just therefore feels more cooperative. Try it, you might like it.&lt;/p&gt;
+
+&lt;h2&gt;&lt;tt&gt;Getopt::Mixed&lt;/tt&gt;&lt;/h2&gt;
+
+&lt;p&gt;[cpan://Getopt::Mixed|This module] should cover all your command line
+processing needs. It's quite simple to set up. First of all you need to
+call init with a format string (akin to [pack] and [unpack]). The sets up
+what command line switches are defined, and what values they can take on.
+Here's a real life example hoisted from some code I have lying around:&lt;/p&gt;
+
+&lt;code&gt;
+Getopt::Mixed::init( 'j=s l:s p=i s=s t=s logfile&gt;l d&gt;p date&gt;p period&gt;p project&gt;
+j type&gt;t');
+&lt;/code&gt;
+
+&lt;p&gt;This encodes the following information:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;tt&gt;-j&lt;/tt&gt;, &lt;tt&gt;-s&lt;/tt&gt; and &lt;tt&gt;-t&lt;/tt&gt; take a mandatory string argument.
+&lt;li&gt;&lt;tt&gt;-l&lt;/tt&gt; takes an optional string argument
+&lt;li&gt;&lt;tt&gt;-p&lt;/tt&gt; takes a mandatory integer argument
+&lt;li&gt;&lt;tt&gt;--logfile&lt;/tt&gt; is an alias for &lt;tt&gt;-l&lt;/tt&gt;
+&lt;li&gt;&lt;tt&gt;-d&lt;/tt&gt;, &lt;tt&gt;--date&lt;/tt&gt; and &lt;tt&gt;--period&lt;/tt&gt; are all aliases for
+&lt;tt&gt;-p&lt;/tt&gt;
+&lt;li&gt;&lt;i&gt;und so weiter&lt;/i&gt;.
+&lt;/ul&gt;
+
+&lt;p&gt;Pretty straightforward stuff. The next step is to call &lt;tt&gt;nextOption&lt;/tt&gt;
+repeatedly until it fails. Once that is done, you have processed all the
+switches. Unlike &lt;tt&gt;Getopt::Std&lt;/tt&gt; you set your defaults beforehand. If the
+switch isn't specified, the value isn't touched. Also note that just because a
+switch has a mandatory argument doesn't mean that the script will abort if
+the switch doesn't appear on the command line... it's not the switch itself
+that is mandatory. If this is required then you test the corresponding
+variable after the loop and if its value is undefined then you yank the rug
+out from under the script.&lt;/p&gt;
+
+&lt;p&gt;The processing loop looks something like this:&lt;/p&gt;
+
+&lt;code&gt;
+  while( my( $option, $value, $pretty ) = Getopt::Mixed::nextOption() ) {
+    OPTION: {
+      $option eq 'j' and do {
+        $Project = $value;
+
+        last OPTION;
+      };
+      $option eq 'l' and do {
+        $Logfile = $value if $value;
+        last OPTION;
+      };
+      # ...
+    }
+  }
+  Getopt::Mixed::cleanup();
+  die &quot;No project specified via -j.\n&quot; unless $Project;
+&lt;/code&gt;
+
+&lt;p&gt;The module is smart enough to recognise&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;&lt;tt&gt;-j foo&lt;/tt&gt;
+&lt;li&gt;&lt;tt&gt;-jfoo&lt;/tt&gt;
+&lt;li&gt;&lt;tt&gt;-j=foo&lt;/tt&gt;
+&lt;/ul&gt;
+&lt;p&gt;as all being valid syntaxes for assigning foo to the
+&lt;tt&gt;-j&lt;/tt&gt; switch. Remember the last variant. It's the
+easiest way of passing in a negative number on the command
+line. After all, how should &lt;tt&gt;--offset -30&lt;/tt&gt; be
+interpreted?&lt;/p&gt;
+
+&lt;p&gt;Another real-life example of code, this time using
+Getopt::Mixed can be found at [id://91220|nugid], a
+script I wrote to manage large scale modifications
+of uids and gids of Unix filesystems.&lt;/p&gt;
+
+&lt;h1&gt;Where to from here&lt;/h1&gt;
+
+&lt;p&gt;This should be enough for 95% of your basic command line processing
+needs. But everyone has a different itch to scratch, and you should be
+aware that there is a boatload of getoptish packages hanging out on
+[http://www.cpan.org|CPAN], as a search [http://search.cpan.org/search?mode=module&amp;query=getopt|will reveal]. Once you have the hang of a couple it's
+pretty simple to pick up another.&lt;/p&gt;
+
+&lt;p&gt;The most sophisticated of all, [id://56048|Getopt::Declare] comes,
+naturally enough, from [http://www.yetanother.org/damian/b+w/|the Damian].
+This module has an advanced method for specifying exactly what are the
+legal values that a switch may take, as well as providing poddish descriptions
+so that you don't have to write &lt;tt&gt;sub usage { ... }&lt;/tt&gt; that explains
+how to use the program correctly.&lt;/p&gt;
+
+&lt;h1&gt;Switch name idioms&lt;/h1&gt;
+
+&lt;p&gt;Over the years, a number of conventions have arisen over the best letters
+to assign to common operations that crop up again and again in program
+design. This list attempts to codify existing practices (updates welcomed).
+Use these conventions and people will find your programs easy to learn.&lt;/p&gt;
+
+&lt;table align=&quot;center&quot; cellpadding=&quot;3&quot; border=&quot;1&quot;&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-a&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Process everything (all).&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-d&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Debug mode. Print out lots of stuff.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-h&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Help. Print out a brief summary of what the script does and what it expects.&lt;/td&gt;&lt;/tr&gt;
+
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-i&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Input file, or include file&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-l&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Name of logfile&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-o&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Name of output file&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-q&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Quiet. Print out nothing.&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;tt&gt;-v&lt;/tt&gt;&lt;/td&gt;&lt;td&gt;Verbose. Print out lots of stuff.&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;And now you know all you need to know about command line processing.
+Have fun!&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;b&gt;update:&lt;/b&gt; Tip o' the hat to [petral] for pointing out
+the node on Getopt::Declare, &lt;tt&gt;-h&lt;/tt&gt; and a better
+Damian link. Tip o' the hat to [Albannach] for reminding
+me about the &quot;passing 0 on the command line&quot; bugaboo, and
+to [OeufMayo] regarding passing negative numbers.&lt;/p&gt;
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>88222</node_id>
+  <author_user>29008</author_user>
+  <title>Parsing your script's command line</title>
+  <createtime>2001-06-13 22:04:44</createtime>
+  <nodeupdated>2005-08-14 09:44:22</nodeupdated>
+</node>

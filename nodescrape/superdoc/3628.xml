@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3628" title="Newest Nodes" created="2000-02-17 19:12:24" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<keywords>
+<keyword rating="">
+newest</keyword>
+<keyword rating="">
+fresh</keyword>
+<keyword rating="">
+additions</keyword>
+<keyword rating="">
+recent</keyword>
+<keyword rating="">
+nodes</keyword>
+<keyword rating="">
+new</keyword>
+<keyword rating="">
+assert</keyword>
+<keyword rating="">
+asset</keyword>
+<keyword rating="">
+NN</keyword>
+<keyword rating="">
+Newest_Nosed</keyword>
+<keyword rating="">
+nosed</keyword>
+<keyword rating="">
+anneq</keyword>
+</keywords>
+<field name="doctext">
+[%
+  if ( getId($USER) != $HTMLVARS{default_user} ) {
+    if ( $q-&gt;param('viewedNewNodes') ) {
+      $VARS-&gt;{lastviewednewestnodes} = $q-&gt;param('pageloadtime');
+    }
+    if ( $q-&gt;param('clearNewNodesFlag') ) {
+      $VARS-&gt;{lastviewednewestnodes} = '';
+    }
+  }
+
+  my $str = '';
+  my @array = ( 1..14 );
+
+  $str .= qq(&lt;p align="right"&gt;&lt;a href="?node_id=244019"&gt;Help for this page&lt;/a&gt;&lt;/p&gt;\n);
+
+  $str .= htmlcode('openform');
+  $q-&gt;param( pageloadtime =&gt; time() );  # For future hidden params
+  $str .= $q-&gt;hidden( 'pageloadtime' ); # This one isn't used, however
+
+  if(  ! $VARS-&gt;{lastviewednewestnodes}  ) {
+    $str .= join $/,
+      'Show nodes created within the past',
+      $q-&gt;popup_menu( 'numdays', \@array ),
+      'days',
+      $q-&gt;submit("Submit"),
+      '&amp;nbsp;More&amp;nbsp;' . linkNodeTitle('Newest Nodes Settings'),
+      '&lt;br /&gt;';
+  } elsif(  getId($USER) != $HTMLVARS{default_user}  ) {
+    $str .= join $/,
+      'Showing nodes created since',
+      htmlcode(
+        'convertEpochSecs','',
+        $VARS-&gt;{lastviewednewestnodes},
+      ),
+      '&lt;br /&gt;',
+      $q-&gt;submit(
+        clearNewNodesFlag =&gt; "Clear my 'last checked' time" ),
+      '&amp;nbsp;More&amp;nbsp;' . linkNodeTitle('Newest Nodes Settings'),
+  } else {
+    # Yuck! Someone (impossibly?) set this for AnonyMonk.
+    $VARS-&gt;{lastviewednewestnodes}= '';
+  }
+  return $str . $/ . '&lt;/form&gt;';
+%]
+[%
+  my $style=
+        $q-&gt;param('nn_toc_style')
+    ||  $VARS-&gt;{nn_toc_style}
+    ||  ( $VARS-&gt;{no_nn_toc} ? 'none' : 'banner' );
+  my $ref= {};
+  my $num_new= 0;
+  local *newNodesForType= sub {
+    my($tocref,$type,$numdays,$showauthor,$title,$link,$linkoff)= @_;
+
+    ( my $anchor= $title ) =~ s/\s/-/g;
+
+    my $nodestr= htmlcode(
+      'nodesWithinDays','',
+      $type, $numdays, 0, $showauthor, '', $ref );
+    return '' unless $nodestr;
+
+    $num_new += $ref-&gt;{count};
+
+    if(  $style eq 'long'  ||  $style eq 'counted_banner'  ) {
+      my $toc_title= "$ref-&gt;{count} $title";
+      if(  $ref-&gt;{count} == 1  ) {
+        $toc_title =~ s/ies\b/y/g;
+        $toc_title =~ s/(Patch)es\b/$1/g;
+        $toc_title =~ s/(\w+)s\b/$1/g
+          if  $toc_title !~ m/\bNews\b/i;
+      } else {
+        $toc_title.='s' unless $toc_title=~/s\b/;
+      }
+
+      $toc_title=~s/ /&amp;nbsp;/g;
+
+      my $toclink= $q-&gt;a(
+        { href =&gt; "#toc-$anchor" },
+        $toc_title,
+      );
+      if(  ! $ref-&gt;{firstcount}  ||  $ref-&gt;{firstcount} &gt; 1  ) {
+        push @$tocref, $toclink;
+        $ref-&gt;{firstcount} ||= $ref-&gt;{count};
+      } else {
+        unshift @$tocref, $toclink;
+        $ref-&gt;{firstcount}= $ref-&gt;{count};
+      }
+    } elsif(  $style eq 'banner'  ) {
+        ( my $toc_title= $title ) =~ s/ /&amp;nbsp;/g;
+        push @$tocref, $q-&gt;a( {href=&gt;"#toc-$anchor"}, $toc_title );
+    }
+
+    my $top=
+          $style ne 'banner'
+      &amp;&amp;  $style ne 'long'
+      &amp;&amp;  $style ne 'counted_banner'
+        ? ''
+        :   '&amp;nbsp;&lt;font size="2"&gt;'
+          . $q-&gt;a( {href=&gt;"#toc-top"}, "(Top)" )
+          . '&lt;/font&gt;';
+
+    my $str= '';
+    $str .= "&lt;h3&gt;";
+    if(  ! $linkoff  ) {
+      if(  $link  ) {
+        $str .= join '',
+          $q-&gt;a(
+            { href =&gt; "$ENV{SCRIPT_NAME}?node=$link",
+              name =&gt; "toc-$anchor",
+            },
+            $title ),
+          $top;
+      } else {
+        $str .= join '',
+          $q-&gt;a(
+            { href =&gt; "$ENV{SCRIPT_NAME}?node=$title",
+              name =&gt; "toc-$anchor",
+            },
+            $title ),
+          $top;
+      }
+    } else {
+       $str .= join '',
+         $q-&gt;a(
+           { name =&gt; "toc-$anchor" },
+           $title,
+         ),
+         $top;
+    }
+
+    $str .= "&lt;/h3&gt;";
+    return $str . $nodestr;
+  };
+
+  my $str= '';
+  my $numdays= $q-&gt;param('numdays');
+
+  my $h={};
+  htmlcode( 'handle_nn_settings','', $h );
+
+  my @toc;
+  my( $title, $link, $showauthor, $linkoff );
+  foreach my $type (  @{$h-&gt;{types}}  ) {
+    ( $title, $link, $showauthor, $linkoff )= @{$h-&gt;{typedata}{$type}};
+    $str .= newNodesForType(
+      \@toc, $type, $numdays, $showauthor, $title, $link, $linkoff );
+  }
+  my @blurbs=(
+    'awaiting your attention',
+    'still to be read',
+    'not yet reviewed',
+    'since your last visit',
+  );
+
+  my $return= "";
+
+  if(  ! $num_new  ) {
+     $return= "&lt;p&gt;There are no new nodes at this time.&lt;/p&gt;";
+  } elsif(  $style eq 'long'  ) {
+    my $and= '';
+    $and= "&lt;br /&gt;and " . pop(@toc)
+      if 1 &lt; @toc;
+    if(  @toc  &amp;&amp;  ! $VARS-&gt;{no_nn_toc}  ) {
+      $return= join '',
+        '&lt;p class="nnSummary"&gt;',
+        $q-&gt;a(
+          { name =&gt; "toc-top" },
+          "There ".($ref-&gt;{firstcount}&gt;1 ? "are" : "is")
+        ),
+        '&lt;ul&gt;',
+        join( ", &lt;br /&gt;", @toc ),
+        $and, '&lt;/ul&gt;',
+        $blurbs[rand @blurbs],
+        '...&lt;/p&gt;&lt;hr /&gt;';
+    }
+    $return .= $str;
+  } elsif(  $style eq 'banner'  ||  $style eq 'counted_banner'  ) {
+    $return= join '',
+      '&lt;p class="nnSummary"&gt;',
+      '&lt;ul class="inline-list"&gt;',
+      $q-&gt;a(
+        { name =&gt; "toc-top" },
+        "Jump to",
+      ),
+      ": ",
+      join(
+        '&lt;li&gt;',
+        @toc,
+      ),
+      '&lt;/ul&gt;&lt;/p&gt;&lt;hr /&gt;',
+      $str;
+  } else {
+    $return= $str;
+  };
+
+  my $viewed_message = $num_new
+    ? "I've checked all of these"
+    : "Check for newer nodes";
+
+  if(  getId($USER) != $HTMLVARS{default_user}  ) {
+    $return.= join $/, '',
+      htmlcode( 'openform','', -node_id =&gt; getId($NODE) ),
+      $q-&gt;hidden( 'pageloadtime' ),
+      $q-&gt;submit( viewedNewNodes =&gt; $viewed_message ),
+      '&lt;/form&gt;&lt;/p&gt;';
+  }
+  return $return;
+%]
+&lt;p&gt;
+ Or maybe you want to see [Recently Updated Home Nodes]
+&lt;/p&gt;
+&lt;link
+   rel="alternate" title="Newest Nodes RSS"
+   href="?node_id=30175;xmlstyle=rss"
+   type="application/rss+xml"
+&gt;&lt;/link&gt;
+</field>
+</data>
+</node>

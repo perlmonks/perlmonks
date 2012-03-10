@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="342470" title="add_signature" created="2004-04-04 09:53:48" updated="2004-12-25 16:00:50">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+# [add_signature]
+# used by [addnewform] and [addnewnoteform].
+#
+# my $text=....;
+# my $warning=htmlcode('add_signature','',\$text);
+# my $warning=htmlcode('add_signature','',\$text,do_add=&gt;1);
+#
+# Add a signature and template to a node or note.
+# Params: 
+# $text_ref = A reference to a $scalar of the existing text. Will be modified if
+#             necessary.
+#
+# %opts     = List of key values pairs of options.
+#             'do_add' is supported, which defaults to true
+#             if not provided. If true, signatures will be added, if false
+#             signatures wont be added. Its only used by [addnewform].
+#             'no_warning' if TRUE then no warning will be displayed.
+#             
+# Returns via modfication of $text_ref the modified text.
+# Returns by stack a value which if is true will be an html message 
+#    explaining the message appears to be totally wrapped in pmsig tags
+#    suitable for display to the user. If it is false it will be ''. 
+#
+# This function operates with the following $VARS
+# $VARS-&gt;{keep_yer_claws_off_my_sig} (copied into: $leave)
+#        force PM to not mess with the signature. (new/unsupported/provisional)
+# $VARS-&gt;{signature} (copied into: $v_sig) 
+#        Users signature text -- Settable via [User Settings]
+# $VARS-&gt;{template_text}
+#        Users template text  -- Settable via [User Settings]
+
+my ($text_ref, %opts)=@_;
+
+my $text=$$text_ref;
+$text='' unless defined $text;
+
+my $used_sig;
+my $sig_div  = qq[&lt;div class="pmsig"&gt;];
+my $user_div = qq[&lt;div class="pmsig-$USER-&gt;{node_id}"&gt;];
+my $both_div = qq[&lt;div class="pmsig pmsig-$USER-&gt;{node_id}"&gt;];
+my $end_div  = qq[&lt;/div&gt;];
+my $sig_delim = "&lt;!-- Node text goes above. Div tags should contain sig only --&gt;";
+
+my $v_sig=$VARS-&gt;{signature};
+
+# we strip off leading spaces to make detection more aggressive.
+# this also means that an all whitespace post will be automatically
+# replaced by the signature, which may be useful to some.
+# dont worry, we put it back on later.
+
+my $space="";
+$space=$1 if $text=~s/^(\s+)//;
+
+# if this user var is true we wont touch the signature.
+my $leave=$VARS-&gt;{keep_yer_claws_off_my_sig};
+
+if (!length($text) and (!exists($opts{do_add}) or $opts{do_add})) {
+    if ( $text = $VARS-&gt;{template_text} ) {
+         $text=join "\n", $text,
+                          ($leave ? ($v_sig)
+                                  : ($sig_div.$user_div, 
+                                     $v_sig, 
+                                     $end_div.$end_div)
+                          ),
+            if $v_sig;
+    } elsif ($v_sig) {
+         $used_sig=1;
+         $text=$v_sig;
+    }
+}
+
+my $sig_div_pos=index($text,$sig_div);
+my $user_div_pos=index($text,$user_div);
+my $both_div_pos=index($text,$both_div);
+my $delim_pos=index($text,$sig_delim);
+$text=$space.$text;
+
+if ( !$leave and $used_sig and $text=~/\S/ and $both_div_pos==-1
+    and ($sig_div_pos==-1 or $user_div_pos==-1))
+{
+    $text=join "\n", $sig_delim, 
+                     $sig_div.$user_div, 
+                     $text, 
+                     $end_div.$end_div;
+    $sig_div_pos=0;
+}
+
+# assign
+$$text_ref=$text;
+#using HTMLVARS here is about the only way I can see of doing this right now
+#because preview mode dispatches to other code modules with variadic signatures
+#and as such it cant be intelligently passed as a param. --demerphq
+return ($HTMLVARS{__ADD_SIG_WARNING} &amp;&amp; !$leave &amp;&amp; (!$sig_div_pos 
+        || !$user_div_pos || !$both_div_pos || !$delim_pos))
+           ? qq[\n&lt;p&gt;&lt;i&gt;&lt;b&gt;Warning:&lt;/b&gt;&amp;nbsp;&amp;nbsp; ]
+           . qq[When this page was created your message appeared to be ]
+           . qq[entirely wrapped in pmsig tags. ]
+           . qq[You should ensure that only your signature is within these ]
+           . qq[tags otherwise some users may see an empty node. ]
+           . qq[See ] . linkNode(323419) . qq[ for details.&lt;/p&gt;&lt;/i&gt;\n]
+           : '';
+
+</field>
+</data>
+</node>

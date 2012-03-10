@@ -1,0 +1,229 @@
+<node>
+  <doctext>&amp;nbsp;&lt;p&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;Introduction&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+Throughout its history, Perl has always found a home in the suite of tools employed by system administrators in the maintenance, monitoring and administration of computer systems.  As the diversity of demands and requirements placed upon computer systems has grown, so too has the requirement for system administrators to take full advantage of the tools at their disposal.  In this respect, Perl has proven to be a most valuable asset to system administrators with an ever expanding base of diverse application and tool components available from the comprensive perl archive network (CPAN, [http://www.cpan.org]).&lt;p&gt;
+This tutorial is intended to introduce the reader to another such component available from CPAN, the Net::Pcap library.  This module provides an interface for Perl to the Lawrence Berkeley National Laboratory Network Research Group's pcap library, which is a system-independent interface for user-level packet capture.  This library provides a portable framework for low-level network monitoring and can be used for a variety of network monitoring functions including network statistics collection, security monitoring and network debugging.  Thus, it is with a focus on network administration that this tutorial on the usage of [cpan://Net::Pcap] is presented.&lt;p&gt;
+&amp;nbsp;&lt;p&gt;&lt;readmore&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;Setting the Device&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+The first step in building an application or tool using [cpan://Net::Pcap] and the underlying libpcap library for network monitoring is to determine an available network interface which can be used for this monitoring network traffic.  This device can be specified by the user for specific network monitoring, particularly on multi-homed machines, or can be determined by the &lt;code&gt;lookupdev&lt;/code&gt; method from [cpan://Net::Pcap].&lt;p&gt;
+The syntax of the &lt;code&gt;lookupdev&lt;/code&gt; method is as follows:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+$dev = Net::Pcap::lookupdev(\$err)
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+This method returns the name of a network device which can be used for monitoring network traffic - For example:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+use Net::Pcap;
+use strict;
+
+my $err;
+my $dev = Net::Pcap::lookupdev(\$err);
+if (defined $err) {
+    die 'Unable to determine network device for monitoring - ', $err;
+}
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+The string reference &lt;code&gt;$err&lt;/code&gt; is passed as an argument to this method and is returned with an error description in the event of method failure.  Upon method failure, the returned device name is also undefined.&lt;p&gt;
+A second method from [cpan://Net::Pcap] which warrants introduction at this point is &lt;code&gt;lookupnet&lt;/code&gt;, which can be used to determine the network address and netmask for a device.  This method is useful for the validation of a device name supplied for network monitoring by a user.&lt;p&gt;
+The syntax of the &lt;code&gt;lookupnet&lt;/code&gt; method is as follows:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+Net::Pcap::lookupnet($dev, \$net, \$mask, \$err)
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+This method returns the network address and netmask for the device specified, &lt;code&gt;$dev&lt;/code&gt;.  This method also follows the conventions of the underlying library of returning &lt;code&gt;0&lt;/code&gt; for success and &lt;code&gt;-1&lt;/code&gt; for failure and as such error checking for this and other [cpan://Net::Pcap] functions may use the pseudo-reverse mentality of the &lt;code&gt;die if ..&lt;/code&gt; idiom.  For example:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+my ($address, $netmask, $err);
+if (Net::Pcap::lookupnet($dev, \$address, \$netmask, \$err)) {
+    die 'Unable to look up device information for ', $dev, ' - ', $err;
+}
+print STDOUT &quot;$dev: addr/mask -&gt; $addr/$mask\n&quot;;
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;Capturing Packets&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+Once an appropriate network device has been determined, the process of packet capturing can be initiated.  The [cpan://Net::Pcap] function &lt;code&gt;open_live&lt;/code&gt; returns a packet capture descriptor which can be used for capturing and examining network packets.&lt;p&gt;
+The syntax of the &lt;code&gt;open_live&lt;/code&gt; method is as follows:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+$object = Net::Pcap::open_live($dev, $snaplen, $promisc, $to_ms, \$err)
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+The &lt;code&gt;$dev&lt;/code&gt; parameter specifies the network interface from which to capture network packets while the &lt;code&gt;$snaplen&lt;/code&gt; and &lt;code&gt;$promisc&lt;/code&gt; parameters specify the maximum number of bytes to capture from each packet and whether to put the interface into promiscuous mode, respectively.  The latter of these parameters, the promiscuous mode, places the network card into a &quot;snooping&quot; mode where network packets not necessarily directed to the packet capturing machine are captured - In a non-switched network environment, this could effectively capture all network traffic!  The &lt;code&gt;$to_ms&lt;/code&gt; parameter specifies a read time-out for packet capturing in milliseconds - A &lt;code&gt;$to_ms&lt;/code&gt; value of &lt;code&gt;0&lt;/code&gt; captures packets until an error occurs while a value of &lt;code&gt;-1&lt;/code&gt; captures packets indefinitely.&lt;p&gt;
+The next step in the packet capture process is to establish a callback function for [cpan://Net::Pcap] to pass captured packets to for analysis and reporting - For this, the &lt;code&gt;loop&lt;/code&gt; method of [cpan://Net::Pcap] is called:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+Net::Pcap::loop($object, $count, \&amp;callback_function, $user_data)
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+This method takes four mandatory arguments, the [cpan://Net::Pcap] object returned from the &lt;code&gt;Net::Pcap::open_live&lt;/code&gt; method, &lt;code&gt;$object&lt;/code&gt;, a numeric indicating the number of packets to capture, &lt;code&gt;$count&lt;/code&gt; and a subroutine reference to the callback function.  If the numeric passed to this function is negative, the &lt;code&gt;Net::Pcap::loop&lt;/code&gt; will capture packets indefinitely (or until an error occurs if the &lt;code&gt;$to_ms&lt;/code&gt; argument of the &lt;code&gt;open_live&lt;/code&gt; method is set to &lt;code&gt;0&lt;/code&gt;).  The fourth argument passed to this method with arbitrary data that is passed with the callback function with captured packets and can be used as a method to 'tag' captured packets or distinguish between several open packet capture sessions.&lt;p&gt;
+The callback function specified by the &lt;code&gt;Net::Pcap::loop&lt;/code&gt; method receives the following arguments when called:&lt;p&gt;
+&lt;dl&gt;&lt;ul&gt;
+  &lt;li&gt;The &lt;code&gt;$user_data&lt;/code&gt; string passed to the &lt;code&gt;Net::Pcap::loop&lt;/code&gt; method.&lt;/li&gt;&lt;p&gt;
+  &lt;li&gt;A reference to a hash containing packet header information - The fields of this hash of packet header information are as follows:&lt;p&gt;
+    &lt;dl&gt;&lt;ul&gt;
+      &lt;li&gt;&lt;code&gt;len&lt;/code&gt; - the total length of the packet,&lt;/li&gt;&lt;p&gt;
+      &lt;li&gt;&lt;code&gt;caplen&lt;/code&gt; - the captured length of the packet; this corresponds to the &lt;code&gt;$snaplen&lt;/code&gt; argument passed to the &lt;code&gt;Net::Pcap::open_live&lt;/code&gt; method&lt;/li&gt;&lt;p&gt;
+      &lt;li&gt;&lt;code&gt;tv_sec&lt;/code&gt; - the seconds value of the packet timestamp&lt;/li&gt;&lt;p&gt;
+      &lt;li&gt;&lt;code&gt;tv_usec&lt;/code&gt; - the microseconds value of the packet timestamp&lt;/li&gt;&lt;p&gt;
+    &lt;/ul&gt;&lt;/dl&gt;&lt;/li&gt;&lt;p&gt;
+  &lt;li&gt;A copy of the entire packet&lt;/li&gt;&lt;p&gt;
+&lt;/ul&gt;&lt;/dl&gt;&lt;p&gt;
+An example of the callback function associated with packet capture may look like the following:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+sub callback_function {
+    my ($user_data, $header, $packet) = @_;
+
+    ...
+}
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font face=&quot;+1&quot;&gt;&lt;b&gt;Filtering Packets&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+While the methods described above, provide the means by which to capture all network traffic, the real power offered by the libpcap library is to selective filter network packets to monitor specific traffic.  The filtering of network packets can be set through use of a filter language specific to the libpcap library - A description of this filter language can be found in the libpcap source code or on the &lt;code&gt;tcpdump(8)&lt;/code&gt; man page.  The use of this filter language for the selective capture of network packets does require some knowledge of TCP/IP networking and the underlying packet structure - The description of this filter language in detail is beyond the scope of this tutorial.&lt;p&gt;
+The [cpan://Net::Pcap] module provides methods for the compilation and setting of filters for network packet capture by means of the &lt;code&gt;Net::Pcap::compile&lt;/code&gt; and &lt;code&gt;Net::Pcap::setfilter&lt;/code&gt; methods.&lt;p&gt;
+The arguments of the &lt;code&gt;Net::Pcap::compile&lt;/code&gt; method are as follows:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+Net::Pcap::compile($object, \$filter_compiled, $filter_string, $optimise, $netmask)
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+This method will compile and check the filter specified in $filter_string for [cpan://Net::Pcap] object &lt;code&gt;$object&lt;/code&gt; and return the compiled filter in the scalar &lt;code&gt;$filter_compiled&lt;/code&gt;.  The filter is optimised where possible if the &lt;code&gt;$optimise&lt;/code&gt; variable is true.  This function, like other [cpan://Net::Pcap] functions, returns &lt;code&gt;0&lt;/code&gt; if successful or &lt;code&gt;-1&lt;/code&gt; if an error occurs.&lt;p&gt;
+The compiled filter string, &lt;code&gt;$filter_compiled&lt;/code&gt;, can then be applied against the [cpan://Net::Pcap] object using the &lt;code&gt;Net::Pcap::setfilter&lt;/code&gt; method - For example:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+Net::Pcap::setfilter($object, $filter_compiled);
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font face=&quot;+1&quot;&gt;&lt;b&gt;Decoding Captured Packets&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+Once packets have been captured using the [cpan://Net::Pcap] interface to libpcap, the next step is to decode this packets and make sense of the network packet data collected.  This can be performed by constructing unpack templates for captured data or more easily through the [cpan://NetPacket::] collection of modules.  These modules each contain methods for extracting information from and about network packets, the most useful of which is arguably, the &lt;code&gt;decode&lt;/code&gt; method - This method returns a hash of meta-data about the passed packet, specific to the packet type.&lt;p&gt;
+For example, the &lt;code&gt;NetPacket::Ethernet::decode&lt;/code&gt; method will return the following information on captured ethernet packets:&lt;p&gt;
+&lt;dl&gt;&lt;ul&gt;
+  &lt;li&gt;&lt;code&gt;src_mac&lt;/code&gt; - the source MAC address for the ethernet packet as a hex string&lt;/li&gt;&lt;p&gt;
+  &lt;li&gt;&lt;code&gt;dest_mac&lt;/code&gt; - the destination MAC address for the ethernet packet as a hex string&lt;/li&gt;&lt;p&gt;
+  &lt;li&gt;&lt;code&gt;type&lt;/code&gt; - the protocol type of the ethernet packet, for example, IP, ARP, PPP, SNMP&lt;/li&gt;&lt;p&gt;
+  &lt;li&gt;&lt;code&gt;data&lt;/code&gt; - the data payload for the ethernet packet&lt;/li&gt;
+&lt;/ul&gt;&lt;/dl&gt;&lt;p&gt;
+Further information on each of the [cpan://NetPacket::] modules and the information returned by the decode function can be found on their respective man pages.&lt;p&gt;
+In addition to this, each of the [cpan://NetPacket::] modules also contain a &lt;code&gt;strip&lt;/code&gt; method which simply returns the data payload of the network packet - This is useful when the network encapsulation is of little or no concern to your application.&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font face=&quot;+1&quot;&gt;&lt;b&gt;Cleaning Up&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+Once finished capturing packets, the &lt;code&gt;Net::Pcap::close&lt;/code&gt; method should be called to close the packet capture device.  For example:&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+Net::Pcap::close($object)
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font face=&quot;+1&quot;&gt;&lt;b&gt;Putting It All Together&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+The following example shows a way of putting all of the techniques described above and putting them to use for network administration.  In this example, details of all TCP packets with the SYN header flag set captured by a machine will be reported - These network packets are used by a client in initiating a connection with a server and can be used to initiate denial of service attacks against a network host.  For further information on TCP packet structure and the SYN header flag, see [http://www.ibiblio.org/pub/docs/rfc/rfc793.txt|RFC793].&lt;p&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+use Net::Pcap;
+use NetPacket::Ethernet;
+use NetPacket::IP;
+use NetPacket::TCP;
+use strict;
+
+my $err;
+
+#   Use network device passed in program arguments or if no 
+#   argument is passed, determine an appropriate network 
+#   device for packet sniffing using the 
+#   Net::Pcap::lookupdev method
+
+my $dev = $ARGV[0];
+unless (defined $dev) {
+    $dev = Net::Pcap::lookupdev(\$err);
+    if (defined $err) {
+        die 'Unable to determine network device for monitoring - ', $err;
+    }
+}
+
+#   Look up network address information about network 
+#   device using Net::Pcap::lookupnet - This also acts as a 
+#   check on bogus network device arguments that may be 
+#   passed to the program as an argument
+
+my ($address, $netmask);
+if (Net::Pcap::lookupnet($dev, \$address, \$netmask, \$err)) {
+    die 'Unable to look up device information for ', $dev, ' - ', $err;
+}
+
+#   Create packet capture object on device
+
+my $object;
+$object = Net::Pcap::open_live($dev, 1500, 0, 0, \$err);
+unless (defined $object) {
+    die 'Unable to create packet capture on device ', $dev, ' - ', $err;
+}
+
+#   Compile and set packet filter for packet capture 
+#   object - For the capture of TCP packets with the SYN 
+#   header flag set directed at the external interface of 
+#   the local host, the packet filter of '(dst IP) &amp;&amp; (tcp
+#   [13] &amp; 2 != 0)' is used where IP is the IP address of 
+#   the external interface of the machine.  For 
+#   illustrative purposes, the IP address of 127.0.0.1 is 
+#   used in this example.
+
+my $filter;
+Net::Pcap::compile(
+    $object, 
+    \$filter, 
+    '(dst 127.0.0.1) &amp;&amp; (tcp[13] &amp; 2 != 0)', 
+    0, 
+    $netmask
+) &amp;&amp; die 'Unable to compile packet capture filter';
+Net::Pcap::setfilter($object, $filter) &amp;&amp;
+    die 'Unable to set packet capture filter';
+
+#   Set callback function and initiate packet capture loop
+
+Net::Pcap::loop($object, -1, \&amp;syn_packets, '') ||
+    die 'Unable to perform packet capture';
+
+Net::Pcap::close($object);
+
+
+sub syn_packets {
+    my ($user_data, $header, $packet) = @_;
+
+    #   Strip ethernet encapsulation of captured packet 
+
+    my $ether_data = NetPacket::Ethernet::strip($packet);
+
+    #   Decode contents of TCP/IP packet contained within 
+    #   captured ethernet packet
+
+    my $ip = NetPacket::IP-&gt;decode($ether_data);
+    my $tcp = NetPacket::TCP-&gt;decode($ip-&gt;{'data'});
+
+    #   Print all out where its coming from and where its 
+    #   going to!
+
+    print
+        $ip-&gt;{'src_ip'}, &quot;:&quot;, $tcp-&gt;{'src_port'}, &quot; -&gt; &quot;,
+        $ip-&gt;{'dest_ip'}, &quot;:&quot;, $tcp-&gt;{'dest_port'}, &quot;\n&quot;;
+}
+
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font face=&quot;+1&quot;&gt;&lt;b&gt;From Here&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+This tutorial has touched upon the basic functionality of the [cpan://Net::Pcap] module and how it can be used in network administration.  Other features of this excellent module which have not been covered in tutorial include saving captured network packets to files and interface statistics handling - These features will be covered, if there is sufficient interest and demand, in a follow-up tutorial.&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+&lt;font face=&quot;+1&quot;&gt;&lt;b&gt;References&lt;/b&gt;&lt;/font&gt;&lt;p&gt;
+&amp;nbsp;&lt;p&gt;
+Blank-Edelman, David N. (2000) &quot;Perl for System Administration&quot; O'Reilly, ISBN 1-56592-609-9&lt;p&gt;
+Carstens, Tim (2002) &quot;Programming with pcap&quot; [http://broker.dhs.org/pcap.html]&lt;p&gt;
+Casado, Martin &quot;Packet Capture with libpcap and other Low Level Network Tricks&quot; [http://www.dbaseiv.net/sockets/pcap/Tutorials/section1.html]&lt;p&gt;
+&amp;nbsp;&lt;p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>170648</node_id>
+  <author_user>65703</author_user>
+  <title>Perl and Net::Pcap</title>
+  <createtime>2002-05-31 03:57:17</createtime>
+  <nodeupdated>2005-08-15 14:22:49</nodeupdated>
+</node>

@@ -1,0 +1,157 @@
+<node>
+  <doctext>&lt;p&gt;&lt;font face=&quot;Verdana&quot; size=&quot;5&quot;&gt;Accessing Microsoft SQL Server 
+from Perl&lt;/font&gt;&lt;font face=&quot;Verdana&quot;&gt;&lt;br&gt;
+by Lindsay Leeds (2004 Sep 20)&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Recently, I made yet another attempt to get Perl to 
+access Microsoft SQL Server using DBD.&amp;nbsp; Usually, when I want to connect to 
+a Microsoft SQL Server, it is from Perl on Windows.&amp;nbsp; So I take the easy 
+route and use DBD::ODBC and use an ODBC connection.&amp;nbsp; This time though, I 
+wanted to connect to Microsoft SQL Server 2000 from a Linux box.&amp;nbsp; Having no 
+ODBC to fall back on, I looked for native DBD driver of some sort.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;It took me several hours of struggling to make it work.&amp;nbsp; 
+I almost gave up several times, so I am writing outline to help anyone else 
+trying to accomplish this same task.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;In the end, we will use the DBD::Sybase perl module from 
+CPAN to access the Microsoft SQL Server.&amp;nbsp; Before we can do that however, we 
+must first compile the freetds library.&lt;br&gt;
+&lt;br&gt;
+Note: From now on I will refer to Microsoft SQL Server as SQL Server.&amp;nbsp; 
+Please do not confuse this with a generic sql server.&amp;nbsp; We can all now pause 
+to gripe about the lack of imagination in product naming at Microsoft.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot; size=&quot;4&quot;&gt;Compiling Freetds&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Download and compile freetds from
+&lt;a href=&quot;http://www.freetds.org/&quot;&gt;http://www.freetds.org/&lt;/a&gt;.&lt;br&gt;
+&lt;br&gt;
+once you unzip and untar it, enter the directory and run:&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Courier New&quot;&gt;./configure --prefix=/usr/local/freetds 
+	--with-tdsver=7.0&lt;br&gt;
+	make&lt;br&gt;
+	make install&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot; size=&quot;4&quot;&gt;Configuring Freetds&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Now we have the freetds compiled, but we still have 
+configure it.&amp;nbsp; This is the part that threw me off and is so different from 
+other DBD drivers.&amp;nbsp; The DBD::Sybase driver will ultimately be affected by 
+the contents of the /usr/local/freetds/etc/freetds.conf file.&amp;nbsp; &lt;b&gt;If that 
+file is not configured correctly, your DBD::Sybase connection will fail.&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Okay, now that we have established there is a&amp;nbsp; 
+relationship between the freetds.conf file and the DBD::Sybase module, let's 
+edit the freetds.conf file.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;The strategic modifications I made to the freetds.conf 
+file were:&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;1) uncomment the following lines and modify if 
+necessary:&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Courier New&quot;&gt;try server login = yes&lt;br&gt;
+	try domain login = no&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Note: this forces the module to attempt a database login 
+instead of a domain login.&amp;nbsp; I could not get domain login to work, though I 
+will admit I did not try very hard.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;2) uncomment the following line and modify if necessary:&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Courier New&quot;&gt;tds version = 7.0&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;This supposedly sets the default tds version to 
+establish a connection with.&amp;nbsp; I have only SQL Server 2000 servers, and they 
+won't talk at any lower version.&amp;nbsp; So I set it to 7.0.&amp;nbsp; If for some 
+reason you had older SQL Servers, you might leave it at the default 4.2.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;3) create a server entry for my server sql1:&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;/font&gt;&lt;code&gt;[sql1]
+		host = sql1
+		port = 1433
+		tds version = 8.0
+	&lt;/code&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Note: My server here is sql1.&amp;nbsp; Ping sql1 worked, so 
+I am sure I can resolve it using DNS.&amp;nbsp; You can also specifcy an ip address 
+instead of the host name.&amp;nbsp; The sql1 in the brackets is just a descriptor.&amp;nbsp; 
+It could be 'superduperserver' and it would still work as long as my 'host =' is 
+set correctly.&amp;nbsp; I tried 'tds version 7.0' for my SQL Sever 2000 and it 
+worked.&amp;nbsp; Version 5.0 though resulted in an error.&amp;nbsp; You might want to 
+verify your SQL Server is listening on port 1433 with a 'netstat -a -n' run from 
+the command line on the SQL Server.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;At this point you can verify your configuration.&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Courier New&quot;&gt;/usr/local/freetds/bin/tsql -S sql1 -U sqluser&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;You will then be prompted for a password and if 
+everything is well, you will see a '1)' waiting for you to enter a command.&amp;nbsp; 
+If you can't get the 1) using tsql, I doubt your DBD::Sybase perl code is going 
+to work.&amp;nbsp; Please note that sqluser is not an Active Directory/Windows 
+Domain user, but an SQL Server user.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot; size=&quot;4&quot;&gt;Compiling DBD::Sybase&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Now that we have the freetds library prerequisite for 
+DBD::Sybase installed and configured, we can compile the DBD::Sybase perl 
+module.&amp;nbsp; Obtain it from &lt;a href=&quot;http://www.cpan.org&quot;&gt;www.cpan.org&lt;/a&gt; if 
+you haven't already.&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;once you have untarred it and are in the directory, run:&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;export SYBASE=/usr/local/freetds&lt;br&gt;
+	perl Makefile.PL&lt;br&gt;
+	make&lt;br&gt;
+	make install&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Note: The export line is to let the compilation process 
+know where to find the freetds libraries.&lt;br&gt;
+&lt;br&gt;
+&lt;/font&gt;&lt;font face=&quot;Verdana&quot; size=&quot;4&quot;&gt;Using DBD::Sybase&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;You are now ready to test your DBD::Sybase module.&lt;/font&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Courier&quot;&gt;#!/usr/bin/perl&lt;br&gt;
+	&lt;br&gt;
+	use DBI;&lt;br&gt;
+	&lt;br&gt;
+	$dsn = 'DBI:Sybase:server=sql1';&lt;br&gt;
+	&lt;br&gt;
+	my $dbh = DBI-&amp;gt;connect($dsn, &amp;quot;sqluser&amp;quot;, 'password');&lt;br&gt;
+	die &amp;quot;unable to connect to server $DBI::errstr&amp;quot; unless $dbh;&lt;br&gt;
+	&lt;br&gt;
+	$dbh-&amp;gt;do(&amp;quot;use mydatabase&amp;quot;);&lt;br&gt;
+	&lt;br&gt;
+	$query = &amp;quot;SELECT * FROM MYTABLE&amp;quot;;&lt;br&gt;
+	$sth = $dbh-&amp;gt;prepare ($query) or die &amp;quot;prepare failed\n&amp;quot;;&lt;br&gt;
+	$sth-&amp;gt;execute( ) or die &amp;quot;unable to execute query $query&amp;nbsp;&amp;nbsp; error 
+	$DBI::errstr&amp;quot;;&lt;br&gt;
+	&lt;br&gt;
+	$rows = $sth-&amp;gt;rows ;&lt;br&gt;
+	print &amp;quot;$row rows returned by query\n&amp;quot;;&lt;br&gt;
+	&lt;br&gt;
+	while ( @first = $sth-&amp;gt;fetchrow_array ) {&lt;br&gt;
+&amp;nbsp;&amp;nbsp; foreach $field (@first) {&lt;br&gt;
+&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp; print &amp;quot;field: $field\n&amp;quot;;&lt;br&gt;
+&amp;nbsp;&amp;nbsp; }&lt;br&gt;
+	}&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;Good luck!&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+	&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;&lt;br&gt;
+&amp;nbsp;&lt;/font&gt;&lt;/p&gt;
+	&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;blockquote&gt;
+	&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;&lt;br&gt;
+&amp;nbsp;&lt;/font&gt;&lt;/p&gt;
+	&lt;p&gt;&lt;font face=&quot;Verdana&quot;&gt;&lt;br&gt;
+	&lt;br&gt;
+&amp;nbsp;&lt;/font&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>392385</node_id>
+  <author_user>392378</author_user>
+  <title>Accessing Microsoft SQL Server from Linux using DBD::Sybase</title>
+  <createtime>2004-09-20 11:18:08</createtime>
+  <nodeupdated>2005-08-15 06:06:31</nodeupdated>
+</node>

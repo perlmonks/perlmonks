@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="31798" title="XML::Parser" created="2000-09-10 16:06:42" updated="2005-08-11 10:20:16">
+<type id="31663">
+modulereview</type>
+<author id="9346">
+mirod</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;Description&lt;/h3&gt;
+  &lt;p&gt;XML::Parser provides ways to parse XML documents.&lt;/p&gt;
+  &lt;ul&gt;
+    &lt;li&gt;built on top of XML::Parser::Expat, a lower level
+        interface to James Clark's expat library&lt;/li&gt;
+    &lt;li&gt;most of the other XML modules are built on top of
+        XML::Parser&lt;/li&gt;
+    &lt;li&gt;stream-oriented&lt;/li&gt;
+    &lt;li&gt;for each event found while parsing a document a
+        user-defined handler can be called&lt;/li&gt;
+    &lt;li&gt;events are start and end tags, text, but also
+        comments, processing instructions, CDATA, entities,
+        element or attribute declarations in the DTD...&lt;/li&gt;
+    &lt;li&gt;handlers receive the parser object and context
+        information&lt;/li&gt;
+    &lt;li&gt;sets of pre-defined handlers can be used as 
+        Styles&lt;/li&gt;
+    &lt;li&gt;A companion module, XML::Encodings, allows
+        XML::Parser to parse XML documents in various 
+        encodings, besides the native UTF-8, UTF-16 and 
+        ISO-8859-1 (latin 1)&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;h3&gt;Why use XML::Parser&lt;/h3&gt;
+  &lt;ul&gt;
+    &lt;li&gt;widely used, the first XML module, hence it is
+        very robust&lt;/li&gt;
+    &lt;li&gt;if you need performance as it is low level, and
+        obviously all modules beased on it are slower&lt;/li&gt;
+    &lt;li&gt;you need access to some parsing events that are
+        masked by higher-level modules&lt;/li&gt;
+    &lt;li&gt;one of the Styles does exactly what you want&lt;/li&gt;
+    &lt;li&gt;if you want to write your own module based on 
+        XML::Parser&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;h3&gt;Why NOT use XML::Parser&lt;/h3&gt; 
+  &lt;ul&gt;
+    &lt;li&gt;you'd rather use a higher level module: [XML::DOM],
+        [XML::Twig], XML::XPath...&lt;/li&gt;
+    &lt;li&gt;you'd rather use a simpler module: [XML::PYX] or
+        [XML::Simple]&lt;/li&gt;
+  &lt;/ul&gt;
+
+&lt;h3&gt;Related Modules&lt;/h3&gt;
+&lt;p&gt;Besides the modules already mentioned:&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;XML::UM can translate characters between various
+        encodings,&lt;/li&gt;
+    &lt;li&gt;XML::Checker is a validating parser that just 
+        replaces XML::Parser&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Personal comments&lt;/h3&gt;
+&lt;p&gt;XML::Parser is the basis of most XML processing in Perl.
+Even if you don't plan to use it directly, you should at
+least know how to use it if you are working with XML.&lt;/p&gt;
+&lt;p&gt;That said I think that it is usually a good idea to have a look at the various ;odules that sub-class XML::Parser, as they are usually easier to use.&lt;/p&gt;
+&lt;p&gt;There are some compatibility problems between XML::Parser version 2.28 and higher and a lot of other modules, most notably XML::DOM. 
+   Plus it seems to be doing some funky stuff with UTF-8 strings.
+   Hence I would stick to version 2.27 at the moment.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Update&lt;/strong&gt;: Activestate distribution 
+   currently includes XML::Parser 2.27&lt;/p&gt;
+   
+
+&lt;h3&gt;Things to know about XML::Parser&lt;/h3&gt;
+&lt;h4&gt;Characters are converted to UTF-8&lt;/h4&gt;
+&lt;p&gt;XML::Parser will gladly parse latin-1 (ISO 8859-1) documents provided the XML declaration mentions that encoding. It will convert all characters to UTF-8 though, so
+outputting latin-1 is tricky. You will need to use Perl's
+unicode functions, which have changed recently so I will postpone detailed instructions until I catch-up with them ;--(&lt;/p&gt;
+&lt;h4&gt;Catching exceptions&lt;/h4&gt;
+  &lt;p&gt;The XML recommendation mandates that when an error is
+     found in the XML the parser stop processing
+     immediatly. XML::Parser goes even further: it
+     displays an error message and then die's.&lt;/p&gt;
+  &lt;p&gt;To avoid dying wrap the &lt;tt&gt;parse&lt;/tt&gt; in an  
+     &lt;tt&gt;eval&lt;/tt&gt; block:&lt;/p&gt;
+  &lt;table bgcolor="#A0FFFF" border="1" width="80%"&gt;
+    &lt;tr&gt;&lt;td&gt;&lt;font color="#000000"&gt;&lt;code&gt;  eval { $parser-&gt;parse };
+  if( $@)
+    { my $error= $@;
+      #cleanup
+    }&lt;/code&gt;&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;h4&gt;Getting all the character data&lt;/h4&gt;
+  &lt;p&gt;The &lt;tt&gt;Char&lt;/tt&gt; handler can be called several times
+     within a single text element. This happens when the 
+     text includes new lines, entities or even at random,
+     depending on &lt;tt&gt;expat&lt;/tt&gt; buffering mechanism. So
+     the real content should actually be built by pushing
+     the string passed to Char, and by using it only in the
+     End handler.&lt;/p&gt;
+
+  &lt;table bgcolor="#A0FFFF" border="1" width="80%"&gt;
+   &lt;tr&gt;&lt;td&gt;&lt;font color="#000000"&gt;&lt;code&gt;my $stored_content='';             # global
+
+sub Start
+  { my( $expat, $gi, %atts)= @_;
+    process( $stored_content);     # needed for mixed content such as 
+                                   # &lt;p&gt;text &lt;b&gt;bold&lt;/b&gt; more text&lt;/p&gt;
+    $stored_content='';            # needs to be reset 
+  }
+
+sub Char
+  { my( $expat, $string)= @_;
+    $stored_content .= $string;    # can't do much with it
+  }
+
+sub End
+  { my( $expat, $gi)= @_;
+    
+    process( $stored_content);     # now it's full
+    $stored_content='';            # reset here too
+  }
+&lt;/code&gt;&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;h3&gt;XML::Parser Styles&lt;/h3&gt;
+  &lt;p&gt;Styles are handler bundles. 5 styles are defined in
+     XML::Parser, others can be created by users.&lt;/p&gt;
+&lt;h4&gt;Subs&lt;/h4&gt;
+  &lt;p&gt;Each time an element starts, a sub by that name is
+     called with the same parameters that the Start handler
+     gets called with.&lt;/p&gt;
+  &lt;p&gt;Each time an element ends, a sub with that name
+     appended with an underscore (&amp;quot;_&amp;quot;), is 
+     called with the same parameters that the 
+     End handler gets called with.&lt;/p&gt;
+
+&lt;h4&gt;Tree &lt;/h4&gt;
+  &lt;p&gt;Parse will return a parse tree for the document. Each
+     node in the tree takes the form of a tag, content 
+     pair. Text nodes are represented with a pseudo-tag of
+     &amp;quot;0&amp;quot; and the string that is their content.
+     For elements, the content is an array reference. The
+     first item in the array is a (possibly empty) hash
+     reference containing attributes.&lt;/p&gt;
+  &lt;p&gt;The remainder of the array is a sequence of 
+     tag-content pairs representing the content of the
+     element. &lt;/p&gt;
+
+&lt;h4&gt;Objects&lt;/h4&gt;
+  &lt;p&gt;This is similar to the Tree style, except that a hash
+     object is created for each element. The corresponding
+     object will be in the class whose name is created by
+     appending &amp;quot;::&amp;quot; to the element name. 
+     Non-markup text will be in the ::Characters class.
+     The contents of the corresponding object will be in
+     an anonymous array that is the value of the Kids 
+     property for that object.&lt;/p&gt;
+
+&lt;h4&gt;Stream&lt;/h4&gt;
+  &lt;p&gt;If none of the subs that this style looks for is
+     there, then the effect of parsing with this style is
+     to print a canonical copy of the document without
+     comments or declarations. All the subs receive as
+     their 1st parameter the Expat instance for the
+     document they're parsing.&lt;/p&gt;
+     &lt;p&gt;It looks for the following routines:&lt;/p&gt;
+  &lt;ul&gt;&lt;li&gt;&lt;tt&gt;StartDocument&lt;/tt&gt;: called at the start of
+          the parse. &lt;/li&gt;
+      &lt;li&gt;&lt;tt&gt;StartTag&lt;/tt&gt;: called for every start tag
+          with a second parameter of the element type. 
+          The $_ variable will contain a copy of 
+	  the tag and the %_ variable will contain
+          attribute values supplied for that element. &lt;/li&gt;
+      &lt;li&gt;&lt;tt&gt;EndTag&lt;/tt&gt;: called for every end tag with a
+          second parameter of the element type. The $_
+          variable will contain a copy of the end tag.&lt;/li&gt;
+      &lt;li&gt;&lt;tt&gt;Text&lt;/tt&gt;: called just before start or end
+          tags with accumulated non-markup text in the $_
+          variable. &lt;/li&gt;
+      &lt;li&gt;&lt;tt&gt;PI&lt;/tt&gt;: called for processing instructions.
+          The $_ variable will contain a copy of the PI and
+          the target and data are sent as 2nd and 
+	  3rd parameters respectively. &lt;/li&gt;
+      &lt;li&gt;&lt;tt&gt;EndDocument&lt;/tt&gt;: called at conclusion of the
+          parse. &lt;/li&gt;
+  &lt;/ul&gt;
+&lt;h4&gt;Debug&lt;/h4&gt;
+  &lt;p&gt;This just prints out the document in outline form.&lt;/p&gt;</field>
+<field name="itemdescription">
+Low level module for parsing XML in Perl</field>
+<field name="usercomment">
+The base of most XML modules, use it for performance or to roll your own module</field>
+<field name="identifier">
+</field>
+</data>
+</node>

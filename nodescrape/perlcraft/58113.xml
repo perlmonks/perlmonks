@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="58113" title="Tk app to show the computers you are connecting to" created="2001-02-13 08:50:16" updated="2005-08-15 06:47:36">
+<type id="121">
+perlcraft</type>
+<author id="31548">
+jepri</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl 
+#This program has been tested on Debian 2.2 and Win2k, and works fine on both 
+#All comments encouraged, the nice ones will be appreciated 
+#GPL by Jepri 
+ 
+ 
+#Things that could be added to make this extremely neat: 
+#Assign unique numbers to the open connections so that we can see 
+#how long they've been open for 
+ 
+#Add a little bit of AI to detect evil banner server sites 
+ 
+#Find a way to swat the connections that we don't like 
+ 
+#Copy selected IP addresses to the clipboard so the user can paste them into 
+#junkbuster. 
+ 
+#Or just insert them ourselves... 
+ 
+#OS cheat.  Unix and BSD always have /etc/passwd 
+-e '/etc/passwd' or my $windows=1; 
+if ($windows) { 
+ print  "Updating windows installation...\n\n\n"; 
+ require PPM; 
+ #Returns a list of all the installed packages.  Why can't CPAN do the same? 
+ my %temp=PPM::InstalledPackageProperties(); 
+ PPM::InstallPackage("package" =&gt; "Tk") unless $temp{Tk};  
+ PPM::InstallPackage("package" =&gt; "Net::DNS") unless $temp{qw(Net-DNS)};  
+} 
+else { 
+ #Painfull way of finding if modules are installed.  Should be eval('require module'); 
+ my %mods=( Tk=&gt;0, 'Net/DNS'=&gt;0 ); 
+ print "Updating *nix installation\n"; 
+ print @INC; 
+ foreach $dir (@INC) { 
+  foreach $file (keys %mods) { 
+   $mods{$file}=1 if (`ls -lR $dir | grep $file`); 
+  } 
+ }  
+ my $needtoload=0; 
+ foreach $file (keys %mods) {$needtoload=1 unless $mods{$file};} 
+ if ($needtoload) { 
+  require CPAN; 
+  for $mod (qw(Tk Net::DNS)){  
+   my $obj = CPAN::Shell-&gt;expand('Module',$mod);  
+   $obj-&gt;install;  
+  } 
+ } 
+} 
+ 
+require Tk; 
+require Tk::After; 
+require Tk::Listbox; 
+ 
+require Net::DNS::Resolver; 
+require Net::DNS::Packet; 
+require Net::DNS::RR; 
+ 
+use Socket; 
+use strict; 
+use diagnostics; 
+ 
+my %ripname;  #Cache of DNS lookups by addr 
+my $nextconnum=1;  #Increment each time you use it to assign a unique number to a connection 
+my $res = new Net::DNS::Resolver; 
+my $packet=new Net::DNS::Packet; 
+#Replace these IP numbers with your own DNS servers. Only do this if perl fails  
+#to detect your nameserver automatically 
+#$res-&gt;nameservers("10.0.0.1 10.0.0.2);  #Space separated list of nameservers to query 
+$res-&gt;tcp_timeout(30);    #If we don't get a result in 30 secs we never will 
+$res-&gt;retry(1);      #Screw retrying too 
+my @connlist;      #Should have the following keys: id (unique), proto, lip, lp, rip, rp, state 
+my $numofconnections=0;    #number of currently open connections 
+my %pending;      #List of IPs being looked up 
+my %socket;       #sockets corresponding to IP lookups 
+my %broken;       #IP numbers which can't be looked up 
+my %activetime;      #Total time links to site have been open (by ip) 
+my $timerperiod=1000;    #what it says, make it larger if your 
+         #system starts to grind 
+my @visited; 
+ 
+ 
+ 
+#Might as well do the states while I'm here.  I can never pass up the chance to be  
+#a smartarse &lt;- Note spelling, this is the right way. 
+my %portstate=(ESTABLISHED=&gt;"In progress", SYN_WAIT=&gt;"Dolphin!", TIME_WAIT=&gt;"Closing", CLOSE_WAIT=&gt;"Closing", FIN_WAIT=&gt;"Dolphin!!"); 
+#If you see too many dolphins in your connection list then something fishy 
+#is going on :) 
+ 
+my $main = MainWindow-&gt;new; 
+$main-&gt;title("Status"); 
+my $top1 = $main-&gt;Toplevel;  
+$top1-&gt;title("All visited sites"); 
+my $currconn; 
+ 
+ $top1-&gt;Label(-text =&gt; 'All the computers you have connected to')-&gt;pack();   
+#my $allcons=$top1-&gt;Listbox(-height=&gt;0,-width=&gt;0)-&gt;pack; 
+my $allcons = $top1-&gt;Scrolled('Listbox',-relief =&gt; "sunken", 
+        -background =&gt; "gray60", 
+        -width =&gt; 90, 
+        -height =&gt; 30,)-&gt;pack(-expand =&gt; 1, -fill =&gt; 'both' ); 
+ 
+ 
+my $Timer = Tk::After-&gt;new($main,$timerperiod,'repeat',\&amp;update);  
+my %listbox; 
+ 
+sub make_win { 
+$currconn = $main -&gt;Toplevel; 
+$currconn-&gt;title("Current connections"); 
+$currconn-&gt;Label(-text =&gt; 'Computers you are connecting to')-&gt;pack;   
+$listbox{proto}= $currconn-&gt;Listbox(-height=&gt;0,-width=&gt;0);#-&gt;pack(-side=&gt;"left"); 
+$listbox{lip}= $currconn-&gt;Listbox(-height=&gt;0,-width=&gt;0);#-&gt;pack(-side=&gt;"left"); 
+#$listbox{lp}= $currconn-&gt;Listbox(-height=&gt;0,-width=&gt;0)-&gt;pack(-side=&gt;"left"); 
+$listbox{rip}= $currconn-&gt;Listbox(-height=&gt;0,-width=&gt;0)-&gt;pack(-side=&gt;"left"); 
+$listbox{rp}= $currconn-&gt;Listbox(-height=&gt;0,-width=&gt;0)-&gt;pack(-side=&gt;"left"); 
+$listbox{state}= $currconn-&gt;Listbox(-height=&gt;0,-width=&gt;0)-&gt;pack(-side=&gt;"left"); 
+} 
+ 
+sub dest_win { 
+$currconn-&gt;destroy; 
+} 
+ 
+ 
+make_win(); 
+ 
+my $DNScalls = $main -&gt; Label(-text =&gt; 'DNS calls active: 0')-&gt;pack(-side=&gt;'top'); 
+my $DNSbroken = $main -&gt; Label(-text =&gt; 'DNS calls failed: 0')-&gt;pack(-side=&gt;'top'); 
+my $totalips = $main -&gt; Label(-text =&gt; 'Total hosts visited: 0')-&gt;pack(-side=&gt;'top'); 
+my $dispcurrconns = $main -&gt; Label(-text =&gt; 'Total connections active: 0')-&gt;pack(-side=&gt;'top'); 
+ 
+ 
+ 
+ 
+#This hands control to the Tk module, everything we do happens on a callback 
+Tk::MainLoop(); 
+ 
+ 
+ 
+sub update { 
+ do_DNS(); 
+ my @connections = get_connlist(); 
+ unless ($numofconnections == @connections) { 
+  if ($numofconnections&lt;@connections) { 
+   dest_win(); 
+   make_win(); 
+   $numofconnections=@connections; 
+  } 
+ } 
+ @connlist=(); 
+ if ($#connections) { 
+  foreach (@connections) { 
+   my $regexp; 
+   if ($windows) {$regexp='\s+(\S+)\s+(\S+):(\d+)\s+(\S+):(\d+)\s+(\S+)'} 
+   else {$regexp='(\S+)\s+\S+\s+\S+\s+(\S+):(\d+)\s+(\S+):(\d+)\s+(\S+)'} 
+   reset; 
+   if (/$regexp/){ 
+   push @connlist, { id=&gt;$nextconnum++, proto=&gt;$1, lip=&gt;$2, lp=&gt;$3, rip=&gt;$4, rp=&gt;$5, state=&gt;$6}; 
+   $activetime{$4}+=$timerperiod; 
+   } 
+  } 
+ } 
+  
+ 
+ foreach my $key (keys %listbox) {$listbox{$key}-&gt;delete(0,'end');} 
+  
+ #This updates the list of all connected machines unless the user is currently inspecting it. 
+ unless ( $allcons-&gt;focusCurrent == $top1) { 
+ $allcons-&gt;delete(0,'end'); 
+ foreach my $key (keys %ripname) {$allcons-&gt;insert(0,$ripname{$key});} 
+ } 
+ #Populate connection list in window 
+ foreach my $i (0..$#connlist) { 
+  $ripname{$connlist[$i]{rip}}=$connlist[$i]{rip} unless ($ripname{$connlist[$i]{rip}}); 
+  $listbox{proto}-&gt;insert(0,$connlist[$i]{proto}); 
+  $listbox{lip}-&gt;insert(0, $connlist[$i]{lip}); 
+  #$listbox{lp}-&gt;insert(0, protobyport($connlist[$i]{lp})); 
+  $listbox{rip}-&gt;insert(0, $ripname{$connlist[$i]{rip}}); 
+  my $x; 
+  if (protobyport($connlist[$i]{rp}) eq "Unknown") {$x=protobyport($connlist[$i]{lp});} else {$x=protobyport($connlist[$i]{rp})} 
+  $listbox{rp}-&gt;insert(0, $x); 
+  $listbox{state}-&gt;insert(0,$portstate{$connlist[$i]{state}}); 
+ } 
+ $listbox{proto}-&gt; insert(0,"What's happening?"); 
+ $listbox{rip}-&gt;insert(0,"Other machine"); 
+ $listbox{rp}-&gt;insert(0,"Link type"); 
+ #$listbox{lp}-&gt;insert(0,"Link type"); 
+ $listbox{state}-&gt;insert(0,"Status"); 
+  
+ $DNScalls-&gt;configure(-text=&gt; "DNS calls in progress: ".scalar(keys(%socket))); 
+ $DNSbroken-&gt;configure(-text=&gt;  "DNS calls failed: ".scalar(keys(%broken))); 
+ $totalips-&gt;configure(-text=&gt;  "Total hosts visited: ".scalar(keys(%ripname))); 
+ $dispcurrconns -&gt;configure(-text =&gt; "Total connections active: ".scalar(@connections)); 
+  
+ 
+} 
+ 
+ 
+sub do_DNS { 
+ foreach my $ips (keys %ripname) { 
+  #If $ips hasn't been resolved to a hostname 
+  if ($ips eq $ripname{$ips}){ 
+   #And it's not in the process of being resolved, or otherwise dead 
+   unless ($broken{$ips} or $pending{$ips}) { 
+    #Put it on the pending list 
+    $pending{$ips} = 1; 
+    #Start an IP-&gt;Hostname lookup on it 
+    $socket{$ips} = $res-&gt;bgsend($ips);  
+   }   
+  } 
+ } 
+ #Now go through the pending list and see if any have been successfully 
+ #looked up since the last time we checked 
+ foreach my $ips (keys %pending) { 
+  #If we have a result... 
+  if ($socket{$ips} &amp;&amp; $res-&gt;bgisready($socket{$ips})) { 
+   #Read our result 
+   $packet = $res-&gt;bgread($socket{$ips}); 
+   #Clean up 
+   delete $socket{$ips}; 
+   delete $pending{$ips}; 
+   my @answer=$packet-&gt;answer if $packet; 
+   #If no RRs then IP does not have an official hostname, put it 
+   #on the broken list 
+   if (@answer == 0) {$broken{$ips}=1;} 
+   else { 
+    foreach my $rr (@answer) { 
+     #Calling this on a bad RR has the convenient effect 
+     #of ending this Tk::Timer callback  
+     #IIRC only PTRs may be used in reverse zones 
+     if ($rr-&gt;type eq "PTR") { 
+      $ripname{$ips}=$rr-&gt;ptrdname; 
+     } else { 
+      $broken{$ips}=1; 
+     } 
+     last; 
+    } 
+   } 
+  } 
+  else { 
+   #print "It's not ready yet :(\n"; 
+  } 
+ } 
+} 
+ 
+sub protobyport { 
+ my $portnum=shift; 
+ #For some reason I can't get the portnames working under windows so I get to do port naming  
+ #for myself.  Oh well, it's a bit of fun for me 
+ my %protobyport=( 
+ 80=&gt;"World Wide Wait",  
+ 110=&gt;"Receiving Mail",  
+ 143=&gt;"Receiving Mail",  
+ 23=&gt;"Telnet",  
+ 21 =&gt;"FTP",  
+ 25=&gt;"Sending Mail",  
+ 1234=&gt;"Back Orifice.  You have been hacked.  Hahahahah");  
+  
+ if ($protobyport{$portnum}) { 
+  return $protobyport{$portnum}; 
+ } 
+ else { 
+  #Insert the proper linux getprotobynum or whatever it's called... 
+  #return $portnum; 
+  return "Unknown"; 
+ } 
+} 
+ 
+sub get_connlist { 
+#I could do this so much better with the marvellous Net::Pcap module 
+#but then I couldn't have used it on windows, which is an operating system 
+#that needs this kind of utility more than Linux does. 
+ if ($windows) { 
+  my $connections = `netstat -n`; 
+  $connections =~ s/(.*)State..//s; 
+  return split(/\n/, $connections); 
+ } 
+ else{ 
+  my $connections = `netstat -n -Ainet`; 
+  $connections =~ s/(?:..*)State..//s; 
+  return split(/\n/, $connections); 
+ } 
+} 
+   </field>
+</data>
+</node>

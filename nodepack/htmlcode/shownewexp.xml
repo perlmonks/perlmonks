@@ -1,0 +1,342 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>5766</node_id>
+  <author_user>929</author_user>
+  <title>shownewexp</title>
+  <createtime>2000-03-21 00:10:20</createtime>
+  <code>my( $shownumbers )= @_;
+# send FALSE if you want people to see gain/loss w/o exact numbers
+
+return &quot;&quot;
+    if  getId($USER) eq $HTMLVARS{default_user};
+
+my $curexp= $USER-&gt;{experience};
+my $oldexp= $VARS-&gt;{oldexp};
+$oldexp= $curexp
+    if  ! defined $oldexp;
+my $difexp= $curexp - $oldexp;
+$VARS-&gt;{oldexp}= $curexp;
+return &quot;&quot;
+    if  0 == $difexp;
+
+my $html= '';
+my $endquip= '.';
+my @quips= (
+    &quot; (this feature is experimental).&quot;,
+    &quot; (at least it looks that way from here).&quot;,
+    &quot; (due to an accounting error).&quot;,
+    &quot; (pending committee approval, of course).&quot;,
+    &quot;, and not a sheep in sight.&quot;,
+    &quot;, and the price of tea in China remains unchanged.&quot;,
+    &quot;, as if it mattered.&quot;,
+    &quot;, as foretold by the prophets.&quot;,
+    &quot;, but you should see what the other guy got.&quot;,
+    &quot;, do you care?&quot;,
+    &quot;, for being silly.&quot;,
+    &quot;, for whatever it's worth.&quot;,
+    &quot;, if you can believe that.&quot;,
+    &quot;, or so.&quot;,
+    &quot;. (But it really doesn't matter.)&quot;,
+    &quot;. &lt;em&gt;What&lt;/em&gt; did you say?&quot;,
+    &quot;. And your lucky number is &quot; . int(rand 20) . &quot;.&quot;,
+    &quot;. Are you sure they're all yours?&quot;,
+    &quot;. Blame [ar0n].&quot;, # Might cause clueless newbie to blame [ar0n]?
+    &quot;. But that's not important right now.&quot;,
+    &quot;. C'est la vie.&quot;,
+    &quot;. Call your mom; I'll wait.&quot;,
+    &quot;. Can I borrow some?&quot;,
+    &quot;. Can I finish my sandwich now?&quot;,
+    &quot;. Dang.&quot;,
+    &quot;. Despite all your rage, you are still just a rat in a cage.&quot;,
+    &quot;. Didn't see that coming did ya?&quot;,
+    &quot;. Do you &lt;em&gt;feel&lt;/em&gt; that?!&quot;,
+    &quot;. Don't let it bother you.&quot;,
+    &quot;. Don't look at me like that!&quot;,
+    &quot;. Don't panic!&quot;,
+    &quot;. Easy come, easy go.&quot;,
+    &quot;. I'm speechless.&quot;,
+    &quot;. I've got a million of them.&quot;,
+    &quot;. I advised against it.&quot;,
+    &quot;. I can't even keep track anymore.&quot;,
+    &quot;. I hate you.&quot;,
+    &quot;. I won't tell anyone.&quot;,
+    &quot;. It's the best we could do on such short notice.&quot;,
+    &quot;. It happens to the best of us.&quot;,
+    &quot;. Just now; not altogether.&quot;,
+    &quot;. Maybe you should blog about it.&quot;,
+    &quot;. Nice socks.&quot;,
+    &quot;. No, you'll never know why.&quot;,
+    &quot;. Now get back to work!&quot;,
+    &quot;. Oops, the boss is watching.&quot;,
+    &quot;. She's gonna blow!&quot;,
+    &quot;. That's it; I quit!&quot;,
+    &quot;. That one looks like an antique!&quot;,
+    &quot;. That reminds me of a funny story...&quot;,
+    &quot;. There's no accounting for taste.&quot;,
+    &quot;. This space intentionally left blank.&quot;,
+    &quot;. Those things happen.&quot;,
+    &quot;. Um, I can't think of anything funny to add.&quot;,
+    &quot;. We'll get someone right on that.&quot;,
+    &quot;. We've got to warn somebody!&quot;,
+    &quot;. We can't control it!&quot;,
+    &quot;. We have plenty of leads and the perpetrator &lt;em&gt;will&lt;/em&gt; be caught!&quot;,
+    &quot;. Welcome to the club.&quot;,
+    &quot;. What's that behind you?!&quot;,
+    &quot;. What does 'XP' stand for anyway?&quot;,
+    &quot;. Whee!&quot;,
+    &quot;. You are now on dish-cleaning duty.&quot;,
+    &quot;... just for being you!&quot;,
+    &quot;... what&lt;i&gt;ever&lt;/i&gt;.&quot;,
+    &quot; due to a quantum fluctuation.&quot;,
+    &quot; due to Brownian motion.&quot;,
+    &quot; due to cosmic rays.&quot;,
+    &quot; since you last refreshed.&quot;,
+    &quot;. Sorry the e-bay portal is not running yet.&quot;,
+    &quot;. Sorry, no refund available.&quot;,
+    q!. &lt;span class=&quot;error&quot; style=&quot;color: #cc0000;&quot;&gt;No quip found.&lt;/span&gt;!,
+);
+
+my @upquips= (
+    '. That and 3 quid will get you a pint.',
+    &quot; (Will you donate it to a good cause?)&quot;,
+    &quot;, and we're proud!&quot;,
+    &quot;, but do I ever get a 'Thank You'?&quot;,
+    &quot;, but I eated it.&quot;,
+    &quot;, even after what you did.&quot;,
+    &quot;, good for you.&quot;,
+    &quot;, isn't that nice?&quot;,
+    &quot;, so stop pouting.&quot;,
+    &quot;. (Ah, mozzarella today.)&quot;,
+    &quot;. (Good thing they aren't fattening.)&quot;,
+    &quot;. &lt;small&gt;Void where prohibited.&lt;/small&gt;&quot;,
+    &quot;. &lt;tt&gt;You are a unique snowflake.&lt;/tt&gt;&quot;,
+    &quot;. A journey of a thousand XP begins with a single step.&quot;,
+    &quot;. Do you want a medal, too?&quot;,
+    &quot;. Don't let it go to your head.&quot;,
+    &quot;. For more information, please contact your local XP dealership.&quot;,
+    &quot;. Goes down smooth.&quot;,
+    &quot;. I'm not sure how much longer we can afford this.&quot;,
+    &quot;. I think she likes you.&quot;,
+    &quot;. Isn't that so &lt;em&gt;nice&lt;/em&gt; for you?&quot;,
+    &quot;. It's part of this healthy breakfast.&quot;,
+    &quot;. It tastes just like chicken.&quot;,
+    &quot;. Keep up the good work.&quot;,
+    &quot;. Let's toast!&quot;,
+    &quot;. Made fresh daily.&quot;,
+    &quot;. No cash value.&quot;,
+    &quot;. No expiration date.&quot;,
+    &quot;. No, don't put it there!&quot;,
+    &quot;. O frabjous day! Callooh! Callay!&quot;,
+    &quot;. Refrigerate after opening.&quot;,
+    &quot;. They feel nice under your pillow.&quot;,
+    &quot;. They make excellent bookmarks.&quot;,
+    &quot;. They really complement your eyes.&quot;,
+    &quot;. Whatever you did, keep doing it.&quot;,
+    &quot;. Where will you keep them all?&quot;,
+    &quot;. Who did you pay off?&quot;,
+    &quot;. You're going to need a bigger wallet.&quot;,
+    &quot;. You can fool some of the people, some of the time...&quot;,
+    &quot;. Your mother would be so &lt;em&gt;proud&lt;/em&gt;!&quot;,
+    &quot;... and &lt;em&gt;a new car&lt;/em&gt;!&quot;,
+    &quot;... that's one small step for... oh, wait.&quot;,
+    &quot; and it's payday too.&quot;,
+);
+
+my @downquips= (
+    '. Do not pass Go. Do not receive $200.',
+    &quot;! What's that Lassie? It's in the abandoned well?&quot;,
+    &quot;, but I promise not to tell.&quot;,
+    &quot;. [antivroom] is so proud of you!&quot;,
+    &quot;. &lt;em&gt;You&lt;/em&gt; did. Not me.&quot;,
+    &quot;. At least I think it was you.&quot;,
+    &quot;. Be glad you're not [thepen].&quot;,
+    &quot;. Check for holes in your pocket?&quot;,
+    &quot;. Didn't know you had electrodes installed while you were asleep, did you?&quot;,
+    &quot;. Don't worry; it &lt;em&gt;may&lt;/em&gt; not mean that someone hates you.&quot;,
+    &quot;. Feel empathy, or ELSE!&quot;,
+    &quot;. Go help somebody and earn it back!&quot;,
+    &quot;. Have you been pushing the wrong buttons?&quot;,
+    &quot;. Have you checked between the couch cushions?&quot;,
+    &quot;. I feel your pain. Really.&quot;,
+    &quot;. I think I saw them on eBay.&quot;,
+    &quot;. It was right there just a minute ago.&quot;,
+    &quot;. Maybe you'll find them in the morning.&quot;,
+    &quot;. Oops.&quot;,
+    &quot;. Poor little XP.&quot;,
+    &quot;. Rotating clockwise at near light speed may regain it.&quot;,
+    &quot;. Study more my child...&quot;,
+    &quot;. Suck it up.&quot;,
+    &quot;. There's just no pleasing some people...&quot;,
+    &quot;. There, there.&quot;,
+    &quot;. They probably fell behind the refrigerator.&quot;,
+    &quot;. Try not to obsess, OK?&quot;,
+    &quot;. Well, you didn't like that one much anyway.&quot;,
+    &quot;. What were you saying about karma?&quot;,
+    &quot;. Whatever you did, stop doing it.&quot;,
+    &quot;. You didn't want that one, did you?&quot;,
+    &quot;. You gotta problem wit dat?&quot;,
+    &quot;... unless... someone &lt;em&gt;stole&lt;/em&gt; it?!&quot;,
+    &quot;. Oh, and your taxes are due.&quot;,
+    #&quot;. ...but you can't fool all of the people all of the time.&quot;,
+    #Not enough context
+    q!...&lt;a href=&quot;http://xkcd.com/c189.html&quot;&gt;work on it&lt;/a&gt;.!,
+);
+
+if(  0 &lt; $difexp  ) {
+    $html .= &quot;You gained &quot;;
+    push @quips, @upquips;
+} else {
+    $html .= &quot;You lost &quot;;
+    $difexp= -$difexp;
+    push @quips, @downquips;
+}
+if(  $VARS-&gt;{xpquips}  &amp;&amp;  rand &gt; .4  ) {
+    $endquip= $quips[ rand @quips ];
+}
+
+my $oldlvl= do {
+    local( $USER-&gt;{experience} )= $oldexp;
+    getLevel($USER); # cant accessrule
+};
+my $newlvl= getLevel($USER); # cant accessrule
+
+if(  ! $shownumbers  ) {
+    $html .= &quot;experience&quot;;
+} elsif(  1 == $difexp  ) {
+    $html .= &quot;1 experience point&quot;;
+} else {
+    $html .= &quot;$difexp experience points&quot;;
+}
+$html .= $endquip;
+
+# Node IDs to level-power FAQs:
+my %lvpowers= ( 2=&gt;17643,  5=&gt;198665, 9=&gt;17645, 13=&gt;504005, 26=&gt;244022 );
+my $LVLS= getVars( getNode('level experience','setting') );
+my $TITLES= getVars( getNode('level titles','setting') );
+
+if(  $oldlvl &lt; $newlvl  ) {
+    my $now= $DB-&gt;sqlSelect( &quot;now()&quot; );
+    $VARS-&gt;{levelchange} .= &quot;;&quot;
+        if  $VARS-&gt;{levelchange};
+    $VARS-&gt;{levelchange} .= &quot;$oldlvl-$newlvl &quot; . $now;
+    if(  exists $lvpowers{$newlvl}  ) {
+        my $newpower= linkNode( $lvpowers{$newlvl} );
+        $html .= &quot;&lt;br /&gt;Your new level imbues you with super-powers!&quot;;
+        $html .= &quot; Check out $newpower for the details!&quot;;
+    } else {
+        $html .= join '',
+            &quot;&lt;br /&gt;Congratulations, you have been promoted to &quot;,
+            &quot;$TITLES-&gt;{$newlvl}!&quot;;
+    }
+}
+
+my $expleft= $LVLS-&gt;{1+$newlvl} - $USER-&gt;{experience};
+if(  0 &lt; $expleft  ) {
+    my $s= 1==$expleft ? '' : 's';
+    $html .= join '',
+        &quot;&lt;br /&gt;You have $expleft point$s until level &quot;,
+        1+$newlvl,
+        &quot; - &quot;,
+        $TITLES-&gt;{1+$newlvl},
+        &quot;.&quot;;
+} else {
+    my $VROOM= getNode('vroom','user');
+
+    my $diff= $VROOM-&gt;{experience} - $USER-&gt;{experience};
+    $html .= &quot;&lt;br /&gt;You have $diff points until level &quot; . linkNode($VROOM)
+        if  0 &lt; $diff;
+}
+
+if(  $VARS-&gt;{xpquips}  &amp;&amp;  .25 &lt; rand  ) {
+    # work in progress - bobf
+    # &quot;Happy Monkday&quot; message
+
+    my @bdayadjs= qw(
+        beneficial      breathtaking    enlivening      exciting
+        exhilarating    fruitful        inspiring       intoxicating
+        invigorating    rewarding       stimulating     successful
+        thrilling       agonizing       arduous         difficult
+        distressing     dreadful        excruciating    harrowing
+        laborious       long            overwhelming    painful
+        tedious         troublesome
+    );
+
+    my @bdayquips= (
+        &quot;Has it really been that long?&quot;,
+        &quot;It seems like you were an Initiate only yesterday!&quot;,
+        &quot;How quickly they grow up...&quot;,
+        &quot;You're &lt;i&gt;old&lt;/i&gt;...&quot;,
+        &quot;We're glad you're here.&quot;,
+        &quot;Did you make a wish?&quot;,
+        &quot;Now blow out your candles before the wax gets on the frosting.&quot;,
+        &quot;Time for cake!&quot;,
+        &quot;No, you don't get any presents.&quot;,
+        &quot;Another year gone...&quot;,
+        &quot;Have you updated your home node recently?&quot;,
+        &quot;Don't panic!&quot;,
+        &quot;You're not growing older, you're growing wiser.&quot;,
+        &quot;The funny hat suits you.&quot;,
+        &quot;The price of tea in China remains unchanged.&quot;,
+        &quot;If you ask nicely, someone might sing to you.&quot;,
+        &quot;You look &lt;i&gt;marvelous!&lt;/i&gt;&quot;,
+        &quot;Do you want ice cream with your cake?&quot;,
+        &quot;'Happy Monkday' doesn't sound the same in Gregorian chant.&quot;,
+        &quot;A monk &lt;i&gt;may&lt;/i&gt; jump out of your cake,&quot;
+            . &quot; but I won't tell you which one.&quot;,
+        &quot;Haven't you grown up yet?&quot;,
+        &quot;Thank you for your support.&quot;,
+        &quot;Are you out of technical debt yet?&quot;,
+        &quot;Why wasn't I invited to the party?&quot;,
+
+        &quot;You are only young once, but you can be immature for a&quot;
+            . &quot; lifetime. &lt;i&gt;John P. Grier&lt;/i&gt;&quot;,
+        &quot;Youth comes but once in a lifetime. &lt;i&gt;Henry W. Longfellow&lt;/i&gt;&quot;,
+        &quot;Keep true to the dream of thy youth. &lt;i&gt;Friedrich Von Schiller&lt;/i&gt;&quot;,
+        &quot;We are always the same age inside. &lt;i&gt;Gertrude Stein&lt;/i&gt;&quot;,
+        &quot;You know you are getting old when the candles cost more than&quot;
+            . &quot; the cake. &lt;i&gt;Bob Hope&lt;/i&gt;&quot;,
+        &quot;Youth has no age. &lt;i&gt;Pablo Picasso&lt;/i&gt;&quot;,
+        &quot;Time flies like an arrow. Fruit flies like a banana.&quot;
+            . &quot; &lt;i&gt;Groucho Marx&lt;/i&gt;&quot;,
+    );
+
+    my( $create_m, $create_d, $create_y )= split( /\//,
+        htmlcode(
+            'parseTimeInString','',
+            $USER-&gt;{createtime}, '', '', '%x' ),
+    );
+    my( $today_m, $today_d, $today_y )= split( /\//,
+        htmlcode(
+            'parseTimeInString','',
+            '', '', '', '%x' ),
+    );
+
+    if(     $create_m == $today_m
+        &amp;&amp;  $create_d == $today_d
+        &amp;&amp;  $create_y != $today_y
+    ) {
+        my $adjective= '';
+        if(  $VARS-&gt;{xpquips}  ) {
+            $adjective= $bdayadjs[ rand @bdayadjs ] . ' ';
+        }
+
+        my $yrs_old= $today_y - $create_y;
+        my $s= 1==$yrs_old ? '' : 's';
+
+        $html .= join '',
+            &quot;&lt;br /&gt;&lt;br /&gt;Happy Monkday!!&lt;br /&gt;&quot;,
+            &quot;You've been here $yrs_old ${adjective}year$s.&quot;;
+
+        if(  $VARS-&gt;{xpquips}  &amp;&amp;  .25 &lt; rand  ) {
+            $html .= '&lt;br /&gt; ' . $bdayquips[ rand @bdayquips ];
+        }
+    }
+
+    # another idea: user could have a chance to gain 1 XP if they log
+    # in on their monkday (only once per year)
+}
+
+return $html;
+</code>
+  <nodeupdated>2005-08-09 10:04:54</nodeupdated>
+</node>

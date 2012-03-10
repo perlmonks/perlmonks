@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="536132" title="Module::Compile (or: what's this PMC thingy?)" created="2006-03-12 15:22:14" updated="2006-03-12 10:22:14">
+<type id="956">
+perltutorial</type>
+<author id="132236">
+Juerd</author>
+<data>
+<field name="doctext">
+&lt;p&gt;
+&lt;i&gt;This document is written in response to many questions triggered by [id://536101]. It's not useful as a tutorial, because Module::Compile is in its infancy and very likely to change further, but posted here because it provides information only.&lt;/i&gt;
+&lt;/p&gt;
+&lt;h4&gt;History&lt;/h4&gt;
+&lt;p&gt;
+Once upon a time, people thought that maybe Perl would be faster if compiled code could be re-used in a later session. (Actually, many people still do.) So they created support for compiled Perl Modules, and where Python libraries got their "c" after their "py", compiled Perl modules would get their "c" after their "pm", and the "pmc" extension was born.
+&lt;/p&gt;
+&lt;p&gt;
+It works somewhat like this: you have a module, say, Test.pm, and the following line gives you the compiled version:
+&lt;code&gt;
+perl -MO=Bytecode,-H -MTest -e1 &gt; Test.pmc
+&lt;/code&gt;
+Provided that Test.pmc is in the same directory that Test.pm is, perl will automatically load Test.pmc instead of Test.pm the next time someone uses "use Test" or "require Test". This is because in every directory of @INC, perl first sees if a .pmc exists, and if it does, it loads that, and if not, then it tries to load the .pm.
+&lt;/p&gt;
+&lt;h4&gt;What's going on?&lt;/h4&gt;
+&lt;p&gt;
+If you strace the process, you can easily see what was going on before:
+&lt;code&gt;
+stat64("/usr/local/lib/perl/5.8.7/Test.pmc", 0x7fe20a50) = -1 ENOENT (No such file or directory)
+open("/usr/local/lib/perl/5.8.7/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/local/share/perl/5.8.7/Test.pmc", 0x7fe20a50) = -1 ENOENT (No such file or directory)
+open("/usr/local/share/perl/5.8.7/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/lib/perl5/Test.pmc", 0x7fe20a50) = -1 ENOENT (No such file or directory)
+open("/usr/lib/perl5/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/share/perl5/Test.pmc", 0x7fe20a50) = -1 ENOENT (No such file or directory)
+open("/usr/share/perl5/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/lib/perl/5.8/Test.pmc", 0x7fe20a50) = -1 ENOENT (No such file or directory)
+open("/usr/lib/perl/5.8/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/share/perl/5.8/Test.pmc", 0x7fe20a50) = -1 ENOENT (No such file or directory)
+open("/usr/share/perl/5.8/Test.pm", O_RDONLY|O_LARGEFILE) = 4
+&lt;/code&gt;
+Before perl finds Test.pm in /usr/share/perl/5.8, it first tries a lot of other directories, each time stat()ing Test.pmc first, and then trying to open Test.pm. Now, because I have created a Test.pm in /usr/share/perl/5.8, perl's done a little earlier:
+&lt;code&gt;
+stat64("/usr/local/lib/perl/5.8.7/Test.pmc", 0x7f95aa50) = -1 ENOENT (No such file or directory)
+open("/usr/local/lib/perl/5.8.7/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/local/share/perl/5.8.7/Test.pmc", 0x7f95aa50) = -1 ENOENT (No such file or directory)
+open("/usr/local/share/perl/5.8.7/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/lib/perl5/Test.pmc", 0x7f95aa50) = -1 ENOENT (No such file or directory)
+open("/usr/lib/perl5/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/share/perl5/Test.pmc", 0x7f95aa50) = -1 ENOENT (No such file or directory)
+open("/usr/share/perl5/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/lib/perl/5.8/Test.pmc", 0x7f95aa50) = -1 ENOENT (No such file or directory)
+open("/usr/lib/perl/5.8/Test.pm", O_RDONLY|O_LARGEFILE) = -1 ENOENT (No such file or directory)
+stat64("/usr/share/perl/5.8/Test.pmc", {st_mode=S_IFREG|0644, st_size=720, ...}) = 0
+stat64("/usr/share/perl/5.8/Test.pm", {st_mode=S_IFREG|0644, st_size=28863, ...}) = 0
+open("/usr/share/perl/5.8/Test.pmc", O_RDONLY|O_LARGEFILE) = 4
+&lt;/code&gt;
+Don't be fooled by the stat() on Test.pm; it's ignored. The actual open() is now on Test.pmc instead of Test.pm.
+&lt;/p&gt;
+&lt;h4&gt;Sad ending&lt;/h4&gt;
+&lt;p&gt;
+So, why did (and does) nobody really use this? Well, it turns out that bytecode loading is indeed faster in some (but not all) cases, but not very reliable: segfaults are quite common, and nobody so far has been able to fix it. In addition, the bytecode files are not portable between systems, or even Perl versions.
+&lt;/p&gt;
+&lt;p&gt;
+But there is another problem with Byteloader. The PMC file is actually just a normal Perl file: via a source filter, the bytecode is loaded. That's nasty, and makes using precompiled bytecode even less interesting.
+&lt;/p&gt;
+&lt;p&gt;
+Thus a sad story seemed to end, and the PMC feature was ignored, forgotten, and almost about to be deprecated... (Features aren't removed lightly in Perl - even if nobody uses it, a deprecation cycle is needed.)
+&lt;/p&gt;
+&lt;h4&gt;Joyful rebirth of PMC and source filters&lt;/h4&gt;
+&lt;p&gt;
+... if it weren't for the incredible geniuses who work on Perl 6 to find a very neat way to use the PMC feature to make Perl 6 acceptance and initial use less painful!
+&lt;/p&gt;
+&lt;p&gt;
+But actually, it's not even really Perl 6 related. It's just a very neat thing that you can also put to good use if you don't want to use Perl 6 yet. You see, we have source filters that can do very nice and spiffy (no pun intended) things for us, but are also known to have certain negative feelings attached to them. Sourcefilters have problems with mod_perl and other embedded perls, and they cannot be combined with other source filters. Besides that, source filters are always runtime overhead, and the result is usually not cached anywhere. You can't even debug the result easily, because the intermediate code is not available on disk.
+&lt;/p&gt;
+&lt;p&gt;
+The new invention exists in the form of [cpan://Module::Compile], formerly (for less than a day &amp;mdash; that's how fast things go in Freenode #perl6) known as PMC::Filter.
+&lt;/p&gt;
+&lt;p&gt;
+Instead of using the normal source filters, Module::Compile writes the "compiled" code to a .pmc file, and that's loaded from that point forward. The nice trick is that the PMC file doesn't have to be bytecode. It's just a normal pure Perl file.
+&lt;/p&gt;
+&lt;h4&gt;But we call them compilers now&lt;/h4&gt;
+&lt;p&gt;
+A "compiler" (read: source filter) is built quite easily:
+&lt;code&gt;
+package Foo;
+use Module::Compile -base;
+
+sub pmc_compile {
+    my ($class, $source) = @_;
+    # Convert $source into (most like Perl 5) $compiled_output
+    return $compiled_output;
+}
+
+1;
+&lt;/code&gt;
+and using that is also very straight forward:
+&lt;code&gt;
+# Unfiltered code here
+quux(bar);
+
+use Foo;
+# This code is filtered!
+# Ehh... I mean compiled!
+no Foo;
+
+# Unfiltered code here, again
+quux(bar);
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;
+A nice solution for everyone who has found a good use for source filters, but doesn't use them. Module::Compile supports using multiple compilers (source filters, for those who still don't get it) at the same time, the intermediate code is available for simpler debugging, and it works well even with embedded perls.
+&lt;/p&gt;
+&lt;h4&gt;Perl 6 again&lt;/h4&gt;
+&lt;p&gt;
+Remember that it was Perl 6 people that invented all this? It must have something to do with Perl 6, then, right? Well, but of course! The idea is to compile Perl 6 code into Perl 5 code, so that you can use it without Perl 6. You can do this to have a module that has parts in Perl 5 and parts in Perl 6, which is nice if you want to upgrade an existing module with some of the nice new features that Perl 6 has to offer, but don't want to rewrite everything just yet.
+&lt;/p&gt;
+&lt;p&gt;
+An even nicer thing, though, is that this allows you to write modules that are fully Perl 6, that will work both in Perl 5 and Perl 6.
+&lt;/p&gt;
+&lt;h4&gt;Distribution&lt;/h4&gt;
+&lt;p&gt;
+There are two problems with the PMC technique, though:
+&lt;ol&gt;
+&lt;li&gt; You need to have all the stuff installed that is needed for a succesful compilation
+&lt;li&gt; Users don't have write access in the system library directories
+&lt;/ol&gt;
+But there is one solution that solves both these problems: let Module::Compile generate your PMCs as you develop your software, and when you're done, distribute the compiled result along with the rest, so that people can use that. Also, if the PMC is installed with the rest, then someone with superuser privileges installs it.
+&lt;/p&gt;
+&lt;h4&gt;Perl 6 example&lt;/h4&gt;
+&lt;p&gt;
+Oh, you want example code, of course! Here it is, again copied straight from Module::Compile's documentation:
+&lt;code&gt;
+# User.pm
+use v6-pugs;
+module User;
+...some p6 code here...
+no v6;
+...back to p5 land...
+&lt;/code&gt;
+Oh well, I'll steal their explanation too:
+&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;On the first time this module is loaded, it will compile Perl 6 chunks into Perl 5 (as soon as the no v6 line is seen), and merge it with the Perl 5 chunks, saving the result into a User.pmc file.
+&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;
+The next time around, Perl 5 will automatically load User.pmc when someone says use Foo. On the other hand, Perl 6 can run User.pm as a Perl 6 module just fine, as "use v6-pugs" and "no v6" both works in a perl 6 setting also.
+&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;
+The pmc module will imbue v6.pm with the ability to check for Foo.pmc's updatedness also, and if it's up to date, then it'd touch its timestamp so the .pmc is loaded on the next time.
+&lt;/em&gt;&lt;/p&gt;
+&lt;h4&gt;Final words&lt;/h4&gt;
+&lt;p&gt;
+And that's why you shouldn't disable the PMC feature in Perl: although unused since its invention in 1999, there's now a very powerful use for it! Fortunately, so far the survey shows that only Mandrake/Mandriva users have it disabled. They can fix it soon, by upgrading.
+&lt;/p&gt;
+&lt;p&gt;
+Do note that Perl 6 is very far from production quality, and that Module::Compile is also still very young. You should probably not use them for anything serious yet.
+&lt;/p&gt;
+&lt;p&gt;
+Thank you, ingy++ and audreyt++, for bringing us this wonderful innovation!
+&lt;/p&gt;
+</field>
+</data>
+</node>

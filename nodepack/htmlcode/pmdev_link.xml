@@ -1,0 +1,61 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>387023</node_id>
+  <author_user>357600</author_user>
+  <title>pmdev_link</title>
+  <createtime>2004-08-30 16:28:15</createtime>
+  <code>my ($inner)=@_;
+
+my ($nodeloc,$title,$alt)=$inner=~m#^pmdev://([^|]+)(?:\|([^|]*)(?:\|([^|]*))?)?$#;
+
+return &quot;[$inner]&quot; unless $nodeloc &amp;&amp; $USER-&gt;{user_id};
+my $N;
+my ($textlink, $display, $comment)=('') x 3;
+
+if ($nodeloc=~/^\?/) {
+    $textlink=qq(&lt;a href=&quot;$nodeloc&quot;&gt;);
+    if (!$title and $nodeloc=~/node(?:_id)?=([^&amp;;]+)/) {
+       $title=$1;
+    }
+} elsif ($nodeloc=~/\D/) {
+    my ($node,$view,$type)=split /;/,$nodeloc;
+    if ($type) {
+        $comment=&quot;&lt;!-- gN $node|$type --&gt;&quot;;
+        my $T=getType($type);
+        $N=getNode($node,$T) if $T;
+    } elsif ($node=~/\D/) {
+        $comment=&quot;&lt;!-- gNW $node --&gt;&quot;;
+        ($N)=getNodeWhere({title=&gt;$node});
+    } else {
+        $comment=&quot;&lt;!-- gNBI $node --&gt;&quot;;
+        $N=getNodeById($node);
+    }
+    $display=$view;
+} else {
+    $comment=&quot;&lt;!-- gNBI $nodeloc --&gt;&quot;;
+    $N=getNodeById($nodeloc);
+};
+
+
+my $PMDEV=getNode( 'pmdev', 'usergroup' );
+return join '',$comment,
+       defined($alt) ? $alt : $title||$N-&gt;{title}||&quot;&quot;
+  unless Everything::isApproved($USER,$PMDEV);
+
+return &quot;[$inner]&quot; unless $textlink || $N;
+if ( !$textlink &amp;&amp; !$title ) {
+  $title= $N-&gt;{title};
+  $title.= &quot; : &quot; . $N-&gt;{reason}
+          if $N-&gt;{type}{title} eq 'patch'; 
+}
+                    
+return join '',$comment,
+       $textlink 
+        ? $textlink. $q-&gt;escapeHTML( $title || $nodeloc ).&quot;&lt;/a&gt;&quot;
+        : linkNode($N, $title,
+                   $display ? { displaytype =&gt; $display } : ()
+          )
+       ;
+</code>
+  <nodeupdated>2005-06-12 20:11:05</nodeupdated>
+</node>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="499687" title="move2sect" created="2005-10-12 17:15:50" updated="2005-10-12 13:15:50">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ( $movetotype, $sectid, $oldsect, $newsect ) = @_;
+
+my $SETTING= getVars( getNode('approval nodelet settings','setting') );
+my %nonapprovable = (
+  perltutorial =&gt; "pending Tutorials",
+  offtopicroot =&gt; "the offtopic ghetto",
+  perlnews =&gt; "Perl News"
+);
+my %allowedTypes =
+  map { $_ =&gt; 1 } (split(/,/, $SETTING-&gt;{types}), keys %nonapprovable );
+
+return "Type unchanged" if $movetotype eq $NODE-&gt;{type}{title};
+return "Not allowed to move to type $movetotype" if ! $allowedTypes{$movetotype};
+
+my $section_id = $SETTING-&gt;{ "${movetotype}_node" };
+if ($section_id) {
+  $$newsect = getNodeById( $section_id )-&gt;{title};
+} elsif ($nonapprovable{$movetotype}) {
+  $$newsect = $nonapprovable{$movetotype};
+} else {
+  return "unexpected node type $movetotype";
+}
+
+$$oldsect = getNodeById( $$sectid )-&gt;{title};
+$NODE-&gt;{type_nodetype} = getId(getType($movetotype));
+updateNode($NODE,-1);
+
+$DB-&gt;sqlInsert( 'edithistory', {
+  starttext      =&gt; $$oldsect,
+  endtext        =&gt; $$newsect,
+  editor_user    =&gt; getId($USER),
+  -edittime       =&gt; 'now()',
+  fieldname      =&gt; '-section',
+  edithistory_id =&gt; getId($NODE),
+});
+
+return 0;  # done
+</field>
+</data>
+</node>

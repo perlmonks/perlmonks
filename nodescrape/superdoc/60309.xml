@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="60309" title="The editors' hall of mirrors and trickery" created="2001-02-22 19:27:41" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+  my @quips = (
+    "You going to leave quietly, or do I have to call the cops?",
+    "You aren't on my list.",
+    "You see nothing but your own reflection.",
+    "Wait, who is that behind you?",
+    "Nice teeth.",
+    "Didn't you used to be shorter?",
+    "Go away!",
+    "Tough beans!",
+    "Um, are you &lt;em&gt;supposed&lt;/em&gt; to be here?",
+    "Don't look now!",
+    "Thanks.  We'll take it from here.",
+    "Get a haircut.",
+    "Please remain where you are; I'm almost done...",
+    "Where nothing can go wrong.... go wrong... go wrong....",
+    "Another trouble maker, I see.",
+    "Quick, before they spot you!!",
+    "Look out!!",
+    "Oops...",
+    "They went that way --&gt;",
+    '&lt;small&gt;Whatever you do, don\'t "view source"&lt;/small&gt;',
+    "Uh... no.",
+    "I have half a mind to... um...",
+    "Server error: no random text found",
+    "So, you think you are funny, eh?",
+    "No, this is the hall.  You wanted the third door on your left.",
+    "Don't touch that!!!",
+    "Great, now you broke a mirror.  Well, seven years isn't &lt;b&gt;that&lt;/b&gt; long...",
+    "Checking [editors]...  What did you say your names was?",
+    "Yeah, right.",
+    "Deleting node ID $$USER{user_id}...&lt;br&gt;Server error: Permission denied",
+    "To-do items:&lt;ul&gt;&lt;li&gt;Check security on this node&lt;/li&gt;&lt;li&gt;Keep an eye on $$USER{title}&lt;/li&gt;&lt;/ul&gt;",
+    "nya nya, you can't use this.",
+    "... rrrrr ... bip ... PING",
+    "No, they don't make any sense. Why do you ask?",
+    "Hey, where did &lt;b&gt;that&lt;/b&gt; come from??",
+    "&lt;p&gt;Let's see... This goes over there... That goes right here... Throw that one away..."
+     ." Shift those to the left... Make a copy of that one... More CODE tags there and there..."
+     ." Approve this... Purge all of those... Move that READMORE up a couple of paragraphs..."
+     ." Consider both of those... Close that TABLE tag...&lt;/p&gt;"
+     ."&lt;p&gt;Oh, sorry; I didn't see you there.  Can I help you?&lt;/p&gt;",
+    "Next, please!",
+    "We already tried that. It didn't work.",
+    "1) Add [$$USER{title}] to the list.&lt;br&gt;&lt;br&gt;Check!",
+    "It's only a model.",
+    "Nothing to see here.  Move along.",
+    '&lt;h1&gt;&lt;div style="font-size: 500%"&gt;Boo!&lt;/div&gt;&lt;/h1&gt;',
+    "Made ya look!",
+    "That's okay; I think I've got it.",
+    "No really, I'm fine.",
+    "Who left this here?",
+    "Too bad it doesn't work...",
+    '&lt;form&gt;&lt;input type="hidden" name="node_id" value="60309"&gt;User: &lt;input type="text" name="user" size="16" /&gt;'
+     .' &amp;nbsp; Operation: &lt;select name="tmode"&gt;&lt;option selected value="upd"&gt;Update&lt;/option&gt;&lt;option value="ren"&gt;'
+     .'Rename&lt;/option&gt;&lt;option value="del"&gt;Delete&lt;/option&gt;&lt;option value="pro"&gt;Promote&lt;/option&gt;&lt;/select&gt; &amp;nbsp; '
+     .'&lt;input type="submit" name="etrick" value="Do it!" /&gt;&lt;/form&gt;',
+  );
+  return qq(&lt;div class="tough-beans"&gt;$quips[rand @quips]&lt;/div&gt;)
+  unless Everything::isApproved($USER, getNode('editors', 'usergroup'));
+
+  my $mnode   = $query-&gt;param('mnode')   || 0;
+  my $mparent = $query-&gt;param('mparent') || 0;
+  foreach ($mnode, $mparent) {
+    /^\d+$/ or $_ = 0;
+  }
+  my $approve = $query-&gt;param('approve');
+
+  # These types should be:
+  # Createable by normal users.
+  # Shouldn't have extra tables,
+  # we may leave cruft in the DB, and probably won't
+  # display properly as a note.
+  my @toplevel = qw/monkdiscuss perlmeditation perlquestion perltutorial CUFP poem obfuscated perlnews /;
+  push @toplevel, 'user'   if  isGod($USER);
+
+  if ( $mnode  &amp;&amp;  $mparent  &amp;&amp;  $approve ne 'No' ) {
+    my $again = urlGen({node_id =&gt; getId($NODE)}, -1);
+
+    my $node = getNodeById($mnode)
+      or return sprintf q|Couldn't find node %d. &lt;a href="%s"&gt;Try again&lt;/a&gt;|,
+      $mnode, $again;
+
+    my $parent = getNodeById($mparent)
+      or return sprintf q|Couldn't find parent node %d. &lt;a href="%s"&gt;Try again&lt;/a&gt;|,
+      $mparent, $again;
+
+    grep {$parent-&gt;{type}{title} eq $_ } @toplevel, qw(bookreview modulereview note quest snippet sourcecode)
+      or return sprintf q|Can't reparent to %s type nodes! &lt;a href="%s"&gt;Try again&lt;/a&gt;|,
+      $parent-&gt;{type}{title}, $again;
+
+    $mnode == $mparent
+      and return sprintf q|Nooooooo! No infinite loops please! &lt;a href="%s"&gt;Try again&lt;/a&gt;|,
+      $again;
+
+    if ( $approve eq 'Yes' ) {
+
+      my $msg = sprintf q|I have reparented your node [id://%d] to [id://%d].|, getId($node), getId($parent);
+
+      if ( grep $node-&gt;{type}{title} eq $_, @toplevel ) {
+
+        $DB-&gt;sqlUpdate(
+         'note',
+         {
+           root_node =&gt; $parent-&gt;{type}{title} eq 'note' ? $parent-&gt;{root_node} : getId($parent)
+         },
+         sprintf 'root_node = %d', getId($node)
+        );
+
+        $DB-&gt;sqlInsert(
+         'note',
+         {
+           note_id      =&gt; getId($node),
+           parent_node  =&gt; getId($parent),
+           root_node    =&gt; $parent-&gt;{type}{title} eq 'note' ? $parent-&gt;{root_node} : getId($parent),
+           position     =&gt; 0
+         }
+        );
+
+        $DB-&gt;sqlUpdate('node', { type_nodetype =&gt; getId(getType('note')) }, sprintf 'node_id = %d', getId($node));
+
+        return q|Done. &lt;a href="| . $again . q|"&gt;Start over&lt;/a&gt;| . htmlcode('msguser', $node-&gt;{author_user}, $msg);
+      } elsif ( $node-&gt;{type}{title} eq 'note' ) {
+
+        my $new_root = $parent-&gt;{type}{title} eq 'note' ? $parent-&gt;{root_node} : getId($parent);
+        my $to_new_thread = $new_root != $node-&gt;{root_node};
+
+        if ($to_new_thread) {
+            $node-&gt;{root_node} = $new_root;
+            my @descendants;
+            htmlcode('replies_in_tree', '', $node, \@descendants);
+            foreach my $d (@descendants) {
+                $d-&gt;{root_node} = $new_root;
+                updateNode($d, -1);
+            }
+        }
+        $node-&gt;{parent_node} = getId($parent);
+        updateNode($node, -1);
+
+        return q|Done. &lt;a href="| . $again . q|"&gt;Start over&lt;/a&gt;| . htmlcode('msguser', $node-&gt;{author_user}, $msg);
+      }
+
+    } else {
+      return htmlcode('openform') .
+        $query-&gt;hidden('node_id' =&gt; getId($NODE)) .
+        $query-&gt;hidden('mnode'   =&gt; $mnode) .
+        $query-&gt;hidden('mparent' =&gt; $mparent) . q[
+      Does this look correct?
+      &lt;br /&gt;
+      &lt;table&gt;
+        &lt;tr&gt;
+          &lt;td&gt;
+            ] . linkNode($parent) . q[
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;
+            &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;bull;&amp;nbsp;] . linkNode($node) . q[
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;
+            &lt;br /&gt;] . $query-&gt;submit('approve' =&gt; 'Yes') . ' '. $query-&gt;submit('approve' =&gt; 'No') . q[
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;] . $query-&gt;end_form;
+    }
+  } else {
+    return
+      htmlcode('openform') .
+      $query-&gt;hidden('node_id' =&gt; getId($NODE)) . q[
+      &lt;table&gt;
+        &lt;tr&gt;
+          &lt;td&gt;
+            Node to move:
+
+          &lt;/td&gt;
+          &lt;td&gt;
+            ] . $query-&gt;textfield('mnode', '', 6, 10) . q[
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;
+            New parent:
+          &lt;/td&gt;
+          &lt;td&gt;
+            ] . $query-&gt;textfield('mparent', '', 6, 10) . q[
+          &lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;
+          &lt;/td&gt;
+          &lt;td&gt;
+            ] . $query-&gt;submit('sexisgood' =&gt; 'Move') . q[
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;] .
+      $query-&gt;end_form;
+  }
+%]</field>
+</data>
+</node>

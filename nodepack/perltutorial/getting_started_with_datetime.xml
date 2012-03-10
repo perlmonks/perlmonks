@@ -1,0 +1,221 @@
+<node>
+  <doctext>&lt;P&gt;The DateTime suite of modules was created to address a very fundimential
+problem with dates in perl. There are several different packages on
+CPAN with overlapping functionality, but it was difficult to take dates
+in one package and convert them to another which you would often have to
+do to get a function from a different package.The primary goal of
+DateTime is to solve this problem. The DateTime project also has the
+Olson Time Zone database support built in. This database contains code 
+and data that represent the history of local time for many locations around the globe.
+It is updated to reflect changes made by political bodies to UTC offsets
+and daylight-saving rules. This database is used by several implementations,
+including the GNU C Library used in GNU/Linux.&lt;/P&gt;
+&lt;P&gt;Currently the project can be divided into several categories.&lt;/P&gt;
+&lt;P&gt;Core functionality - This contains the core datetime object along with time zone
+handling. In addition there are modules that handle various types of datetime
+sets, and preforming set math operations on them.
+&lt;/P&gt;
+&lt;PRE&gt;
+
+Parsing and formatting - This set contains the modules that help getting
+dates into and out of datetime.&lt;/PRE&gt;
+&lt;P&gt;Events and sets - This contains various modules that are based on generating
+an event or set of events. Events can be any event like easter sunrise/sunset.
+&lt;/P&gt;
+&lt;PRE&gt;
+
+Non-Gregorian calenders - This contains the modules for converting dates to/from other
+calenders like Julian, Mayan and others.&lt;/PRE&gt;
+&lt;P&gt;
+&lt;H2&gt;&lt;A NAME=&quot;using datetime&quot;&gt;Using DateTime&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;Let's take a look at how we can use DateTime to create a date in perl.
+Having downloaded it from CPAN and installed it in the normal manner
+using it is as simple as:&lt;/P&gt;
+&lt;CODE&gt;
+     use strict;
+     use warnings;
+     use DateTime;
+
+     my $dt1 =  DateTime-&gt;new( year =&gt; 2003,
+                          month      =&gt; 8,
+                          day        =&gt; 20,
+                          hour       =&gt; 0,
+                          minute     =&gt; 0,
+                          second     =&gt; 0,
+                           );
+&lt;/CODE&gt;
+&lt;P&gt;Or since you most often want the current date and/or time you can simply do&lt;/P&gt;
+&lt;CODE&gt;
+     my $dt2 = DateTime-&gt;now(time_zone=&gt;'local');
+     my $dt3 = DateTime-&gt;today(time_zone=&gt;'local');
+&lt;/CODE&gt;
+&lt;P&gt;The difference between the to is that &lt;CODE&gt;DateTime-&gt;now&lt;/CODE&gt; not only has the
+date but also the time. whereas &lt;CODE&gt;DateTime-&gt;today&lt;/CODE&gt; is truncated to the day.
+Both of these will take the time zone offset. On some operating systems
+(windows) setting the time_zone param to local will not work unless the TZ
+environment variable is set.&lt;/P&gt;
+&lt;P&gt;Now that I have something in DateTime how can I get it out? DateTime provides some basic output routines. Some examples are&lt;/P&gt;
+&lt;CODE&gt;
+     print $dt1-&gt;ymd('-'); # produces 2003-08-20
+     print $dt1-&gt;mdy('-'); # produces 08-20-2003
+     print $dt1-&gt;datetime(); # produces 2003-08-20T00:00:00&lt;/CODE&gt;
+&lt;P&gt;The outputs are self explanatory except for the &lt;CODE&gt;DateTime()&lt;/CODE&gt; method. The
+output is like &lt;CODE&gt;2003-08-20T00:00:00&lt;/CODE&gt;. I mainly use this for debugging and
+testing purposes.&lt;/P&gt;
+&lt;P&gt;Converting between timezones is what makes DateTime shine.&lt;/P&gt;
+&lt;CODE&gt;
+    my $dt1 = DateTime-&gt;new( year =&gt; 2003, 
+                             month =&gt; 8, day =&gt; 26,
+                             hour =&gt; 21, 
+                             time_zone =&gt; 'America/Chicago' );
+&lt;/CODE&gt;
+&lt;P&gt;What time is it in Helsinki, when it is 9pm in Chicago?&lt;/P&gt;
+&lt;CODE&gt;
+    $dt2 = $dt1-&gt;clone-&gt;set_time_zone( 'Europe/Helsinki' );
+    print $dt2-&gt;datetime, &quot;\n&quot;;
+&lt;/CODE&gt;
+&lt;P&gt;One of the big problems with handling dates is daylight savings time.
+Since DateTime used the Olson database, DateTime can do it all for you.&lt;/P&gt;
+&lt;CODE&gt;
+     my $dt1 = DateTime-&gt; new (
+                     year =&gt;'1998',
+                     month =&gt;'4',
+                     day   =&gt;'4',
+                     hour  =&gt;'21',
+                     time_zone =&gt;'local'
+                     );
+
+     $dt1-&gt;add(hours =&gt;10);
+     print $dt1-&gt;datetime ,&quot;\n&quot;;
+&lt;/CODE&gt;
+
+&lt;P&gt;This will print &lt;CODE&gt;1998-04-05T08:00:00&lt;/CODE&gt;. Notice that the time is 8:00 not
+7:00 this is because on April 5 1998 at 2:00 am is when daylight savings
+time takes effect here in Los Angeles. DateTime is smart enough to know 
+the DST rules and makes the correction.&lt;/P&gt;
+&lt;P&gt;But what if I have a date that is outside of my program (external
+source) well there are currently 14 formatting/parsing modules available
+to datetime. Chances are one of them will parse the date for you. Here
+is an example.&lt;/P&gt;
+&lt;CODE&gt;
+     use strict;
+     use warnings;
+     use DateTime::Format::HTTP;
+     my $date = 'Mon, Feb  3 04:00:00 GMT 2003';
+     my $dt_class = 'DateTime::Format::HTTP';
+     my $dt = $dt_class-&gt;parse_datetime($date);
+     print $dt_class-&gt;format_datetime($dt);
+&lt;/CODE&gt;
+&lt;P&gt;In this example I have chosen to use the DateTime::Format::HTTP module
+created by Iain Truskett. Basicly, I have a date (in HTTP format) and I
+use the parse_datetime method to convert the string to a datetime
+object. Then I output the date in GMT ASCII time format. One thing to
+notice is that the formatting modules all have a parse_datetime (for
+getting strings into) and  format_datetime (for outputting DT objects)
+methods. This makes it easy to use all of the formatting modules since
+they all have a some what standard interface.&lt;/P&gt;
+&lt;P&gt;This is all fine and good but what happens when you do not know the
+format of the date. Well the other day someone came to comp.lang.perl.misc
+and asked a very similer question. He asked:&lt;/P&gt;
+&lt;P&gt;Hello,
+I just came from cpan, after doing some searches and before I get a module,
+wanted to ask if any one out there knows of a module that takes an array of
+dates and sort them regardless of the date format.&lt;/P&gt;
+&lt;P&gt;Good question!! lets see if Datetime can help with this. I checked the DateTime
+FAQ and came up with something like this.&lt;/P&gt;
+&lt;CODE&gt;
+use strict;
+use warnings;
+use DateTime;
+my @new_dates;
+my @dates =(``Sat, 19 Jul 2003 15:53:45 -0500'',
+            ``1996-02-03'',``08-Feb-1998 14:15:29 GMT'',
+            ``19850411'',
+            ``1985-04-12'',
+            ``1985-04'',
+            ``18 Feb 2003 06:54:23 -0000'',
+            ``+001999-04-12'',
+            ``01 Jan 2003 07:03:06 -0000'',
+            ``1982-102'',
+            ``21 Mar 2001 09:15:32 -0800'',
+            ``06 Jan 2002 10:08:00 -0000'',
+            ``09 Jan 2003 11:32:40 -0500'',
+);
+foreach my $new_date (@dates) {
+    push(@new_dates,DateTime::Format::Mytest-&gt;parse_datetime($new_date) );}
+print map {$_-&gt;datetime(), ``\n''} sort @new_dates;
+package DateTime::Format::Mytest;
+
+  use DateTime::Format::HTTP;
+  use DateTime::Format::Mail;
+  use DateTime::Format::ISO8601;
+
+  use DateTime::Format::Builder (
+    parsers =&amp;gt; { parse_datetime =&gt; [
+      sub { eval { DateTime::Format::HTTP-&gt;parse_datetime($_[1] ) } },
+      sub { eval { DateTime::Format::Mail-&gt;parse_datetime($_[1] ) } },
+      sub { eval {
+DateTime::Format::ISO8601-&gt;parse_datetime( $_[1]) } },
+    ] }
+  );
+&lt;/CODE&gt;
+Now the OP did not specify what format his dates were in so I just
+had to make some up. In the above example the real workhorse is in
+the package DateTime::Format::Mytest, what I have done is chain
+together three different DateTime format modules in order to parse the
+dates. Once I parsed the dates (and placed them in the new_dates array)
+I just sorted the new array using the standard sort function.&lt;/P&gt;
+&lt;P&gt;Ok, now that I can create a date let's look at how to compare 2
+different dates. In DateTime we can use the compare method for this.&lt;/P&gt;
+&lt;P&gt;Here is an example:&lt;/P&gt;
+&lt;CODE&gt;
+     my $dt = DateTime-&gt; new(year =&gt; 2002,
+                        month=&gt; 8,
+                        );
+     my dt2 = DateTime-&gt;new(year =&gt; 2003,
+                       month=&gt; 2,
+                       );
+
+     my $cmp = DateTime-&gt;compare($dt, $dt2);
+&lt;/CODE&gt;
+&lt;P&gt;This will set the $cmp variable to either -1,0 or 1. If $dt is less than
+$dt2 the value of $cmp will be -1. If $dt is equal to $dt2 the value
+will be 0 and if $dt is greater than $dt2 the value will be 1. As you
+can see this is using the built in function compare. You can also use
+the standard perl function to accomplish the same thing.&lt;/P&gt;
+&lt;CODE&gt;
+     if ($dt &gt; $dt2) {do ....;}
+     elsif($dt == $dt2) {do something else;}
+     elsif($dt &lt; $dt2) {do still something else...;}
+&lt;/CODE&gt;
+&lt;P&gt;All of these work as expected!&lt;/P&gt;
+&lt;P&gt;Date math is very easy with DateTime.Here is an example.&lt;/P&gt;
+&lt;CODE&gt;
+   my $dt1 = DateTime-&gt;now();
+   my $dt2 = $dt1-&gt;clone-&gt;subtract( weeks =&gt; 1);
+&lt;/CODE&gt;
+&lt;P&gt;This will produce a date one week earler. I can use days, months, years
+and all work as expected.&lt;/P&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;conclusion&quot;&gt;Conclusion&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;The DateTime project is still being developed. However, I have found it
+to be extreamly useful. It has made dealing with date and times in perl much
+simpler.&lt;/P&gt;
+&lt;P&gt;
+&lt;H2&gt;&lt;A NAME=&quot;see also&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;For more information about the datetime project please see
+the DateTime.perl.org website There is also a mailing list. You can
+subscribe by sending a message to datetime-subscribe@perl.org.&lt;/P&gt;
+&lt;H2&gt;&lt;A NAME=&quot;credits&quot;&gt;Credits&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;Major thanks goes to Dave Rolsky for writing the DateTime module and to
+the rest of the developers at the datetime project.&lt;/P&gt;
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>321831</node_id>
+  <author_user>290497</author_user>
+  <title>Getting started with DateTime</title>
+  <createtime>2004-01-16 11:59:38</createtime>
+  <nodeupdated>2005-08-12 15:44:31</nodeupdated>
+</node>

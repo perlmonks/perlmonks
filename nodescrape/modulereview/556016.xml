@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="556016" title="Module::Compile::TT" created="2006-06-17 16:38:14" updated="2006-06-17 12:38:14">
+<type id="31663">
+modulereview</type>
+<author id="85580">
+dragonchild</author>
+<data>
+<field name="doctext">
+How many of you have written code that looks something like:
+&lt;code&gt;
+package Some::Class;
+
+use strict;
+use warnings;
+
+sub new {
+    my $class = shift;
+
+    return bless { @_ }, $class;
+}
+
+sub foo {
+    my $self = shift;
+    $self-&gt;{foo} = shift if @_;
+    return $self-&gt;{foo};
+}
+
+sub bar {
+    my $self = shift;
+    $self-&gt;{bar} = shift if @_;
+    return $self-&gt;{bar};
+}
+
+sub baz {
+    my $self = shift;
+    $self-&gt;{baz} = shift if @_;
+    return $self-&gt;{baz};
+}
+
+sub do_something_useful {
+    ...
+}
+&lt;/code&gt;
+Come on, raise your hands. I know I've done this at least a hundred times. Then, I learned about closures and went back and rewrote that code to look something like:
+&lt;code&gt;
+package Some::Class;
+
+use strict;
+use warnings;
+
+sub new {
+    my $class = shift;
+
+    return bless { @_ }, $class;
+}
+
+foreach my $name ( qw( foo bar baz ) ) {
+    no strict 'refs';
+    *{ __PACKAGE__ . "::$name" } = sub {
+        my $self = shift;
+        $self-&gt;{$name} = shift if @_;
+        return $self-&gt;{$name};
+    };
+}
+
+sub do_something_useful {
+    ...
+}
+&lt;/code&gt;
+Now, instead of 98% of the Perl community being able to maintain my code, I'm down to 0.98%. Several managers I've worked for had made me take out code like that, and for good reason. Just because they hired a Perl expert to &lt;i&gt;write&lt;/i&gt; the code doesn't mean that they'll be able to hire someone like that to &lt;i&gt;maintain&lt;/i&gt; the code. So, it's back to repetition, right?
+&lt;p&gt;&amp;lt;Trumpets sound in the distance /&amp;gt; [cpan://Module::Compile::TT] to the rescue! That code using typeglobs and closures now looks like:
+&lt;code&gt;
+package Some::Class;
+
+use strict;
+use warnings;
+
+sub new {
+    my $class = shift;
+
+    return bless { @_ }, $class;
+}
+
+use tt;
+
+[% FOREACH name IN [ 'foo', 'bar', 'baz' ] %]
+sub [% name %] {
+    my $self = shift;
+    $self-&gt;{[% name %]} = shift if @_;
+    return $self-&gt;{[% name %]};
+}
+[% END %]
+
+no tt;
+
+sub do_something_useful {
+    ...
+}
+&lt;/code&gt;
+Whoa! That actually looks readable! Everyone knows how to read [cpan://Template|TT] directives (or they're close enough to your favorite templating module as to be no difference).
+&lt;p&gt;But, isn't this a source filter? Well, technically, it is. But, there's a major difference between this and [cpan://Filter::Simple]. [cpan://Module::Compile::TT] compiles this once and installs a .pmc file that you can look at and edit. Or, you could just run [cpan://Template|TT] against this module and see what would happen.
+&lt;p&gt;Contrast that to [cpan://Filter::Simple] that won't generates potentially anything and you have no (sane) way of finding out what happened.
+&lt;p&gt;The real dealbreaker for me is that I feel pretty sure I could take this to any manager I use to work for and they would all be comfortable with that kind of code in their production codebases. This is code that can be maintained by the masses.</field>
+<field name="itemdescription">
+Sane source filtering for the rest of us</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

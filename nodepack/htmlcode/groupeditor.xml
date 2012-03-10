@@ -1,0 +1,226 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>35</node_id>
+  <author_user>114</author_user>
+  <title>groupeditor</title>
+  <createtime>1999-10-04 18:34:59</createtime>
+  <code>#line 4 &quot;[groupeditor]&quot;
+my (%opts)=@_;
+my $id = getId $NODE;
+return 'Sorry, theres nothing here for you.'
+  unless canUpdateNode( $USER, $NODE );
+
+my @html;
+
+my $GROUP = $NODE-&gt;{group} || [];
+my $GROUP_SIG = &quot;$NODE-&gt;{node_id}:(&quot; . join( ' ', @$GROUP ) . &quot;)&quot;;
+
+my $is_update=0;
+my $dbh  = $DB-&gt;getDatabaseHandle();
+
+my @items;
+my @deletes;
+
+if ( $q-&gt;param('update_group') == $NODE-&gt;{node_id} ) {
+    if ( $q-&gt;param('group_sig') ne $GROUP_SIG ) {
+        return
+          &quot;&lt;strong&gt;Error:&lt;/strong&gt;&lt;p&gt;Update failed, it looks like the contents &quot;
+          . &quot;of the group changed while you were editing it. Please try later.&lt;/p&gt;&quot;
+          . &quot;&lt;p&gt;&quot;.linkNode($NODE,'Refresh Edit Page',{displaytype=&gt;'edit'}).&quot;&lt;/p&gt;&quot;
+          . &quot;&lt;p&gt;&lt;small&gt;Expecting:$GROUP_SIG&lt;br/&gt;Got:&quot;
+          . $q-&gt;param('group_sig').&quot;&lt;/small&gt;&lt;/p&gt;&quot;;
+    }
+    $is_update=1;
+    foreach ( $q-&gt;param() ) {
+        my ($value,$pos);
+        if (/^group_item_(\d+)_pos$/ ) {
+            $value=$1;
+            $pos=$q-&gt;param($_);
+        } elsif (/^new_group_item_\d+$/) {
+            $value=$q-&gt;param($_);
+            $pos=$q-&gt;param( $_ . &quot;_pos&quot; );
+        }
+        next unless $value;
+        my $node;
+        if ($value !~ /\D/ ) {
+           $node = getNodeById( $value, 'light' );
+        } elsif ( $opts{string} &amp;&amp; $value=~s/^&lt;&lt; // ) { # check if its a string.
+            # its a string
+            $value=~s/\s*$//;
+            $opts{string}=getType($opts{string}) if !ref $opts{string};
+            my $match=$DB-&gt;selectNodeWhere( { text =&gt; $value }, $opts{string} );
+            ($match)=@{$match||[]};
+            if (!$match) {
+               $match= $DB-&gt;insertNode( $value || &quot;$NODE-&gt;{title} string&quot;, 
+                                        $opts{string}, $USER, { text =&gt; $value } );
+               $match= getNodeById($match) if $match;
+            }
+            $node=$match;              
+        } else {
+            my ( $name, $type ) = split /;/, $value;
+            unless ($type) {
+                my $recs = $dbh-&gt;selectcol_arrayref(qq[
+                        select node_id from node where title=?
+                    ], {}, $name);
+                if ( @$recs == 1 ) {
+                    $node = getNodeById( $recs-&gt;[0] );
+                } else {
+                    $pos = 0;
+                }
+            } else {
+                $node = getNode( $name, $type );
+            }
+        }
+        next unless $node;
+        if (0+$pos) {
+            push @items,[$node,$pos];
+        } else {
+            push @deletes,$node;
+        }
+    }
+    #printLog(&quot;items=&quot;.join &quot;|&quot;,@items);
+    @items=map { $_-&gt;[0] }
+           sort { $a-&gt;[1] &lt;=&gt; $b-&gt;[1] } @items;
+} else {
+    # no update
+    foreach (@$GROUP) {
+        my $node=ref $_ ? $_ : getNodeById($_,'light');
+        push @items, $node
+            if $node;
+    }
+}
+my %dupe;
+@items=grep !$dupe{$_-&gt;{node_id}}++,@items;
+
+
+if ( $is_update ) {
+    # we use a temporary nodegroup_id to do our work in
+    # 1. delete any records in this temporary_id
+    # 2. insert new nodegroup configuration with temporary_id
+    # 3. delete the real nodegroup_id
+    # 4. update the temporary_id records to be nodegroup_id
+    # 5. update the node itself to spoil any cached copies
+
+    # first get the id, unique for process/webserver
+    my $temp_id = ord($Everything::WebServerId::short) - ord('a') + 1;
+    $temp_id *= 10_000_000;
+    $temp_id += $$;
+
+    # set up a delete stmt handle
+    my $delh = $dbh-&gt;prepare_cached(qq[
+        delete from nodegroup where nodegroup_id=?
+    ]) or die &quot;error in prepare&quot;;
+    # and delete any records that may be there from an earlier crashed process
+    $delh-&gt;execute($temp_id);
+    # now loop through and insert
+    foreach my $rank ( 0 .. $#items ) {
+        my $res = $dbh-&gt;do(qq[
+                insert into nodegroup (nodegroup_id,rank,node_id,orderby)
+                values (?,?,?,?)
+            ], {}, $temp_id, $rank, $items[$rank]{node_id}, $rank);
+        printLog(&quot;Error($res): '$temp_id,$rank, $items[$rank]{node_id},$rank'&quot;)
+            unless $res;
+    }
+
+    # delete the old records
+    $delh-&gt;execute( $NODE-&gt;{node_id} );
+
+    # update the temps to the correct id
+    my $res =$dbh-&gt;do( qq[
+            update nodegroup set nodegroup_id=? where nodegroup_id=?
+        ],{}, $NODE-&gt;{node_id}, $temp_id );
+    printLog(&quot;Error($res): '$NODE-&gt;{node_id},$temp_id'&quot;)
+      unless $res;
+
+    # replace the group
+    $GROUP = $NODE-&gt;{group}=[map $_-&gt;{node_id},@items];
+    updateNode( $NODE, -1 );
+}
+
+{
+########################################################################################
+    # Render
+
+    # @items are expected to be a list of
+    $GROUP_SIG = &quot;$NODE-&gt;{node_id}:(&quot; . join( ' ', @$GROUP ) . &quot;)&quot;;
+
+    push @html,htmlcode('openform') if $opts{form};
+    my $empties_text = htmlcode('setvar','','groupeditor-empties');
+    my $empties = $VARS-&gt;{'groupeditor-empties'} || 3;
+    push @html, 
+      $q-&gt;hidden( -force=&gt;1, -name=&gt;'group_sig', -default=&gt; $GROUP_SIG ),
+      $q-&gt;hidden( update_group =&gt; $NODE-&gt;{node_id} ),
+      $q-&gt;submit(&quot;sexisgood&quot;, 'submit below'),
+      $q-&gt;start_table(
+        { class =&gt; 'groupeditor', width =&gt; '80%', cellpadding =&gt; 1, border =&gt; 1 } 
+      ),
+          '&lt;col width=&quot;20%&quot; span=1 align=&quot;left&quot; /&gt;',
+          '&lt;col width=&quot;80%&quot; span=1 align=&quot;left&quot; /&gt;',
+      $q-&gt;Tr( $q-&gt;th({class=&gt;'groupeditor'},
+              ['Position&lt;br/&gt;&lt;small&gt;0 to delete&lt;/small&gt;','Node ID&lt;/small&gt;' ] ) 
+      ),
+    ;
+
+    my $counter = .9;
+
+    foreach my $items (\@items,\@deletes) {
+        foreach my $node (@$items) {
+            my $txt = $q-&gt;textfield(
+                -name      =&gt; &quot;group_item_$node-&gt;{node_id}_pos&quot;,
+                -value     =&gt; ($items==\@deletes ? 0 : $counter++ ),
+                -force     =&gt; 1,
+                -size      =&gt; &quot;10&quot;,
+                -maxlength =&gt; 10
+            ).($items==\@deletes ? '&lt;small&gt;deleted&lt;/small&gt;' : '');
+            push @html,
+              $q-&gt;Tr(
+                $q-&gt;td(
+                    [
+                        $txt,
+                        linkNode($node).' &lt;small&gt;(' 
+                        . linkNode( $node-&gt;{type} ) 
+                        . ')&lt;/small&gt;',
+                    ]
+                )
+              );
+        }
+    }
+
+
+    foreach $id ( 1 .. $empties ) {
+        my $pos = $q-&gt;textfield(
+            -name      =&gt; &quot;new_group_item_${id}_pos&quot;,
+            -value     =&gt; $counter++,
+            -force     =&gt; 1,
+            -size      =&gt; &quot;10&quot;,
+            -maxlength =&gt; 10
+        );
+        my $new = $q-&gt;textfield(
+            -name      =&gt; &quot;new_group_item_$id&quot;,
+            -value     =&gt; '',
+            -force     =&gt; 1,
+            -size      =&gt; &quot;60&quot;,
+            -maxlength =&gt; 1024
+        );
+
+        push @html,
+          $q-&gt;Tr(
+            { class =&gt; 'newmember' },
+           $q-&gt;td( [ $pos, $new ] ),
+          );
+    }
+    push @html, $q-&gt;Tr( $q-&gt;td( ['&lt;small&gt;&lt;i&gt;Empties to show&lt;/i&gt;&lt;/small&gt;', $empties_text ] ) );
+    push @html, '&lt;/table&gt;';
+
+    push @html,htmlcode('closeform') if $opts{form};
+
+    push @html, '&lt;p&gt;&lt;small&gt;',
+                linkNode($NODE,'Re-Edit',{displaytype=&gt;$q-&gt;param('displaytype') || 'edit'}),' / ',
+                linkNode($NODE,'Display'),
+                '&lt;/small&gt;&lt;/p&gt;&lt;hr&gt;',
+    ;
+    return join &quot;\n&quot;, @html;
+}
+</code>
+  <nodeupdated>2005-08-11 09:56:07</nodeupdated>
+</node>

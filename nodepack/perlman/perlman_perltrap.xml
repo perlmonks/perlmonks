@@ -1,0 +1,1701 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perltrap - Perl traps for the unwary
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The biggest trap of all is forgetting to use the &lt;STRONG&gt;-w&lt;/STRONG&gt; switch; see
+[perlman:perlrun|the perlrun manpage]. The second biggest trap is not making your entire program runnable under &lt;CODE&gt;use strict&lt;/CODE&gt;. The third biggest trap is not reading the list of changes in this version
+of Perl; see [perlman:perldelta|the perldelta manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Awk_Traps&quot;&gt;Awk Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Accustomed &lt;STRONG&gt;awk&lt;/STRONG&gt; users should take special note of the following:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+The English module, loaded via
+
+&lt;P&gt;
+&lt;PRE&gt;    use English;
+&lt;/PRE&gt;
+&lt;P&gt;
+allows you to refer to special variables (like &lt;CODE&gt;$/&lt;/CODE&gt;) with names (like
+&lt;CODE&gt;$RS&lt;/CODE&gt;), as though they were in &lt;STRONG&gt;awk&lt;/STRONG&gt;; see [perlman:perlvar|the perlvar manpage] for details.
+
+&lt;P&gt;&lt;LI&gt;
+
+Semicolons are required after all simple statements in Perl (except at the
+end of a block). Newline is not a statement delimiter.
+
+&lt;P&gt;&lt;LI&gt;
+
+Curly brackets are required on &lt;CODE&gt;if&lt;/CODE&gt;s and &lt;CODE&gt;while&lt;/CODE&gt;s.
+
+&lt;P&gt;&lt;LI&gt;
+
+Variables begin with ``$'', ``@'' or ``%'' in Perl.
+
+&lt;P&gt;&lt;LI&gt;
+
+Arrays index from 0. Likewise string positions in 
+&lt;CODE&gt;substr()&lt;/CODE&gt; and 
+&lt;CODE&gt;index().&lt;/CODE&gt;
+
+&lt;P&gt;&lt;LI&gt;
+
+You have to decide whether your array has numeric or string indices.
+
+&lt;P&gt;&lt;LI&gt;
+
+Hash values do not spring into existence upon mere reference.
+
+&lt;P&gt;&lt;LI&gt;
+
+You have to decide whether you want to use string or numeric comparisons.
+
+&lt;P&gt;&lt;LI&gt;
+
+Reading an input line does not split it for you. You get to split it to an array yourself. And the 
+&lt;CODE&gt;split()&lt;/CODE&gt; operator has different arguments than
+ &lt;STRONG&gt;awk&lt;/STRONG&gt;'s.
+
+&lt;P&gt;&lt;LI&gt;
+
+The current input line is normally in $_, not $0. It generally does not
+have the newline stripped. ($0 is the name of the program executed.) See [perlman:perlvar|the perlvar manpage].
+
+&lt;P&gt;&lt;LI&gt;
+
+$&amp;lt;&lt;EM&gt;digit&lt;/EM&gt;&amp;gt; does not refer to fields--it refers to substrings matched by the last
+match pattern.
+
+&lt;P&gt;&lt;LI&gt;
+
+The 
+&lt;CODE&gt;print()&lt;/CODE&gt; statement does not add
+field and record separators unless you set &lt;CODE&gt;$,&lt;/CODE&gt; and &lt;CODE&gt;$\&lt;/CODE&gt;. You can set &lt;CODE&gt;$OFS&lt;/CODE&gt; and &lt;CODE&gt;$ORS&lt;/CODE&gt; if you're using the
+English module.
+
+&lt;P&gt;&lt;LI&gt;
+
+You must open your files before you print to them.
+
+&lt;P&gt;&lt;LI&gt;
+
+The range operator is ``..'', not comma. The comma operator works as in 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;LI&gt;
+
+The match operator is ``=~'', not ``~''. (``~'' is the one's complement operator, as in 
+&lt;FONT SIZE=-1&gt;C.)&lt;/FONT&gt;
+
+&lt;P&gt;&lt;LI&gt;
+
+The exponentiation operator is ``**'', not ``^''. ``^'' is the 
+&lt;FONT SIZE=-1&gt;XOR&lt;/FONT&gt; operator, as in 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt; (You know, one could get the feeling that
+ &lt;STRONG&gt;awk&lt;/STRONG&gt; is basically incompatible with 
+&lt;FONT SIZE=-1&gt;C.)&lt;/FONT&gt;
+
+&lt;P&gt;&lt;LI&gt;
+
+The concatenation operator is ``.'', not the null string. (Using the null
+string would render &lt;CODE&gt;/pat/ /pat/&lt;/CODE&gt; unparsable, because the third slash would be interpreted as a division
+operator--the tokenizer is in fact slightly context sensitive for operators
+like ``/'', ``?'', and ``&amp;gt;''. And in fact, ``.'' itself can be the
+beginning of a number.)
+
+&lt;P&gt;&lt;LI&gt;
+
+The [perlfunc:next|next], [perlfunc:exit|exit], and [perlfunc:continue|continue] keywords work differently.
+
+&lt;P&gt;&lt;LI&gt;
+
+The following variables work differently:
+
+&lt;P&gt;
+&lt;PRE&gt;      Awk       Perl
+      ARGC      $#ARGV or scalar @ARGV
+      ARGV&amp;#091;0&amp;#093;   $0
+      FILENAME  $ARGV
+      FNR       $. - something
+      FS        (whatever you like)
+      NF        $#Fld, or some such
+      NR        $.
+      OFMT      $#
+      OFS       $,
+      ORS       $\
+      RLENGTH   length($&amp;amp;)
+      RS        $/
+      RSTART    length($`)
+      SUBSEP    $;
+&lt;/PRE&gt;
+&lt;LI&gt;
+&lt;P&gt;
+You cannot set &lt;CODE&gt;$RS&lt;/CODE&gt; to a pattern, only a string.
+
+&lt;P&gt;&lt;LI&gt;
+
+When in doubt, run the &lt;STRONG&gt;awk&lt;/STRONG&gt; construct through &lt;STRONG&gt;a2p&lt;/STRONG&gt; and see what it gives you.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;C_Traps&quot;&gt;C Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Cerebral 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; programmers should take note of the following:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Curly brackets are required on &lt;CODE&gt;if&lt;/CODE&gt;'s and &lt;CODE&gt;while&lt;/CODE&gt;'s.
+
+&lt;P&gt;&lt;LI&gt;
+
+You must use &lt;CODE&gt;elsif&lt;/CODE&gt; rather than &lt;CODE&gt;else if&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+The &lt;CODE&gt;break&lt;/CODE&gt; and [perlfunc:continue|continue] keywords from 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; become in Perl [perlfunc:last|last] and [perlfunc:next|next], respectively. Unlike in 
+&lt;FONT SIZE=-1&gt;C,&lt;/FONT&gt; these do &lt;EM&gt;NOT&lt;/EM&gt; work within a &lt;CODE&gt;do { } while&lt;/CODE&gt; construct.
+
+&lt;P&gt;&lt;LI&gt;
+
+There's no switch statement. (But it's easy to build one on the fly.)
+
+&lt;P&gt;&lt;LI&gt;
+
+Variables begin with ``$'', ``@'' or ``%'' in Perl.
+
+&lt;P&gt;&lt;LI&gt;
+
+[perlfunc:printf|printf()] does not implement the ``*'' format for interpolating field widths, but
+it's trivial to use interpolation of double-quoted strings to achieve the
+same effect.
+
+&lt;P&gt;&lt;LI&gt;
+
+Comments begin with ``#'', not ``/*''.
+
+&lt;P&gt;&lt;LI&gt;
+
+You can't take the address of anything, although a similar operator in Perl
+is the backslash, which creates a reference.
+
+&lt;P&gt;&lt;LI&gt;
+
+&lt;CODE&gt;ARGV&lt;/CODE&gt; must be capitalized.  &lt;CODE&gt;$ARGV&amp;#091;0&amp;#093;&lt;/CODE&gt; is C's &lt;CODE&gt;argv&amp;#091;1&amp;#093;&lt;/CODE&gt;, and &lt;CODE&gt;argv&amp;#091;0&amp;#093;&lt;/CODE&gt;
+ends up in &lt;CODE&gt;$0&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+System calls such as 
+&lt;CODE&gt;link(),&lt;/CODE&gt; 
+&lt;CODE&gt;unlink(),&lt;/CODE&gt; 
+&lt;CODE&gt;rename(),&lt;/CODE&gt; etc. return nonzero for success, not 0.
+
+&lt;P&gt;&lt;LI&gt;
+
+Signal handlers deal with signal names, not numbers. Use &lt;CODE&gt;kill -l&lt;/CODE&gt;
+to find their names on your system.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Sed_Traps&quot;&gt;Sed Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Seasoned &lt;STRONG&gt;sed&lt;/STRONG&gt; programmers should take note of the following:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Backreferences in substitutions use ``$'' rather than ``\''.
+
+&lt;P&gt;&lt;LI&gt;
+
+The pattern matching metacharacters ``('', ``)'', and ``|'' do not have
+backslashes in front.
+
+&lt;P&gt;&lt;LI&gt;
+
+The range operator is &lt;CODE&gt;...&lt;/CODE&gt;, rather than comma.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Shell_Traps&quot;&gt;Shell Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Sharp shell programmers should take note of the following:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+The backtick operator does variable interpolation without regard to the
+presence of single quotes in the command.
+
+&lt;P&gt;&lt;LI&gt;
+
+The backtick operator does no translation of the return value, unlike &lt;STRONG&gt;csh&lt;/STRONG&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+Shells (especially &lt;STRONG&gt;csh&lt;/STRONG&gt;) do several levels of substitution on each command line. Perl does
+substitution in only certain constructs such as double quotes, backticks,
+angle brackets, and search patterns.
+
+&lt;P&gt;&lt;LI&gt;
+
+Shells interpret scripts a little bit at a time. Perl compiles the entire
+program before executing it (except for &lt;CODE&gt;BEGIN&lt;/CODE&gt; blocks, which execute at compile time).
+
+&lt;P&gt;&lt;LI&gt;
+
+The arguments are available via 
+&lt;FONT SIZE=-1&gt;@ARGV,&lt;/FONT&gt; not $1, $2, etc.
+
+&lt;P&gt;&lt;LI&gt;
+
+The environment is not automatically made available as separate scalar
+variables.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Perl_Traps&quot;&gt;Perl Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Practicing Perl Programmers should take note of the following:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Remember that many operations behave differently in a list context than
+they do in a scalar one. See [perlman:perldata|the perldata manpage] for details.
+
+&lt;P&gt;&lt;LI&gt;
+
+Avoid barewords if you can, especially all lowercase ones. You can't tell
+by just looking at it whether a bareword is a function or a string. By
+using quotes on strings and parentheses on function calls, you won't ever
+get them confused.
+
+&lt;P&gt;&lt;LI&gt;
+
+You cannot discern from mere inspection which builtins are unary operators (like 
+&lt;CODE&gt;chop()&lt;/CODE&gt; and 
+&lt;CODE&gt;chdir())&lt;/CODE&gt; and which are list operators (like 
+&lt;CODE&gt;print()&lt;/CODE&gt; and 
+&lt;CODE&gt;unlink()).&lt;/CODE&gt; (User-defined subroutines can be
+ &lt;STRONG&gt;only&lt;/STRONG&gt; list operators, never unary ones.) See [perlman:perlop|the perlop manpage].
+
+&lt;P&gt;&lt;LI&gt;
+
+People have a hard time remembering that some functions default to $_, or 
+&lt;FONT SIZE=-1&gt;@ARGV,&lt;/FONT&gt; or whatever, but that others which you might
+expect to do not.
+
+&lt;P&gt;&lt;LI&gt;
+
+The 
+&lt;FONT SIZE=-1&gt;&amp;lt;FH&amp;gt;&lt;/FONT&gt; construct is not the name of the
+filehandle, it is a readline operation on that handle. The data read is
+assigned to &lt;CODE&gt;$_&lt;/CODE&gt; only if the file read is the sole condition in
+a while loop:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;FH&amp;gt;)      { }
+    while (defined($_ = &amp;lt;FH&amp;gt;)) { }..
+    &amp;lt;FH&amp;gt;;  # data discarded!
+&lt;/PRE&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Remember not to use ``&lt;CODE&gt;=&lt;/CODE&gt;'' when you need ``&lt;CODE&gt;=~&lt;/CODE&gt;''; these two constructs are quite different:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x =  /foo/;
+    $x =~ /foo/;
+&lt;/PRE&gt;
+&lt;LI&gt;
+&lt;P&gt;
+The [perlfunc:do] construct isn't a real loop that you can use loop control on.
+
+&lt;P&gt;&lt;LI&gt;
+
+Use [perlfunc:my|my()] for local variables whenever you can get away with it (but see [perlman:perlform|the perlform manpage] for where you can't). Using [perlfunc:local|local()] actually gives a local value to a global variable, which leaves you open to
+unforeseen side-effects of dynamic scoping.
+
+&lt;P&gt;&lt;LI&gt;
+
+If you localize an exported variable in a module, its exported value will
+not change. The local name becomes an alias to a new value but the external
+name is still an alias for the original.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Perl4_to_Perl5_Traps&quot;&gt;Perl4 to Perl5 Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Practicing Perl4 Programmers should take note of the following
+Perl4-to-Perl5 specific traps.
+
+&lt;P&gt;
+They're crudely ordered according to the following list:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Discontinuance&quot;&gt;Discontinuance, Deprecation, and BugFix traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Anything that's been fixed as a perl4 bug, removed as a perl4 feature or
+deprecated as a perl4 feature with the intent to encourage usage of some
+other perl5 feature.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Parsing&quot;&gt;Parsing Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps that appear to stem from the new parser.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Numerical&quot;&gt;Numerical Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps having to do with numerical or mathematical operators.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_General&quot;&gt;General data type traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps involving perl standard data types.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Context&quot;&gt;Context Traps - scalar, list contexts&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps related to context within lists, scalar statements/declarations.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Precedence&quot;&gt;Precedence Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps related to the precedence of parsing, evaluation, and execution of
+code.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;General Regular Expression Traps using s///, etc.&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps related to the use of pattern matching.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Subroutine&quot;&gt;Subroutine, Signal, Sorting Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps related to the use of signals and signal handlers, general
+subroutines, and sorting, along with sorting subroutines.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_OS&quot;&gt;OS Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+OS-specific traps.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DBM&quot;&gt;DBM Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Traps specific to the use of [perlfunc:dbmopen|dbmopen()], and specific dbm implementations.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Unclassified&quot;&gt;Unclassified Traps&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Everything else.
+
+&lt;/DL&gt;
+&lt;P&gt;
+If you find an example of a conversion trap that is not listed here, please
+submit it to Bill Middleton &amp;lt;&lt;EM&gt;wjm@best.com&lt;/EM&gt;&amp;gt; for inclusion. Also note that at least some of these can be caught
+with &lt;STRONG&gt;-w&lt;/STRONG&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Discontinuance_Deprecation_and&quot;&gt;Discontinuance, Deprecation, and BugFix traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Anything that has been discontinued, deprecated, or fixed as a bug from
+perl4.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Discontinuance&quot;&gt;Discontinuance&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Symbols starting with ``_'' are no longer forced into package main, except
+for &lt;CODE&gt;$_&lt;/CODE&gt; itself (and &lt;CODE&gt;@_&lt;/CODE&gt;, etc.).
+
+&lt;P&gt;
+&lt;PRE&gt;    package test;
+    $_legacy = 1;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    package main;
+    print &amp;quot;\$_legacy is &amp;quot;,$_legacy,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: $_legacy is 1
+    # perl5 prints: $_legacy is
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Deprecation&quot;&gt;Deprecation&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Double-colon is now a valid package separator in a variable name. Thus
+these behave differently in perl4 vs. perl5, because the packages don't
+exist.
+
+&lt;P&gt;
+&lt;PRE&gt;    $a=1;$b=2;$c=3;$var=4;
+    print &amp;quot;$a::$b::$c &amp;quot;;
+    print &amp;quot;$var::abc::xyz\n&amp;quot;;
+ 
+    # perl4 prints: 1::2::3 4::abc::xyz
+    # perl5 prints: 3
+&lt;/PRE&gt;
+&lt;P&gt;
+Given that &lt;CODE&gt;::&lt;/CODE&gt; is now the preferred package delimiter, it is debatable whether this should
+be classed as a bug or not. (The older package delimiter, ' ,is used here)
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = 10 ;
+    print &amp;quot;x=${'x}\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: x=10
+    # perl5 prints: Can't find string terminator &amp;quot;'&amp;quot; anywhere before EOF
+&lt;/PRE&gt;
+&lt;P&gt;
+You can avoid this problem, and remain compatible with perl4, if you always
+explicitly include the package name:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = 10 ;
+    print &amp;quot;x=${main'x}\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Also see precedence traps, for parsing &lt;CODE&gt;$:&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_BugFix&quot;&gt;BugFix&lt;/A&gt;&lt;/STRONG&gt;
+
+The second and third arguments of [perlfunc:splice|splice()] are now evaluated in scalar context (as the Camel says) rather than list
+context.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub sub1{return(0,2) }          # return a 2-element list
+    sub sub2{ return(1,2,3)}        # return a 3-element list
+    @a1 = (&amp;quot;a&amp;quot;,&amp;quot;b&amp;quot;,&amp;quot;c&amp;quot;,&amp;quot;d&amp;quot;,&amp;quot;e&amp;quot;);
+    @a2 = splice(@a1,&amp;amp;sub1,&amp;amp;sub2);
+    print join(' ',@a2),&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: a b
+    # perl5 prints: c d e
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+&lt;P&gt;
+You can't do a [perlfunc:goto|goto] into a block that is optimized away. Darn.
+
+&lt;P&gt;
+&lt;PRE&gt;    goto marker1;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    for(1){
+    marker1:
+        print &amp;quot;Here I is!\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: Here I is!
+    # perl5 dumps core (SEGV)
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+&lt;P&gt;
+It is no longer syntactically legal to use whitespace as the name of a
+variable, or as a delimiter for any kind of quote construct. Double darn.
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = (&amp;quot;foo bar&amp;quot;);
+    $b = q baz ;
+    print &amp;quot;a is $a, b is $b\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: a is foo bar, b is baz
+    # perl5 errors: Bareword found where operator expected
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+&lt;P&gt;
+The archaic while/if 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; syntax is no longer supported.
+
+&lt;P&gt;
+&lt;PRE&gt;    if { 1 } {
+        print &amp;quot;True!&amp;quot;;
+    }
+    else {
+        print &amp;quot;False!&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: True!
+    # perl5 errors: syntax error at test.pl line 1, near &amp;quot;if {&amp;quot;
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;BugFix&lt;/STRONG&gt;
+&lt;P&gt;
+The &lt;CODE&gt;**&lt;/CODE&gt; operator now binds more tightly than unary minus. It was documented to work
+this way before, but didn't.
+
+&lt;P&gt;
+&lt;PRE&gt;    print -4**2,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: 16
+    # perl5 prints: -16
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+&lt;P&gt;
+The meaning of &lt;CODE&gt;foreach{}&lt;/CODE&gt; has changed slightly when it is iterating over a list which is not an
+array. This used to assign the list to a temporary array, but no longer
+does so (for efficiency). This means that you'll now be iterating over the
+actual values, not over copies of the values. Modifications to the loop
+variable can change the original values.
+
+&lt;P&gt;
+&lt;PRE&gt;    @list = ('ab','abc','bcd','def');
+    foreach $var (grep(/ab/,@list)){
+        $var = 1;
+    }
+    print (join(':',@list));
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: ab:abc:bcd:def
+    # perl5 prints: 1:1:bcd:def
+&lt;/PRE&gt;
+&lt;P&gt;
+To retain Perl4 semantics you need to assign your list explicitly to a
+temporary array and then iterate over that. For example, you might need to
+change
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach $var (grep(/ab/,@list)){
+&lt;/PRE&gt;
+&lt;P&gt;
+to
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach $var (@tmp = grep(/ab/,@list)){
+&lt;/PRE&gt;
+&lt;P&gt;
+Otherwise changing &lt;CODE&gt;$var&lt;/CODE&gt; will clobber the values of @list.
+(This most often happens when you use &lt;CODE&gt;$_&lt;/CODE&gt; for the loop variable, and call subroutines in the loop that don't properly
+localize &lt;CODE&gt;$_&lt;/CODE&gt;.)
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+
+[perlfunc:split|split] with no arguments now behaves like [perlfunc:split] (which doesn't return an initial null field if &lt;CODE&gt;$_&lt;/CODE&gt; starts with
+whitespace), it used to behave like &lt;CODE&gt;split /\s+/&lt;/CODE&gt; (which does).
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = ' hi mom';
+    print join(':', split);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: :hi:mom
+    # perl5 prints: hi:mom
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;BugFix&lt;/STRONG&gt;
+&lt;P&gt;
+Perl 4 would ignore any text which was attached to an &lt;STRONG&gt;-e&lt;/STRONG&gt; switch, always taking the code snippet from the following arg.
+Additionally, it would silently accept an &lt;STRONG&gt;-e&lt;/STRONG&gt; switch without a following arg. Both of these behaviors have been fixed.
+
+&lt;P&gt;
+&lt;PRE&gt;    perl -e'print &amp;quot;attached to -e&amp;quot;' 'print &amp;quot;separate arg&amp;quot;'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: separate arg
+    # perl5 prints: attached to -e
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    perl -e
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints:
+    # perl5 dies: No code specified for -e.
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+&lt;P&gt;
+In Perl 4 the return value of [perlfunc:push|push] was undocumented, but it was actually the last value being pushed onto the
+target list. In Perl 5 the return value of [perlfunc:push|push] is documented, but has changed, it is the number of elements in the
+resulting list.
+
+&lt;P&gt;
+&lt;PRE&gt;    @x = ('existing');
+    print push(@x, 'first new', 'second new');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: second new
+    # perl5 prints: 3
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+&lt;P&gt;
+In Perl 4 (and versions of Perl 5 before 5.004), &lt;CODE&gt;'\r'&lt;/CODE&gt; characters in Perl code were silently allowed, although they could cause
+(mysterious!) failures in certain constructs, particularly here documents.
+Now,
+&lt;CODE&gt;'\r'&lt;/CODE&gt; characters cause an immediate fatal error. (Note: In this example, the
+notation &lt;STRONG&gt;\015&lt;/STRONG&gt; represents the incorrect line ending. Depending upon your text viewer, it
+will look different.)
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;foo&amp;quot;;\015
+    print &amp;quot;bar&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4     prints: foobar
+    # perl5.003 prints: foobar
+    # perl5.004 dies: Illegal character \015 (carriage return)
+&lt;/PRE&gt;
+&lt;P&gt;
+See [perlman:perldiag|the perldiag manpage] for full details.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Deprecation&lt;/STRONG&gt;
+
+Some error messages will be different.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Discontinuance&lt;/STRONG&gt;
+
+Some bugs may have been inadvertently removed. :-)
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Parsing_Traps&quot;&gt;Parsing Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl4-to-Perl5 traps from having to do with parsing.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;Parsing&lt;/STRONG&gt;
+&lt;P&gt;
+Note the space between . and =
+
+&lt;P&gt;
+&lt;PRE&gt;    $string . = &amp;quot;more string&amp;quot;;
+    print $string;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: more string
+    # perl5 prints: syntax error at - line 1, near &amp;quot;. =&amp;quot;
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Parsing&lt;/STRONG&gt;
+&lt;P&gt;
+Better parsing in perl 5
+
+&lt;P&gt;
+&lt;PRE&gt;    sub foo {}
+    &amp;amp;foo
+    print(&amp;quot;hello, world\n&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: hello, world
+    # perl5 prints: syntax error
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Parsing&lt;/STRONG&gt;
+&lt;P&gt;
+``if it looks like a function, it is a function'' rule.
+
+&lt;P&gt;
+&lt;PRE&gt;  print
+    ($foo == 1) ? &amp;quot;is one\n&amp;quot; : &amp;quot;is zero\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: is zero
+    # perl5 warns: &amp;quot;Useless use of a constant in void context&amp;quot; if using -w
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Parsing&lt;/STRONG&gt;
+&lt;P&gt;
+String interpolation of the &lt;CODE&gt;$#array&lt;/CODE&gt; construct differs when braces are to used around the name.
+
+&lt;P&gt;
+&lt;PRE&gt;    @ = (1..3);
+    print &amp;quot;${#a}&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: 2
+    # perl5 fails with syntax error
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @ = (1..3);
+    print &amp;quot;$#{a}&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: {a}
+    # perl5 prints: 2
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Numerical_Traps&quot;&gt;Numerical Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl4-to-Perl5 traps having to do with numerical operators, operands, or
+output from same.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;Numerical&lt;/STRONG&gt;
+&lt;P&gt;
+Formatted output and significant digits
+
+&lt;P&gt;
+&lt;PRE&gt;    print 7.373504 - 0, &amp;quot;\n&amp;quot;;
+    printf &amp;quot;%20.18f\n&amp;quot;, 7.373504 - 0;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Perl4 prints:
+    7.375039999999996141
+    7.37503999999999614
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Perl5 prints:
+    7.373504
+    7.37503999999999614
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Numerical&lt;/STRONG&gt;
+&lt;P&gt;
+This specific item has been deleted. It demonstrated how the auto-increment
+operator would not catch when a number went over the signed int limit.
+Fixed in version 5.003_04. But always be wary when using large integers. If
+in doubt:
+
+&lt;P&gt;
+&lt;PRE&gt;   use Math::BigInt;
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Numerical&lt;/STRONG&gt;
+&lt;P&gt;
+Assignment of return values from numeric equality tests does not work in
+perl5 when the test evaluates to false (0). Logical tests now return an
+null, instead of 0
+
+&lt;P&gt;
+&lt;PRE&gt;    $p = ($test == 1);
+    print $p,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: 0
+    # perl5 prints:
+&lt;/PRE&gt;
+&lt;P&gt;
+Also see &lt;A HREF=&quot;#General_Regular_Expression_Traps&quot;&gt;General Regular Expression Traps using s///, etc.&lt;/A&gt;
+for another example of this new feature...
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;General_data_type_traps&quot;&gt;General data type traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl4-to-Perl5 traps involving most data-types, and their usage within
+certain expressions and/or context.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Arrays_&quot;&gt;(Arrays)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Negative array subscripts now count from the end of the array.
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (1, 2, 3, 4, 5);
+    print &amp;quot;The third element of the array is $a&amp;#091;3&amp;#093; also expressed as $a&amp;#091;-2&amp;#093; \n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: The third element of the array is 4 also expressed as
+    # perl5 prints: The third element of the array is 4 also expressed as 4
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;(Arrays)&lt;/STRONG&gt;
+&lt;P&gt;
+Setting &lt;CODE&gt;$#array&lt;/CODE&gt; lower now discards array elements, and makes them impossible to recover.
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (a,b,c,d,e);
+    print &amp;quot;Before: &amp;quot;,join('',@a);
+    $#a =1;
+    print &amp;quot;, After: &amp;quot;,join('',@a);
+    $#a =3;
+    print &amp;quot;, Recovered: &amp;quot;,join('',@a),&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: Before: abcde, After: ab, Recovered: abcd
+    # perl5 prints: Before: abcde, After: ab, Recovered: ab
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Hashes_&quot;&gt;(Hashes)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Hashes get defined before use
+
+&lt;P&gt;
+&lt;PRE&gt;    local($s,@a,%h);
+    die &amp;quot;scalar \$s defined&amp;quot; if defined($s);
+    die &amp;quot;array \@a defined&amp;quot; if defined(@a);
+    die &amp;quot;hash \%h defined&amp;quot; if defined(%h);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints:
+    # perl5 dies: hash %h defined
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Globs_&quot;&gt;(Globs)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+glob assignment from variable to variable will fail if the assigned
+variable is localized subsequent to the assignment
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = (&amp;quot;This is Perl 4&amp;quot;);
+    *b = *a;
+    local(@a);
+    print @b,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: This is Perl 4
+    # perl5 prints:
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;(Globs)&lt;/STRONG&gt;
+&lt;P&gt;
+Assigning [perlfunc:undef|undef] to a glob has no effect in Perl 5. In Perl 4 it undefines the associated
+scalar (but may have other side effects including SEGVs).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Scalar_String_&quot;&gt;(Scalar String)&lt;/A&gt;&lt;/STRONG&gt;
+
+Changes in unary negation (of strings) This change effects both the return value and what it does to 
+&lt;CODE&gt;auto(magic)increment.&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = &amp;quot;aaa&amp;quot;;
+    print ++$x,&amp;quot; : &amp;quot;;
+    print -$x,&amp;quot; : &amp;quot;;
+    print ++$x,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: aab : -0 : 1
+    # perl5 prints: aab : -aab : aac
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Constants_&quot;&gt;(Constants)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+perl 4 lets you modify constants:
+
+&lt;P&gt;
+&lt;PRE&gt;    $foo = &amp;quot;x&amp;quot;;
+    &amp;amp;mod($foo);
+    for ($x = 0; $x &amp;lt; 3; $x++) {
+        &amp;amp;mod(&amp;quot;a&amp;quot;);
+    }
+    sub mod {
+        print &amp;quot;before: $_&amp;#091;0&amp;#093;&amp;quot;;
+        $_&amp;#091;0&amp;#093; = &amp;quot;m&amp;quot;;
+        print &amp;quot;  after: $_&amp;#091;0&amp;#093;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4:
+    # before: x  after: m
+    # before: a  after: m
+    # before: m  after: m
+    # before: m  after: m
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Perl5:
+    # before: x  after: m
+    # Modification of a read-only value attempted at foo.pl line 12.
+    # before: a
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Scalars_&quot;&gt;(Scalars)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+The behavior is slightly different for:
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;$x&amp;quot;, defined $x
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl 4: 1
+    # perl 5: &amp;lt;no output, $x is not called into existence&amp;gt;
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Variable_Suicide_&quot;&gt;(Variable Suicide)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Variable suicide behavior is more consistent under Perl 5. Perl5 exhibits
+the same behavior for hashes and scalars, that perl4 exhibits for only
+scalars.
+
+&lt;P&gt;
+&lt;PRE&gt;    $aGlobal{ &amp;quot;aKey&amp;quot; } = &amp;quot;global value&amp;quot;;
+    print &amp;quot;MAIN:&amp;quot;, $aGlobal{&amp;quot;aKey&amp;quot;}, &amp;quot;\n&amp;quot;;
+    $GlobalLevel = 0;
+    &amp;amp;test( *aGlobal );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub test {
+        local( *theArgument ) = @_;
+        local( %aNewLocal ); # perl 4 != 5.001l,m
+        $aNewLocal{&amp;quot;aKey&amp;quot;} = &amp;quot;this should never appear&amp;quot;;
+        print &amp;quot;SUB: &amp;quot;, $theArgument{&amp;quot;aKey&amp;quot;}, &amp;quot;\n&amp;quot;;
+        $aNewLocal{&amp;quot;aKey&amp;quot;} = &amp;quot;level $GlobalLevel&amp;quot;;   # what should print
+        $GlobalLevel++;
+        if( $GlobalLevel&amp;lt;4 ) {
+            &amp;amp;test( *aNewLocal );
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Perl4:
+    # MAIN:global value
+    # SUB: global value
+    # SUB: level 0
+    # SUB: level 1
+    # SUB: level 2
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Perl5:
+    # MAIN:global value
+    # SUB: global value
+    # SUB: this should never appear
+    # SUB: this should never appear
+    # SUB: this should never appear
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Context_Traps_scalar_list_con&quot;&gt;Context Traps - scalar, list contexts&lt;/A&gt;&lt;/H2&gt;
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__list_context_&quot;&gt;(list context)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+The elements of argument lists for formats are now evaluated in list
+context. This means you can interpolate list values now.
+
+&lt;P&gt;
+&lt;PRE&gt;    @fmt = (&amp;quot;foo&amp;quot;,&amp;quot;bar&amp;quot;,&amp;quot;baz&amp;quot;);
+    format STDOUT=
+    @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; @||||| @&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;
+    @fmt;
+    .
+    write;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 errors:  Please use commas to separate fields in file
+    # perl5 prints: foo     bar      baz
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__scalar_context_&quot;&gt;(scalar context)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+The [perlfunc:caller|caller()] function now returns a false value in a scalar context if there is no
+caller. This lets library files determine if they're being required.
+
+&lt;P&gt;
+&lt;PRE&gt;    caller() ? (print &amp;quot;You rang?\n&amp;quot;) : (print &amp;quot;Got a 0\n&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 errors: There is no caller
+    # perl5 prints: Got a 0
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;(scalar context)&lt;/STRONG&gt;
+&lt;P&gt;
+The comma operator in a scalar context is now guaranteed to give a scalar
+context to its arguments.
+
+&lt;P&gt;
+&lt;PRE&gt;    @y= ('a','b','c');
+    $x = (1, 2, @y);
+    print &amp;quot;x = $x\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Perl4 prints:  x = c   # Thinks list context interpolates list
+    # Perl5 prints:  x = 3   # Knows scalar uses length of list
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__list_builtin_&quot;&gt;(list, builtin)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+[perlfunc:sprintf|sprintf()] funkiness (array argument converted to scalar array count) This test could
+be added to t/op/sprintf.t
+
+&lt;P&gt;
+&lt;PRE&gt;    @z = ('%s%s', 'foo', 'bar');
+    $x = sprintf(@z);
+    if ($x eq 'foobar') {print &amp;quot;ok 2\n&amp;quot;;} else {print &amp;quot;not ok 2 '$x'\n&amp;quot;;}
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: ok 2
+    # perl5 prints: not ok 2
+&lt;/PRE&gt;
+&lt;P&gt;
+[perlfunc:printf|printf()] works fine, though:
+
+&lt;P&gt;
+&lt;PRE&gt;    printf STDOUT (@z);
+    print &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: foobar
+    # perl5 prints: foobar
+&lt;/PRE&gt;
+&lt;P&gt;
+Probably a bug.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Precedence_Traps&quot;&gt;Precedence Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl4-to-Perl5 traps involving precedence order.
+
+&lt;P&gt;
+Perl 4 has almost the same precedence rules as Perl 5 for the operators
+that they both have. Perl 4 however, seems to have had some inconsistencies
+that made the behavior differ from what was documented.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;LHS&lt;/FONT&gt; vs. 
+&lt;FONT SIZE=-1&gt;RHS&lt;/FONT&gt; of any assignment operator. 
+&lt;FONT SIZE=-1&gt;LHS&lt;/FONT&gt; is evaluated first in perl4, second in perl5; this can affect the relationship between side-effects in sub-expressions.
+
+&lt;P&gt;
+&lt;PRE&gt;    @arr = ( 'left', 'right' );
+    $a{shift @arr} = shift @arr;
+    print join( ' ', keys %a );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: left
+    # perl5 prints: right
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+&lt;P&gt;
+These are now semantic errors because of precedence:
+
+&lt;P&gt;
+&lt;PRE&gt;    @list = (1,2,3,4,5);
+    %map = (&amp;quot;a&amp;quot;,1,&amp;quot;b&amp;quot;,2,&amp;quot;c&amp;quot;,3,&amp;quot;d&amp;quot;,4);
+    $n = shift @list + 2;   # first item in list plus 2
+    print &amp;quot;n is $n, &amp;quot;;
+    $m = keys %map + 2;     # number of items in hash plus 2
+    print &amp;quot;m is $m\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: n is 3, m is 6
+    # perl5 errors and fails to compile
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+&lt;P&gt;
+The precedence of assignment operators is now the same as the precedence of
+assignment. Perl 4 mistakenly gave them the precedence of the associated
+operator. So you now must parenthesize them in expressions like
+
+&lt;P&gt;
+&lt;PRE&gt;    /foo/ ? ($a += 2) : ($a -= 2);
+&lt;/PRE&gt;
+&lt;P&gt;
+Otherwise
+
+&lt;P&gt;
+&lt;PRE&gt;    /foo/ ? $a += 2 : $a -= 2
+&lt;/PRE&gt;
+&lt;P&gt;
+would be erroneously parsed as
+
+&lt;P&gt;
+&lt;PRE&gt;    (/foo/ ? $a += 2 : $a) -= 2;
+&lt;/PRE&gt;
+&lt;P&gt;
+On the other hand,
+
+&lt;P&gt;
+&lt;PRE&gt;    $a += /foo/ ? 1 : 2;
+&lt;/PRE&gt;
+&lt;P&gt;
+now works as a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; programmer would expect.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+
+&lt;PRE&gt;    open FOO || die;
+&lt;/PRE&gt;
+&lt;P&gt;
+is now incorrect. You need parentheses around the filehandle. Otherwise,
+perl5 leaves the statement as its default precedence:
+
+&lt;P&gt;
+&lt;PRE&gt;    open(FOO || die);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 opens or dies
+    # perl5 errors: Precedence problem: open FOO should be open(FOO)
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+&lt;P&gt;
+perl4 gives the special variable, &lt;CODE&gt;$:&lt;/CODE&gt; precedence, where perl5 treats &lt;CODE&gt;$::&lt;/CODE&gt; as main [perlfunc:package|package]
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = &amp;quot;x&amp;quot;; print &amp;quot;$::a&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl 4 prints: -:a
+    # perl 5 prints: x
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+&lt;P&gt;
+perl4 had buggy precedence for the file test operators vis-a-vis the
+assignment operators. Thus, although the precedence table for perl4 leads
+one to believe &lt;CODE&gt;-e $foo .= &amp;quot;q&amp;quot;&lt;/CODE&gt; should parse as
+[perlman:perlop], it actually parses as &lt;CODE&gt;(-e ($foo .= &amp;quot;q&amp;quot;))&lt;/CODE&gt;. In perl5, the precedence is as documented.
+
+&lt;P&gt;
+&lt;PRE&gt;    -e $foo .= &amp;quot;q&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: no output
+    # perl5 prints: Can't modify -e in concatenation
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Precedence&lt;/STRONG&gt;
+&lt;P&gt;
+In perl4, 
+&lt;CODE&gt;keys(),&lt;/CODE&gt; 
+&lt;CODE&gt;each()&lt;/CODE&gt; and 
+&lt;CODE&gt;values()&lt;/CODE&gt; were special high-precedence operators that operated on a single hash, but in perl5, they are regular named unary operators. As documented, named unary operators have lower precedence than the arithmetic and concatenation operators
+ &lt;CODE&gt;+ - .&lt;/CODE&gt;, but the perl4 variants of these operators actually bind tighter than &lt;CODE&gt;+ - .&lt;/CODE&gt;. Thus, for:
+
+&lt;P&gt;
+&lt;PRE&gt;    %foo = 1..10;
+    print keys %foo - 1
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: 4
+    # perl5 prints: Type of arg 1 to keys must be hash (not subtraction)
+&lt;/PRE&gt;
+&lt;P&gt;
+The perl4 behavior was probably more useful, if less consistent.
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;General_Regular_Expression_Traps&quot;&gt;General Regular Expression Traps using s///, etc.&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+All types of 
+&lt;FONT SIZE=-1&gt;RE&lt;/FONT&gt; traps.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Regular&quot;&gt;Regular Expression&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+&lt;CODE&gt;s'$lhs'$rhs'&lt;/CODE&gt; now does no interpolation on either side. It used to interpolate &lt;CODE&gt;$lhs&lt;/CODE&gt; but not &lt;CODE&gt;$rhs&lt;/CODE&gt;. (And still does not match a literal '$' in string)
+
+&lt;P&gt;
+&lt;PRE&gt;    $a=1;$b=2;
+    $string = '1 2 $a $b';
+    $string =~ s'$a'$b';
+    print $string,&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: $b 2 $a $b
+    # perl5 prints: 1 2 $a $b
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+&lt;P&gt;
+&lt;CODE&gt;m//g&lt;/CODE&gt; now attaches its state to the searched string rather than the regular
+expression. (Once the scope of a block is left for the sub, the state of
+the searched string is lost)
+
+&lt;P&gt;
+&lt;PRE&gt;    $_ = &amp;quot;ababab&amp;quot;;
+    while(m/ab/g){
+        &amp;amp;doit(&amp;quot;blah&amp;quot;);
+    }
+    sub doit{local($_) = shift; print &amp;quot;Got $_ &amp;quot;}
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: blah blah blah
+    # perl5 prints: infinite loop blah...
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+&lt;P&gt;
+Currently, if you use the &lt;CODE&gt;m//o&lt;/CODE&gt; qualifier on a regular expression within an anonymous sub, &lt;EM&gt;all&lt;/EM&gt; closures generated from that anonymous sub will use the regular expression
+as it was compiled when it was used the very first time in any such
+closure. For instance, if you say
+
+&lt;P&gt;
+&lt;PRE&gt;    sub build_match {
+        my($left,$right) = @_;
+        return sub { $_&amp;#091;0&amp;#093; =~ /$left stuff $right/o; };
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;build_match()&lt;/CODE&gt; will
+always return a sub which matches the contents of
+&lt;CODE&gt;$left&lt;/CODE&gt; and &lt;CODE&gt;$right&lt;/CODE&gt; as they were the &lt;EM&gt;first&lt;/EM&gt; time that 
+&lt;CODE&gt;build_match()&lt;/CODE&gt; was
+called, not as they are in the current call.
+
+&lt;P&gt;
+This is probably a bug, and may change in future versions of Perl.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+
+If no parentheses are used in a match, Perl4 sets &lt;CODE&gt;$+&lt;/CODE&gt; to the whole match, just like &lt;CODE&gt;$&amp;amp;&lt;/CODE&gt;. Perl5 does not.
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;quot;abcdef&amp;quot; =~ /b.*e/;
+    print &amp;quot;\$+ = $+\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: bcde
+    # perl5 prints:
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+&lt;P&gt;
+substitution now returns the null string if it fails
+
+&lt;P&gt;
+&lt;PRE&gt;    $string = &amp;quot;test&amp;quot;;
+    $value = ($string =~ s/foo//);
+    print $value, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: 0
+    # perl5 prints:
+&lt;/PRE&gt;
+&lt;P&gt;
+Also see &lt;A HREF=&quot;#Numerical_Traps&quot;&gt;Numerical Traps&lt;/A&gt; for another example of this new feature.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+
+&lt;CODE&gt;s`lhs`rhs`&lt;/CODE&gt; (using backticks) is now a normal substitution, with no backtick expansion
+
+&lt;P&gt;
+&lt;PRE&gt;    $string = &amp;quot;&amp;quot;;
+    $string =~ s`^`hostname`;
+    print $string, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: &amp;lt;the local hostname&amp;gt;
+    # perl5 prints: hostname
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+&lt;P&gt;
+Stricter parsing of variables used in regular expressions
+
+&lt;P&gt;
+&lt;PRE&gt;    s/^(&amp;#091;^$grpc&amp;#093;*$grpc&amp;#091;$opt$plus$rep&amp;#093;?)//o;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4: compiles w/o error
+    # perl5: with Scalar found where operator expected ..., near &amp;quot;$opt$plus&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+an added component of this example, apparently from the same script, is the
+actual value of the s'd string after the substitution.
+&lt;CODE&gt;&amp;#091;$opt&amp;#093;&lt;/CODE&gt; is a character class in perl4 and an array subscript in perl5
+
+&lt;P&gt;
+&lt;PRE&gt;    $grpc = 'a';
+    $opt  = 'r';
+    $_ = 'bar';
+    s/^(&amp;#091;^$grpc&amp;#093;*$grpc&amp;#091;$opt&amp;#093;?)/foo/;
+    print ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: foo
+    # perl5 prints: foobar
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Regular Expression&lt;/STRONG&gt;
+&lt;P&gt;
+Under perl5, &lt;CODE&gt;m?x?&lt;/CODE&gt; matches only once, like &lt;CODE&gt;?x?&lt;/CODE&gt;. Under perl4, it matched repeatedly, like &lt;CODE&gt;/x/&lt;/CODE&gt; or &lt;CODE&gt;m!x!&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    $test = &amp;quot;once&amp;quot;;
+    sub match { $test =~ m?once?; }
+    &amp;amp;match();
+    if( &amp;amp;match() ) {
+        # m?x? matches more then once
+        print &amp;quot;perl4\n&amp;quot;;
+    } else {
+        # m?x? matches only once
+        print &amp;quot;perl5\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: perl4
+    # perl5 prints: perl5
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Subroutine_Signal_Sorting_Trap&quot;&gt;Subroutine, Signal, Sorting Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The general group of Perl4-to-Perl5 traps having to do with Signals,
+Sorting, and their related subroutines, as well as general subroutine
+traps. Includes some OS-Specific traps.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Signals_&quot;&gt;(Signals)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Barewords that used to look like strings to Perl will now look like
+subroutine calls if a subroutine by that name is defined before the
+compiler sees them.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub SeeYa { warn&amp;quot;Hasta la vista, baby!&amp;quot; }
+    $SIG{'TERM'} = SeeYa;
+    print &amp;quot;SIGTERM is now $SIG{'TERM'}\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: SIGTERM is main'SeeYa
+    # perl5 prints: SIGTERM is now main::1
+&lt;/PRE&gt;
+&lt;P&gt;
+Use &lt;STRONG&gt;-w&lt;/STRONG&gt; to catch this one
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__Sort_Subroutine_&quot;&gt;(Sort Subroutine)&lt;/A&gt;&lt;/STRONG&gt;
+
+reverse is no longer allowed as the name of a sort subroutine.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub reverse{ print &amp;quot;yup &amp;quot;; $a &amp;lt;=&amp;gt; $b }
+    print sort reverse a,b,c;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: yup yup yup yup abc
+    # perl5 prints: abc
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_warn&quot;&gt;warn() won't let you specify a filehandle.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Although it _always_ printed to 
+&lt;FONT SIZE=-1&gt;STDERR,&lt;/FONT&gt; 
+&lt;CODE&gt;warn()&lt;/CODE&gt; would let you specify a filehandle in perl4. With perl5 it does not.
+
+&lt;P&gt;
+&lt;PRE&gt;    warn STDERR &amp;quot;Foo!&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: Foo!
+    # perl5 prints: String found where operator expected
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;OS_Traps&quot;&gt;OS Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__SysV_&quot;&gt;(SysV)&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Under 
+&lt;FONT SIZE=-1&gt;HPUX,&lt;/FONT&gt; and some other SysV OSes, one had to reset any
+signal handler, within the signal handler function, each time a signal was
+handled with perl4. With perl5, the reset is now done correctly. Any code
+relying on the handler _not_ being reset will have to be reworked.
+
+&lt;P&gt;
+Since version 5.002, Perl uses 
+&lt;CODE&gt;sigaction()&lt;/CODE&gt; under SysV.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub gotit {
+        print &amp;quot;Got @_... &amp;quot;;
+    }
+    $SIG{'INT'} = 'gotit';
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $| = 1;
+    $pid = fork;
+    if ($pid) {
+        kill('INT', $pid);
+        sleep(1);
+        kill('INT', $pid);
+    } else {
+        while (1) {sleep(10);}
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 (HPUX) prints: Got INT...
+    # perl5 (HPUX) prints: Got INT... Got INT...
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;(SysV)&lt;/STRONG&gt;
+&lt;P&gt;
+Under SysV OSes, [perlfunc:seek|seek()] on a file opened to append &lt;CODE&gt;&amp;gt;&amp;gt;&lt;/CODE&gt; now does the right thing w.r.t. the 
+&lt;CODE&gt;fopen()&lt;/CODE&gt; manpage. e.g., - When
+a file is opened for append, it is impossible to overwrite information
+already in the file.
+
+&lt;P&gt;
+&lt;PRE&gt;    open(TEST,&amp;quot;&amp;gt;&amp;gt;seek.test&amp;quot;);
+    $start = tell TEST ;
+    foreach(1 .. 9){
+        print TEST &amp;quot;$_ &amp;quot;;
+    }
+    $end = tell TEST ;
+    seek(TEST,$start,0);
+    print TEST &amp;quot;18 characters here&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 (solaris) seek.test has: 18 characters here
+    # perl5 (solaris) seek.test has: 1 2 3 4 5 6 7 8 9 18 characters here
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Interpolation_Traps&quot;&gt;Interpolation Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl4-to-Perl5 traps having to do with how things get interpolated within
+certain expressions, statements, contexts, or whatever.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Interpolation&quot;&gt;Interpolation&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+@ now always interpolates an array in double-quotish strings.
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;To: someone@somewhere.com\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: To:someone@somewhere.com
+    # perl5 errors : In string, @somewhere now must be written as \@somewhere
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+&lt;P&gt;
+Double-quoted strings may no longer end with an unescaped $ or @.
+
+&lt;P&gt;
+&lt;PRE&gt;    $foo = &amp;quot;foo$&amp;quot;;
+    $bar = &amp;quot;bar@&amp;quot;;
+    print &amp;quot;foo is $foo, bar is $bar\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: foo is foo$, bar is bar@
+    # perl5 errors: Final $ should be \$ or $name
+&lt;/PRE&gt;
+&lt;P&gt;
+Note: perl5 
+&lt;FONT SIZE=-1&gt;DOES&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;NOT&lt;/FONT&gt; error on the terminating @ in &lt;CODE&gt;$bar&lt;/CODE&gt;
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+
+Perl now sometimes evaluates arbitrary expressions inside braces that occur
+within double quotes (usually when the opening brace is preceded by &lt;CODE&gt;$&lt;/CODE&gt;
+or &lt;CODE&gt;@&lt;/CODE&gt;).
+
+&lt;P&gt;
+&lt;PRE&gt;    @www = &amp;quot;buz&amp;quot;;
+    $foo = &amp;quot;foo&amp;quot;;
+    $bar = &amp;quot;bar&amp;quot;;
+    sub foo { return &amp;quot;bar&amp;quot; };
+    print &amp;quot;|@{w.w.w}|${main'foo}|&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: |@{w.w.w}|foo|
+    # perl5 prints: |buz|bar|
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that you can &lt;CODE&gt;use strict;&lt;/CODE&gt; to ward off such trappiness under perl5.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+
+The construct ``this is $$x'' used to interpolate the pid at that point,
+but now apparently tries to dereference &lt;CODE&gt;$x&lt;/CODE&gt;.  &lt;CODE&gt;$$&lt;/CODE&gt; by itself still works fine, however.
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;this is $$x\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: this is XXXx   (XXX is the current pid)
+    # perl5 prints: this is
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+&lt;P&gt;
+Creation of hashes on the fly with &lt;CODE&gt;eval &amp;quot;EXPR&amp;quot;&lt;/CODE&gt; now requires either both
+&lt;CODE&gt;$&lt;/CODE&gt;'s to be protected in the specification of the hash name, or both curlies
+to be protected. If both curlies are protected, the result will be
+compatible with perl4 and perl5. This is a very common practice, and should
+be changed to use the block form of [perlfunc:eval]  if possible.
+
+&lt;P&gt;
+&lt;PRE&gt;    $hashname = &amp;quot;foobar&amp;quot;;
+    $key = &amp;quot;baz&amp;quot;;
+    $value = 1234;
+    eval &amp;quot;\$$hashname{'$key'} = q|$value|&amp;quot;;
+    (defined($foobar{'baz'})) ?  (print &amp;quot;Yup&amp;quot;) : (print &amp;quot;Nope&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: Yup
+    # perl5 prints: Nope
+&lt;/PRE&gt;
+&lt;P&gt;
+Changing
+
+&lt;P&gt;
+&lt;PRE&gt;    eval &amp;quot;\$$hashname{'$key'} = q|$value|&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+to
+
+&lt;P&gt;
+&lt;PRE&gt;    eval &amp;quot;\$\$hashname{'$key'} = q|$value|&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+causes the following result:
+
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: Nope
+    # perl5 prints: Yup
+&lt;/PRE&gt;
+&lt;P&gt;
+or, changing to
+
+&lt;P&gt;
+&lt;PRE&gt;    eval &amp;quot;\$$hashname\{'$key'\} = q|$value|&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+causes the following result:
+
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: Yup
+    # perl5 prints: Yup
+    # and is compatible for both versions
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+&lt;P&gt;
+perl4 programs which unconsciously rely on the bugs in earlier perl
+versions.
+
+&lt;P&gt;
+&lt;PRE&gt;    perl -e '$bar=q/not/; print &amp;quot;This is $foo{$bar} perl5&amp;quot;'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: This is not perl5
+    # perl5 prints: This is perl5
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+&lt;P&gt;
+You also have to be careful about array references.
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;$foo{&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    perl 4 prints: {
+    perl 5 prints: syntax error
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+&lt;P&gt;
+Similarly, watch out for:
+
+&lt;P&gt;
+&lt;PRE&gt;    $foo = &amp;quot;array&amp;quot;;
+    print &amp;quot;\$$foo{bar}\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: $array{bar}
+    # perl5 prints: $
+&lt;/PRE&gt;
+&lt;P&gt;
+Perl 5 is looking for &lt;CODE&gt;$array{bar}&lt;/CODE&gt; which doesn't exist, but perl 4 is happy just to expand &lt;CODE&gt;$foo&lt;/CODE&gt;
+to ``array'' by itself. Watch out for this especially in [perlfunc:eval|eval]'s.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;Interpolation&lt;/STRONG&gt;
+
+[perlman:perlop] string passed to [perlfunc:eval|eval]
+
+&lt;P&gt;
+&lt;PRE&gt;    eval qq(
+        foreach \$y (keys %\$x\) {
+            \$count++;
+        }
+    );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 runs this ok
+    # perl5 prints: Can't find string terminator &amp;quot;)&amp;quot;
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;DBM_Traps&quot;&gt;DBM Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+General 
+&lt;FONT SIZE=-1&gt;DBM&lt;/FONT&gt; traps.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;DBM&lt;/STRONG&gt;
+&lt;P&gt;
+Existing dbm databases created under perl4 (or any other dbm/ndbm tool) may
+cause the same script, run under perl5, to fail. The build of perl5 must
+have been linked with the same dbm/ndbm as the default for [perlfunc:dbmopen|dbmopen()]
+to function properly without [perlfunc:tie|tie]'ing to an extension dbm implementation.
+
+&lt;P&gt;
+&lt;PRE&gt;    dbmopen (%dbm, &amp;quot;file&amp;quot;, undef);
+    print &amp;quot;ok\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints: ok
+    # perl5 prints: ok (IFF linked with -ldbm or -lndbm)
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;DBM&lt;/STRONG&gt;
+&lt;P&gt;
+Existing dbm databases created under perl4 (or any other dbm/ndbm tool) may
+cause the same script, run under perl5, to fail. The error generated when
+exceeding the limit on the key/value size will cause perl5 to exit
+immediately.
+
+&lt;P&gt;
+&lt;PRE&gt;    dbmopen(DB, &amp;quot;testdb&amp;quot;,0600) || die &amp;quot;couldn't open db! $!&amp;quot;;
+    $DB{'trap'} = &amp;quot;x&amp;quot; x 1024;  # value too large for most dbm/ndbm
+    print &amp;quot;YUP\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl4 prints:
+    dbm store returned -1, errno 28, key &amp;quot;trap&amp;quot; at - line 3.
+    YUP
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # perl5 prints:
+    dbm store returned -1, errno 28, key &amp;quot;trap&amp;quot; at - line 3.
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Unclassified_Traps&quot;&gt;Unclassified Traps&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Everything else.
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_require&quot;&gt;require/do trap using returned value&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+If the file doit.pl has:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub foo {
+        $rc = do &amp;quot;./do.pl&amp;quot;;
+        return 8;
+    }
+    print &amp;amp;foo, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+And the do.pl file has the following single line:
+
+&lt;P&gt;
+&lt;PRE&gt;    return 3;
+&lt;/PRE&gt;
+&lt;P&gt;
+Running doit.pl gives the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    # perl 4 prints: 3 (aborts the subroutine early)
+    # perl 5 prints: 8
+&lt;/PRE&gt;
+&lt;P&gt;
+Same behavior if you replace [perlfunc:do|do] with [perlfunc:require|require].
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_split&quot;&gt;split on empty string with LIMIT specified&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;        $string = '';
+    @list = split(/foo/, $string, 2)
+&lt;/PRE&gt;
+&lt;P&gt;
+Perl4 returns a one element list containing the empty string but Perl5
+returns an empty list.
+
+&lt;/UL&gt;
+&lt;P&gt;
+As always, if any of these are ever officially declared as bugs, they'll be
+fixed and removed.
+
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>406</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perltrap</title>
+  <createtime>1999-08-25 02:47:29</createtime>
+  <nodeupdated>2005-08-11 00:29:25</nodeupdated>
+</node>

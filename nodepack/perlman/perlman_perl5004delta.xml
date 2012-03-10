@@ -1,0 +1,1305 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perldelta - what's new for perl5.004
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This document describes differences between the 5.003 release (as
+documented in &lt;EM&gt;Programming Perl&lt;/EM&gt;, second edition--the Camel Book) and this one.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Supported_Environments&quot;&gt;Supported Environments&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Perl5.004 builds out of the box on Unix, Plan 9, LynxOS, 
+&lt;FONT SIZE=-1&gt;VMS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;OS/2,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;QNX,&lt;/FONT&gt; AmigaOS, and Windows 
+&lt;FONT SIZE=-1&gt;NT.&lt;/FONT&gt; Perl runs on Windows 95 as well, but it cannot be built there, for lack of a reasonable command interpreter.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Core_Changes&quot;&gt;Core Changes&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Most importantly, many bugs were fixed, including several security
+problems. See the &lt;EM&gt;Changes&lt;/EM&gt; file in the distribution for details.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;List_assignment_to_ENV_works&quot;&gt;List assignment to %ENV works&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;CODE&gt;%ENV = ()&lt;/CODE&gt; and &lt;CODE&gt;%ENV = @list&lt;/CODE&gt; now work as expected (except on 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; where it generates a fatal error).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;_Can_t_locate_Foo_pm_in_INC_er&quot;&gt;&quot;Can't locate Foo.pm in @INC&quot; error now lists @INC&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Compilation_option_Binary_compa&quot;&gt;Compilation option: Binary compatibility with 5.003&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There is a new Configure question that asks if you want to maintain binary
+compatibility with Perl 5.003. If you choose binary compatibility, you do
+not have to recompile your extensions, but you might have symbol conflicts
+if you embed Perl in another application, just as in the 5.003 release. By
+default, binary compatibility is preserved at the expense of symbol table
+pollution.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;_PERL5OPT_environment_variable&quot;&gt;$PERL5OPT environment variable&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+You may now put Perl options in the [perlman:perlrun] environment variable. Unless Perl is running with taint checks, it will interpret this variable as if its contents had appeared on a ``#!perl'' line at the beginning of your script, except that hyphens are optional. 
+&lt;FONT SIZE=-1&gt;PERL5OPT&lt;/FONT&gt; may only be used to set the following switches:
+ &lt;STRONG&gt;-&amp;#091;DIMUdmw&amp;#093;&lt;/STRONG&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Limitations_on_B_M_B_m_and&quot;&gt;Limitations on &lt;STRONG&gt;-M&lt;/STRONG&gt;, &lt;STRONG&gt;-m&lt;/STRONG&gt;, and &lt;STRONG&gt;-T&lt;/STRONG&gt; options&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;-M&lt;/CODE&gt; and [perlman:perlop] options are no longer allowed on the &lt;CODE&gt;#!&lt;/CODE&gt; line of a script. If a script needs a module, it should invoke it with the
+[perlfunc:use|use] pragma.
+
+&lt;P&gt;
+The &lt;STRONG&gt;-T&lt;/STRONG&gt; option is also forbidden on the &lt;CODE&gt;#!&lt;/CODE&gt; line of a script, unless it was present on the Perl command line. Due to
+the way &lt;CODE&gt;#!&lt;/CODE&gt;
+works, this usually means that &lt;STRONG&gt;-T&lt;/STRONG&gt; must be in the first argument. Thus:
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/bin/perl -T -w
+&lt;/PRE&gt;
+&lt;P&gt;
+will probably work for an executable script invoked as &lt;CODE&gt;scriptname&lt;/CODE&gt;, while:
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/bin/perl -w -T
+&lt;/PRE&gt;
+&lt;P&gt;
+will probably fail under the same conditions. (Non-Unix systems will
+probably not follow this rule.) But &lt;CODE&gt;perl scriptname&lt;/CODE&gt; is guaranteed to fail, since then there is no chance of &lt;STRONG&gt;-T&lt;/STRONG&gt; being found on the command line before it is found on the &lt;CODE&gt;#!&lt;/CODE&gt; line.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;More_precise_warnings&quot;&gt;More precise warnings&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you removed the &lt;STRONG&gt;-w&lt;/STRONG&gt; option from your Perl 5.003 scripts because it made Perl too verbose, we
+recommend that you try putting it back when you upgrade to Perl 5.004. Each
+new perl version tends to remove some undesirable warnings, while adding
+new warnings that may catch bugs in your scripts.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Deprecated_Inherited_C_AUTOLOAD&quot;&gt;Deprecated: Inherited &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; for non-methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Before Perl 5.004, &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; functions were looked up as methods (using the &lt;CODE&gt;@ISA&lt;/CODE&gt; hierarchy), even when the function to be autoloaded was called as a plain
+function (e.g. &lt;CODE&gt;Foo::bar()&lt;/CODE&gt;), not a method (e.g. &lt;CODE&gt;Foo-&amp;gt;bar()&lt;/CODE&gt; or &lt;CODE&gt;$obj-&amp;gt;bar()&lt;/CODE&gt;).
+
+&lt;P&gt;
+Perl 5.005 will use method lookup only for methods' &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt;s. However, there is a significant base of existing code that may be using
+the old behavior. So, as an interim step, Perl 5.004 issues an optional
+warning when a non-method uses an inherited &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt;.
+
+&lt;P&gt;
+The simple rule is: Inheritance will not work when autoloading non-methods.
+The simple fix for old code is: In any module that used to depend on
+inheriting &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; for non-methods from a base class named
+&lt;CODE&gt;BaseClass&lt;/CODE&gt;, execute &lt;CODE&gt;*AUTOLOAD = \&amp;amp;BaseClass::AUTOLOAD&lt;/CODE&gt; during startup.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Previously_deprecated_OVERLOAD_&quot;&gt;Previously deprecated %OVERLOAD is no longer usable&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Using &lt;CODE&gt;%OVERLOAD&lt;/CODE&gt; to define overloading was deprecated in 5.003.
+Overloading is now defined using the overload pragma.
+&lt;CODE&gt;%OVERLOAD&lt;/CODE&gt; is still used internally but should not be used by
+Perl scripts. See
+&lt;U&gt;the overload manpage&lt;/U&gt;&lt;!--../lib/overload.html--&gt; for more details.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Subroutine_arguments_created_onl&quot;&gt;Subroutine arguments created only when they're modified&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In Perl 5.004, nonexistent array and hash elements used as subroutine
+parameters are brought into existence only if they are actually assigned to
+(via &lt;CODE&gt;@_&lt;/CODE&gt;).
+
+&lt;P&gt;
+Earlier versions of Perl vary in their handling of such arguments. Perl
+versions 5.002 and 5.003 always brought them into existence. Perl versions
+5.000 and 5.001 brought them into existence only if they were not the first
+argument (which was almost certainly a bug). Earlier versions of Perl never
+brought them into existence.
+
+&lt;P&gt;
+For example, given this code:
+
+&lt;P&gt;
+&lt;PRE&gt;     undef @a; undef %a;
+     sub show { print $_&amp;#091;0&amp;#093; };
+     sub change { $_&amp;#091;0&amp;#093;++ };
+     show($a&amp;#091;2&amp;#093;);
+     change($a{b});
+&lt;/PRE&gt;
+&lt;P&gt;
+After this code executes in Perl 5.004, $a{b} exists but $a&amp;#091;2&amp;#093; does not. In
+Perl 5.002 and 5.003, both $a{b} and $a&amp;#091;2&amp;#093; would have existed (but $a&amp;#091;2&amp;#093;'s
+value would have been undefined).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Group_vector_changeable_with_C_&quot;&gt;Group vector changeable with &lt;CODE&gt;$)&lt;/CODE&gt;&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;$)&lt;/CODE&gt; special variable has always (well, in Perl 5, at least) reflected not only
+the current effective group, but also the group list as returned by the &lt;CODE&gt;getgroups()&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function (if there is one). However, until this
+release, there has not been a way to call the
+&lt;CODE&gt;setgroups()&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function from Perl.
+
+&lt;P&gt;
+In Perl 5.004, assigning to &lt;CODE&gt;$)&lt;/CODE&gt; is exactly symmetrical with examining it: The first number in its string
+value is used as the effective gid; if there are any numbers after the
+first one, they are passed to the
+&lt;CODE&gt;setgroups()&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function (if there is one).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Fixed_parsing_of_digit_d&quot;&gt;Fixed parsing of $$&lt;digit&gt;, &amp;$&lt;digit&gt;, etc.&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl versions before 5.004 misinterpreted any type marker followed by ``$''
+and a digit. For example, ``$$0'' was incorrectly taken to mean ``${$}0''
+instead of ``${$0}''. This bug is (mostly) fixed in Perl 5.004.
+
+&lt;P&gt;
+However, the developers of Perl 5.004 could not fix this bug completely,
+because at least two widely-used modules depend on the old meaning of
+``$$0'' in a string. So Perl 5.004 still interprets ``$$&amp;lt;digit&amp;gt;'' in
+the old (broken) way inside strings; but it generates this message as a
+warning. And in Perl 5.005, this special treatment will cease.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Fixed_localization_of_digit_&quot;&gt;Fixed localization of $&lt;digit&gt;, $&amp;, etc.&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl versions before 5.004 did not always properly localize the
+regex-related special variables. Perl 5.004 does localize them, as the
+documentation has always said it should. This may result in $1, $2, etc. no
+longer being set where existing programs use them.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;No_resetting_of_on_implicit_c&quot;&gt;No resetting of $. on implicit close&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The documentation for Perl 5.0 has always stated that &lt;CODE&gt;$.&lt;/CODE&gt; is &lt;EM&gt;not&lt;/EM&gt;
+reset when an already-open file handle is reopened with no intervening call
+to [perlfunc:close|close]. Due to a bug, perl versions 5.000 through 5.003
+&lt;EM&gt;did&lt;/EM&gt; reset &lt;CODE&gt;$.&lt;/CODE&gt; under that circumstance; Perl 5.004 does not.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;C_wantarray_may_return_undef&quot;&gt;[perlfunc:wantarray|wantarray] may return undef&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The [perlfunc:wantarray|wantarray] operator returns true if a subroutine is expected to return a list, and
+false otherwise. In Perl 5.004, [perlfunc:wantarray|wantarray] can also return the undefined value if a subroutine's return value will not
+be used at all, which allows subroutines to avoid a time-consuming
+calculation of a return value if it isn't going to be used.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;C_eval_EXPR_determines_value_of&quot;&gt;&lt;CODE&gt;eval EXPR&lt;/CODE&gt; determines value of EXPR in scalar context&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl (version 5) used to determine the value of 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; inconsistently, sometimes incorrectly using the surrounding context for the determination. Now, the value of 
+&lt;FONT SIZE=-1&gt;EXPR&lt;/FONT&gt; (before being parsed by eval) is always determined in a scalar context. Once parsed, it is executed as before, by providing the context that the scope surrounding the eval provided. This change makes the behavior Perl4 compatible, besides fixing bugs resulting from the inconsistent behavior. This program:
+
+&lt;P&gt;
+&lt;PRE&gt;    @a = qw(time now is time);
+    print eval @a;
+    print '|', scalar eval @a;
+&lt;/PRE&gt;
+&lt;P&gt;
+used to print something like ``timenowis881399109|4'', but now (and in
+perl4) prints ``4|4''.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Changes_to_tainting_checks&quot;&gt;Changes to tainting checks&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; bug in previous versions may have failed to detect
+some insecure conditions when taint checks are turned on. (Taint checks are
+used in setuid or setgid scripts, or when explicitly turned on with the
+&lt;CODE&gt;-T&lt;/CODE&gt; invocation option.) Although it's unlikely, this may cause a
+previously-working script to now fail -- which should be construed as a
+blessing, since that indicates a potentially-serious security hole was just
+plugged.
+
+&lt;P&gt;
+The new restrictions when tainting include:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_No&quot;&gt;No glob() or &amp;lt;*&amp;gt;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These operators may spawn the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; shell (csh), which cannot be made safe. This
+restriction will be lifted in a future version of Perl when globbing is
+implemented without the use of an external program.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;No spawning if tainted $CDPATH, $ENV, $BASH_ENV&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These environment variables may alter the behavior of spawned programs (especially shells) in ways that subvert security. So now they are treated as dangerous, in the manner of &lt;CODE&gt;$IFS&lt;/CODE&gt; and 
+&lt;FONT SIZE=-1&gt;$PATH.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;No spawning if tainted $TERM doesn't look like a terminal name&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Some termcap libraries do unsafe things with 
+&lt;FONT SIZE=-1&gt;$TERM.&lt;/FONT&gt; However, it would be unnecessarily harsh to treat all &lt;CODE&gt;$TERM&lt;/CODE&gt; values as unsafe, since only shell metacharacters can cause trouble in 
+&lt;FONT SIZE=-1&gt;$TERM.&lt;/FONT&gt; So a tainted &lt;CODE&gt;$TERM&lt;/CODE&gt; is considered to be safe if it contains only alphanumerics, underscores, dashes, and colons, and unsafe if it contains other characters (including whitespace).
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;New_Opcode_module_and_revised_Sa&quot;&gt;New Opcode module and revised Safe module&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; new Opcode module supports the creation, manipulation and application of opcode masks. The revised Safe module has a new 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; and is implemented using the new Opcode module. Please read the new Opcode and Safe documentation.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Embedding_improvements&quot;&gt;Embedding improvements&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In older versions of Perl it was not possible to create more than one Perl interpreter instance inside a single process without leaking like a sieve and/or crashing. The bugs that caused this behavior have all been fixed. However, you still must take care when embedding Perl in a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; program. See the updated perlembed manpage for tips on how to manage your interpreters.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Internal_change_FileHandle_clas&quot;&gt;Internal change: FileHandle class based on IO::* classes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+File handles are now stored internally as type IO::Handle. The FileHandle module is still supported for backwards compatibility, but it is now merely a front end to the 
+&lt;FONT SIZE=-1&gt;IO::*&lt;/FONT&gt; modules -- specifically, IO::Handle, IO::Seekable, and IO::File. We suggest, but do not require, that you use the 
+&lt;FONT SIZE=-1&gt;IO::*&lt;/FONT&gt; modules in new code.
+
+&lt;P&gt;
+In harmony with this change, &lt;CODE&gt;*GLOB{FILEHANDLE}&lt;/CODE&gt; is now just a backward-compatible synonym for &lt;CODE&gt;*GLOB{IO}&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Internal_change_PerlIO_abstract&quot;&gt;Internal change: PerlIO abstraction interface&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+It is now possible to build Perl with AT&amp;amp;T's sfio 
+&lt;FONT SIZE=-1&gt;IO&lt;/FONT&gt; package instead of stdio. See [perlman:perlapio|the perlapio manpage] for more details, and the &lt;EM&gt;INSTALL&lt;/EM&gt; file for how to use it.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;New_and_changed_syntax&quot;&gt;New and changed syntax&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__coderef_PARAMS_&quot;&gt;$coderef-&amp;gt;(PARAMS)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; subroutine reference may now be suffixed with an
+arrow and a (possibly empty) parameter list. This syntax denotes a call of
+the referenced subroutine, with the given parameters (if any).
+
+&lt;P&gt;
+This new syntax follows the pattern of &lt;CODE&gt;$hashref-&amp;gt;{FOO}&lt;/CODE&gt; and
+&lt;CODE&gt;$aryref-&amp;gt;&amp;#091;$foo&amp;#093;&lt;/CODE&gt;: You may now write &lt;CODE&gt;&amp;amp;$subref($foo)&lt;/CODE&gt; as
+&lt;CODE&gt;$subref-&amp;gt;($foo)&lt;/CODE&gt;. All of these arrow terms may be chained; thus, &lt;CODE&gt;&amp;amp;{$table-&amp;gt;{FOO}}($bar)&lt;/CODE&gt; may now be written
+&lt;CODE&gt;$table-&amp;gt;{FOO}-&amp;gt;($bar)&lt;/CODE&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;New_and_changed_builtin_constant&quot;&gt;New and changed builtin constants&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__PACKAGE_&quot;&gt;__PACKAGE__&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The current package name at compile time, or the undefined value if there
+is no current package (due to a [perlfunc:package] directive). Like
+&lt;CODE&gt;__FILE__&lt;/CODE&gt; and &lt;CODE&gt;__LINE__&lt;/CODE&gt;, &lt;CODE&gt;__PACKAGE__&lt;/CODE&gt; does &lt;EM&gt;not&lt;/EM&gt; interpolate into strings.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;New_and_changed_builtin_variable&quot;&gt;New and changed builtin variables&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__E&quot;&gt;$^E&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Extended error message on some platforms. (Also known as
+&lt;CODE&gt;$EXTENDED_OS_ERROR&lt;/CODE&gt; if you &lt;CODE&gt;use English&lt;/CODE&gt;).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__H&quot;&gt;$^H&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The current set of syntax checks enabled by &lt;CODE&gt;use strict&lt;/CODE&gt;. See the documentation of &lt;CODE&gt;strict&lt;/CODE&gt; for more details. Not actually new, but newly documented. Because it is
+intended for internal use by Perl core components, there is no &lt;CODE&gt;use English&lt;/CODE&gt; long name for this variable.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__M&quot;&gt;$^M&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+By default, running out of memory it is not trappable. However, if compiled
+for this, Perl may use the contents of &lt;CODE&gt;$^M&lt;/CODE&gt; as an emergency pool after 
+&lt;CODE&gt;die()ing&lt;/CODE&gt; with this message. Suppose that your Perl were compiled with 
+&lt;FONT SIZE=-1&gt;-DPERL_EMERGENCY_SBRK&lt;/FONT&gt; and used Perl's malloc. Then
+
+&lt;P&gt;
+&lt;PRE&gt;    $^M = 'a' x (1&amp;lt;&amp;lt;16);
+&lt;/PRE&gt;
+&lt;P&gt;
+would allocate a 
+&lt;FONT SIZE=-1&gt;64K&lt;/FONT&gt; buffer for use when in emergency. See the &lt;EM&gt;INSTALL&lt;/EM&gt; file for information on how to enable this option. As a disincentive to
+casual use of this advanced feature, there is no &lt;CODE&gt;use English&lt;/CODE&gt; long name for this variable.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;New_and_changed_builtin_function&quot;&gt;New and changed builtin functions&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_delete&quot;&gt;delete on slices&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This now works. (e.g. &lt;CODE&gt;delete @ENV{'PATH', 'MANPATH'}&lt;/CODE&gt;)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_flock&quot;&gt;flock&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+is now supported on more platforms, prefers fcntl to lockf when emulating,
+and always flushes before (un)locking.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_printf&quot;&gt;printf and sprintf&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl now implements these functions itself; it doesn't use the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library function 
+&lt;CODE&gt;sprintf()&lt;/CODE&gt; any more, except for floating-point numbers, and even then only known flags are allowed. As a result, it is now possible to know which conversions and flags will work, and what they will do.
+
+&lt;P&gt;
+The new conversions in Perl's 
+&lt;CODE&gt;sprintf()&lt;/CODE&gt; are:
+
+&lt;P&gt;
+&lt;PRE&gt;   %i   a synonym for %d
+   %p   a pointer (the address of the Perl value, in hexadecimal)
+   %n   special: *stores* the number of characters output so far
+        into the next variable in the parameter list 
+&lt;/PRE&gt;
+&lt;P&gt;
+The new flags that go between the &lt;CODE&gt;%&lt;/CODE&gt; and the conversion are:
+
+&lt;P&gt;
+&lt;PRE&gt;   #    prefix octal with &amp;quot;0&amp;quot;, hex with &amp;quot;0x&amp;quot;
+   h    interpret integer as C type &amp;quot;short&amp;quot; or &amp;quot;unsigned short&amp;quot;
+   V    interpret integer as Perl's standard integer type
+&lt;/PRE&gt;
+&lt;P&gt;
+Also, where a number would appear in the flags, an asterisk (``*'') may be
+used instead, in which case Perl uses the next item in the parameter list
+as the given number (that is, as the field width or precision). If a field
+width obtained through ``*'' is negative, it has the same effect as the '-'
+flag: left-justification.
+
+&lt;P&gt;
+See [perlfunc:sprintf|sprintf] for a complete list of conversion and flags.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_keys&quot;&gt;keys as an lvalue&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+As an lvalue, [perlfunc:keys|keys] allows you to increase the number of hash buckets allocated for the given
+hash. This can gain you a measure of efficiency if you know the hash is
+going to get big. (This is similar to pre-extending an array by assigning a
+larger number to $#array.) If you say
+
+&lt;P&gt;
+&lt;PRE&gt;    keys %hash = 200;
+&lt;/PRE&gt;
+&lt;P&gt;
+then &lt;CODE&gt;%hash&lt;/CODE&gt; will have at least 200 buckets allocated for it. These buckets will be
+retained even if you do &lt;CODE&gt;%hash = ()&lt;/CODE&gt;; use &lt;CODE&gt;undef
+%hash&lt;/CODE&gt; if you want to free the storage while &lt;CODE&gt;%hash&lt;/CODE&gt; is still in scope. You can't shrink the number of buckets allocated for the
+hash using
+[perlfunc:keys|keys] in this way (but you needn't worry about doing this by accident, as trying
+has no effect).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_my&quot;&gt;my() in Control Structures&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+You can now use 
+&lt;CODE&gt;my()&lt;/CODE&gt; (with or without the
+parentheses) in the control expressions of control structures such as:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (defined(my $line = &amp;lt;&amp;gt;)) {
+        $line = lc $line;
+    } continue {
+        print $line;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if ((my $answer = &amp;lt;STDIN&amp;gt;) =~ /^y(es)?$/i) {
+        user_agrees();
+    } elsif ($answer =~ /^n(o)?$/i) {
+        user_disagrees();
+    } else {
+        chomp $answer;
+        die &amp;quot;`$answer' is neither `yes' nor `no'&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Also, you can declare a foreach loop control variable as lexical by
+preceding it with the word ``my''. For example, in:
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach my $i (1, 2, 3) {
+        some_function();
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;CODE&gt;$i&lt;/CODE&gt; is a lexical variable, and the scope of &lt;CODE&gt;$i&lt;/CODE&gt;
+extends to the end of the loop, but not beyond it.
+
+&lt;P&gt;
+Note that you still cannot use 
+&lt;CODE&gt;my()&lt;/CODE&gt; on global punctuation
+variables such as &lt;CODE&gt;$_&lt;/CODE&gt; and the like.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pack&quot;&gt;pack() and unpack()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; new format 'w' represents a 
+&lt;FONT SIZE=-1&gt;BER&lt;/FONT&gt; compressed integer (as defined in 
+&lt;FONT SIZE=-1&gt;ASN.1).&lt;/FONT&gt; Its format is a sequence of one or more bytes, each of which provides seven bits of the total value, with the most significant first. Bit eight of each byte is set, except for the last byte, in which bit eight is clear.
+
+&lt;P&gt;
+If 'p' or 
+&lt;FONT SIZE=-1&gt;'P'&lt;/FONT&gt; are given undef as values, they now generate a 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; pointer.
+
+&lt;P&gt;
+Both 
+&lt;CODE&gt;pack()&lt;/CODE&gt; and 
+&lt;CODE&gt;unpack()&lt;/CODE&gt; now fail when their templates contain invalid types. (Invalid types used to be ignored.)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_sysseek&quot;&gt;sysseek()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The new 
+&lt;CODE&gt;sysseek()&lt;/CODE&gt; operator is a variant of 
+&lt;CODE&gt;seek()&lt;/CODE&gt; that sets and gets the file's system read/write position, using the 
+&lt;CODE&gt;lseek(2)&lt;/CODE&gt; system call. It is the only reliable way to seek before using 
+&lt;CODE&gt;sysread()&lt;/CODE&gt; or 
+&lt;CODE&gt;syswrite().&lt;/CODE&gt; Its return value is the new position, or the undefined value on failure.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_use&quot;&gt;use VERSION&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If the first argument to [perlfunc:use|use] is a number, it is treated as a version number instead of a module name. If the version of the Perl interpreter is less than 
+&lt;FONT SIZE=-1&gt;VERSION,&lt;/FONT&gt; then an error message is printed and Perl exits immediately. Because
+ [perlfunc:use|use] occurs at compile time, this check happens immediately during the
+compilation process, unlike &lt;CODE&gt;require VERSION&lt;/CODE&gt;, which waits until runtime for the check. This is often useful if you need
+to check the current Perl version before [perlfunc:use|use]ing library modules which have changed in incompatible ways from older
+versions of Perl. (We try not to do this more than we have to.)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;use Module VERSION LIST&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If the 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; argument is present between Module and 
+&lt;FONT SIZE=-1&gt;LIST,&lt;/FONT&gt; then the
+
+[perlfunc:use|use] will call the 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; method in class Module with the given version as an argument. The default 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; method, inherited from the 
+&lt;FONT SIZE=-1&gt;UNIVERSAL&lt;/FONT&gt; class, croaks if the given version is larger than the value of the variable $Module::VERSION. (Note that there is not a comma after 
+&lt;FONT SIZE=-1&gt;VERSION!)&lt;/FONT&gt;
+
+&lt;P&gt;
+This version-checking mechanism is similar to the one currently used in the
+Exporter module, but it is faster and can be used with modules that don't
+use the Exporter. It is the recommended method for new code.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_prototype&quot;&gt;prototype(FUNCTION)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the prototype of a function as a string (or [perlfunc:undef|undef] if the function has no prototype). 
+&lt;FONT SIZE=-1&gt;FUNCTION&lt;/FONT&gt; is a reference to or the name of the function
+whose prototype you want to retrieve. (Not actually new; just never
+documented before.)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_srand&quot;&gt;srand&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The default seed for [perlfunc:srand|srand], which used to be [perlfunc:time|time], has been changed. Now it's a heady mix of difficult-to-predict
+system-dependent values, which should be sufficient for most everyday
+purposes.
+
+&lt;P&gt;
+Previous to version 5.004, calling [perlfunc:rand|rand] without first calling [perlfunc:srand|srand]
+would yield the same sequence of random numbers on most or all machines.
+Now, when perl sees that you're calling [perlfunc:rand|rand] and haven't yet called
+[perlfunc:srand|srand], it calls [perlfunc:srand|srand] with the default seed. You should still call
+[perlfunc:srand|srand] manually if your code might ever be run on a pre-5.004 system, of course,
+or if you want a seed other than the default.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__&quot;&gt;$_ as Default&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Functions documented in the Camel to default to &lt;CODE&gt;$_&lt;/CODE&gt; now in fact
+do, and all those that do are so documented in [perlman:perlfunc|the perlfunc manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_m&quot;&gt;m//gc does not reset search position on failure&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;m//g&lt;/CODE&gt; match iteration construct has always reset its target string's search
+position (which is visible through the [perlfunc:pos|pos] operator) when a match fails; as a result, the next &lt;CODE&gt;m//g&lt;/CODE&gt; match after a failure starts again at the beginning of the string. With
+Perl 5.004, this reset may be disabled by adding the ``c'' (for
+``continue'') modifier, i.e. &lt;CODE&gt;m//gc&lt;/CODE&gt;. This feature, in conjunction with the &lt;CODE&gt;\G&lt;/CODE&gt; zero-width assertion, makes it possible to chain matches together. See [perlman:perlop|the perlop manpage]
+and [perlman:perlre|the perlre manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_m&quot;&gt;m//x ignores whitespace before ?*+{}&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;m//x&lt;/CODE&gt; construct has always been intended to ignore all unescaped whitespace.
+However, before Perl 5.004, whitespace had the effect of escaping repeat
+modifiers like ``*'' or ``?''; for example, &lt;CODE&gt;/a *b/x&lt;/CODE&gt; was (mis)interpreted as &lt;CODE&gt;/a\*b/x&lt;/CODE&gt;. This bug has been fixed in 5.004.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_nested&quot;&gt;nested sub{} closures work now&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Prior to the 5.004 release, nested anonymous functions didn't work right.
+They do now.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_formats&quot;&gt;formats work right on changing lexicals&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Just like anonymous functions that contain lexical variables that change
+(like a lexical index variable for a &lt;CODE&gt;foreach&lt;/CODE&gt; loop), formats now work properly. For example, this silently failed before
+(printed only zeros), but is fine now:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $i;
+    foreach $i ( 1 .. 10 ) {
+        write;
+    }
+    format =
+        my i is @#
+        $i
+    .
+&lt;/PRE&gt;
+&lt;P&gt;
+However, it still fails (without a warning) if the foreach is within a
+subroutine:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $i;
+    sub foo {
+      foreach $i ( 1 .. 10 ) {
+        write;
+      }
+    }
+    foo;
+    format =
+        my i is @#
+        $i
+    .
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;New_builtin_methods&quot;&gt;New builtin methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;UNIVERSAL&lt;/CODE&gt; package automatically contains the following methods that are inherited by
+all other classes:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_isa&quot;&gt;isa(CLASS)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;isa&lt;/CODE&gt; returns &lt;EM&gt;true&lt;/EM&gt; if its object is blessed into a subclass of [perlman:perlguts]
+
+&lt;P&gt;
+&lt;CODE&gt;isa&lt;/CODE&gt; is also exportable and can be called as a sub with two arguments. This
+allows the ability to check what a reference points to. Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    use UNIVERSAL qw(isa);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if(isa($ref, 'ARRAY')) {
+       ...
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_can&quot;&gt;can(METHOD)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;can&lt;/CODE&gt; checks to see if its object has a method called &lt;CODE&gt;METHOD&lt;/CODE&gt;, if it does then a reference to the sub is returned; if it does not then
+&lt;EM&gt;undef&lt;/EM&gt; is returned.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_VERSION&quot;&gt;VERSION( &amp;#091;NEED&amp;#093; )&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;VERSION&lt;/CODE&gt; returns the version number of the class (package). If the 
+&lt;FONT SIZE=-1&gt;NEED&lt;/FONT&gt; argument is given then it will check that the current version (as defined by the &lt;CODE&gt;$VERSION&lt;/CODE&gt; variable in the given package) not less than 
+&lt;FONT SIZE=-1&gt;NEED;&lt;/FONT&gt; it will die if this is not the case. This method is normally called as a class method. This method is called automatically by the
+
+&lt;CODE&gt;VERSION&lt;/CODE&gt; form of [perlfunc:use|use].
+
+&lt;P&gt;
+&lt;PRE&gt;    use A 1.2 qw(some imported subs);
+    # implies:
+    A-&amp;gt;VERSION(1.2);
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;STRONG&gt;NOTE:&lt;/STRONG&gt;  &lt;CODE&gt;can&lt;/CODE&gt; directly uses Perl's internal code for method lookup, and
+&lt;CODE&gt;isa&lt;/CODE&gt; uses a very similar method and caching strategy. This may cause strange
+effects if the Perl code dynamically changes &lt;CODE&gt;@ISA&lt;/CODE&gt; in any
+package.
+
+&lt;P&gt;
+You may add other methods to the 
+&lt;FONT SIZE=-1&gt;UNIVERSAL&lt;/FONT&gt; class via Perl or 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code. You do not need to
+ &lt;CODE&gt;use UNIVERSAL&lt;/CODE&gt; in order to make these methods available to your program. This is necessary
+only if you wish to have &lt;CODE&gt;isa&lt;/CODE&gt; available as a plain subroutine in the current package.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;TIEHANDLE_now_supported&quot;&gt;TIEHANDLE now supported&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+See [perlman:perltie|the perltie manpage] for other kinds of 
+&lt;CODE&gt;tie()s.&lt;/CODE&gt;
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TIEHANDLE&quot;&gt;TIEHANDLE classname, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the constructor for the class. That means it is expected to return
+an object of some sort. The reference can be used to hold some internal
+information.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub TIEHANDLE {
+        print &amp;quot;&amp;lt;shout&amp;gt;\n&amp;quot;;
+        my $i;
+        return bless \$i, shift;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PRINT&quot;&gt;PRINT this, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time the tied handle is printed to.
+Beyond its self reference it also expects the list that was passed to the
+print function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub PRINT {
+        $r = shift;
+        $$r++;
+        return print join( $, =&amp;gt; map {uc} @_), $\;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PRINTF&quot;&gt;PRINTF this, LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be triggered every time the tied handle is printed to with
+the [perlfunc:printf|printf()] function. Beyond its self reference it also expects the format and list
+that was passed to the printf function.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub PRINTF {
+        shift;
+          my $fmt = shift;
+        print sprintf($fmt, @_).&amp;quot;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_READ&quot;&gt;READ this LIST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the handle is read from via the [perlfunc:read|read]
+or [perlfunc:sysread|sysread] functions.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub READ {
+        $r = shift;
+        my($buf,$len,$offset) = @_;
+        print &amp;quot;READ called, \$buf=$buf, \$len=$len, \$offset=$offset&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_READLINE&quot;&gt;READLINE this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the handle is read from. The method should
+return undef when there is no more data.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub READLINE {
+        $r = shift;
+        return &amp;quot;PRINT called $$r times\n&amp;quot;
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_GETC&quot;&gt;GETC this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method will be called when the [perlfunc:getc|getc] function is called.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub GETC { print &amp;quot;Don't GETC, Get Perl&amp;quot;; return &amp;quot;a&amp;quot;; }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DESTROY&quot;&gt;DESTROY this&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+As with the other types of ties, this method will be called when the tied
+handle is about to be destroyed. This is useful for debugging and possibly
+for cleaning up.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub DESTROY {
+        print &amp;quot;&amp;lt;/shout&amp;gt;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Malloc_enhancements&quot;&gt;Malloc enhancements&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If perl is compiled with the malloc included with the perl distribution
+(that is, if &lt;CODE&gt;perl -V:d_mymalloc&lt;/CODE&gt; is 'define') then you can print memory statistics at runtime by running
+Perl thusly:
+
+&lt;P&gt;
+&lt;PRE&gt;  env PERL_DEBUG_MSTATS=2 perl your_script_here
+&lt;/PRE&gt;
+&lt;P&gt;
+The value of 2 means to print statistics after compilation and on exit;
+with a value of 1, the statistics are printed only on exit. (If you want
+the statistics at an arbitrary time, you'll need to install the optional
+module Devel::Peek.)
+
+&lt;P&gt;
+Three new compilation flags are recognized by malloc.c. (They have no effect if perl is compiled with system 
+&lt;CODE&gt;malloc().)&lt;/CODE&gt;
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__DPERL_EMERGENCY_SBRK&quot;&gt;-DPERL_EMERGENCY_SBRK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If this macro is defined, running out of memory need not be a fatal error:
+a memory pool can allocated by assigning to the special variable &lt;CODE&gt;$^M&lt;/CODE&gt;. See &lt;A HREF=&quot;#_M&quot;&gt;$^M&lt;/A&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__DPACK_MALLOC&quot;&gt;-DPACK_MALLOC&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl memory allocation is by bucket with sizes close to powers of two.
+Because of these malloc overhead may be big, especially for data of size
+exactly a power of two. If &lt;CODE&gt;PACK_MALLOC&lt;/CODE&gt; is defined, perl uses a slightly different algorithm for small allocations
+(up to 64 bytes long), which makes it possible to have overhead down to 1
+byte for allocations which are powers of two (and appear quite often).
+
+&lt;P&gt;
+Expected memory savings (with 8-byte alignment in &lt;CODE&gt;alignbytes&lt;/CODE&gt;) is about 20% for typical Perl usage. Expected slowdown due to additional
+malloc overhead is in fractions of a percent (hard to measure, because of
+the effect of saved memory on speed).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__DTWO_POT_OPTIMIZE&quot;&gt;-DTWO_POT_OPTIMIZE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Similarly to &lt;CODE&gt;PACK_MALLOC&lt;/CODE&gt;, this macro improves allocations of data with size close to a power of two; but this works for big allocations (starting with 
+&lt;FONT SIZE=-1&gt;16K&lt;/FONT&gt; by default). Such allocations are typical for big hashes and special-purpose scripts, especially image processing.
+
+&lt;P&gt;
+On recent systems, the fact that perl requires 
+&lt;FONT SIZE=-1&gt;2M&lt;/FONT&gt; from system for 
+&lt;FONT SIZE=-1&gt;1M&lt;/FONT&gt; allocation will not affect speed of execution, since the tail of such a chunk is not going to be touched (and thus will not require real memory). However, it may result in a premature out-of-memory error. So if you will be manipulating very large blocks with sizes close to powers of two, it would be wise to define this macro.
+
+&lt;P&gt;
+Expected saving of memory is 0-100% (100% in applications which require
+most memory in such 2**n chunks); expected slowdown is negligible.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Miscellaneous_efficiency_enhance&quot;&gt;Miscellaneous efficiency enhancements&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Functions that have an empty prototype and that do nothing but return a
+fixed value are now inlined (e.g. &lt;CODE&gt;sub PI () { 3.14159 }&lt;/CODE&gt;).
+
+&lt;P&gt;
+Each unique hash key is only allocated once, no matter how many hashes have
+an entry with that key. So even if you have 100 copies of the same hash,
+the hash keys never have to be reallocated.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Support_for_More_Operating_Syste&quot;&gt;Support for More Operating Systems&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Support for the following operating systems is new in Perl 5.004.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Win32&quot;&gt;Win32&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl 5.004 now includes support for building a ``native'' perl under Windows 
+&lt;FONT SIZE=-1&gt;NT,&lt;/FONT&gt; using the Microsoft Visual 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; compiler (versions 2.0 and above) or the Borland 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; compiler (versions 5.02 and above). The resulting perl can be used under Windows 95 (if it is installed in the same directory locations as it got installed in Windows 
+&lt;FONT SIZE=-1&gt;NT).&lt;/FONT&gt; This port includes support for perl extension building tools like
+ &lt;U&gt;the MakeMaker manpage&lt;/U&gt;&lt;!--../lib/ExtUtils/MakeMaker.html--&gt; and &lt;U&gt;the h2xs manpage&lt;/U&gt;&lt;!--../utils/h2xs.html--&gt;, so that many extensions available on the Comprehensive Perl Archive Network 
+&lt;FONT SIZE=-1&gt;(CPAN)&lt;/FONT&gt; can now be readily built under Windows 
+&lt;FONT SIZE=-1&gt;NT.&lt;/FONT&gt; See &lt;A HREF=&quot;http://www.perl.com/&quot;&gt;http://www.perl.com/&lt;/A&gt; for more information on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; and
+ &lt;EM&gt;README.win32&lt;/EM&gt; in the perl distribution for more details on how to get started with
+building this port.
+
+&lt;P&gt;
+There is also support for building perl under the Cygwin32 environment. Cygwin32 is a set of 
+&lt;FONT SIZE=-1&gt;GNU&lt;/FONT&gt; tools that make it possible to compile and run many 
+&lt;FONT SIZE=-1&gt;UNIX&lt;/FONT&gt; programs under Windows 
+&lt;FONT SIZE=-1&gt;NT&lt;/FONT&gt; by providing a mostly UNIX-like interface for compilation and execution. See
+ &lt;EM&gt;README.cygwin32&lt;/EM&gt; in the perl distribution for more details on this port and how to obtain
+the Cygwin32 toolkit.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Plan_9&quot;&gt;Plan 9&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+See &lt;EM&gt;README.plan9&lt;/EM&gt; in the perl distribution.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;QNX&quot;&gt;QNX&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+See &lt;EM&gt;README.qnx&lt;/EM&gt; in the perl distribution.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;AmigaOS&quot;&gt;AmigaOS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+See &lt;EM&gt;README.amigaos&lt;/EM&gt; in the perl distribution.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Pragmata&quot;&gt;Pragmata&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Six new pragmatic modules exist:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;use autouse MODULE =&amp;gt; qw(sub1 sub2 sub3)&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Defers &lt;CODE&gt;require MODULE&lt;/CODE&gt; until someone calls one of the specified subroutines (which must be exported by 
+&lt;FONT SIZE=-1&gt;MODULE).&lt;/FONT&gt; This pragma should be used with caution, and only when necessary.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;use blib&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;use blib 'dir'&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Looks for MakeMaker-like &lt;EM&gt;'blib'&lt;/EM&gt; directory structure starting in
+&lt;EM&gt;dir&lt;/EM&gt; (or current directory) and working back up to five levels of parent
+directories.
+
+&lt;P&gt;
+Intended for use on command line with &lt;STRONG&gt;-M&lt;/STRONG&gt; option as a way of testing arbitrary scripts against an uninstalled version
+of a package.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;use constant NAME =&amp;gt; VALUE&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Provides a convenient interface for creating compile-time constants, See [perlman:perlsub].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;use locale&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tells the compiler to enable (or disable) the use of 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; locales for builtin operations.
+
+&lt;P&gt;
+When &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, the current 
+&lt;FONT SIZE=-1&gt;LC_CTYPE&lt;/FONT&gt; locale is used for regular expressions and case mapping; 
+&lt;FONT SIZE=-1&gt;LC_COLLATE&lt;/FONT&gt; for string ordering; and 
+&lt;FONT SIZE=-1&gt;LC_NUMERIC&lt;/FONT&gt; for numeric formating in printf and sprintf (but
+ &lt;STRONG&gt;not&lt;/STRONG&gt; in print). 
+&lt;FONT SIZE=-1&gt;LC_NUMERIC&lt;/FONT&gt; is always used in write, since lexical
+scoping of formats is problematic at best.
+
+&lt;P&gt;
+Each &lt;CODE&gt;use locale&lt;/CODE&gt; or &lt;CODE&gt;no locale&lt;/CODE&gt; affects statements to the end of the enclosing 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; or, if not inside a 
+&lt;FONT SIZE=-1&gt;BLOCK,&lt;/FONT&gt; to the end of the current file. Locales can be switched and queried with POSIX::setlocale().
+
+&lt;P&gt;
+See [perlman:perllocale|the perllocale manpage] for more information.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;use ops&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Disable unsafe opcodes, or any named opcodes, when compiling Perl code.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;use vmsish&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Enable VMS-specific language features. Currently, there are three
+VMS-specific features available: 'status', which makes &lt;CODE&gt;$?&lt;/CODE&gt; and
+[perlfunc:system|system] return genuine 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; status values instead of emulating 
+&lt;FONT SIZE=-1&gt;POSIX;&lt;/FONT&gt; 'exit', which makes
+ [perlfunc:exit|exit] take a genuine 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; status value instead of assuming that &lt;CODE&gt;exit 1&lt;/CODE&gt; is an error; and 'time', which makes all times relative to the local time zone, in the 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; tradition.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Modules&quot;&gt;Modules&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Required_Updates&quot;&gt;Required Updates&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Though Perl 5.004 is compatible with almost all modules that work with Perl
+5.003, there are a few exceptions:
+
+&lt;P&gt;
+&lt;PRE&gt;    Module   Required Version for Perl 5.004
+    ------   -------------------------------
+    Filter   Filter-1.12
+    LWP      libwww-perl-5.08
+    Tk       Tk400.202 (-w makes noise)
+&lt;/PRE&gt;
+&lt;P&gt;
+Also, the majordomo mailing list program, version 1.94.1, doesn't work with
+Perl 5.004 (nor with perl 4), because it executes an invalid regular
+expression. This bug is fixed in majordomo version 1.94.2.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Installation_directories&quot;&gt;Installation directories&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;EM&gt;installperl&lt;/EM&gt; script now places the Perl source files for extensions in the
+architecture-specific library directory, which is where the shared
+libraries for extensions have always been. This change is intended to allow
+administrators to keep the Perl 5.004 library directory unchanged from a
+previous version, without running the risk of binary incompatibility
+between extensions' Perl source and shared libraries.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Module_information_summary&quot;&gt;Module information summary&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Brand new modules, arranged by topic rather than strictly alphabetically:
+
+&lt;P&gt;
+&lt;PRE&gt;    CGI.pm               Web server interface (&amp;quot;Common Gateway Interface&amp;quot;)
+    CGI/Apache.pm        Support for Apache's Perl module
+    CGI/Carp.pm          Log server errors with helpful context
+    CGI/Fast.pm          Support for FastCGI (persistent server process)
+    CGI/Push.pm          Support for server push
+    CGI/Switch.pm        Simple interface for multiple server types
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    CPAN                 Interface to Comprehensive Perl Archive Network
+    CPAN::FirstTime      Utility for creating CPAN configuration file
+    CPAN::Nox            Runs CPAN while avoiding compiled extensions
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    IO.pm                Top-level interface to IO::* classes
+    IO/File.pm           IO::File extension Perl module
+    IO/Handle.pm         IO::Handle extension Perl module
+    IO/Pipe.pm           IO::Pipe extension Perl module
+    IO/Seekable.pm       IO::Seekable extension Perl module
+    IO/Select.pm         IO::Select extension Perl module
+    IO/Socket.pm         IO::Socket extension Perl module
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    Opcode.pm            Disable named opcodes when compiling Perl code
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    ExtUtils/Embed.pm    Utilities for embedding Perl in C programs
+    ExtUtils/testlib.pm  Fixes up @INC to use just-built extension
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    FindBin.pm           Find path of currently executing program
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    Class/Struct.pm      Declare struct-like datatypes as Perl classes
+    File/stat.pm         By-name interface to Perl's builtin stat
+    Net/hostent.pm       By-name interface to Perl's builtin gethost*
+    Net/netent.pm        By-name interface to Perl's builtin getnet*
+    Net/protoent.pm      By-name interface to Perl's builtin getproto*
+    Net/servent.pm       By-name interface to Perl's builtin getserv*
+    Time/gmtime.pm       By-name interface to Perl's builtin gmtime
+    Time/localtime.pm    By-name interface to Perl's builtin localtime
+    Time/tm.pm           Internal object for Time::{gm,local}time
+    User/grent.pm        By-name interface to Perl's builtin getgr*
+    User/pwent.pm        By-name interface to Perl's builtin getpw*
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    Tie/RefHash.pm       Base class for tied hashes with references as keys
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    UNIVERSAL.pm         Base class for *ALL* classes
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Fcntl&quot;&gt;Fcntl&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+New constants in the existing Fcntl modules are now supported, provided
+that your operating system happens to support them:
+
+&lt;P&gt;
+&lt;PRE&gt;    F_GETOWN F_SETOWN
+    O_ASYNC O_DEFER O_DSYNC O_FSYNC O_SYNC
+    O_EXLOCK O_SHLOCK
+&lt;/PRE&gt;
+&lt;P&gt;
+These constants are intended for use with the Perl operators 
+&lt;CODE&gt;sysopen()&lt;/CODE&gt; and 
+&lt;CODE&gt;fcntl()&lt;/CODE&gt; and the basic database modules like SDBM_File. For the exact meaning of these and other Fcntl constants please refer to your operating system's documentation for 
+&lt;CODE&gt;fcntl()&lt;/CODE&gt; and 
+&lt;CODE&gt;open().&lt;/CODE&gt;
+
+&lt;P&gt;
+In addition, the Fcntl module now provides these constants for use with the Perl operator 
+&lt;CODE&gt;flock():&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        LOCK_SH LOCK_EX LOCK_NB LOCK_UN
+&lt;/PRE&gt;
+&lt;P&gt;
+These constants are defined in all environments (because where there is no 
+&lt;CODE&gt;flock()&lt;/CODE&gt; system call, Perl
+emulates it). However, for historical reasons, these constants are not
+exported unless they are explicitly requested with the ``:flock'' tag (e.g. &lt;CODE&gt;use Fcntl ':flock'&lt;/CODE&gt;).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;IO&quot;&gt;IO&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;IO&lt;/FONT&gt; module provides a simple mechanism to load all of the 
+&lt;FONT SIZE=-1&gt;IO&lt;/FONT&gt; modules at one go. Currently this includes:
+
+&lt;P&gt;
+&lt;PRE&gt;     IO::Handle
+     IO::Seekable
+     IO::File
+     IO::Pipe
+     IO::Socket
+&lt;/PRE&gt;
+&lt;P&gt;
+For more information on any of these modules, please see its respective
+documentation.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Math_Complex&quot;&gt;Math::Complex&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The Math::Complex module has been totally rewritten, and now supports more
+operations. These are overloaded:
+
+&lt;P&gt;
+&lt;PRE&gt;     + - * / ** &amp;lt;=&amp;gt; neg ~ abs sqrt exp log sin cos atan2 &amp;quot;&amp;quot; (stringify)
+&lt;/PRE&gt;
+&lt;P&gt;
+And these functions are now exported:
+
+&lt;P&gt;
+&lt;PRE&gt;    pi i Re Im arg
+    log10 logn ln cbrt root
+    tan
+    csc sec cot
+    asin acos atan
+    acsc asec acot
+    sinh cosh tanh
+    csch sech coth
+    asinh acosh atanh
+    acsch asech acoth
+    cplx cplxe
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Math_Trig&quot;&gt;Math::Trig&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This new module provides a simpler interface to parts of Math::Complex for
+those who need trigonometric functions only for real numbers.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;DB_File&quot;&gt;DB_File&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There have been quite a few changes made to DB_File. Here are a few of the
+highlights:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Fixed a handful of bugs.
+
+&lt;P&gt;&lt;LI&gt;
+
+By public demand, added support for the standard hash function 
+&lt;CODE&gt;exists().&lt;/CODE&gt;
+
+&lt;P&gt;&lt;LI&gt;
+
+Made it compatible with Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 1.86.
+
+&lt;P&gt;&lt;LI&gt;
+
+Made negative subscripts work with 
+&lt;FONT SIZE=-1&gt;RECNO&lt;/FONT&gt; interface.
+
+&lt;P&gt;&lt;LI&gt;
+
+Changed the default flags from 
+&lt;FONT SIZE=-1&gt;O_RDWR&lt;/FONT&gt; to 
+&lt;FONT SIZE=-1&gt;O_CREAT|O_RDWR&lt;/FONT&gt; and the default mode from 0640 to 0666.
+
+&lt;P&gt;&lt;LI&gt;
+
+Made DB_File automatically import the 
+&lt;CODE&gt;open()&lt;/CODE&gt; constants 
+&lt;FONT SIZE=-1&gt;(O_RDWR,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;O_CREAT&lt;/FONT&gt; etc.) from Fcntl, if available.
+
+&lt;P&gt;&lt;LI&gt;
+
+Updated documentation.
+
+&lt;/UL&gt;
+&lt;P&gt;
+Refer to the 
+&lt;FONT SIZE=-1&gt;HISTORY&lt;/FONT&gt; section in DB_File.pm for a complete list of
+changes. Everything after DB_File 1.01 has been added since 5.003.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Net_Ping&quot;&gt;Net::Ping&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Major rewrite - support added for both udp echo and real icmp pings.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Object_oriented_overrides_for_bu&quot;&gt;Object-oriented overrides for builtin operators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Many of the Perl builtins returning lists now have object-oriented
+overrides. These are:
+
+&lt;P&gt;
+&lt;PRE&gt;    [perlman:File::stat|File::stat]
+    Net::hostent
+    Net::netent
+    Net::protoent
+    Net::servent
+    Time::gmtime
+    Time::localtime
+    User::grent
+    User::pwent
+&lt;/PRE&gt;
+&lt;P&gt;
+For example, you can now say
+
+&lt;P&gt;
+&lt;PRE&gt;    use [perlman:File::stat|File::stat];
+    use User::pwent;
+    $his = (stat($filename)-&amp;gt;st_uid == pwent($whoever)-&amp;gt;pw_uid);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Utility_Changes&quot;&gt;Utility Changes&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;pod2html&quot;&gt;pod2html&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Sends&quot;&gt;Sends converted HTML to standard output&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;EM&gt;pod2html&lt;/EM&gt; utility included with Perl 5.004 is entirely new. By default, it sends the converted 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; to its standard output, instead of writing it to a file like Perl 5.003's
+ &lt;EM&gt;pod2html&lt;/EM&gt; did. Use the &lt;STRONG&gt;--outfile=FILENAME&lt;/STRONG&gt; option to write to a file.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;xsubpp&quot;&gt;xsubpp&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_void&quot;&gt;void XSUBs now default to returning nothing&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Due to a documentation/implementation bug in previous versions of Perl,
+XSUBs with a return type of [perlman:perlguts] have actually been returning one value. Usually that value was the 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; for the 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; but sometimes it was some already freed or reused value, which would sometimes lead to program failure.
+
+&lt;P&gt;
+In Perl 5.004, if an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is declared as returning [perlman:perlguts], it actually returns no value, i.e. an empty list (though there is a backward-compatibility exception; see below). If your 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; really does return an 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; you should give it a return type of
+ [perlman:perlguts].
+
+&lt;P&gt;
+For backward compatibility, &lt;EM&gt;xsubpp&lt;/EM&gt; tries to guess whether a
+[perlman:perlguts] 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is really [perlman:perlguts] or if it wants to return an [perlman:perlguts]. It does so by examining the text of the 
+&lt;FONT SIZE=-1&gt;XSUB:&lt;/FONT&gt; if &lt;EM&gt;xsubpp&lt;/EM&gt; finds what looks like an assignment to [perlman:perlguts], it assumes that the XSUB's return type is really [perlman:perlguts].
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;C_Language_API_Changes&quot;&gt;C Language API Changes&lt;/A&gt;&lt;/H1&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_gv_fetchmethod&quot;&gt;gv_fetchmethod and perl_call_sv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The [perlman:perlguts] function finds a method for an object, just like in Perl 5.003. The 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; it returns may be a method cache entry. However, in
+Perl 5.004, method cache entries are not visible to users; therefore, they
+can no longer be passed directly to [perlman:perlguts]. Instead, you should use the &lt;CODE&gt;GvCV&lt;/CODE&gt; macro on the 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; to extract its 
+&lt;FONT SIZE=-1&gt;CV,&lt;/FONT&gt; and pass the 
+&lt;FONT SIZE=-1&gt;CV&lt;/FONT&gt; to
+ [perlman:perlguts].
+
+&lt;P&gt;
+The most likely symptom of passing the result of [perlman:perlguts] to
+[perlman:perlguts] is Perl's producing an ``Undefined subroutine called'' error on the &lt;EM&gt;second&lt;/EM&gt; call to a given method (since there is no cache on the first call).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perl_eval_pv&quot;&gt;perl_eval_pv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; new function handy for eval'ing strings of Perl code inside 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; code. This function returns the value from the eval statement, which can be used instead of fetching globals from the symbol table. See
+
+[perlman:perlguts|the perlguts manpage], [perlman:perlembed|the perlembed manpage] and [perlman:perlcall|the perlcall manpage] for details and examples.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Extended&quot;&gt;Extended API for manipulating hashes&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Internal handling of hash keys has changed. The old hashtable 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; is still fully supported, and will likely remain so. The additions to the 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; allow passing keys as
+ [perlman:perlguts]s, so that &lt;CODE&gt;tied&lt;/CODE&gt; hashes can be given real scalars as keys rather than plain strings (nontied
+hashes still can only use strings as keys). New extensions must use the new
+hash access functions and macros if they wish to use [perlman:perlguts] keys. These additions also make it feasible to manipulate &lt;CODE&gt;HE*&lt;/CODE&gt;s (hash entries), which can be more efficient. See [perlman:perlguts|the perlguts manpage] for details.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Documentation_Changes&quot;&gt;Documentation Changes&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Many of the base and library pods were updated. These new pods are included
+in section 1:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perldelta&quot;&gt;perldelta&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This document.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perlfaq&quot;&gt;perlfaq&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Frequently asked questions.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perllocale&quot;&gt;perllocale&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Locale support (internationalization and localization).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perltoot&quot;&gt;perltoot&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tutorial on Perl 
+&lt;FONT SIZE=-1&gt;OO&lt;/FONT&gt; programming.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perlapio&quot;&gt;perlapio&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl internal 
+&lt;FONT SIZE=-1&gt;IO&lt;/FONT&gt; abstraction interface.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perlmodlib&quot;&gt;perlmodlib&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl module library and recommended practice for module creation. Extracted
+from [perlman:perlmod|the perlmod manpage] (which is much smaller as a result).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perldebug&quot;&gt;perldebug&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Although not new, this has been massively updated.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perlsec&quot;&gt;perlsec&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Although not new, this has been massively updated.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;BR&gt;[perlman:perl5004delta2|More...]&lt;BR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>417</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perl5004delta</title>
+  <createtime>1999-08-25 03:06:49</createtime>
+  <nodeupdated>2005-08-10 14:20:37</nodeupdated>
+</node>

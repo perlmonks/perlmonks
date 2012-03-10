@@ -1,0 +1,145 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>370014</node_id>
+  <author_user>357600</author_user>
+  <title>get_sitedoclet</title>
+  <createtime>2004-06-27 14:14:45</createtime>
+  <code># get_sitedoclet: $NODE_OR_NAME, @OPT_SECTIONS, %OPT_TAGS, $OPT_HASHREF
+#
+# Extracts a [sitedoclet] node from the DB, then extracts the requested
+# sections from it as specified by the array @OPT_SECTIONS.
+# Special tags are subtituted into the text if provided.
+# If using the list interface, then tagnames must be preceded by a '-'.
+# After the first such tagname is encountered everything following (except
+# a lone ref at the end) are treated as -KEY=&gt;Value pairs.
+#
+# Sections are denoted in the text as &lt;!--&amp;NAME&amp;--&gt;
+# Tags are denoted in the text as &lt;!--$NAME$--&gt;
+#
+# Tags are substituted into the text first, and this process can be recursive.
+# If no specific section is requested then the whole sitedoclet is returned
+# If $OPT_HASHREF is proved then any @OPT_SECTIONS or %OPT_TAGS settings
+# are merged into the &quot;fields&quot; and &quot;tags&quot; slots in the $OPT_HASHREF
+# Additionally various after extraction data is loaded into %OPT_TAGS for
+# return. Thus providing this parameter can be used as an alternate return
+# vector.
+#eg: [{get_sitedoclet:foobar}] returns the foobar sitedoclet
+#    [{get_sitedoclet:foobar,baz}] the baz section of the foobar sitedoclet
+#    [{get_sitedoclet:foobar,-bop,Bop}] returns the foobar sitedoclet,
+#         with 'bop' tags replaced with 'Bop';
+#    [{get_sitedoclet:foobar,baz,-bop,Bop}] returns the baz section
+#         with any 'bop' tags replaced with 'Bop'
+
+my( $name, @args )= @_;
+my $rss_link= '';
+if(  $name  ) {
+    ;
+} elsif(  'sitedoclet' eq $NODE-&gt;{type}{title}  ) {
+    $name= $NODE-&gt;{title};
+} else {
+    $name= &quot;$NODE-&gt;{title} sitedoclet&quot;;
+    # Only a superdoc can be a Section
+    if(  'superdoc' eq $NODE-&gt;{type}{title}  ) {
+        # So don't do all this work for non-superdocs
+        # If this is a Section, add an rss link for the section's nodetype
+        my $sections= getVars(
+            getNode( 'section list', 'setting' ) );
+        my $nodetypes= join ',',
+            grep {
+                s/_/ /g; 1;
+            } grep {
+                $sections-&gt;{$_} eq $NODE-&gt;{title};
+            } keys %$sections;
+        $rss_link= join( '',
+            '&lt;link rel=&quot;alternate&quot; type=&quot;application/rss+xml&quot;',
+            ' href=&quot;?node_id=30175;xmlstyle=rss;types=',
+            $nodetypes,
+            '&quot;&gt;',
+        )
+            if  $nodetypes;
+    }
+}
+
+my $N;
+if(  ref $name  ) {
+    $N= $name;
+}
+$N ||= getNode( &quot;$name sitedoclet&quot;, 'sitedoclet' )
+    if  $name !~ / sitedoclet$/;
+$N ||= getNode( $name, 'sitedoclet' );
+return &quot;&quot;
+    if  ! $N;
+$name= $N-&gt;{title};
+
+my $opts;
+$opts= pop @args
+    if  ref $args[-1];
+$opts-&gt;{fields} ||= [];
+
+while(  @args  &amp;&amp;  $args[0] !~ /^-/  ) {
+    push @{ $opts-&gt;{fields} }, shift @args;
+}
+while(  @args  ) {
+    my( $tag, $value )= splice @args, 0, 2;
+    $tag =~ s/^-//;
+    $opts-&gt;{tags}{$tag}= $value;
+}
+
+my $doctext= $N-&gt;{doctext};
+
+# do tag substitution
+for(  1 .. 10  ) {  # Only support tags nesting 10 levels deep
+    last
+        if  $doctext !~ s{ (&lt;!-- \$ (\w+) \$ --&gt;) }{
+                exists $opts-&gt;{tags}{$2}
+                    ?   $opts-&gt;{tags}{$2}
+                    :   $1
+            }gex;
+}
+
+# Parse any links and do simple substitution
+$doctext= htmlcode(
+    'parseLinksInContent','',
+    $doctext,
+    overridefilter =&gt; {
+        img =&gt; 'alt,border,height,src,width,/',
+        ul =&gt; 'class,id',
+        ol =&gt; 'class,id',
+        dl =&gt; 'class,id',
+        div =&gt; 'class,id',
+        span =&gt; 'class,id',
+    },
+);
+
+# each section is preceded by a marker like this
+my $sep_qr= qr/&lt;!--&amp;(\w+)&amp;--&gt;/;
+
+my @contains= $doctext =~ /$sep_qr/g;
+my( $single, @parts )= split /$sep_qr/, $doctext;
+if(  $single =~ /\S/  ) {
+    unshift @parts, $name, $single;
+    unshift @contains, $name;
+}
+
+# turn the sections into hashes
+my %sections= @parts;
+
+# prep for more sophisticated post processing
+$opts-&gt;{sections}=  \%sections;
+$opts-&gt;{parts}=     \@parts;
+$opts-&gt;{contains}=  \@contains;
+
+# we return the full parsed doctext if no specific fields were requested
+return $rss_link . $doctext
+    if  ! @{ $opts-&gt;{fields} };
+
+# we return the sections requested
+return join( '',
+    $rss_link,
+    &quot;&lt;!--\nbegin get_sitedoclet($name)\n--&gt;&quot;,
+    map( &quot;&lt;!--\nSection:$_\n--&gt;$sections{$_}&quot;, @{ $opts-&gt;{fields} } ),
+    &quot;&lt;!--\nend get_sitedoclet()\n--&gt;&quot;,
+);
+</code>
+  <nodeupdated>2005-08-07 09:57:10</nodeupdated>
+</node>

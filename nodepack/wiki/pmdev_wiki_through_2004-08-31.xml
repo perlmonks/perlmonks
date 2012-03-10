@@ -1,0 +1,573 @@
+<node>
+  <doctext>&lt;!-- ## DONT DELETE THIS TEMPLATE.
+## New stuff always comes at the top, even replies.
+&lt;p&gt;[name], 2004-09-01&lt;br /&gt;
+&lt;/p&gt;&lt;hr /&gt;
+
+--&gt;
+&lt;p&gt;[davido], 2004-08-31&lt;br /&gt;
+Regarding something [demerphq] mentioned a few days ago here, I would welcome a section for [PMDev], instead of the wiki.  But why stop there?  How about a [Cabal] section with subsections for each of the sub-classes?  The top level could be structured like [Catagorized Questions &amp; Answers], where Q&amp;A catagories are listed.  But instead, cabal groups would be listed.  Following the link to any of those subgroups would bring up the appropriate section.  The page layout of each sub-section would be just like [Meditations] or [Seekers of Perl Wisdom].  Read access for each section would be restricted to all Cabalists, and post access would be restricted to members of the particular sub-class.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[pelagic], 2004-08-30&lt;br /&gt;
+Thanks a lot [demerphq] and hello to all [pmdev] monks. 
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-30&lt;br /&gt;
+Please welcome [pelagic] to [pmdev]. 
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-30&lt;br /&gt;
+Its about time we create a pmdev section isn't it? seems like stuff gets lost in the wiki pretty easy.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-30&lt;br /&gt;
+Ive souped up pmdev:// links. The syntax is as follows:
+&lt;code&gt;
+pmdev://nodespec|title|alt
+&lt;/code&gt;
+where nodespec can be:
+&lt;code&gt;
+list of
+  nodename_or_id;opt_nodetype;opt_displaytype
+
+or an actual href contents, ? is mandatory
+
+  ?arg1=...&amp;arg2=...
+  ?arg1=...;arg2=...
+&lt;/code&gt;
+&lt;p&gt;
+Title is what pmdevers will see. If its empty it will be the node title specified in nodespec. If alt is provided then it is what non-pmdevers will see, instead of the usual text only version of title or the actual nodes title. Note that specifying something like &lt;code&gt;[pmdev://foo||]&lt;/code&gt; will show 'foo' to pmdev and nothing to nonpmdevers. For instance anyone in [pmdev] reading this  will be able to see the (viewcode)links on [id://72241], but anyone outside that group won't.  OTOH &lt;code&gt;[pmdev://foo|bar|baz]&lt;/code&gt; will link to foo with the text of bar for pmdev and show baz to non pmdevers.
+&lt;/p&gt;
+&lt;p&gt;
+hope you all find that useful. it should be good for pages where it would be nice to show stuff to normal users but not so nice to give them the normal pmdev links which would be off limits to them anyway. I particularly wanted them for the xml generator page as I find that is a useful reference and launch point for working on the generators but i didnt want normal user seeing a bunch of links to unviewable pages.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-29&lt;br /&gt;
+Ok, i now think differently. It seems to me that a much nicer way to implement level handling and keep things open for future extensibility is to add a rule handling framework to usergroups and isApproved(). Basically, one could create approvalrule's with code in them that determined if the USER was permitted for the node. If these approvalnode's are in the usergroup assigned then they are executed, and depending on the evals return either approve, disapprove, or pass on approving the user. This way rules can be chained together with each other and user/usergroup membership to create a fairly powerful approval system, without having to change much if any of the underlying code. Afaict the only subs that would need changing are isApproved() and possibly isGod(), which for some reason that isn't clear to me (possibly because of its high usage?) doesn't respect subgroup membership. Ie, if you add pmdev to gods noone in pmdev will get god rights. The added code to isApproved would be fairly minimal as well.
+&lt;/p&gt;
+&lt;p&gt;
+A related issue that i notice is that the nodegroup code is pretty naff. The temptation when reading it to do a complete rewrite with optimisation taking into account is quite strong. I wonder what people would of think of that. A relvent point here as well is whether this stuff is under work anyway? If i do patches in these areas will it compete with anything anyone has at home? [tye] and [theorbtwo]?
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-28&lt;br /&gt;
+Ok, so i think what you mean is that currently theres no easy way to extend permissions to a per level basis.  All the permissions I had in mind could have been handled with extra code. I've reviewed the code involved for wiki permissions and the code involved with canReadNode() and isApproved() which in turn is related to the nodegroup related routines.  A few ideas occur to me, like creating a mechansim for pseudogroups that provide a way of specifying via code whether a node is a member or not, and that build the group array by evaling code and not querying the table. Assuming most read function operate through the nodebase interface layer I think a lot of this could be managed by changing only one or two subroutines. I will continue to investigate and welcome other ideas. 
+&lt;/p&gt; &lt;hr /&gt;
+&lt;p&gt;[tye], 2004-08-28&lt;br /&gt;
+&quot;all you would do is override the display page to add the permissioning&quot;
+&lt;/p&gt;&lt;p&gt;
+Having 'read' permissions that are not handled by canReadNode() is a pretty fundamental problem.  I really think we should fix this problem for [wiki]s *before* compounding the problem with a new case and we should have canReadNode() handle the new case before it is made public.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-28&lt;br /&gt;
+&lt;p&gt;
+First i changed the pmdevnodelet a little bit, removing the &quot;lister&quot; part of the links. I also added a [Type Tree|new view], which shows the class heirarchy.
+&lt;/p&gt;
+&lt;p&gt;
+This following is in response to a discussion with [castaway], [theorbtwo], and [bart] (who is now in [pmdev]) about possible future direction of the scratchpads. The overall direction is to have multiple pads, with possibly fine grained permissions on viewing. In simple terms consider the basic split of public/private. The idea is to abstract that into two nodes. This rant describes my position on how it should be done at this time.&lt;/p&gt;
+&lt;p&gt;
+I think that we aught to make 'scratchpad' essentially a base class. And restrict its relationship to users to s1:u0/1. Then create a subclass with private semantics (actually id prefer ACL type permissions, possibly via the group mechanism).  The subclass can then have a sN:u1 relationship to users. 
+&lt;/p&gt;
+&lt;p&gt;
+&lt;pre&gt;
+privatepad isa scratchpad (uses scratchpad table)
+
++--------+   1:0/1    +--------------+
++  User  +-----------&gt;+  scratchpad  +
++--------+&lt;...........+--------------+
+       ^      1:1
+       |
+       | 1:N  
+       |
+       |
+    +--------------+
+    | +-------------+
+    | |             |
+    | | privatepad  |
+    +-|             |
+      +-------------+
+&lt;/pre&gt;
+&lt;p&gt;
+As far as I can tell the only thing that seperates the privatepad is the permissioning system so all you would do is override the display page to add the permissioning.  I think this is a lot simpler than making the users &quot;public pad&quot; (ie what pad://) renders to dynamic. it seperates the concept of the &quot;the users pad&quot; from the concept of the &quot;users selectively viewable pad&quot;. 
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[diotalevi], 2004-08-26&lt;br /&gt;
+[id://386111] fixes a UI bug where reasons longer than 80 characters are accepted but are truncated if too long.&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[crazyinsomniac], 2004-08-28&lt;br /&gt;
+I am against doc:// changing.
+I would rather we add a cpandoc:// or cpanp:// shortcut.
+
+&lt;/p&gt;
+&lt;p&gt;[tye], 2004-08-24&lt;br /&gt;
+&lt;code&gt;[doc://sort]&lt;/code&gt; takes me to the [doc://sort] function documentation while &lt;a href=&quot;http://search.cpan.org/perldoc?sort&quot;&gt;http://search.cpan.org/perldoc?sort&lt;/a&gt; takes me the documentation for the 'sort' command line.  I expect the former so I'm not sure the latter is always a better choice.  I haven't looked at other cases much at this point.
+&lt;/p&gt;
+
+&lt;p&gt;[ysth], 2004-08-24&lt;br /&gt;
+I would also advocate switching doc:// to use search.cpan.org/perldoc, but
+there are drawbacks: &quot;latest version&quot; literally means &quot;latest version&quot;, not highest version.  If a 5.9.2
+is released, doc will be found in that instead of 5.8.5.  If a 5.6.3 is
+then released, it will switch to returning doc from that.
+&lt;/p&gt;
+&lt;p&gt;[Aristotle], 2004-08-24&lt;br /&gt;
+Can someone change the [id://43235] for &lt;tt&gt;doc&lt;/tt&gt; to &lt;code&gt;return qq[&lt;a href=&quot;http://search.cpan.org/perldoc?$escapedname&quot;&gt;$cpantitle&lt;/a&gt;];&lt;/code&gt; ? The interface at Perldoc.com sucks; with the current handler, &amp;#91;doc://perl58delta] can't do the right thing. The search.cpan.org lookup is guaranteed to work for any complete filename, and returns the latest version available. The breadcrumb navigation also makes it easier than on Perldoc.com to navigate versions.&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-24&lt;br /&gt;
+ysth: Nothing to apologise for. I should have been more careful in explaining my intentions, and in the long run its probably worked out for the better.
+&lt;/p&gt;
+&lt;p&gt;
+tye: I added some class and id tags to the nodelet output (in a somewhat hackish but functional way IMO) that enables the headers rows to be easily individually or collectively styled. This means that you can remove specific headers from view so as to merge nodelets. IMO this means that we can apply KISS to the nodelet content and still be able (with a modicum of hassle) to style it so it looks ok. For instance i have the PmDev, Domain, Synch and Admin nodelets in a row, with the latter three with header disabled so it looks like one big nodelet.
+&lt;/p&gt;
+&lt;p&gt;
+The html currently looks like:
+&lt;code&gt;
+&lt;tbody class = &quot;nodelet&quot; id = &quot;Synch_Nodelet&quot;&gt;
+  &lt;tr class=&quot;nodelet_head_row&quot; id = &quot;nodelet_head_row_Synch_Nodelet&quot;&gt;
+    &lt;th class=&quot;nodehead&quot;&gt;
+      Synch Nodelet
+    &lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;tr class=&quot;nodelet_body_row&quot; id = &quot;nodelet_body_row_Synch_Nodelet&quot;&gt;
+    &lt;td class=&quot;nodebody&quot;&gt;
+    ...
+&lt;/code&gt;
+which in short means that the class=&quot;nodelet_(body|head)_row&quot; and id=&quot;nodelet_(body|head)_row_Nodelet_Name&quot; are the conventions. Enjoy
+&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[ysth], 2004-08-23&lt;br /&gt;
+I apologize for having change to the nodelet without waiting for your input, [demerphq].  I had noticed that the nodelet doc was out of date and wanted
+to go ahead and update it while it was bothering me, and not have the nodelet
+become public just afterwards leaving the doc out of date again.
+&lt;p&gt;
+Something we all might be more cautious of is putting unfinished work out there
+(whether just as a patch or actually creating a node or approving a patch)
+without publicizing that it is &quot;in progress&quot;.  It just takes a moment to
+leave a note here in the wiki; even just putting a # work-in-progress comment
+in the code can help prevent confusion.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-24&lt;br /&gt;
+[tye]: Ok, well obviously you feel strongly about this. As I said I didnt intend this to go beynd PMDev until I had fully tricked it out, but figured you all would like to use it as it evolved. 'Domain Nodelet' was just a working title, that I guess you folks liked more than I realized. :-) Anyway, my problem with KISS to the extent I feel you want is that it means the nodelets are almost empty. As it is I personally dont see how to turn off specific nodelet heads (so as to merge nodelets) and as such dont really see how to get what I'd like to see without having half of the space devoted to the nodelet titles. So perhaps the real solution is that. Figure out a way to turn off the head row, and thus let nodelets merge tighter.
+&lt;/p&gt;
+&lt;p&gt;
+Anyway, i changed get_picked_nodes to automatically sort out the problem that happened today, and also added a few other tweaks like [new_xml_fling] usage and some styling on nodelets. Im not sure how to use them properly though, but im sure some artistic type will. Cheers,
+&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[Corion], 2004-08-23&lt;br /&gt;
+Just a stupid idea - couldn't we &quot;just hack&quot; the normal Personal Nodelet to show a star for all nodes that have been changed since we last viewed them? Or for all nodes that are Wikis? This would solve the problem by shoving it to every user. But I haven't looked at what changes would be involved, and now thinking about it, it would involve much special casing for the relevant (wiki) nodenumbers. But I still want to throw that idea out there...
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[castaway], 2004-08-23&lt;br /&gt;
+I'm not sure what that improves, that nodelet would then be seen by everyone as how they see the group-specific nodelets now? (It would collect all the code together, but..) One could certainly remove the cabal wiki link from the group nodelets, I'd prefer the group-specific wikis stayed though.. Yes, we have dupe information again, but they're specific to those groups. Also, by removing the cw link from editors nodelet and pmdev nodelet, I hit again that problem that those two are near the top of my screen and thus visible, and the cabal nodelet isnt. More complex idea: Only have the links in the group nodelets show up when theres new wiki stuff one hasnt seen? (To post to wikis, the cabal nodelets link could be used.)
+&lt;hr /&gt;
+&lt;p&gt;[davido], 2004-08-22&lt;br /&gt;
+Perhaps there should be a single nodelet for all cabalists; the Cabal Nodelet.  The nodelet should autodetect the clans to which the user in question is a member, and should display the fields for those clans' tools.  An HR could separate the different clans' tools.  We would save screen realestate, consolodate links (only one link to Cabalists wiki, for example), and focus the future refinement and development on only that one nodelet rather than having several to maintain.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-08-22&lt;br /&gt;
+I'm not against certain key items being shown in more than one nodelet when there is good reason.  But keep the repetition under control (and keep each nodelet true to its name and having a clean design / clear purpose).  For example, how many more links to the cabal wiki do I need?  It at least shouldn't be in the admin nodelet (but should be in the gods' arcade) since gods likely have it in a ton of other nodelets already.  I'd rather it only be in the cabalists' nodelet.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[castaway], 2004-08-23&lt;br /&gt;
+[tye]+++&lt;br /&gt;
+There is however, one small argument for having some information in multiple nodelets.. Turning on a whole nodelet in order to have one small piece of information extra, like for example the nodeid, is kinda of overkill. (Example: Node Status nodelet and nodeid, if it was only there, Id have to turn it on and stick it next to editors nodelet, in order to get the usability I have now.) Two arguments in fact, one simply cant have every nodelet, next to every other nodelet (thus pmdev next to editors next to approval next to status, etc), so one has to scroll to find some info.
+&lt;p&gt;
+That said, I would appreciate some thought going into what information appears where. I thought we'd fixed this last time around. It certainly works quite well, at the moment. You just cant please all of the people, all of the time.
+&lt;p&gt;
+BTW, we're experimenting with the expand/collapse nodelet stuff on the pmdev machine, for everyone. I see no reason it should be restricted to a certain list of people, and it should help improve this situation.
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-08-22&lt;br /&gt;
+What does node ID have to do with &quot;domain nodelet&quot;?  It appears your design is based on &quot;things [demerphq] wants at the top of his nodelets&quot;.  You should remove the checkbox from the already-crowded [user settings] and let &quot;domain nodelet&quot; fit its succinct and descriptive name.  That would be a nice, clean design, worthy of KISS.
+&lt;/p&gt;&lt;p&gt;
+If you look at what people (other than [demerphq]) might want, I think you'll notice that many people have absolutely no use for the domain nodelet and yet would like to have the node ID or other things that you wanted to stuff into your central place.  So make this central place a separate nodelet and try to give it another clean, coherent design that leads to a great descriptive name like &quot;domain nodelet&quot;.  But don't mix the two.  You can put these *two* nodelets at the top and still have what you want (unless you are one of the &quot;picky people&quot; you complain about).
+&lt;/p&gt;&lt;p&gt;
+So, what *should* be in the node title area?  I think it should match stuff that is displayed in the title area for replies.  Title, author, creation date, last-edit date (when we get this working well), node ID, unusual status such as consideration (and when we get the ability to mark a reply as off topic).
+&lt;/p&gt;&lt;p&gt;
+The &quot;print&quot; links make some sense to me to include here as these are things likely to be used by casual visitors who likely expect (based on what I see on other sites) such in a header not a sidebar.  But collecting such things that casual users are likely to use into a single nodelet that default to near the top would also make sense to me.  (print, w/ replies, plain (replaces the node-id as link), maybe readless/readall, etc.).
+&lt;/p&gt;&lt;p&gt;
+I'd also like the section information (which is similar to 'node type') in the title area, though not for replies.
+&lt;/p&gt;&lt;p&gt;
+Your 'central location' (the few specifics you've given) sounds to me like what 'node status' nodelet should become.  I could go for deleting node status reporting from the approval nodelet so the nodelets are more specialized which gives users more control.
+&lt;/p&gt;&lt;p&gt;
+And I'd rather keep pmdev stuff in the pmdev nodelet (same for other group-specific features).  It makes for less conditional stuff within a nodelet, which also shows that the design is cleaner (which has lots of advantages: easier code maintenance, easier to userstand for user and coders, easier to find things, more likely to get agreement on design, easier to document, etc.).
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-22&lt;br /&gt;
+(sorry for the rambling text, in a rush right now, will clean up later)&lt;br/&gt;
+Well, I didn't want to announce this beyond PMDEV for the time being, as I want to extend it with some other useful information. Oh Well. As it is I've put a few changes into place anyway, but optionally. The first change is that is it'll now display a id://123 type text like some of the other nodelets. some minor differences is that this is optional, and has extra class atributes (see below.) I like this because I leave the domain nodelet as my top nodelet, And i want the info there. I think perhaps we should move the #123=type: stuff off the top, and put it here too. As well as (re)moving the other id info links in the other nodelets. We can have some configuration so that picky people can have it their way, but overall this could serve a central point for this info. As it is, ive put an &quot;Extras in domain nodelet&quot; checkvar on user settings so that you can add this as you like. the following style may be interesting as well:
+&lt;code&gt;
+      p.domain_link { text-align: center; }
+      span.currentdomain { font-weight: bold; }
+
+      span.node_id { font-weight: bold; }
+
+      //.nodelinkbreak
+      //.nodelink
+      //.domainlink
+      //.wwwdomainlink
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;
+Also, ive added an xmlstyle attribute to user settings. Currently this will only affect the node xml view and a few of the tickers that use the [new_xml_fling] htmlcode, however ultimately id like to move all the tickers over to using this so that we can centralize the ticker output behaviour. One node that poses some problems in this area is the [New Chatterbox XML Ticker] which has a very specific output format. Thought required on this aspect of things.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[ysth], 2004-08-21&lt;br /&gt;
+The domain nodelet is well done, but I don't think it should be limited to pmdev; could you add it to [sidebar nodelets]?  I'm going to try to go through the nodelets and make sure they all have at least some mention on [id://239623] documentation soon, and mention which ones have group limitations.  Anyone see any problem with that?
+&lt;p&gt;
+Update: after discussion with [theorbtwo] we made [Domain Nodelet] available to all, and I documented all the nodelets but the gods-only ones.  [demerphq], do you want the privilege of announcing the new nodelet via PMD?
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-21&lt;br /&gt;
+Ive seriously souped up [handle_xml_view] to handle a lot more scenarios and to be more or less completely settings driven. In the process ive added xml output for settings, usergroups and users as well as pmmodules. Adding new xml views is now really simple, so if you see a node or nodetype that needs special handling it should be fairly simple to put it together. Those that do start looking into the XML should probably use
+&lt;code&gt;
+return &quot;Error creatng fling object&quot;
+  unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle));
+...
+$xml-&gt;element('blah') unless $xmlstyle{flat};
+...
+return join '',@data;
+&lt;/code&gt;
+to create the xml object. This will automatically handle various xmlstyle conventions and is I think fairly easy to use. Having said that I havent modified any of the tickers to use it, although I will soon.
+&lt;/p&gt;
+&lt;p&gt;
+[gods] may notice that i have modified the way the settings edit page looked, making the autovalue text boxes optional (and defaulting to off). IMO they arent needed much. Other sundry patches include some tweaks to the diff_strings so that code with getNode() calls (typically settings) autolinks the node name.
+&lt;/p&gt;
+&lt;p&gt;
+thats about all for now. bye.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[castaway], 2004-08-19&lt;br /&gt;
+My suggestion for posting that list of CSS classes, would be as a Faqlet listed in the Perl FAQ somewhere. With possibly an accompanying PMD to announce it.
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-19&lt;br /&gt;
+I [htmlcode]ified [Search Internal Code] in order to provide XML [handle_xml_view|passthrough] on the [search_internal_code|functionality]. If you set 'searchterms' to a semicolon seperated list of items to search for and call it with displaytype=xml mode youll get a search response set included with the usual XML info. Its possible error handling under xml needs enhancement though, what do you all think?
+&lt;/p&gt;
+&lt;p&gt;
+I've also made a stab at making the xml view of [pmmodule]'s include the file source. The problem now is to modify [handle_xml_view] to do the addtional dispatch. Which probably should involve a rewrite of it so that this type of thing can be controlled via settings without needing code modifications. Currently each special type is handled through its own snippet, so I was thinking that we might use a similar strategy to what handleLinks() uses. So expect a reorg of [handle_xml_view] with this type of thing as the goal.  Comments and suggestions welcome.
+&lt;/p&gt;
+&lt;p&gt;
+Oh and lastly for those of you who have multiple user accounts attached to the different domains that PM runs under I have put together the [domain nodelet] with that each domain is just a click away.
+&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-17&lt;br /&gt;
+Updated and swapped the last two columns in the second table as per a suggestion by [tye].
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-16&lt;br /&gt;
+Updated the chart below. its now  a table and has id information. I think pmdev should review it and clear up some nits with it before we post it though. Also, this is from data from a while ago so it may not have picked up any new patches that have been applied.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2004-08-13 (Friday)&lt;br /&gt;
+Added privatemessage, privatemessagefrom, and privatemessagefrom_$N to [showprivatemessages].  (Where $N is the node_id of the author.)  This should probably be someplace user-visible.
+&lt;/p&gt;
+&lt;hr/&gt;
+
+&lt;p&gt;[demerphq], 2004-08-12&lt;br /&gt;
+Not sure where or if to post the following. Please review.
+&lt;i&gt;out of date table removed to conserve space and minimize confusion&lt;/i&gt;
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[castaway], 2004-08-10&lt;br /&gt;
+While we're at it, and cos I've not seen it explained anywhere.. Is there an actual policy of sorts who should add things 'ToDo'? Is it more of a 'work in progress' list, or a 'things we're planning to do, someday'? (looks like both, at the moment..)
+&lt;p&gt;
+I second tye btw, that having stuff in both wikis for the same 'job' just makes things overly complex.
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-10&lt;br /&gt;
+Okey dokey. Sounds good to me. Keep the system but wipe change entries older than a month or so, and dont bother logging trivial changes. 
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-08-10&lt;br /&gt;
+I don't look forward to every change to the to-do wiki making both wikis show as updated so that I have to go look two places to see the description of what was changed, see the results of the changes, and reset both bits so that the &quot;changes made&quot; flags go away.  I don't think that every change to the to-do wiki warrants a permanent record of the explanation of the change.  I don't think separating the documentation of the changes away from the changes will lead to good documentation of the changes.  I don't look forward to having to update two wikis every time I want to change something in the to-do wiki.  I don't look forward to seeing that the to-do wiki has changed but not being able to tell how because someone didn't feel like updating the other wiki (or because I'm victim to the race condition inherent in updates being spread across two wikis).
+&lt;/p&gt;&lt;p&gt;
+If something warrants comment in the pmdev wiki (or perhaps cabal wiki), then comment on it there.  But if you update the to-do wiki, I think things will work best if the update is explained *in that* wiki.  Also note that when you add an explanation for your change, you can (and should) delete the oldest explanations such that about the previous month of change explainations are available.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-10&lt;br /&gt;
+I've updated a few things as complete in the todo list as per [castaway] noting it. Im wondering if we shouldnt change the conventions of that page. I think we should note nontrivial changes to it here, and leave it with just a list of todos. When something is done we just note that its done here and delete the relvent item outright. The wiki is versioned so its easy to see who did what (for editors anyway). 
+&lt;/p&gt;
+&lt;p&gt;
+Also some of the things on the todo list are I think done, but im not sure exactly. Such as some stuff to do with the CB being cached and the switch over to handleLinks or whatever. I think spending a little more time and attention to that wiki will pay off. &lt;!--test--&gt;
+&lt;/p&gt;
+&lt;hr/&gt;
+&lt;p&gt;[castaway], 2004-08-10&lt;br /&gt;
+It's certainly the 10th here. :)
+&lt;p&gt;
+IMO, a Tutorial should be a community effort, and thus somehow editable by all (from a certain level?) like a wiki. But since I doubt that's going to happen all too soon, I would suggest that the tutorials dbtable also have an 'obsolete' flag, which can be set by editors, or somehow voted upon via consideration, which would then cause said tutorial to not be shown on the Tutorials page. While I'm at it, it should be possible for editors to 'SoPWify' tutorials that aren't, similar to how Q&amp;A works. (Though I believe that mis-placed tutorials happen less often, probably due to the level limiit on writing them..)
+&lt;hr /&gt;
+&lt;p&gt;[ysth], 2004-08-09&lt;br /&gt;
+What happens when a tutorial is replaced by something better?  It shouldn't be reaped or moved IMO; it should just be unlinked.  How to flag these to not show up?  (Update: corrected date back to 08-09; [castaway] had me fooled for a moment.)
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[castaway], 2004-08-10&lt;br /&gt;
+The pmdev todo wiki is looking a little abandoned of late. There are several things there on the 'to be done' list which have been done.. We should at least strike through the done ones, methinks..
+&lt;p&gt;
+Also, I've added a todo to the list about automating Tutorials. Comments in this Wiki please.. Is there anything I've missed, or any glaring reasons why one shouldnt automate it?
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-07&lt;br /&gt;
+proposed new text for the XP ticker to reflect [id://381019]:
+&lt;ul&gt;
+    &lt;li&gt;[id://16046]&lt;blockquote&gt;
+        Returns XP and other basic information for a requested user.
+        If the &quot;votesleft&quot; field is not required,
+        ';for_user=&lt;i&gt;username&lt;/i&gt;' or
+        ';for_userid=&lt;i&gt;&amp;lt;home node ID number&amp;gt;&lt;/i&gt;'
+        can be used, which avoids requiring a login.
+        Otherwise returns information for the logged-in
+        user (or for [Anonymous Monk] if no login).
+        If showlevels=1 is provided then the response set 
+        will include additional elements describing 
+        the levels in the [voting/experience system].
+        Also accepts the xmlstyle attrbute 'clean'.
+    &lt;/blockquote&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-07&lt;br /&gt;
+Applied. 
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-08-07&lt;br /&gt;
+Ok, [id://380642] has the full implementation. End marker, and size checks. I also added in a preview button. 
+&lt;/p&gt;
+&lt;p&gt;
+It seems a candidate for an overhaul though if somone wants a pet project.
+&lt;/p&gt;
+&lt;p&gt;[ysth], 2004-08-06&lt;br /&gt;
+Sorry, I was conflating the two cases, and had just taken a very quick look over the patch and didn't see size being shown.
+&lt;/p&gt;
+&lt;p&gt;[demerphq], 2004-08-06&lt;br /&gt;
+Yeah I recall [tye] mentioning that, and my first draft went along those lines, but as I was only thinking of the first case that [tye] mentions below I decided against it. My reasoning was that the mere presence of an end marker doesnt mean that when that data is committed that it will be of the correct size. So the in memory version of the object would have the full wiki content, but the in DB version would be truncated. I hadnt considered the problem of browsers truncating the field at smaller sizes than the DB would. I guess Ill do something about that later.
+&lt;/p&gt;
+&lt;p&gt;
+Regarding byte count, the patch as applied shows the byte count when using the edit page regardless. It would be next to the 'doctext:' text above the text box. It also advises [gods] to rotate the wiki, and will NOT show a text box for non-gods when the size is over a critical threshold.
+&lt;/p&gt;
+&lt;p&gt;
+So as long as folks dont see any problems with this Ill apply it and we can add the end marker stuff at a later point in time.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-08-06&lt;br /&gt;
+Note that there are two issues.  The DB truncates above 64kB.  We've had problems with browsers truncating before that.  [demerphq]'s patch addresses the former.  My idea that [ysth] describes below was to cover the latter.  The latter may or may not still be a problem now that we don't use url-encoded forms for wikis.
+&lt;/p&gt;&lt;p&gt;
+Display the byte count *always*.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[ysth], 2004-08-06&lt;br /&gt;
+[demerphq], did you see [tye]'s suggestion for how to do this earlier?  Something like putting a &quot;end of wikitext , don't remove this&quot; at the
+end of the text as it appears in the form (but not in the database), and
+verifying that it's there (and removing it) when the form is submitted.
+It may be one or two wiki pages back.  Displaying a byte count once the
+wiki is &gt; 50k might be nice too.
+&lt;p&gt;
+
+&lt;p&gt;[demerphq	3;, 2004-08-06&lt;br /&gt;
+I put together something to prevent wikis from getting truncated and to alert folks when wikis should be rotated. Comments appreciated. Code in [id://380642] has been applied and relatively well tested on the test server.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[belg4mit], 2004-08-06&lt;br /&gt;
+I should think a very tolerable and easy, thought not 100% fix would be to
+make this a level power for s/o level 4 or so. Likewise, unifying the property
+for all categories of root nodes. Also, make the appropriate FAQ entry more
+prominent like including it in the sign-up email? Lastly, it seems like perhaps
+forcing a preview (even if the user hits submit) when a nodes content has significantly changed perhaps defined as decreased by X%) might be a good idea?
+In fact, I think forced preview on modifying an existing node might not be such
+a bad idea in general.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[BigLug], 2004-08-06&lt;br /&gt;
+I'm wondering if allowing people to edit root nodes is a good idea. Time and again I see root nodes that have been zapped. Sometimes because the user realised they already knew the answer, in the [id://380351|most recent case] because they received an answer. I wonder if we shouldn't either only allow appends (smaller hassle) or if we should provide diffs against the history of nodes (a lot bigger hassle)&lt;/p&gt;&lt;hr /&gt;
+
+
+&lt;p&gt;[tye], 2004-08-05&lt;br /&gt;
+FYI,
+&lt;/p&gt;&lt;blockquote&gt;&lt;i&gt;
+It requires that all who wish to see Q&amp;A nodes listed go to [user settings]
+&lt;/i&gt;&lt;/blockquote&gt;&lt;p&gt;
+I don't consider that an acceptable fix.  I don't have time to look at it now, however.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[davido], 2004-08-05&lt;br /&gt;
+At what point did this break?  I am sure I used to see Catagorized questions, as well as answers in [Newest Nodes].  Am I just manufacturing a memory?
+&lt;/p&gt;
+&lt;p&gt;[castaway], 2004-08-05&lt;br /&gt;
+Just finished patching it.. The nodetype names have spaces, the settings fields have (and have always had, apparently), underscores. The patched code works on the pmdev server. It requires that all who wish to see Q&amp;A nodes listed go to [user settings] and choose them from the list of types to show, where they now appear.
+&lt;hr /&gt;
+&lt;p&gt;[ysth], 2004-08-05&lt;br /&gt;
+[crazyinsomniac] pointed out in the CB that [Newest Nodes] isn't showing a new categorized question.  I see in the [newest nodes setting] that there's a mismatch: categorized question and categorized answer have spaces in the values for the nodetypes* settings but _ where they appear as settings, which would cause the problem.  Don't have time to look if there is also a problem in the user settings stuff.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[tye], 2004-08-03&lt;br /&gt;
+Regarding:
+&lt;/p&gt;&lt;blockquote&gt;&lt;i&gt;
+As a favour to me, can someone please do whatever testing and what not, load testing or what have you, and finalaize what max_poll_seconds should be?
+&lt;/i&gt;&lt;/blockquote&gt;&lt;p&gt;
+You appear to not understand (and, no, I'm not talking about 'min' vs. 'max').  There is no final value.  There will never be a final value.  You should read the current value from the ticker (each time you fetch that ticker) and not refetch that same ticker for at least that many seconds.
+&lt;/p&gt;&lt;p&gt;
+And [demerphq] is telling you that you can implement that *now* for all of the tickers so long as you deal with that value not being present.
+&lt;/p&gt;&lt;p&gt;
+Clients should allow the user to configure how fast to refresh and should default to something longer than the min_poll_seconds (because the default should be a middle-of-the-road value while the min is, obviously, a minimum).  You have some default polling intervals now.  When minimums get assigned or updated, you may want to change some of those defaults in a future release.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-03&lt;br /&gt;
+All im saying is that you can assume that all of the XML tickers that include an INFO element will at some point provide a 'min_poll_seconds' attribute. When you implement the code required to respect it is your call. :-)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[sporty], 2004-08-03&lt;br /&gt;
+the max_poll_seconds snafu was a copy paste error from your own entry.  &lt;blockquote&gt;&lt;i&gt;&quot;... respects the max_poll_seconds attribute soon enough and once he has we can tune it ...&quot;&lt;/i&gt;&lt;/blockquote&gt;
+The other ticker polling i do are currently defaulted to things tye and i discussed a long time ago.  Something like the user xml ticker is updated once every 120 seconds, so i poll about every 90 seconds.  The chat ticker i poll every 9 or 10 seconds.  
+&lt;p&gt;
+I'm planning on implementing it totally, there's no qualms with that.  But I rather start respecting them when those times are finalized.  The feeling i get from tye, is i'm doing the right thing in terms of my polling time right now.  Unless its urgent, I rather release slowly and planned.
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;[demerphq], 2004-08-03&lt;br /&gt;
+sporty:Im not really sure what you mean by &quot;max_poll_seconds&quot;. The ticker already has 'min_poll_seconds' included in the INFO element. Assuming you mean the others, just code with some other reasonable to you default but assume that its there and respect it when it is. As we can well add them in.
+&lt;/p&gt;
+&lt;p&gt;
+Regarding the scratchpad problem it looks like its solved. It was a *stupid* oversight, that used_id 113 doesnt have update privs (isnt in gods) so cant be used to update a user. *doh*
+&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[sporty], 2004-08-03&lt;br /&gt;As a favour to me, can someone please do whatever testing and what not, load testing or what have you, and finalaize what  max_poll_seconds should be?  I'll wait a week before I try another release.  It's easier on sundays incase i release something broken.  (I released 20040801 4 times serially. :\)
+&lt;/p&gt;&lt;hr /&gt;
+
+
+&lt;p&gt;[tye], 2004-08-03&lt;br /&gt;
+Ah, since_id certainly (should) make queries low impact.  Nevermind me. (:
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[sporty], 2004-08-03&lt;br /&gt;
+
+[tye]: It was a miscomunique between q and myself about three weeks ago  He explained that we could poll even so many times a minute, and I took it to heart thinking that it was a statement of fact to use.  I'm re-reducing it.  I like q's patch since ignoring it is a lot harder.  I'd hope to see all tickers give this type of info.  [demerphq], any chance we can get the PMXT to use epoch for all timestamps?  [castaway] informed me it was all in edt.  
+
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-03&lt;br /&gt;
+Yes I know, in fact it was that discussion that motivated the changes to the feed remember? Anyway, i think [sporty] got a bit muddled and assumed that once he was using the since_id stuff that 10 seconds was the right interval. I know that prior to his latest rollout he was using a much lower frequency poll. But of course his latest rollout is quite popular (and rightly so, its a nice piece of work IMO) and so we are now getting quite a few hits. You gods can get an idea of the traffic involved by having a gander at [tail trace log]. 
+&lt;/p&gt;
+&lt;p&gt;
+Anyway, im sure hell roll out a new version that respects the max_poll_seconds attribute soon enough and once he has we can tune it from PM directly. 
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-08-03&lt;br /&gt;
+10 seconds??  I told [sporty] that such was *way* too fast for private messages a *long* time ago.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[ysth], 2004-08-03&lt;br /&gt;
+In addition to that, seems like it might be a net win to have [chatterbox xml ticker] include a last private message id, so clients can know whether to refresh private messages.  (This would be optional, to avoid a query for clients that didn't use it, and it would be recommended to only ask for it
+every private-message-poll-rate seconds.)
+&lt;/p&gt;
+
+&lt;p&gt;[demerphq], 2004-08-03&lt;br /&gt;
+Katterbox is refreshing the private messages every 10 seconds. This is too fast in my opinion. I asked sporty to change it to every 30 seconds and he said he would comply in the next release. However he recommended that we provide a node that clients can fetch to get the recommended poll rates. I like this idea in principle, and posted a [id://379719|patch] that would add this information to the INFO tag (in the poll_rate attribute) that is provided with the [Private Message XML Ticker] (and all of the other tickers.) This would mean that the [gods] could slow down compliant clients by modifying this value. We could even get ambitious and make the value returned a setting and add this information to all the tickers. 
+&lt;/p&gt;
+&lt;p&gt;
+Also I rotated the wiki contents today. Weve been overwriting the bottom for sometime now.
+&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-08-01&lt;br /&gt;
+Ok, sometime in the next day I will apply [id://377056]. This will result in the default behaviour being to return the latest 20 messages. prior_to and from_id are supported. 
+&lt;p&gt;&lt;hr /&gt;
+&lt;p&gt;[ysth], 2004-07-28&lt;br /&gt;
+[id://378155] demonstrates that [reapnode] doesn't handle snippets appropriately.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[castaway], 2004-07-27&lt;br /&gt;
+People that are trolls in places other than the CB, haven't you been listening at the back there? ;)
+&lt;hr /&gt;
+&lt;p&gt;[grinder], 2004-07-27&lt;br /&gt;
+What is it that having one of the [Power Users] send the troll to [borg's belly] for a while cannot fix? (Apart from enraging [chip] of course :)... Hmm, apart from the fact that most of that list is rather obsolete. [Corion] should be there for starters, he's &lt;b&gt;always&lt;/b&gt; around!
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[davido], 2004-07-26&lt;br /&gt;
+Ok, it's a can of worms, and I'll withdraw my support (it was shakey in the first place...mostly bouncing a thought off a group whom I know can put things in perspective.  Thanks for listening. ;)
+&lt;/p&gt;
+&lt;p&gt;[castaway], 2004-07-26&lt;br /&gt;
+I agree, that if we want to start 'encouraging' people to follow the 'rules', that the punishment should fit the crime somehow.. For the CB, we already have the powerusers ability to borg people who cause a ruckus. I don't think removal of CB privs will help improve anyone who is posting unwanted/bad stuff. The question is how to do this without also removing the ability to redeem onesself? On the posting side, the only thing I can think of at the moment is to disallow posting of root nodes, but allow posting replies. Thus whomever will be 'encouraged' to post useful replies, to regain some XP (reputation), in order to be able to ask questions again. I'm not sure if this should extend to all Sections.. OTOH some people will not care, and just post their question to CuFP or whatever, if SoPW is disallowed, and it will get moved to the appropriate place.
+&lt;p&gt;
+Thinking of powerusers, I'm also not sure if this removal of privs should be automatic, or some appropriate experienced group should have the ability to do it. Both possibilities have biases.
+&lt;p&gt;
+BTW, IMO there should be no exceptions, even if well established..
+&lt;p&gt;
+Random thought: This whole thing (which probably wont get anywhere), is contributing towards forcing people to 'conform' to 'our' (the majoritys) view of how things should be done. Posts showing alternate ways of doing things (using eval comes to mind), ones without strict (oh horror), etc get downvoted for various reasons, not all of them logical. Yet Perl encourages TMTOWTDI.. Thus, if implemented, it should be a thing for long-time 'offenders', real trolls, and not just someone who is new, has less of a clue, or their own unique style. A automated system going on just the amount of negative XP one has can't do this.
+&lt;p&gt;
+Random thought 2: Maybe instead of one group of people determining privs to remove/allow, it could be a voting thing... ?
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-07-25&lt;br /&gt;
+I don't recall freak nor chiburashka showing much interest in the CB.  I see little likely positive effect from CB punishment for XP loss and I do see likely negative effect.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[davido], 2004-07-25&lt;br /&gt;
+Maybe I didn't express myself well.  It's commonly thought that one of the successes of the Monastery (and one of the reasons that people keep coming back) is the chatterbox.  The idea is that someone solidly in the negative XP needs a wakeup call to incentivize him to turn it around.  The CB is a no-harm incentive.  I'm not talking about penalizing someone who has a low quality first post.  I'm talking about nudging back in the right direction someone who has gone into seriously negative numbers... a troll.  And if the CB is what keeps people coming back (among other things), temporarily taking it away may disincentivize the trolls from returning.  The threasholds will need to be discussed and agreed upon, set to levels that don't trap the first-post initiate who just got it all wrong the first time.  But remember, to get to negative five XP on the first post, someone would probably need to hit somewhere around -8 on the first post.  Maybe that's too low a threashold...maybe it should be negative 10 for lost of CB posting privs.  But again, it's just an idea, and maybe a dumb one.&lt;/p&gt;
+&lt;p&gt;
+At any rate, this isn't really our call anyway; it would have to come from the [gods], IMHO.
+&lt;/p&gt;
+&lt;p&gt;[BigLug], 2004-07-26&lt;br /&gt;
+Hang on a sec! I can't believe this! We're going to penalise someone in the CB for losing XP? That sounds crazy. It's easy to lose XP because you ask a question that everyone thinks is stoopid. Or if you post a reply that is unpopular. If you're trying to get rid of CB trolls then make the decision based on something in the CB. Like particular classes of monks that can &lt;code&gt;/gag $username&lt;/code&gt;. Or if enough monks use &lt;code&gt;$username--&lt;/code&gt; or &lt;code&gt;/ignore $username&lt;/code&gt;. Any such ban should only be in place for a short period of time (1 hour max).&lt;br&gt;
+If you're trying to get rid of troll posts to SoPW then the punishment needs to match the crime and stop them posting for a period. Maybe no posting for 1 week if you've consistantly declined in XP over 4 weeks. Just because you have negative XP should never stop you posting. How would you resurect yourself from a particularly bad post? It should be time relative.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt; 
+See [id://379726] for previous material in wiki. 
+&lt;/p&gt;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</doctext>
+  <type_nodetype>68046</type_nodetype>
+  <node_id>388734</node_id>
+  <author_user>979</author_user>
+  <title>pmdev wiki through 2004-08-31</title>
+  <createtime>2001-08-22 02:44:52</createtime>
+  <nodeupdated>2005-08-11 06:21:06</nodeupdated>
+</node>

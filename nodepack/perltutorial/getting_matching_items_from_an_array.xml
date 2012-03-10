@@ -1,0 +1,129 @@
+<node>
+  <doctext>&lt;p&gt;
+&lt;b&gt;Purpose&lt;/b&gt;
+&lt;br /&gt;
+On a regular basis, people want to know if a particular thing, we will call it &lt;i&gt;foo&lt;/i&gt;, is present in an array.  The problem with just directing them to &lt;i&gt;perldoc -q contain&lt;/i&gt; is that each question usually varies enough to make a single answer unsatisfactory.  The goal of this tutorial is to give enough information so that someone can choose the right solution to the problem.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Is This Tutorial For You?&lt;/b&gt;
+&lt;br /&gt;
+A typical mistake is to assume that there is a built-in way of determining presence in an array like there is with a hash.  A red flag should go up if you try using a string for an index as in &lt;CODE&gt;print &quot;gotcha\n&quot; if $array['foo']&lt;/CODE&gt;. Perhaps you should be using a hash.  An array gives no &quot;meaning&quot; between the index and the value (though the programmer might as in the case of matrices).  If you are still unsure which to be using, see &lt;i&gt;perldoc perldsc&lt;/i&gt; and &lt;i&gt;perldoc perldata&lt;/i&gt; for more information.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;What Will Be Covered&lt;/b&gt;
+&lt;br /&gt;
+There are typically 5 answers to the problem of identifying if &lt;i&gt;foo&lt;/i&gt; is present in an array.
+&lt;ul&gt;
+&lt;li&gt;Convert the array to a hash&lt;/li&gt;
+&lt;li&gt;Use the built-in &lt;i&gt;grep&lt;/i&gt;&lt;/li&gt;
+&lt;li&gt;Use [cpan://List::Util]'s &lt;i&gt;first&lt;/i&gt;&lt;/li&gt;
+&lt;li&gt;Use the smart match operator ~~ introduced in 5.10.0
+&lt;li&gt;IYAW (Invent Yet Another Wheel)&lt;/li&gt;
+&lt;/ul&gt;
+There are a handful of things to consider and each solution has pros and cons accordingly.  You will need to decide for yourself which is best.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Convert The Array To A Hash&lt;/b&gt;
+&lt;br /&gt;
+Depending on your requirements, this can be a very attractive solution (&lt;CODE&gt;print &quot;It's in there\n&quot; if exists $sauce{spaghetti}&lt;/CODE&gt;).  There is a list of things to consider:
+&lt;ul&gt;
+&lt;li&gt;How many items do you need to check?&lt;/li&gt;
+If you are only checking a single item, this is probably not the best solution.
+&lt;li&gt;Will the array change between checks?&lt;/li&gt;
+If you need to rebuild the hash each time you check because you are not sure if the array has changed, this is probably not the best solution.
+&lt;li&gt;Do you need something other than an exact match?&lt;/li&gt;
+Using a hash is a bad idea for non exact matches.  The one noteable exception is perhaps case insensitivity.  You can force the keys to a certain case during creation and &lt;i&gt;foo&lt;/i&gt; to the same case when searching.  Even then, it is questionable with regards to this being the best solution.
+&lt;li&gt;How big is the array?&lt;/li&gt;
+Duplicating data structures for the convenience of searching can get quite expensive with regards to memory consumption.  You will need to determine how large a footprint is acceptable to you.
+&lt;li&gt;Do you need to know if there is more than one match?&lt;/li&gt;
+Remember that hash keys must be unique so using a hash when there is a possibility of duplicates is a bad idea &lt;b&gt;if&lt;/b&gt; you need to know how many times &lt;i&gt;foo&lt;/i&gt; is present in the array.
+&lt;li&gt;Do you need to know &lt;i&gt;foo&lt;/i&gt;'s index?&lt;/li&gt;
+Typically for memory reasons, you would build your hash like:
+&lt;CODE&gt;
+my %lookup = map { $_ =&gt; undef } @array;
+print &quot;There it is\n&quot; if exists $lookup{foo};
+&lt;/CODE&gt;
+But if you have given some meaning to the relationship to the index and the value (or perhaps you want to use &lt;i&gt;splice&lt;/i&gt; to remove it), then you should consider using the following instead:
+&lt;CODE&gt;
+my %lookup = map { $array[$_] =&gt; $_ } 0 .. $#array;
+my $index = $lookup{foo};
+&lt;/CODE&gt;
+&lt;/ul&gt;
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Use The Built-In &lt;i&gt;grep&lt;/i&gt;&lt;/b&gt;
+&lt;br /&gt;
+It is fast and powerful and deserves careful consideration:  &lt;ul&gt;
+&lt;li&gt;How many items do you need to check?&lt;/li&gt;
+If you are checking many items, this is probably not the best solution because it goes through the entire list even if the match is found the first time.  Keep in mind that &lt;i&gt;many&lt;/i&gt; is subjective and since it has been optimized for efficiency, it still may be acceptable.
+&lt;li&gt;Will the array change between checks?&lt;/li&gt;
+You might want to use &lt;i&gt;grep&lt;/i&gt; if the answer is yes or you are unsure since it is &lt;b&gt;not&lt;/b&gt; checking against a copy that might be stale.
+&lt;li&gt;Do you need something other than an exact match?&lt;/li&gt;
+You might want to use &lt;i&gt;grep&lt;/i&gt; if the answer is yes or you are unsure.  Since &lt;i&gt;grep&lt;/i&gt; can accept a block, you can easily do a case insensitive search (&lt;CODE&gt;grep { $_ =~ /^foo$/i } @array&lt;/CODE&gt;)
+&lt;li&gt;How big is the array?&lt;/li&gt;
+If the array is very large, you may want to consider something other than &lt;i&gt;grep&lt;/i&gt;.  Of course &lt;i&gt;very large&lt;/i&gt; is subjective.  If you are not going to be checking numerous items and you can afford to wait a few extra seconds, &lt;i&gt;grep&lt;/i&gt; might be the perfect choice.
+&lt;li&gt;Do you need to know if there is more than one match?&lt;/li&gt;
+Since &lt;i&gt;grep&lt;/i&gt; goes through the entire list, it is an ideal candidate if the answer to this question is yes.  In list context, &lt;i&gt;grep&lt;/i&gt; will return the list of matching items.  In scalar context - it will return the number of matching items.
+&lt;li&gt;Do you need to know &lt;i&gt;foo&lt;/i&gt;'s index?&lt;/li&gt;
+Since &lt;i&gt;grep&lt;/i&gt; can take a block, it is very versatile and can easily be adapted to this situation:
+&lt;CODE&gt;
+my @indices = grep { $array[$_] eq 'foo' } 0 .. $#array;
+&lt;/CODE&gt;
+&lt;/ul&gt;
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Use [cpan://List::Util]'s &lt;i&gt;first&lt;/i&gt;&lt;/b&gt;
+&lt;br /&gt;
+It works very much like &lt;i&gt;grep&lt;/i&gt; except it returns on the first match, which depending on your situation can make it a perfect solution.  It is worth noting that if it does not find a match, it returns [doc://undef] which may be problematic if that's the value you are trying to match.
+&lt;ul&gt;
+&lt;li&gt;How many items do you need to check?&lt;/li&gt;
+At first glance, you might say it does not matter.  One issue is that the &lt;i&gt;first&lt;/i&gt; function is not a compiled built-in like &lt;i&gt;grep&lt;/i&gt;.  A code block is dereferenced and executed for each element in the list until a match is found.  A second issue is that &lt;i&gt;first&lt;/i&gt; does not currently accept a reference as an argument so a list of aliases has to be generated.  Be sure not to worry about premature optimization when the net difference in runtime is a few seconds unless it really matters.
+&lt;li&gt;Will the array change between checks?&lt;/li&gt;
+Like &lt;i&gt;grep&lt;/i&gt;, if the answer is yes or you are unsure, you should be considering &lt;i&gt;first&lt;/i&gt; since it is &lt;b&gt;not&lt;/b&gt; checking against a copy that might be stale.
+&lt;li&gt;Do you need something other than an exact match?&lt;/li&gt;
+Like &lt;i&gt;grep&lt;/i&gt;, if the answer is yes or you are unsure then &lt;i&gt;first&lt;/i&gt; is a possibility since it takes a block.
+&lt;li&gt;How big is the array?&lt;/li&gt;
+Again, you might say it doesn't matter at first glance since it returns on first match.  The &lt;i&gt;first&lt;/i&gt; function was built to be flexible accepting a code block that has to be dereferenced against each item in the list until a match is found.  If you really need lightening speed then you might want to consider a roll-your-own version that is hard-coded.
+&lt;li&gt;Do you need to know if there is more than one match?&lt;/li&gt;
+If the answer is yes, do not choose &lt;i&gt;first&lt;/i&gt; since it is designed to return on first match.
+&lt;li&gt;Do you need to know &lt;i&gt;foo&lt;/i&gt;'s index?&lt;/li&gt;
+The &lt;i&gt;first&lt;/i&gt; function can be adapted to handle this situation just like &lt;i&gt;grep&lt;/i&gt;.
+&lt;/ul&gt;
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Use the smart match operator ~~ introduced in perl 5.10.0&lt;/b&gt;
+&lt;br /&gt;
+If all you need to know is if an item is in the array or not, this may be the fastest solution.  The smart match operator can do much more complicated matching, but since 5.10.0 is only a few days old this tutorial does not cover them. 
+&lt;ul&gt;
+&lt;li&gt;Do you need to maintain backwards compatibility?&lt;/li&gt;
+If the answer is yes, the smart match operator is not the best option.
+&lt;li&gt;Do you need anything more complicated than an exact match?&lt;/li&gt;
+The smart match operator can probably handle it but you will need to [cpan://Benchmark] to determine if it is the best solution.  See the latest [doc://perlsyn] for details.
+&lt;/ul&gt;
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;IYAW (Invent Yet Another Wheel)&lt;/b&gt;
+&lt;br /&gt;
+There is rarely a good reason to do this.  Sanity checks such as profiling and benchmarking should be done before you spending valuable time trying to squeeze a couple of seconds  off the runtime.  I can only think of a couple of reasons you might want to do this:
+&lt;ul&gt;
+&lt;li&gt;You can't afford the performance hit of alias construction and repeatedly dereferencing the code block passed to &lt;i&gt;first&lt;/i&gt;&lt;/li&gt;
+&lt;li&gt;You need to do some transformation before checking but need to keep the original array intact&lt;/li&gt;
+I freely admit that this falls out of the scope of checking the presence of an item in an array.  By copying the array and then transforming it you have changed the problem.  This does not stop people from asking and so I have included it here for an attempt at completeness.
+&lt;/ul&gt;
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Update:&lt;/b&gt; I modified the code snippet in the &quot;Is This Tutorial For You&quot; section to remove &lt;i&gt;exists&lt;/i&gt; per [rob_au]'s suggestion.  It was not necessary to illustrate the point.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Update 2:&lt;/b&gt;  2004-10-02 - [wolv] pointed out to me that the inefficiencies in [cpan://List::Util]'s &lt;i&gt;first&lt;/i&gt; are in the pure perl version.  The XS version is obviously much faster.  [cpan://Benchmark] to be sure but it still loses to [doc://grep] in many situations.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;Update 3:&lt;/b&gt;  2007-12-22 - Added smart match operator section as a result of the release of perl 5.10.0.  See [http://use.perl.org/~schwern/journal/35186|this] for a speed comparison.
+&lt;/p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>371938</node_id>
+  <author_user>180961</author_user>
+  <title>Getting Matching Items From An Array</title>
+  <createtime>2004-07-05 12:51:29</createtime>
+  <nodeupdated>2005-08-12 09:25:07</nodeupdated>
+</node>

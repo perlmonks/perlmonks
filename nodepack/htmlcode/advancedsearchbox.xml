@@ -1,0 +1,101 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>3992</node_id>
+  <author_user>929</author_user>
+  <title>advancedsearchbox</title>
+  <createtime>2000-02-24 17:26:40</createtime>
+  <code>my $str;
+my $SETTING=getNode('doctextsearch settings','setting');
+my $SEARCH=getVars $SETTING;
+my $selectlim=$$SEARCH{selectLimit};
+my $daystokeep=$$SEARCH{daysToCache};
+$daystokeep=0;
+$selectlim||=1000;
+my $N;
+my ($needsearch,$needupdate,$foundrow,$curword);
+my $csr;
+my %searchresults;
+my $resultsshown;
+
+local *nodesWithString = sub {
+   my ($string,$hash,$limitnum)=@_;
+   $limitnum||=1000;
+   my $str;
+   my @nodes;
+   $string=quotemeta($string);
+   my $typeid=getId(getType(&quot;note&quot;));
+   $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;SELECT document_id FROM document WHERE doctext like \&quot;\%$string\%\&quot; limit $selectlim&quot;);
+   $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;SELECT document_id FROM document,node WHERE document_id=node_id and type_nodetype!=$typeid and doctext like \&quot;\%$string\%\&quot; limit $selectlim&quot;) if ($query-&gt;param('avoidnotes'));
+   $csr-&gt;execute or return &quot;SHIT&quot;;
+   my $N;
+   while($N=$csr-&gt;fetchrow_hashref){
+      push @nodes, $$N{document_id};
+      $hash-&gt;{$$N{document_id}}++;
+   }
+   return join ' ',@nodes;
+};
+
+$str.=htmlcode('openform');
+$str.=&quot;&lt;INPUT TYPE=hidden name=node_id value=&quot;.getId($NODE).&quot;&gt;\n&quot;;
+$str.=&quot;Your search words:&quot;;
+$str.=$query-&gt;textfield(-name=&gt;'findthesewords',-size=&gt;40,-maxlength=&gt;80);
+$str.=&quot;&lt;INPUT TYPE=hidden name=displaytype value=display&gt;&quot;;
+$str.=&quot;&lt;BR&gt;Only Root Nodes &quot; .$query-&gt;checkbox(-name=&gt;'avoidnotes',-label=&gt;'');
+$str.=&quot;&lt;BR&gt;&quot;.htmlcode('closeform');
+if($query-&gt;param('findthesewords')){
+   my $temptext=$query-&gt;param('findthesewords');
+   my @phrases;
+   while($temptext=~/\&quot;(.*)\&quot;/g){
+      push @phrases, $1;
+   }
+   foreach(@phrases){$temptext=~s/\Q$_//g;}
+   $temptext=~s/\&quot;//g;
+   my @words=split(/\s+/,$temptext);
+   @words=(@words,@phrases);
+   foreach $curword(@words){
+      $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;SELECT keyword, unix_timestamp(lastupdate), hits, nodes FROM searchwords WHERE keyword=\&quot;$curword\&quot;&quot;);
+      $csr-&gt;execute;
+      $foundrow=0;
+      if($N=$csr-&gt;fetchrow_hashref){
+         $foundrow=1;
+         $needupdate=0;
+         if((time-86400*$daystokeep)&gt;$$N{'unix_timestamp(lastupdate)'}){
+           $needupdate=1;
+         }
+         $csr-&gt;finish;
+      }
+      if($needupdate or !$foundrow){
+         my $newnodestring=nodesWithString($curword,\%searchresults,$selectlim);
+         if($needupdate){
+            my $hits=$$N{hits}+1;
+            $csr=$DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;update searchwords set hits=$hits, nodes=\&quot;$newnodestring\&quot;, lastupdate=now() where keyword=\&quot;$$N{keyword}\&quot;&quot;);
+            $csr-&gt;execute || return &quot;SHIT&quot;;
+         } elsif(!$foundrow){
+            $csr=$DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;insert into searchwords (keyword,hits,lastupdate,nodes) values(\&quot;$curword\&quot;,1,now(),\&quot;$newnodestring\&quot;)&quot;);
+            $csr-&gt;execute || return &quot;SHIT&quot;;
+         }
+      } elsif($foundrow){
+            my $hits=$$N{hits}+1;
+            my @temparray=split(/ /,$$N{nodes});
+            foreach(@temparray){$searchresults{$_}++}
+            $csr=$DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;update searchwords set hits=$hits where keyword=\&quot;$$N{keyword}\&quot;&quot;);
+            $csr-&gt;execute || return &quot;SHIT&quot;;
+      }
+   }
+   foreach(sort{$searchresults{$b}&lt;=&gt;$searchresults{$a}}keys %searchresults){
+       $N=getNodeById($_);
+       if(canReadNode($USER,$N)){
+         $str.=&quot;&lt;li&gt;&quot;.linkNode($N);
+         $str.=&quot; (&quot;.$searchresults{$_}.&quot; &quot;;
+         $str.=$searchresults{$_}==1?&quot;word&quot;:&quot;words&quot;;
+         $str.=&quot; matched)&lt;BR&gt;&quot;;
+         $resultsshown=1;
+       }
+   }
+   $str.=&quot;&lt;UL&gt;&lt;font size=+1&gt;&lt;STRONG&gt;Sorry&lt;/STRONG&gt;, no results were found for the so-called \&quot;words\&quot; you submitted&lt;/font&gt;&lt;/UL&gt;&quot; unless($resultsshown);
+   $str;
+}
+
+$str;</code>
+  <nodeupdated>2005-01-05 06:11:29</nodeupdated>
+</node>

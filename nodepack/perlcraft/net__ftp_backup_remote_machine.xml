@@ -1,0 +1,85 @@
+<node>
+  <doctext>This very simple script is used to backup a 
+remote directory of tarred and zipped files. 
+
+I'd be curous about better ways to do this. 
+In particular, I'm interested in a better 
+way to test if a remote file is a directory 
+or a file or a better way to determine if a file has already been copied&lt;P&gt;
+
+#~/usr/local/bin/perl -w
+
+use strict;
+use Net::FTP;
+
+my $host='myhost.org';
+my $uname='backup';
+my $pword='really_secure';
+
+my $rdir='/backup';
+my $ldir='D:/archives/brave-backup';
+
+
+#########################################
+#                                       #
+# no user server servicable parts below #
+#                                       #
+#########################################
+
+my $ftp = Net::FTP-&gt;new($host, Debug =&gt; 0,
+			Passive =&gt;1, Hash=&gt;1) 
+	or die(&quot;$@ couldn't construct ftp object&quot;);
+
+print &quot;logging on to $host\n&quot;;
+$ftp-&gt;login($uname,$pword)
+	or die(&quot;couldn't login to $host, as $uname\n&quot;);
+
+$ftp-&gt;cwd($rdir)
+	or die(&quot;couldn't cd to remote dir: $rdir\n&quot;);
+
+my @r_files=$ftp-&gt;ls()
+	or die(&quot;couldn't cd to list dir: $rdir\n&quot;);
+
+chdir($ldir)
+	or die(&quot;couldn't open to local dir: $ldir\n&quot;);
+
+opendir(DH,'.')
+	or die(&quot;couldn't cd to local dir: $ldir\n&quot;);
+
+my @l_files=readdir(DH) 
+	or die (&quot;couldn't list local dir: $ldir\n&quot;);
+
+closedir(DH) 
+	or die(&quot;couldn't close local dir: $ldir&quot;);
+
+my %backed_up_files;
+foreach (@l_files){
+	$backed_up_files{$_}=1;
+}
+
+$ftp-&gt;binary()
+	or die(&quot;couldn't set mode to BINARY\n&quot;);
+foreach(@r_files){
+	
+	if (!$backed_up_files{$_} &amp;&amp; !Is_Dir($_)){
+		print &quot;\tgetting $_\n&quot;;
+		$ftp-&gt;get($_)
+			or die(&quot;couldn't get remote file: $_&quot;);
+	}
+}
+
+$ftp-&gt;quit;
+
+sub Is_Dir($){
+	my $maybe_dir=shift;
+	my $result=$ftp-&gt;cwd($maybe_dir);
+	$ftp-&gt;cwd($rdir); #return to our original dir
+	return $result;
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>121577</node_id>
+  <author_user>91846</author_user>
+  <title>Net::FTP backup remote machine</title>
+  <createtime>2001-10-26 00:07:17</createtime>
+  <nodeupdated>2005-07-21 07:25:17</nodeupdated>
+</node>

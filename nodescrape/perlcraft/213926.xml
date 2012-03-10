@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="213926" title="Until..." created="2002-11-18 16:33:54" updated="2004-12-27 02:14:37">
+<type id="121">
+perlcraft</type>
+<author id="151991">
+RMGir</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+#Here's a simple module that lets you run a "forever" kind 
+#of script, and know it will die at a time you specify.
+
+#This could be better, but it does what I need.
+
+#Edit: Added note about hooking $SIG{INT} for cleanup to
+#POD comments
+
+package Until;
+
+=head1 NAME
+
+Until.pm
+
+=head1 SYNOPSIS
+
+    use Until "16:30";
+
+    sub cleanup {
+        # do whatever you need to do on exit
+    }
+
+    $SIG{INT}=\&amp;cleanup;
+
+    while(1) {
+        # do something...
+    }
+
+=head1 DESCRIPTION
+
+This simple module forks, and the child process returns.  The parent
+process waits for the designated end time, then kills the child process.
+
+=cut
+
+use strict;
+
+sub import
+{
+    my $stopTime=$_[-1];
+
+    die "Arg 1 ($stopTime) must be hh:mm" unless $stopTime=~/^(\d\d?):(\d\d)$/;
+    print "Running until $stopTime\n";
+
+    my ($h,$m)=($1,$2);
+    my $endMinutes=$h*60+$m;
+
+    my $pid;
+
+    if(!($pid=fork)) {
+        # did fork fail?
+        die "Error forking ($!)" if !defined $pid;
+
+        # child process
+        return;
+    }
+    else {
+        my $currMinutes;
+        do {
+            my ($h, $m)=(localtime)[2,1];
+            $currMinutes=$h*60+$m;
+            sleep(5) unless $currMinutes&lt;$endMinutes;
+        } while($currMinutes &lt; $endMinutes);
+
+        # kill child process
+        my $result=kill "INT",$pid;
+        print "Killed child process $pid (result $result)\n";
+
+        exit;
+    }
+}
+
+1;
+</field>
+</data>
+</node>

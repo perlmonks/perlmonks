@@ -1,0 +1,33 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>517559</node_id>
+  <author_user>474174</author_user>
+  <title>testupdatepoll</title>
+  <createtime>2005-12-17 23:36:06</createtime>
+  <code>my $votenum= $query-&gt;param('vote');
+  return   if  &quot;&quot; eq $votenum;
+  my $address= $ENV{REMOTE_ADDR};
+  my $csr= $DB-&gt;getDatabaseHandle()-&gt;prepare(
+    &quot;SELECT * FROM testpollvote WHERE ipaddress=?&quot;);
+  $csr-&gt;execute($address)
+    or return &quot;Voting temporarily unavailable.&quot;;
+  return &quot;You have already voted from that IP ($address)&quot;
+    if  $csr-&gt;fetchrow_hashref();
+  my @choices= split( /\s*(?:\n|\z)/, $$NODE{choices} );
+  # What's that you say?  There's an off-by-one error here?
+  # I had no idea!
+  return &quot;Choice #&quot;.(1+$votenum).&quot; doesn't exist&quot;
+    unless  $votenum &lt; @choices + 1;
+  $votenum = $NODE-&gt;{gimmickchoice} - 1 if ($NODE-&gt;{gimmick} == 1);
+  $csr= $DB-&gt;getDatabaseHandle()-&gt;prepare(
+    &quot;insert into testpollvote (ipaddress) values(?)&quot;);
+  $csr-&gt;execute( $address );
+  my @numbers= split( /\n/, $$NODE{numbers} );
+  $numbers[$votenum]++;
+  $$NODE{numbers}= join &quot;\n&quot;, @numbers;
+  updateNode($NODE,-1);
+  return qq(Recorded your vote for &quot;)
+    . $q-&gt;escapeHTML($choices[$votenum]) . qq(&quot;.);
+</code>
+  <nodeupdated>2005-12-17 18:36:06</nodeupdated>
+</node>

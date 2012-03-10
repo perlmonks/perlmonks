@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="16046" title="XP xml ticker" created="2000-06-01 15:14:20" updated="2005-08-15 17:32:20">
+<type id="122">
+fullpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="doctext">
+[%
+
+  use Everything::Experience;
+  my $user;
+
+  #
+  #  I think this should be foruser and foruserid, since
+  #  since the emitted XML is foruser.  --jcwren
+  #  Now it does both, but foruser_id instead for consistancy. --demerphq
+  #
+  if ($user = ($query-&gt;param ("for_userid")||$query-&gt;param ("foruser_id"))) {
+    $user = getNodeById ($user, "user")-&gt;{title};
+  } else {
+    $user = $query-&gt;param("for_user")||$query-&gt;param ("foruser");
+  }
+
+  $user &amp;&amp;= getNode( $user, "user" );
+
+  $user ||= $USER;
+
+  htmlcode('log_ticker','','',"for $user-&gt;{title}");
+
+  my $TITLES=getVars( getNode('level titles','setting') );
+  my $user_level=getLevel($user); # can`t accessrule
+  my $lvl = 1 + $user_level;
+  my $LVLS = getVars( getNode('level experience','setting') );
+  my $expleft = 0;
+  $expleft = $LVLS-&gt;{$lvl} - $user-&gt;{experience}
+    if  exists $LVLS-&gt;{$lvl};
+
+  my $votes= $user-&gt;{votesleft};
+  $votes= -1   if  $user-&gt;{node_id} != $USER-&gt;{node_id};
+
+  require XML::Fling;
+  require POSIX;
+  
+  return "&lt;error&gt;Error creatng fling object&lt;/error&gt;"
+     unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),'add_header');
+
+  #using the new args or 'clean' mode will trigger 'foruser_id' instead of  'id' 
+  my $id_name=$query-&gt;param ("foruser_id")||$query-&gt;param ("foruser")||
+              $xmlstyle{clean}
+           ? 'foruser_id' : 'id';
+
+  $xml-&gt;header("windows-1252")-&gt;
+    start("XPINFO")-&gt;
+      element( "INFO",
+          site       =&gt; $HTMLVARS{site_url},
+          sitename   =&gt; $HTMLVARS{site_name},
+          style      =&gt; join(',',keys %xmlstyle),
+          gentimeGMT =&gt; POSIX::strftime("%Y-%m-%d %H:%M:%S",
+                                        gmtime(time)),
+          min_poll_seconds =&gt; 30,
+          foruser    =&gt; $user-&gt;{title},
+          $id_name   =&gt; $user-&gt;{node_id},
+        'Rendered by the XP XML Ticker' )-&gt;
+      element( "XP",
+        xp =&gt; $user-&gt;{experience},
+        level =&gt; $user_level,
+        leveltitle =&gt; $TITLES-&gt;{$user_level},
+        xp2nextlevel =&gt; $expleft,
+        votesleft =&gt; $votes,
+      );
+  if ($q-&gt;param('showlevels')||$q-&gt;param('showall')) {
+      my $DOCS=getVars( getNode('level faqlinks','setting') );
+      my $VOTES = getVars(getNode('level votes', 'setting'));
+      # these are from above
+      # my $LVLS = getVars( getNode('level experience','setting') ); 
+      # my $TITLES=getVars( getNode('level titles','setting') );
+      for (my $x=1;$TITLES-&gt;{$x};$x++) {
+         $xml-&gt;element( "LEVEL", 
+           number =&gt; $x, 
+           minxp  =&gt; $LVLS-&gt;{$x},
+           votes  =&gt; $VOTES-&gt;{$x}||0,
+           faq_id =&gt; $DOCS-&gt;{$x}=~m!id://(\d+)! ? $1 : 0,
+           $TITLES-&gt;{$x}
+         );
+      }
+  }
+  if ($q-&gt;param('shownorm')||$q-&gt;param('showall')) {
+      my $VS=getVars(getNode('vote settings','setting'));
+      $xml-&gt;element(NORM=&gt;$VS-&gt;{norm});
+  }
+
+  $xml-&gt;end();
+
+  return  join "", @data;
+
+%]</field>
+</data>
+</node>

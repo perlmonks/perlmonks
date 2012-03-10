@@ -1,0 +1,926 @@
+<node>
+  <doctext>I do use improper file locking in here, I will fix that code later, keep
+in mind I am illustrating tie(), not proper locking (That is for another
+article).&lt;P&gt;
+
+&lt;!-- LINK REV=&quot;made&quot; HREF=&quot;mailto:root@porky.devel.redhat.com&quot; --&gt;
+
+&lt;!-- INDEX BEGIN --&gt;
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#The_Ties_That_Bind&quot;&gt;The Ties That Bind&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#What_is_a_tie&quot;&gt;What is a tie&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#Invoking_a_Tie&quot;&gt;Invoking a Tie&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#Method_Names&quot;&gt;Method Names&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#Constructors_Destructors&quot;&gt;Constructors/Destructors&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#Example_pm&quot;&gt;Example.pm&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#All_tied_up&quot;&gt;All tied() up&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#Scalar_Quickie&quot;&gt;Scalar Quickie&lt;/A&gt;
+&lt;LI&gt;&lt;A HREF=&quot;#Summary&quot;&gt;Summary&lt;/A&gt;
+&lt;/UL&gt;
+&lt;!-- INDEX END --&gt;
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;The_Ties_That_Bind&quot;&gt;The Ties That Bind&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Programmers are used to ``modules'' as a way of reusing code. Some modules
+provide subroutines, others provide an object-oriented interface. New in
+Perl 5 are ties, a way of intercepting accesses to a Perl variable (array,
+hash, scalar, or filehandle). This article will show you how to provide
+reusable code using ties.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;What_is_a_tie&quot;&gt;What is a tie&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+You have probably already met tie-like behavior in the form of
+dbmopen(). This built-in Perl subroutine associates a Perl
+hash with a dbm(3)-style file on disk. If you fetch a value
+from the hash, Perl looks up the corresponding value in the dbm file. If
+you store a value, Perl stores the value in the dbm file.
+
+&lt;P&gt;
+The biggest problem with dbmopen() is that the type of dbm
+file that it uses was decided when your Perl interpreter was compiled.
+There are many different dbm-like libraries, but dbmopen()
+only allows you to use one. To solve this inflexibility, Perl 5 introduced
+tie(), a more general mechanism for hiding complex behavior
+behind a variable, be it a hash, array, scalar, or filehandle.
+
+&lt;P&gt;
+Perl basically keeps an object for each variable you tie().
+Each access to the tied variable results in method calls on the object. You
+can tie() a variable to just about anything; a database, a
+text file, a directory, even the Windows registry. You can even use
+tie() to trace accesses to a variable.
+
+&lt;P&gt;
+The methods automatically called by Perl have predefined names, in CAPS.
+There are only a few implicitly called methods your tying class should, and
+can, provide, which will be discussed later. The tying class is the
+invisible glue that holds your variable and resource together.  
+
+&lt;P&gt;
+The example I'll work through will be a tie to a hash, since that is the
+most involved, the longest and best-supported, and (consequently) the most
+common. By the end of this article, you should have a good understanding of
+the tie() function, tying classes, and the knowlege to begin
+writting your own tie() class.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Invoking_a_Tie&quot;&gt;Invoking a Tie&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Invoking a tie() is similar to other Perl functions.
+tie() uses this syntax:
+
+&lt;P&gt;
+&lt;code&gt;    tie VARIABLE, CLASSNAME, LIST
+&lt;/code&gt;
+&lt;P&gt;
+The VARIABLE will be the variable being tied, which could be a hash, array,
+scalar, or filehandle. CLASSNAME is the class we are using to handle the
+tied object. And LIST can be any optional flags or arguments that the class
+may use to construct the tied variable.
+
+&lt;P&gt;
+If you're always tying a variable to the same resource, and this resource
+is pre-defined in the class, you won't need to include the name of the
+resource in LIST. If the specific resource could change (different
+filename, different database, different machine, etc.) then one of the
+elements of the LIST will be the name of the resource. After calling
+tie(), the class will return an object, which can be either
+stored or ignored. Either way, when you access the VARIABLE, methods are
+called on the object.
+
+&lt;P&gt;
+A common misconception after looking at the syntax for the tie function is
+that tie() itself 'uses' the class which is handling the tie.
+This is not correct, and the programmer must remember to 'use' the
+appropriate module.
+
+&lt;P&gt;
+Don't confuse the type of the variable and the type inside the object. You
+can bless() any type of Perl variable to make your object, and
+this has nothing to do with the type of variable being tied to. You can tie
+a hash to a blessed hash, or tie a hash to a blessed scalar, or tie a
+handle to a blessed scalar, or anything else that makes sense for your
+application.
+
+&lt;P&gt;
+To see what this looks like in practice, below is an example of tying a
+hash to the current directory using the Tie::Dir class. The result will be
+a tied interface between %hash and an object in the Tie::Dir
+class. The Tie::Dir class' methods will handle the manipulation of the
+directory via %hash:
+
+&lt;P&gt;
+&lt;code&gt;    use Tie::Dir;
+    tie %hash, Tie::Dir, &quot;./&quot;;
+&lt;/code&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Method_Names&quot;&gt;Method Names&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+As stated earlier, Perl will implicitly call a class' methods when the
+variable is accessed. When tie() is invoked it calls the
+appropriate TIESCALAR, TIEARRAY, TIEHASH, or TIEHANDLE method depending on
+the type of variable being tied.
+
+&lt;P&gt;
+Because I will talk about various uses of tying, and giving examples, below
+is an outline of the methods available for each type of tie to keep in mind
+while you read this article:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Hash&quot;&gt;Hash methods:&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;P&gt;
+&lt;code&gt;    TIEHASH classname, LIST
+    DESTROY this
+    FETCH this, key
+    STORE this, key, value
+    DELETE this, key
+    EXISTS this, key
+    FIRSTKEY this
+    NEXTKEY this, lastkey
+&lt;/code&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Array&quot;&gt;Array methods:&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;P&gt;
+&lt;code&gt;    TIEARRAY classname, LIST
+    DESTROY this
+    FETCH this, key
+    STORE this, key, value
+&lt;/code&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Scalar&quot;&gt;Scalar methods:&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;P&gt;
+&lt;PRE&gt;    TIESCALAR classname, LIST
+    DESTROY this
+    FETCH this,
+    STORE this, value
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Filehandle&quot;&gt;Filehandle methods:&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;P&gt;
+&lt;code&gt;    TIEHANDLE classname, LIST
+    WRITE this, LIST
+    PRINT this, LIST
+    PRINTF this, LIST
+    READ this, LIST
+    READLINE this
+    GETC this
+    CLOSE this
+    DESTROY this
+&lt;/code&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Constructors_Destructors&quot;&gt;Constructors/Destructors&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+When a variable is tied to a class, the TIE* constructor is called.
+
+&lt;P&gt;
+The constructor can do almost whatever the programmer wants it to. It may
+simply check to see if the resource to be tied to exists. It could create
+it if it doesn't, or load the resource into memory; or add an internal
+pointer to the resource in the class as object data. For example, if it is
+a directory to be tied to, the constructor may check to see if that
+directory exists, and if it does, it will save the location of that
+directory to the class object.  
+
+&lt;P&gt;
+Below is how Tie::Dir's TIEHASH constructor will result in a
+tie() of a variable, in this case %hash, to the current
+directory (.), and whether or not deleting is allowed:
+
+&lt;P&gt;
+&lt;code&gt;    # tie %hash, Tie::Dir, &quot;.&quot;, DIR_UNLINK;
+
+    sub TIEHASH {
+        my($class,$dir,$unlink) = @_;
+        $unlink ||= 0;
+        bless [$dir,undef,$unlink], $class;
+    }
+&lt;/CODE&gt;
+&lt;P&gt;
+One use of tying may be for keeping a certain variable persistent through
+web-based sessions. For example, people log into your website, via basic
+authentication, and a file is saved that contains the city they live in,
+based from input from a web-based form. That information is used to create
+dynamic pages when they return to the site. Almost like a server-side
+cookie. So if I am the user and my username is kmeltz, and I am from
+Fooville, you may have a file named kmeltz.city with the contents being a
+string, ``Fooville''. You could tie() to this scalar (the
+string Fooville) with a constructor like:
+
+&lt;P&gt;
+&lt;code&gt;    sub TIESCALAR {
+        my $class = shift;
+        my $name = shift;
+        my $city = system(&quot;/bin/cat&quot;, &quot;$name\.city&quot;);
+
+        return bless \$city, $class;
+    }
+&lt;/code&gt;
+&lt;P&gt;
+In the calling script, you would get this information like:
+
+&lt;P&gt;
+&lt;code&gt;    use Tie::getCity; # If the module name was Tie/getCity.pm
+
+    tie($foo, 'Tie::getCity', $ENV{REMOTE_USER});
+&lt;/code&gt;
+&lt;P&gt;
+Now, $foo's value is the string ``Fooville'' and this information can be
+used to create dynamic content across your website.
+
+&lt;P&gt;
+When the variable is untied (see later), goes out of scope, or the program
+ends, the object associated with the variable will be destroyed. The
+regular object destructor method DESTROY will be called. It is a very good
+habit to untie() tied variables when they are no longer
+needed. $foo would be untie()'d from the above
+example like so:
+
+&lt;P&gt;
+&lt;code&gt;    untie $foo;
+&lt;/code&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Example_pm&quot;&gt;Example.pm&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Now, on with our module! For the example, we will create a module that ties
+to a password file for Apache, which means there will be a file with
+entries like '&lt;name&gt;:&lt;encrypted password&gt;'. There will also be
+a simple command-line script using the Example class. The script will let
+you enter names and passwords which will be stored in the password file
+through the magic of tie().
+
+&lt;P&gt;
+The start of the module is fairly uninteresting:
+
+&lt;P&gt;
+&lt;code&gt;    package Example;
+
+    use strict;
+    use vars qw($VERSION);
+
+    # pull $VERSION from RCS version identifier
+    ($VERSION = substr(q$Revision: 0.7 $, 10)) =~ s/\s+$//;
+
+    sub Version {return $VERSION;}
+
+    use Carp;
+&lt;/code&gt;
+
+&lt;P&gt;
+As explained earlier, the TIEHASH method is implicitly called when you
+invoke tie(). The first three lines tell our method a) what
+the class object is, as well as the LIST elements passed during our
+invocation; b) the file we are tying to; c) the permissions we are opening
+the file with. If the permission ($mode) argument isn't given, it defaults
+to 'r', read only. Or it can be given 'rw' which will allow for read and
+write operations. It is good practice to add some sort of permission
+argument to a tie() class, this is to make sure noone
+accidentally stores/removes information from the resource. It is also good
+practice to have the default permission be the most restrictive.
+
+&lt;P&gt;
+Next, check to make sure no extra arguments are passed to the module. If
+there are, it croaks with a usage/syntax message.
+
+&lt;P&gt;
+You will notice the scalar variable $clobber. Clobber is a term that tells
+the class if the caller can or can't make changes to the tied resource. It
+is directly affected by the permissions it was tied with. If the mode is
+'r', clobber will be 0, and if it is 'rw' it will be 1. The
+$clobber variable will be used later to make sure the file is
+being opening with correct permissions, and not allow changes to the file
+if it wasn't tie()'d with read-write permissions.
+
+&lt;P&gt;
+An anonymous hash, %node, is then built. This anonymous hash will house
+some instance data that will be refered to throughout the module. This hash
+will contain the current settings of the path to the file, if it can
+clobber or not, and the current hash values. The value of the current hash
+is held in memory because otherwise some later methods would have to open
+and read the file to build the hash again. 
+
+&lt;p&gt;
+NOTE: This may not be what
+you would want for your application. If an application would be used
+concurrently by multiple users, each method should get the current values
+from your tied resource so no data is lost. It is being done this way to
+save space and resources for this example. 
+
+&lt;p&gt;This allows for the current
+hash values to be in memory at all times. Speaking of which, the next few
+lines build that hash, and store it in the CURRENT field
+($self-&gt;{CURRENT}).
+
+&lt;P&gt;
+You may choose to store the information from your resource in memory if it
+is a resource that may be changed frequently &lt;EM&gt;only&lt;/EM&gt; by your current process. If the application is used frequently by many
+users, each method should get the current data from the resource in some
+fashion. An alternative is to have a private method, which reads in the
+resources data. This method can then be called from within your class'
+methods to get the latest values. I suggest adding that functionality later
+when playing around with the Example class.
+
+&lt;P&gt;
+Finally, the bless() function is called, which tells
+%node that it is now an object in the class. We are tied and
+ready to go!
+
+&lt;P&gt;
+&lt;code&gt;    # Create tied hash
+
+    sub TIEHASH {
+        my $self = shift;
+        my $path = shift;
+        my $mode = shift || 'r';
+
+        if (@_) {
+            croak (&quot;usage: tie(\%hash, \$file, [mode])&quot;);
+        }
+
+        my $clobber = ($mode eq 'rw' ? 1 : 0);
+
+        my $node = {
+            PATH    =&gt; $path,
+            CLOBBER =&gt; $clobber,
+            CURRENT =&gt; {}
+        };
+
+        open(FH, &quot;$path&quot;);
+        my @lines = &lt;FH&gt;;
+        close FH;
+
+        my ($line, $id, $pass);
+        foreach $line (@lines) {
+            ($id, $pass) = split(/\:/,$line);
+            $node-&gt;{CURRENT}{$id} = $pass;
+        }
+
+        return bless $node =&gt; $self;
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+The next method to create is STORE. The STORE method is what will handle
+the actual writting of data to the resource, when a value in the tied hash
+changes. This method will also perform any complex behavior needed to be
+done before the data should be written, such as encrypting a
+password.
+
+&lt;p&gt;NOTE: ``Complex behavior'' can be any preprocessing tasks
+needed to ready data, or possibly logging the tied variables accesses.
+This method is called when doing something such as:
+
+&lt;P&gt;
+&lt;code&gt;    $hash{FOO} = &quot;bar&quot;;
+&lt;/code&gt;
+&lt;P&gt;
+The call above tells the class to store the value ``bar'' under key-name
+FOO in %hash. This is what will set the name/value pairs in CURRENT and,
+eventually, in the password file. This STORE method, since we are writing
+to a htpasswd-like password file, will also do the encryption (which can be
+considered hidden complex behavior). The method begins by defining
+variables. If the call noted above were used, $id would be
+FOO, and $passwd would be ``bar''. It grabs our path, as well
+as checks for clobbering, from the class data that was saved in the
+constructor. If clobbering isn't allowed, it returns with an error message.
+For good programming measure, we are taking into account the fact that
+STORE is called after the upcoming method CLEAR finishes.
+
+&lt;P&gt;NOTE: This is
+part of the internal workings of the tie() function, and not
+something done programatically
+
+&lt;P&gt;When STORE is called via CLEAR there will
+be no arguments (besides $self, of course). So, STORE will return before
+writting an entry with no username or password.
+
+&lt;P&gt;
+&lt;code&gt;    # Store an entry
+
+    sub STORE {
+        my $self = shift;
+        my ($id) = shift;
+        my ($passwd) = shift;
+        my ($passwdFile) = $self-&gt;{PATH};
+        my ($return)=0;
+        my (@cache);
+        my ($cryptedPass);
+
+        unless ($self-&gt;{CLOBBER}) {
+            carp (&quot;No write access for $self-&gt;{PATH}&quot;);
+            return;
+        }
+
+        if (!$id &amp;&amp; !$passwd) {return 1;}
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+The next step is to create the new encrypted password. The 'salt' for
+encryption is obtained by getting the first two letters of the systems
+hostname by the hostname() method of the Sys::Hostname module
+(distributed with Perl). Before crypt() is called,
+we want to make sure that
+there is a password to crypt. The case where there wouldn?t be a password
+is when the function is called intending to delete the password like:
+&lt;p&gt;NOTE:
+Win32 ports of Perl may not implement crypt(). To make sure
+your Perl is compiled to support crypt() a test can be done
+from the command line with 'perl -e ``print
+crypt(''ab``,''test``)'';'. You may want to look into Crypt.pm
+if crypt() is unavailable to you.
+
+&lt;P&gt;
+&lt;code&gt;    $hash{name} = &quot;&quot;;
+# or
+    $hash{name} = undef;
+&lt;/code&gt;
+
+&lt;P&gt;
+The method takes the situation of a blank password into account so a
+username isn't written with no password. If there is a password, we then
+encrypt it.
+
+&lt;P&gt;
+&lt;code&gt;    if ($passwd eq &quot;&quot;) {
+        $cryptedPass = &quot;&quot;;
+    } else {
+        $cryptedPass = crypt($passwd, $salt);
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+The new name/password pair is ready to be written to the password file. The
+file is opened and locked with flock() 
+
+&lt;P&gt;NOTE: Win32 may
+not support the Perl flock() function. If it is not
+implemented on your machine, you can look into the Fcntl module
+(distributed with Perl)
+ to make sure that the file isn't modified before
+the method finishes writting the new data. A check is made against the
+existing name/password pairs stored in memory to see if there's already a
+password for this userame. If the entry exists, the method runs through the
+file and replaces the old entry with the new one. If it doesn't exist, it
+will append the new entry to the file. Finally, it closes our file and adds
+the new entry into the hash in memory so the saved hash is in synch with
+the password file.
+
+&lt;P&gt;
+&lt;code&gt; 
+    # Warning, possible race condition ahead
+    # I need to update this opening a locking!
+    if (!open(FH,&quot;&lt;$passwdFile&quot;)) {
+        carp(&quot;Cannot open $passwdFile: $!&quot;);
+        return;
+    }
+    flock(FH, 2);
+
+    if (!exists $self-&gt;{CURRENT}{Id}) {
+        while (&lt;FH&gt;) {
+            if ( /^$Id\:/ ) {
+                push (@cache, &quot;$Id\:$cryptedPass\n&quot;)
+                    unless $cryptedPass eq &quot;&quot;;
+                $return = 1; 
+            } else {
+                push (@cache, $_);
+            }
+        }
+    }
+    close FH;
+    
+    if ($return) {
+        if (!open(FH, &quot;&gt;$passwdFile&quot;)) {
+            carp(&quot;Cannot open $passwdFile: $!&quot;);
+            return;
+        }
+        flock(FH, 2);
+        while (@cache) { 
+            print FH shift (@cache); 
+        }
+    } else {
+        if (!open(FH, &quot;&gt;&gt;$passwdFile&quot;)) {
+            carp(&quot;Cannot open $passwdFile: $!&quot;);
+            return;
+        }
+        flock(FH, 2);
+        print FH &quot;$Id\:$cryptedPass\n&quot; unless $cryptedPass eq &quot;&quot;;
+        $foo = $hash{FOO};
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+The FETCH method has a very specific function, to get a value. To do this
+it first checks to see if the username ($Id) being looking for exists in
+the current hash. If so, it returns that value, if not, it returns a
+message saying it doesn't exist. The FETCH method is very simple and
+straight forward because it isn't performing any magic in the background.
+
+&lt;P&gt;
+&lt;code&gt;    sub FETCH {
+        my $self = shift;
+        my $Id = shift;         
+        if (exists $self-&gt;{CURRENT}{$Id}) {
+            return $self-&gt;{CURRENT}{$Id};
+        } else {
+            return &quot;$Id doesn't exist&quot;;
+        }
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+Here is a fast quiz. Judging by the names of the methods so far, what would
+you guess the method name for deleting an entry in the file is (faint
+sounds of the Jeopardy theme). If you said DELETE, you are correct!
+
+&lt;P&gt;
+The DELETE method does just that, it deletes an entry in the hash, and in
+turn the tied resource. It doesn't delete just the value, but the key/value
+pair. The DELETE method is only called when the delete()
+fuction is called. Assigning undef or ``'' to an entry in the hash doesn't
+delete that entry, so DELETE is not called.
+
+&lt;P&gt;
+&lt;code&gt;    delete $hash{FOO};
+&lt;/code&gt;
+
+&lt;P&gt;
+The above DELETE call will delete all instances of entry FOO. What you see
+in the example DELETE method should look familiar now. First a check for
+clobbering is done. If it is ok to clobber a check is made in the local
+hash to make sure the entry wanted to be deleted exists. If it does, the
+file is opened and its entries are read, removing the entry marked for
+deletion. Finally, the new file is written. I added in a return of 1 when
+the entry doesn't exist, since the user may have thought it did, I didn't
+think it warranted the script exiting. It also returns a 1 when an entry is
+successfully deleted. The only error, aside from not being able to open a
+password file, that can make the subroutine die() is if the
+file was opened with read-only permissions.
+
+&lt;P&gt;
+&lt;code&gt;    sub DELETE {
+        my $self = shift;
+        my ($Id) = shift;
+        my ($passwdFile) = $self-&gt;{PATH};
+        my (@cache); 
+
+        unless ($self-&gt;{CLOBBER}) {
+            carp (&quot;No write access for $self-&gt;{PATH}&quot;);
+            return;
+        } 
+
+        if (!exists $self-&gt;{CURRENT}{$Id}) {return 1;}
+
+        delete $self-&gt;{CURRENT}{$Id};
+
+        if (!open(FH,&quot;&lt;$passwdFile&quot;)) {
+            carp(&quot;Cannot open $passwdFile: $!&quot;);
+            return;
+        }
+        flock(FH, 2);
+        while (&lt;FH&gt;) {
+            if ( /^$Id\:/ ) { 
+                next;
+            } else {
+                push (@cache, $_);
+            }
+        }
+        close FH;
+
+        if (!open(FH,&quot;&gt;$passwdFile&quot;)) {
+            carp(&quot;Cannot open $passwdFile: $!&quot;);
+            return;
+        }
+        flock(FH, 2);
+        while (@cache) {
+            print FH shift (@cache); 
+        }
+        close FH;
+        return 1;
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+The module is almost complete. Our next method, CLEAR, will clear the
+entire hash, as well as clearing all the data out of the tied resource.
+CLEAR is generally called when you assign an empty list as the value of
+your tied hash. This occurs when assigning a null string, to another hash,
+or undef. This, of course, can be very dangerous in a situation where a
+programmer isn't paying attention and makes a calls to invoke CLEAR by
+accident. Below illustrates ways in which CLEAR will be invoked.
+
+&lt;P&gt;
+&lt;code&gt;    %hash = &quot;&quot;;
+    %hash = %newHash;
+    %hash = {};
+    undef %hash;
+&lt;/code&gt;
+
+&lt;P&gt;
+To help prevent against this sort of mishap, the module can be made more
+foolproof by adding another level of 'mode' to tie() with that
+will set the $clobber variable to something higher than 1
+(like 2). Then the TIE* method can be written to understand not only 'r'
+and 'rw', but something like 'rwe' as well. This way, an extra level of
+security is added, and the user knows that they can erase the resource
+because they used the proper permissions when they invoked the
+tie(). I didn't add that into this example, but left it as an
+exercise for the reader. The example's CLEAR method will CLEAR the local
+hash, as well as the password-file.  
+
+&lt;P&gt;
+&lt;code&gt;    sub CLEAR {
+        my $self = shift;
+        my ($passwdFile) = $self-&gt;{PATH};
+
+        unless ($self-&gt;{CLOBBER}) {
+            carp (&quot;No write access for $self-&gt;{PATH}&quot;);
+            return;
+        } 
+
+        if (!open(FH,&quot;&gt;$passwdFile&quot;)) {
+            carp(&quot;Cannot open $passwdFile: $!&quot;);
+            return;
+        }
+        close FH;
+        $self-&gt;{CURRENT} = {};
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+Now we get into the last few methods. These are very simple methods, and
+very short! The next is FIRSTKEY. This method is invoked when a call is
+made to iterate through the hash, generally with the keys() or
+each() functions.
+
+&lt;P&gt;
+&lt;code&gt;    sub FIRSTKEY {
+        my $self = shift; 
+        my $a = keys %{$self-&gt;{CURRENT}};
+        each %{$self-&gt;{CURRENT}};
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+One of the last methods is NEXTKEY. This method is also invoked during an
+each() or keys() iteration. Behind the scenes it
+is given 2 arguments 'this' and 'lastkey', which are the object and the
+last key iterated through, respectively. It is very similar to FIRSTKEY,
+but it returns all the keys, as opposed to the first key in the hash. Here
+arguments are ignored because this method using the
+each() function behind the scenes to iterate over the hash in
+$self-&gt;{CURRENT}.
+
+&lt;P&gt;
+&lt;code&gt;    sub NEXTKEY {
+        my $self = shift;
+        return each %{$self-&gt;{CURRENT}};
+
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+The last method is the class destructor, DESTROY. This method is invoked
+when the tied variable is to be destroyed. Unless the return value of
+tie() has been saved, this can be done with the
+untie() function. If the tied variable hasn't been
+untie()'d, DESTROY will be called when the script exits. In
+general, you don't need to have anything in a DESTROY method, unless you
+are doing some special debugging, or you possibly have some cleanup that
+you want to do. In fact, you do not need to have a DESTROY method at all,
+and our Example.pm will not have this method.
+
+&lt;P&gt;
+For example's sake, if you created a temp file, for whatever reason, and
+wanted to delete it only when you know the tie() is finished
+being used, the below would do this:
+
+&lt;P&gt;
+&lt;code&gt;    sub DESTROY { unlink &quot;/tmp/tie.txt&quot;;}
+&lt;/code&gt;
+
+&lt;P&gt;
+And there you have it! A module that will bind a variable from a script to
+a password (or whatever) file. Now that it is written, let's use it. This
+is a quick command line program to test this module out. Try adding,
+deleting, and getting passwords.
+
+&lt;P&gt;
+&lt;code&gt;    #!/usr/bin/perl
+    use Example;
+
+    tie(%hash, &quot;Example&quot;, &quot;example&quot;, &quot;rw&quot;) || die &quot;Can't tie : $!&quot;;
+
+    &amp;ask;
+
+    sub ask {
+        print &quot;(A)dd, (D)elete, or (G)et user:&quot;;
+        $ans = &lt;STDIN&gt;;
+        if ($ans =~ /a/i) { &amp;add; }
+        elsif ($ans =~ /d/i) { &amp;delete;} 
+        elsif ($ans =~ /g/i) {&amp;get;}
+        else { print &quot;Try again\n&quot;; &amp;ask;}
+    }
+
+    sub add {
+        print &quot;User Name:&quot;;
+        $name = &lt;STDIN&gt;;
+        print &quot;\nPassword:&quot;;
+        $pass = &lt;STDIN&gt;;
+        chop $name;
+        chop $pass;
+        $hash{$name} = $pass;
+        print &quot;\nAdded\nAgain (Y/N)?&quot;;
+        $again = &lt;STDIN&gt;;
+        if ($again !~ /y/i) { untie %hash; exit;}else{&amp;ask;}
+
+    }
+
+    sub delete {
+        print &quot;User Name:&quot;;
+        $name = &lt;STDIN&gt;;
+        chop $name;
+        delete $hash{$name};
+        print &quot;\nDeleted\nAgain (Y/N)?&quot;;
+        $again = &lt;STDIN&gt;;
+        if ($again !~ /y/i) { untie %hash; exit;}else{&amp;ask;}
+
+    }
+
+    sub get {
+        print &quot;User Name:&quot;;
+        $name = &lt;STDIN&gt;;
+        chop $name;
+        if (!exists $hash{$name}) {
+            print &quot;$name isn't valid&quot;;
+        } else {
+            print &quot;$name\'s encrypted password is &quot; . $hash{$name};
+        }
+        print &quot;\nAgain (Y/N)?&quot;;
+        $again = &lt;STDIN&gt;;
+        if ($again !~ /y/i) { untie %hash; exit;}else{&amp;ask;}
+
+    }
+&lt;/code&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;All_tied_up&quot;&gt;All tied() up&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+A sister function of tie() is Perl's tied()
+function. By using this function, you can access a reference to the
+underlying object. If you were to expand this example class, you may want
+to add the flexibility to use a second password file midway in your
+program. Instead of creating a new tied object, you can change your
+existing one like so:
+
+&lt;P&gt;
+&lt;code&gt;    tied(%hash)-&gt;newPwdFile('/usr/local/apache/.passwds');
+&lt;/code&gt;
+&lt;P&gt;
+Which yields the same result as:
+
+&lt;P&gt;
+&lt;code&gt;    $obj = tie(%hash, 'Tie::Class', 'rw');
+    $obj-&gt;newPwdFile('/usr/local/apache/.passwds');
+&lt;/code&gt;
+&lt;P&gt;
+This will call (explicitly) the method newPwdFile() on the
+underlying tied object and allow you to use your objects methods on the new
+file. This is what the newPwdFile() method could look like:
+
+&lt;P&gt;
+&lt;code&gt;    sub newPwdFile {
+        my $self = shift;
+        $self-&gt;{PATH} = @_ ? shift : die &quot;No new file given&quot;;
+
+        unless (-e $self-&gt;{PATH}) {
+            if ($self-&gt;{CLOBBER}) {
+                unless (open(FH,&quot;&gt;$self-&gt;{PATH}&quot;)) {
+                    croak(&quot;Can't create $self-&gt;{PATH}: $!&quot;);
+                }
+            } else {
+                croak(&quot;$self-&gt;{PATH} does not exist&quot;);
+            }
+        }
+        close FH;
+
+        my ($line, $id, $pass, @lines);
+        foreach $line (@lines) {
+            ($id, $pass) = split(/\:/,$line);
+            $self-&gt;{CURRENT}{$id} = $pass;
+        }
+
+    }
+&lt;/code&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Scalar_Quickie&quot;&gt;Scalar Quickie&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This is a fast example of a class that will tie() a scalar
+variable to a text file. This is different from the other example (given in
+the Constructors/Destructors section) of a string value living in a text
+file being assigned to the tying scalar. In this case, the text file is
+going to keep a log of all the times the scalar variable is changed, or
+it's value is FETCHED. Take what you have learned about tying with hash's
+and apply it to the module below. 
+
+&lt;P&gt;
+&lt;code&gt;    # Usage: tie($VARIABLE,'TrackScalar', FILE, &quot;\$VARIABLE name/description&quot;);
+
+    # use TrackScalar;
+    # my $var;
+    # tie($var, 'TrackScalar', 'track.txt', &quot;\$var (keeps count)&quot;);
+
+    package TrackScalar;
+
+    use strict;
+    use vars qw($VERSION @ISA);
+
+    # Get Revision number from RCS
+    ($VERSION = substr(q$Revision: 0.2 $, 10)) =~ s/\s+$//;
+
+    sub Version {return $VERSION;}
+
+    use IO::File;
+
+    # Create tied scalar
+
+    sub TIESCALAR {
+        my $class = shift;
+        my $log = shift;
+        my $var = shift || &quot;(undefined)&quot;;
+        my $fh = new IO::File &quot;&gt;&gt; $log&quot;
+            or die &quot;Cannot open $log: $!\n&quot;;
+
+        # Notice that the variable being blessed in the object is
+        # an anonymous hash, and this is tied to the scalar
+        return bless {FH =&gt; $fh, VAL =&gt; 0, VAR =&gt; $var}, $class;
+    }
+
+    sub FETCH {
+        my $self = shift;
+        my ($package, $filename, $line) = caller();
+        my $fh = $self-&gt;{FH};
+        print $fh &quot;package $package, &quot;,
+            &quot;$filename line $line FETCHED $self-&gt;{VAR}\n&quot;;
+
+        return $self-&gt;{VAL};
+    }
+
+    sub STORE {
+        my $self = shift;
+        my $var = shift;
+        my $fh = $self-&gt;{FH};
+        my ($package, $filename, $line) = caller();
+        print $fh &quot;package $package, &quot;,
+            &quot;$filename line $line changed $self-&gt;{VAR} to $var\n&quot;;
+        $self-&gt;{VAL} = $var;
+    }
+
+    sub DESTROY {
+        undef %{$_[0]};
+    }
+
+    1;
+&lt;/code&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Summary&quot;&gt;Summary&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Through this article, we created a tie() class, and a program
+that used it. You could customize this tie() class as much as
+you wish: adding multiple 'mode' levels, adding manually invoked methods to
+change the password file or level of clobbering, making reading/writing
+from the resource more efficent, file syncing, real-time read/write
+operations, or almost anything else you can think up.
+
+&lt;P&gt;
+I encourage you to write your own class that ties to a directory, the
+Windows registry, config files, remote machines, or system commands. All
+are straightforward applications of the techniques in this article.
+
+&lt;P&gt;
+I hope you now have a better understanding of how tie() works,
+how to use it, have enough information to write your own tie module, and
+now have another tool of Perl to use in your programming.
+
+&lt;P&gt;
+__END__
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>15838</node_id>
+  <author_user>12207</author_user>
+  <title>The tie()s That Bind</title>
+  <createtime>2000-06-01 15:19:10</createtime>
+  <nodeupdated>2005-08-14 21:16:29</nodeupdated>
+</node>

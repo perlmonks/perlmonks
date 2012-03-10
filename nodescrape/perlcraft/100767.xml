@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="100767" title="PHP variable cross-reference" created="2001-07-30 02:43:09" updated="2005-07-21 01:27:51">
+<type id="121">
+perlcraft</type>
+<author id="72812">
+petdance</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+# In my day job, we use PHP and I wanted to find all 
+# the variables in a source tree that were used only
+# once, so I whipped this out.
+
+use strict;
+use File::Find;
+
+find( \&amp;handler, "." );
+
+my %byfile;
+my %all;
+
+my @listers = keys %byfile;
+
+# Comment this if you want all vars, not just those used once
+@listers = grep { $all{$_} &lt;= 1 } @listers;
+
+for my $var ( sort @listers ) {
+    print "$var\n";
+    my $files = $byfile{$var};
+    for my $file ( sort keys %$files ) {
+        printf( "  %5d %s\n", $files-&gt;{$file}, $file );
+    } # for file
+} # for var
+
+sub handler {
+    if ( -d ) {
+        $File::Find::prune = 1 if /^(CVS|pl)$/;
+        return;
+    }
+
+    return unless /\.(html?|php|inc)$/;
+
+    open( IN, $_ ) or die "Can't open $_: $!";
+    while (&lt;IN&gt;) {
+        s[//.+][]; # ignore comments (kinda)
+        while ( /(\$[a-z_][a-z0-9_]*)/g ) {
+            my $var = $1;
+            ++$byfile{$var}{$File::Find::name};
+            ++$all{$var};
+        } # while grep
+    } # while &lt;IN&gt;
+    close IN;
+}
+</field>
+</data>
+</node>

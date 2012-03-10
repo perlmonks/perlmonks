@@ -1,0 +1,167 @@
+<node>
+  <doctext>&lt;h4&gt;Traversing the directory tree&lt;/h4&gt;
+It is often needed to traverse all files in some directory tree recursively - similarly
+to what the Unix &quot;find&quot; command does, in Perl. It is possible to do so the &quot;hard way&quot;,
+using opendir, readdir and their friends. But in Perl, naturally, TMTOWTDI. Not only
+I want to present an &quot;other way to do it&quot;, but IMHO a &quot;better way to do it&quot;, especially
+for beginners who only need to perform simple tasks.
+
+&lt;h4&gt;File::Find basics&lt;/h4&gt;
+Just remember - if you have to traverse files recursively and do some processing on 
+them, this is your friend:
+
+&lt;code&gt;
+use File::Find;
+&lt;/code&gt;
+
+This module makes recursive file traversal as easy as you could imagine. The following
+is a naked template for working with this module:
+
+&lt;code&gt;
+use File::Find;
+
+my $dir = # whatever you want the starting directory to be
+
+find(\&amp;do_something_with_file, $dir);
+
+sub do_something_with_file
+{
+	#.....
+}
+&lt;/code&gt;
+
+First, a starting directory is initialized in $dir. If you imagine the directory structure
+as a tree, this is the root, from which the search starts. &lt;br&gt;
+Then, &lt;i&gt;find&lt;/i&gt; (a function from the File::Find module) is called. It is given a reference to
+a subroutine and the starting directory. &lt;i&gt;find&lt;/i&gt; will traverse the directory
+tree and call the supplied subroutive on each file (be it just a file, a directory, a link, etc).
+&lt;br&gt;
+Then we see the definition of the processing function. It gets one argument (stored in $_), the
+file currently seen by &lt;i&gt;find&lt;/i&gt;. Consider the following simple example (it prints the names of
+all directories, starting with &quot;.&quot; - the current directory):
+&lt;readmore&gt;
+&lt;code&gt;
+use File::Find;
+
+find(\&amp;print_name_if_dir, &quot;.&quot;);
+
+sub print_name_if_dir
+{
+    print if -d;
+}
+&lt;/code&gt;
+
+Here, the subroutine &lt;i&gt;print_name_if_dir&lt;/i&gt; is given as an argument to &lt;i&gt;find&lt;/i&gt;. 
+It simply prints the name of the file if it's a directory. Note the peculiar notation... 
+It's customary in Perl not to mention $_, so:
+&lt;code&gt;
+print if -d;
+&lt;/code&gt;
+Is equivalent to:
+&lt;code&gt;
+print $_ if -d $_;
+&lt;/code&gt;
+Both are quite cryptic (but hey, it's Perl), and for clarity the routine could be 
+rewritten as:
+&lt;code&gt;
+sub print_name_if_dir
+{
+    my $file = $_;
+
+    print $file if -d $file;
+}
+&lt;/code&gt;
+Routines in Perl can be anonymous, which is more suitable for such simple tasks, so the
+whole program may be rewritten as:
+&lt;code&gt;
+use File::Find;
+
+my $dir = # whatever you want the starting directory to be
+
+find(sub {print if -d}, $dir);
+&lt;/code&gt;
+
+Just 3 lines of code, and we're already doing something useful !
+
+&lt;h4&gt;For the more advanced&lt;/h4&gt;
+The internal variable $File::Find:name can be used at any time to report the
+&lt;b&gt;full path&lt;/b&gt; to the file. Consider the following improved version of our little
+script:
+&lt;code&gt;
+use File::Find;
+
+find(sub {print $File::Find::name if -d}, &quot;.&quot;);
+&lt;/code&gt;
+Try running it and compare the results to the previous version. You will notice that it
+prints the full path to the directory. What happens is the following - Find::File 
+&lt;i&gt;chdir&lt;/i&gt;s into each directory it finds in its search, and $_ gets only the short
+name (w/o path) of the file, while Find::File::name gets the full path. If, for some reason,
+you don't want it to &lt;i&gt;chdir&lt;/i&gt;, you may specify no_chdir as a parameter. Parameters
+to &lt;i&gt;find&lt;/i&gt; are passed as a hash reference:
+&lt;code&gt;
+use File::Find;
+
+find({wanted =&gt; sub {print $File::Find::name if -d}
+	  no_chdir =&gt; 1}, &quot;.&quot;);
+	  
+&lt;/code&gt;
+Note that &quot;wanted&quot; is the key for the file processing routine in this hash.&lt;br&gt;
+The results won't differ from the previous version. Here, however, $_ will also be
+the full path to a file, because &lt;i&gt;find&lt;/i&gt; doesn't &quot;dive into&quot; the directories.
+&lt;br&gt;
+Other parameters may be specified (like 'bydepth' if want a depth-first-search), but
+these are advanced topics. If you're curious, you can look these issues up in the
+documentation of the module.
+
+&lt;h4&gt;Bonus - a useful utility based on File::Find&lt;/h4&gt;
+Ever felt that your quota suffocates you, and couldn't find the unnecessary large
+files to remove ? Do you find &quot;du&quot; too tedious to use in these cases ? File::Find
+comes to the rescue. Consider the following script... It takes a starting directory,
+and prints the 20 largest files found in the tree under this directory - specifying
+full paths, so you can just cut-n-paste them into &quot;rm&quot;:
+
+&lt;code&gt;
+#!/usr/local/bin/perl -w
+
+($#ARGV == 0) or die &quot;Usage: $0 [directory]\n&quot;; 
+
+use File::Find;
+    
+find(sub {$size{$File::Find::name} = -s if -f;}, @ARGV);
+@sorted = sort {$size{$b} &lt;=&gt; $size{$a}} keys %size;
+    
+splice @sorted, 20 if @sorted &gt; 20;
+    
+foreach (@sorted) 
+{
+    printf &quot;%10d %s\n&quot;, $size{$_}, $_;
+}
+&lt;/code&gt;
+
+What goes on here ? &lt;i&gt;find&lt;/i&gt; traverses the given directory recursively, taking
+notice of each file's size in the $size hash table (-s if -f means = get the size
+if this is a file). Then, it sorts the hash table by size, and prints the 20
+largest files. That's it... I use this utility quite a lot to clean space, I hope
+you find it useful too (and also understand exactly how it works !)
+
+&lt;h4&gt;Update:&lt;/h4&gt;
+Thanks to [rinceWind] for this:&lt;br&gt;
+File::Find is cross-platform. It's one of the really handy ways for iterating directory trees on Windows - something Microsoft don't encourage you to do, with their 'hidden files' (File::Find X-rays through Windows hidden files mechanism nicely :-).&lt;p&gt;
+With this in mind, though, you must be careful when working with Windows' paths, because slashes there have a different direction. There is a nice tutorial - [id://110030|Paths in Perl], that explains this.
+
+&lt;h4&gt;Update 2:&lt;/h4&gt;
+There are some nice continuation replies written to this tutorial - special thanks to [Aristotle], who supplied some info for the real [id://217378|advanced use of File::Find]. 
+&lt;/readmore&gt;
+&lt;h4&gt;Conclusion&lt;/h4&gt;
+File::Find can turn the tasks dealing with recursive file traversal from torture
+to pleasure, if you know how to use it. Modules like this make Perl a wonderful
+language it is - you can perform useful tasks without pain. Enjoy !
+&lt;p&gt;&lt;small&gt;Edit by [tye] to add READMORE&lt;/small&gt;&lt;/p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>217166</node_id>
+  <reputation>134</reputation>
+  <author_user>186172</author_user>
+  <title>Beginners guide to File::Find</title>
+  <createtime>2002-12-03 04:41:34</createtime>
+  <nodeupdated>2005-08-15 15:17:46</nodeupdated>
+</node>

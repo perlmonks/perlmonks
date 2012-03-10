@@ -1,0 +1,619 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlobj - Perl objects
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+First of all, you need to understand what references are in Perl. See [perlman:perlref|the perlref manpage] for that. Second, if you still find the following reference work too
+complicated, a tutorial on object-oriented programming in Perl can be found
+in [perlman:perltoot|the perltoot manpage].
+
+&lt;P&gt;
+If you're still with us, then here are three very simple definitions that
+you should find reassuring.
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__&quot;&gt;.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+An object is simply a reference that happens to know which class it belongs
+to.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class is simply a package that happens to provide
+methods to deal with object references.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; method is simply a subroutine that expects an object
+reference (or a package name, for class methods) as the first argument.
+
+&lt;/OL&gt;
+&lt;P&gt;
+We'll cover these points now in more depth.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;An_Object_is_Simply_a_Reference&quot;&gt;An Object is Simply a Reference&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Unlike say 
+&lt;FONT SIZE=-1&gt;C++,&lt;/FONT&gt; Perl doesn't provide any special syntax for constructors. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; constructor is merely a subroutine that returns a reference to something ``blessed'' into a class, generally the class that the subroutine is defined in. Here is a typical constructor:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Critter;
+    sub new { bless {} }
+&lt;/PRE&gt;
+&lt;P&gt;
+That word &lt;CODE&gt;new&lt;/CODE&gt; isn't special. You could have written a construct this way, too:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Critter;
+    sub spawn { bless {} }
+&lt;/PRE&gt;
+&lt;P&gt;
+In fact, this might even be preferable, because the 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers won't be tricked into thinking that &lt;CODE&gt;new&lt;/CODE&gt; works in Perl as it does in 
+&lt;FONT SIZE=-1&gt;C++.&lt;/FONT&gt; It doesn't. We recommend that you name your
+constructors whatever makes sense in the context of the problem you're
+solving. For example, constructors in the Tk extension to Perl are named
+after the widgets they create.
+
+&lt;P&gt;
+One thing that's different about Perl constructors compared with those in 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; is that in Perl, they have to allocate their own
+memory. (The other things is that they don't automatically call overridden
+base-class constructors.) The &lt;CODE&gt;{}&lt;/CODE&gt; allocates an anonymous hash containing no key/value pairs, and returns it The 
+&lt;CODE&gt;bless()&lt;/CODE&gt; takes that reference and tells the object it references that it's now a Critter, and returns the reference. This is for convenience, because the referenced object itself knows that it has been blessed, and the reference to it could have been returned directly, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $self = {};
+        bless $self;
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+In fact, you often see such a thing in more complicated constructors that
+wish to call methods in the class as part of the construction:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $self = {};
+        bless $self;
+        $self-&amp;gt;initialize();
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you care about inheritance (and you should; see
+[perlman:perlmod]), then you want to use the two-arg form of bless so that your constructors
+may be inherited:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $class = shift;
+        my $self = {};
+        bless $self, $class;
+        $self-&amp;gt;initialize();
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Or if you expect people to call not just &lt;CODE&gt;CLASS-&amp;gt;new()&lt;/CODE&gt; but also
+&lt;CODE&gt;$obj-&amp;gt;new()&lt;/CODE&gt;, then use something like this. The 
+&lt;CODE&gt;initialize()&lt;/CODE&gt; method used
+will be of whatever &lt;CODE&gt;$class&lt;/CODE&gt; we blessed the object into:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $this = shift;
+        my $class = ref($this) || $this;
+        my $self = {};
+        bless $self, $class;
+        $self-&amp;gt;initialize();
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Within the class package, the methods will typically deal with the
+reference as an ordinary reference. Outside the class package, the
+reference is generally treated as an opaque value that may be accessed only
+through the class's methods.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; constructor may re-bless a referenced object
+currently belonging to another class, but then the new class is responsible
+for all cleanup later. The previous blessing is forgotten, as an object may
+belong to only one class at a time. (Although of course it's free to
+inherit methods from many classes.) If you find yourself having to do this,
+the parent class is probably misbehaving, though.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; clarification: Perl objects are blessed. References are not. Objects know which package they belong to. References do not. The 
+&lt;CODE&gt;bless()&lt;/CODE&gt; function uses the reference to find the object. Consider the following example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = {};
+    $b = $a;
+    bless $a, BLAH;
+    print &amp;quot;\$b is a &amp;quot;, ref($b), &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+This reports &lt;CODE&gt;$b&lt;/CODE&gt; as being a 
+&lt;FONT SIZE=-1&gt;BLAH,&lt;/FONT&gt; so obviously 
+&lt;CODE&gt;bless()&lt;/CODE&gt; operated on the object and not on the reference.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;A_Class_is_Simply_a_Package&quot;&gt;A Class is Simply a Package&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Unlike say 
+&lt;FONT SIZE=-1&gt;C++,&lt;/FONT&gt; Perl doesn't provide any special syntax for class
+definitions. You use a package as a class by putting method definitions
+into the class.
+
+&lt;P&gt;
+There is a special array within each package called 
+&lt;FONT SIZE=-1&gt;@ISA,&lt;/FONT&gt; which says where else to look for a method if you can't find it in the current package. This is how Perl implements inheritance. Each element of the &lt;CODE&gt;@ISA&lt;/CODE&gt; array is just the name of another package that happens to be a class package. The classes are searched (depth first) for missing methods in the order that they occur in 
+&lt;FONT SIZE=-1&gt;@ISA.&lt;/FONT&gt; The classes accessible through &lt;CODE&gt;@ISA&lt;/CODE&gt; are known as base classes of the current class.
+
+&lt;P&gt;
+All classes implicitly inherit from class &lt;CODE&gt;UNIVERSAL&lt;/CODE&gt; as their last base class. Several commonly used methods are automatically supplied in the 
+&lt;FONT SIZE=-1&gt;UNIVERSAL&lt;/FONT&gt; class; see
+ &lt;A HREF=&quot;#Default_UNIVERSAL_methods&quot;&gt;Default UNIVERSAL methods&lt;/A&gt; for more details.
+
+&lt;P&gt;
+If a missing method is found in one of the base classes, it is cached in
+the current class for efficiency. Changing &lt;CODE&gt;@ISA&lt;/CODE&gt; or defining
+new subroutines invalidates the cache and causes Perl to do the lookup
+again.
+
+&lt;P&gt;
+If neither the current class, its named base classes, nor the 
+&lt;FONT SIZE=-1&gt;UNIVERSAL&lt;/FONT&gt; class contains the requested method, these three places are searched all over again, this time looking for a method named 
+&lt;CODE&gt;AUTOLOAD().&lt;/CODE&gt; If an 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; is found, this method is called on behalf of the missing method, setting the package global &lt;CODE&gt;$AUTOLOAD&lt;/CODE&gt; to be the fully qualified name of the method that was intended to be called.
+
+&lt;P&gt;
+If none of that works, Perl finally gives up and complains.
+
+&lt;P&gt;
+Perl classes do method inheritance only. Data inheritance is left up to the class itself. By and large, this is not a problem in Perl, because most classes model the attributes of their object using an anonymous hash, which serves as its own little namespace to be carved up by the various classes that might want to do something with the object. The only problem with this is that you can't sure that you aren't using a piece of the hash that isn't already used. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; reasonable workaround is to prepend your fieldname in the hash with the package name.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub bump {
+        my $self = shift;
+        $self-&amp;gt;{ __PACKAGE__ . &amp;quot;.count&amp;quot;}++;
+    } 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;A_Method_is_Simply_a_Subroutine&quot;&gt;A Method is Simply a Subroutine&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Unlike say 
+&lt;FONT SIZE=-1&gt;C++,&lt;/FONT&gt; Perl doesn't provide any special syntax for method definition. (It does provide a little syntax for method invocation though. More on that later.) 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; method expects its first argument to be the object (reference) or package (string) it is being invoked on. There are just two types of methods, which we'll call class and instance. (Sometimes you'll hear these called static and virtual, in honor of the two 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; method types they most closely resemble.)
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class method expects a class name as the first
+argument. It provides functionality for the class as a whole, not for any
+individual object belonging to the class. Constructors are typically class
+methods. Many class methods simply ignore their first argument, because
+they already know what package they're in, and don't care what package they
+were invoked via. (These aren't necessarily the same, because class methods
+follow the inheritance tree just like ordinary instance methods.) Another
+typical use for class methods is to look up an object by name:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub find {
+        my ($class, $name) = @_;
+        $objtable{$name};
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+An instance method expects an object reference as its first argument.
+Typically it shifts the first argument into a ``self'' or ``this''
+variable, and then uses that as an ordinary reference.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub display {
+        my $self = shift;
+        my @keys = @_ ? @_ : sort keys %$self;
+        foreach $key (@keys) {
+            print &amp;quot;\t$key =&amp;gt; $self-&amp;gt;{$key}\n&amp;quot;;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Method_Invocation&quot;&gt;Method Invocation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are two ways to invoke a method, one of which you're already familiar
+with, and the other of which will look familiar. Perl 4 already had an
+``indirect object'' syntax that you use when you say
+
+&lt;P&gt;
+&lt;PRE&gt;    print STDERR &amp;quot;help!!!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+This same syntax can be used to call either class or instance methods.
+We'll use the two methods defined above, the class method to lookup an
+object reference and the instance method to print out its attributes.
+
+&lt;P&gt;
+&lt;PRE&gt;    $fred = find Critter &amp;quot;Fred&amp;quot;;
+    display $fred 'Height', 'Weight';
+&lt;/PRE&gt;
+&lt;P&gt;
+These could be combined into one statement by using a 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; in the indirect object slot:
+
+&lt;P&gt;
+&lt;PRE&gt;    display {find Critter &amp;quot;Fred&amp;quot;} 'Height', 'Weight';
+&lt;/PRE&gt;
+&lt;P&gt;
+For 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; fans, there's also a syntax using -&amp;gt; notation
+that does exactly the same thing. The parentheses are required if there are
+any arguments.
+
+&lt;P&gt;
+&lt;PRE&gt;    $fred = Critter-&amp;gt;find(&amp;quot;Fred&amp;quot;);
+    $fred-&amp;gt;display('Height', 'Weight');
+&lt;/PRE&gt;
+&lt;P&gt;
+or in one statement,
+
+&lt;P&gt;
+&lt;PRE&gt;    Critter-&amp;gt;find(&amp;quot;Fred&amp;quot;)-&amp;gt;display('Height', 'Weight');
+&lt;/PRE&gt;
+&lt;P&gt;
+There are times when one syntax is more readable, and times when the other syntax is more readable. The indirect object syntax is less cluttered, but it has the same ambiguity as ordinary list operators. Indirect object method calls are parsed using the same rule as list operators: ``If it looks like a function, it is a function''. (Presuming for the moment that you think two words in a row can look like a function name. 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers seem to think so with some regularity, especially when the first word is ``new''.) Thus, the parentheses of
+
+&lt;P&gt;
+&lt;PRE&gt;    new Critter ('Barney', 1.5, 70)
+&lt;/PRE&gt;
+&lt;P&gt;
+are assumed to surround 
+&lt;FONT SIZE=-1&gt;ALL&lt;/FONT&gt; the arguments of the method call, regardless of
+what comes after. Saying
+
+&lt;P&gt;
+&lt;PRE&gt;    new Critter ('Bam' x 2), 1.4, 45
+&lt;/PRE&gt;
+&lt;P&gt;
+would be equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    Critter-&amp;gt;new('Bam' x 2), 1.4, 45
+&lt;/PRE&gt;
+&lt;P&gt;
+which is unlikely to do what you want.
+
+&lt;P&gt;
+There are times when you wish to specify which class's method to use. In
+this case, you can call your method as an ordinary subroutine call, being
+sure to pass the requisite first argument explicitly:
+
+&lt;P&gt;
+&lt;PRE&gt;    $fred =  MyCritter::find(&amp;quot;Critter&amp;quot;, &amp;quot;Fred&amp;quot;);
+    MyCritter::display($fred, 'Height', 'Weight');
+&lt;/PRE&gt;
+&lt;P&gt;
+Note however, that this does not do any inheritance. If you wish merely to
+specify that Perl should &lt;EM&gt;START&lt;/EM&gt; looking for a method in a particular package, use an ordinary method call,
+but qualify the method name with the package like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $fred = Critter-&amp;gt;MyCritter::find(&amp;quot;Fred&amp;quot;);
+    $fred-&amp;gt;MyCritter::display('Height', 'Weight');
+&lt;/PRE&gt;
+&lt;P&gt;
+If you're trying to control where the method search begins &lt;EM&gt;and&lt;/EM&gt; you're executing in the class itself, then you may use the 
+&lt;FONT SIZE=-1&gt;SUPER&lt;/FONT&gt; pseudo class, which says to start looking in
+your base class's &lt;CODE&gt;@ISA&lt;/CODE&gt; list without having to name it
+explicitly:
+
+&lt;P&gt;
+&lt;PRE&gt;    $self-&amp;gt;SUPER::display('Height', 'Weight');
+&lt;/PRE&gt;
+&lt;P&gt;
+Please note that the &lt;CODE&gt;SUPER::&lt;/CODE&gt; construct is meaningful &lt;EM&gt;only&lt;/EM&gt; within the class.
+
+&lt;P&gt;
+Sometimes you want to call a method when you don't know the method name
+ahead of time. You can use the arrow form, replacing the method name with a
+simple scalar variable containing the method name:
+
+&lt;P&gt;
+&lt;PRE&gt;    $method = $fast ? &amp;quot;findfirst&amp;quot; : &amp;quot;findbest&amp;quot;;
+    $fred-&amp;gt;$method(@args);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Default_UNIVERSAL_methods&quot;&gt;Default UNIVERSAL methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;UNIVERSAL&lt;/CODE&gt; package automatically contains the following methods that are inherited by
+all other classes:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_isa&quot;&gt;isa(CLASS)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;isa&lt;/CODE&gt; returns &lt;EM&gt;true&lt;/EM&gt; if its object is blessed into a subclass of [perlman:perlguts]
+
+&lt;P&gt;
+&lt;CODE&gt;isa&lt;/CODE&gt; is also exportable and can be called as a sub with two arguments. This
+allows the ability to check what a reference points to. Example
+
+&lt;P&gt;
+&lt;PRE&gt;    use UNIVERSAL qw(isa);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if(isa($ref, 'ARRAY')) {
+        #...
+    }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_can&quot;&gt;can(METHOD)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;can&lt;/CODE&gt; checks to see if its object has a method called &lt;CODE&gt;METHOD&lt;/CODE&gt;, if it does then a reference to the sub is returned, if it does not then
+&lt;EM&gt;undef&lt;/EM&gt; is returned.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_VERSION&quot;&gt;VERSION( &amp;#091;NEED&amp;#093; )&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;VERSION&lt;/CODE&gt; returns the version number of the class (package). If the 
+&lt;FONT SIZE=-1&gt;NEED&lt;/FONT&gt; argument is given then it will check that the current version (as defined by the &lt;CODE&gt;$VERSION&lt;/CODE&gt; variable in the given package) not less than 
+&lt;FONT SIZE=-1&gt;NEED;&lt;/FONT&gt; it will die if this is not the case. This method is normally called as a class method. This method is called automatically by the
+
+&lt;CODE&gt;VERSION&lt;/CODE&gt; form of [perlfunc:use|use].
+
+&lt;P&gt;
+&lt;PRE&gt;    use A 1.2 qw(some imported subs);
+    # implies:
+    A-&amp;gt;VERSION(1.2);
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;STRONG&gt;NOTE:&lt;/STRONG&gt;  &lt;CODE&gt;can&lt;/CODE&gt; directly uses Perl's internal code for method lookup, and
+&lt;CODE&gt;isa&lt;/CODE&gt; uses a very similar method and cache-ing strategy. This may cause strange
+effects if the Perl code dynamically changes &lt;CODE&gt;@ISA&lt;/CODE&gt; in any
+package.
+
+&lt;P&gt;
+You may add other methods to the 
+&lt;FONT SIZE=-1&gt;UNIVERSAL&lt;/FONT&gt; class via Perl or 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code. You do not need to
+ &lt;CODE&gt;use UNIVERSAL&lt;/CODE&gt; in order to make these methods available to your program. This is necessary
+only if you wish to have &lt;CODE&gt;isa&lt;/CODE&gt; available as a plain subroutine in the current package.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Destructors&quot;&gt;Destructors&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When the last reference to an object goes away, the object is automatically destroyed. (This may even be after you exit, if you've stored references in global variables.) If you want to capture control just before the object is freed, you may define a 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; method in your class. It will automatically be called at the appropriate moment, and you can do any extra cleanup you need to do. Perl passes a reference to the object under destruction as the first (and only) argument. Beware that the reference is a read-only value, and cannot be modified by manipulating
+ &lt;CODE&gt;$_&amp;#091;0&amp;#093;&lt;/CODE&gt; within the destructor. The object itself (i.e. the thingy the reference
+points to, namely &lt;CODE&gt;${$_&amp;#091;0&amp;#093;}&lt;/CODE&gt;, &lt;CODE&gt;@{$_&amp;#091;0&amp;#093;}&lt;/CODE&gt;, 
+&lt;CODE&gt;%{$_&amp;#091;0&amp;#093;}&lt;/CODE&gt; etc.) is not similarly constrained.
+
+&lt;P&gt;
+If you arrange to re-bless the reference before the destructor returns, perl will again call the 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; method for the re-blessed object after the current one returns. This can be used for clean delegation of object destruction, or for ensuring that destructors in the base classes of your choosing get called. Explicitly calling 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; is also possible, but is usually never needed.
+
+&lt;P&gt;
+Do not confuse the foregoing with how objects &lt;EM&gt;CONTAINED&lt;/EM&gt; in the current one are destroyed. Such objects will be freed and destroyed
+automatically when the current object is freed, provided no other
+references to them exist elsewhere.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;WARNING&quot;&gt;WARNING&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+While indirect object syntax may well be appealing to English speakers and to 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers, be not seduced! It suffers from two grave problems.
+
+&lt;P&gt;
+The first problem is that an indirect object is limited to a name, a scalar
+variable, or a block, because it would have to do too much lookahead
+otherwise, just like any other postfix dereference in the language. (These
+are the same quirky rules as are used for the filehandle slot in functions
+like [perlfunc:print|print] and [perlfunc:printf|printf].) This can lead to horribly confusing precedence problems, as in these
+next two lines:
+
+&lt;P&gt;
+&lt;PRE&gt;    move $obj-&amp;gt;{FIELD};                 # probably wrong!
+    move $ary&amp;#091;$i&amp;#093;;                      # probably wrong!
+&lt;/PRE&gt;
+&lt;P&gt;
+Those actually parse as the very surprising:
+
+&lt;P&gt;
+&lt;PRE&gt;    $obj-&amp;gt;move-&amp;gt;{FIELD};                # Well, lookee here
+    $ary-&amp;gt;move-&amp;gt;&amp;#091;$i&amp;#093;;                   # Didn't expect this one, eh?
+&lt;/PRE&gt;
+&lt;P&gt;
+Rather than what you might have expected:
+
+&lt;P&gt;
+&lt;PRE&gt;    $obj-&amp;gt;{FIELD}-&amp;gt;move();              # You should be so lucky.
+    $ary&amp;#091;$i&amp;#093;-&amp;gt;move;                     # Yeah, sure.
+&lt;/PRE&gt;
+&lt;P&gt;
+The left side of ``-&amp;gt;'' is not so limited, because it's an infix
+operator, not a postfix operator.  
+
+&lt;P&gt;
+As if that weren't bad enough, think about this: Perl must guess &lt;EM&gt;at
+compile time&lt;/EM&gt; whether &lt;CODE&gt;name&lt;/CODE&gt; and &lt;CODE&gt;move&lt;/CODE&gt; above are functions or methods. Usually Perl gets it right, but when it
+doesn't it, you get a function call compiled as a method, or vice versa.
+This can introduce subtle bugs that are hard to unravel. For example,
+calling a method &lt;CODE&gt;new&lt;/CODE&gt;
+in indirect notation--as 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers are so wont to do--can be miscompiled
+into a subroutine call if there's already a &lt;CODE&gt;new&lt;/CODE&gt;
+function in scope. You'd end up calling the current package's &lt;CODE&gt;new&lt;/CODE&gt;
+as a subroutine, rather than the desired class's method. The compiler tries
+to cheat by remembering bareword [perlfunc:require|require]s, but the grief if it messes up just isn't worth the years of debugging it
+would likely take you to to track such subtle bugs down.
+
+&lt;P&gt;
+The infix arrow notation using ``&lt;CODE&gt;-&amp;gt;&lt;/CODE&gt;'' doesn't suffer from either of these disturbing ambiguities, so we
+recommend you use it exclusively.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Summary&quot;&gt;Summary&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+That's about all there is to it. Now you need just to go off and buy a book
+about object-oriented design methodology, and bang your forehead with it
+for the next six months or so.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Two_Phased_Garbage_Collection&quot;&gt;Two-Phased Garbage Collection&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+For most purposes, Perl uses a fast and simple reference-based garbage collection system. For this reason, there's an extra dereference going on at some level, so if you haven't built your Perl executable using your 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; compiler's
+ &lt;CODE&gt;-O&lt;/CODE&gt; flag, performance will suffer. If you &lt;EM&gt;have&lt;/EM&gt; built Perl with &lt;CODE&gt;cc -O&lt;/CODE&gt;, then this probably won't matter.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; more serious concern is that unreachable memory with
+a non-zero reference count will not normally get freed. Therefore, this is
+a bad idea:
+
+&lt;P&gt;
+&lt;PRE&gt;    {
+        my $a;
+        $a = \$a;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Even thought &lt;CODE&gt;$a&lt;/CODE&gt; &lt;EM&gt;should&lt;/EM&gt; go away, it can't. When building recursive data structures, you'll have to
+break the self-reference yourself explicitly if you don't care to leak. For
+example, here's a self-referential node such as one might use in a
+sophisticated tree structure:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub new_node {
+        my $self = shift;
+        my $class = ref($self) || $self;
+        my $node = {};
+        $node-&amp;gt;{LEFT} = $node-&amp;gt;{RIGHT} = $node;
+        $node-&amp;gt;{DATA} = &amp;#091; @_ &amp;#093;;
+        return bless $node =&amp;gt; $class;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you create nodes like that, they (currently) won't go away unless you
+break their self reference yourself. (In other words, this is not to be
+construed as a feature, and you shouldn't depend on it.)
+
+&lt;P&gt;
+Almost.
+
+&lt;P&gt;
+When an interpreter thread finally shuts down (usually when your program
+exits), then a rather costly but complete mark-and-sweep style of garbage
+collection is performed, and everything allocated by that thread gets
+destroyed. This is essential to support Perl as an embedded or a
+multithreadable language. For example, this program demonstrates Perl's
+two-phased garbage collection:
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/bin/perl
+    package Subtle;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $test;
+        $test = \$test;
+        warn &amp;quot;CREATING &amp;quot; . \$test;
+        return bless \$test;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub DESTROY {
+        my $self = shift;
+        warn &amp;quot;DESTROYING $self&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    warn &amp;quot;starting program&amp;quot;;
+    {
+        my $a = Subtle-&amp;gt;new;
+        my $b = Subtle-&amp;gt;new;
+        $$a = 0;  # break selfref
+        warn &amp;quot;leaving block&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    warn &amp;quot;just exited block&amp;quot;;
+    warn &amp;quot;time to die...&amp;quot;;
+    exit;
+&lt;/PRE&gt;
+&lt;P&gt;
+When run as &lt;EM&gt;/tmp/test&lt;/EM&gt;, the following output is produced:
+
+&lt;P&gt;
+&lt;PRE&gt;    starting program at /tmp/test line 18.
+    CREATING SCALAR(0x8e5b8) at /tmp/test line 7.
+    CREATING SCALAR(0x8e57c) at /tmp/test line 7.
+    leaving block at /tmp/test line 23.
+    DESTROYING Subtle=SCALAR(0x8e5b8) at /tmp/test line 13.
+    just exited block at /tmp/test line 26.
+    time to die... at /tmp/test line 27.
+    DESTROYING Subtle=SCALAR(0x8e57c) during global destruction.
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice that ``global destruction'' bit there? That's the thread garbage
+collector reaching the unreachable.
+
+&lt;P&gt;
+Objects are always destructed, even when regular refs aren't and in fact are destructed in a separate pass before ordinary refs just to try to prevent object destructors from using refs that have been themselves destructed. Plain refs are only garbage-collected if the destruct level is greater than 0. You can test the higher levels of global destruction by setting the 
+&lt;FONT SIZE=-1&gt;PERL_DESTRUCT_LEVEL&lt;/FONT&gt; environment variable, presuming
+
+&lt;CODE&gt;-DDEBUGGING&lt;/CODE&gt; was enabled during perl build time.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; more complete garbage collection strategy will be
+implemented at a future date.
+
+&lt;P&gt;
+In the meantime, the best solution is to create a non-recursive container class that holds a pointer to the self-referential data structure. Define a 
+&lt;FONT SIZE=-1&gt;DESTROY&lt;/FONT&gt; method for the containing object's class that manually breaks the circularities in the self-referential structure.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; kinder, gentler tutorial on object-oriented
+programming in Perl can be found in [perlman:perltoot|the perltoot manpage]. You should also check out [perlman:perlbot|the perlbot manpage] for other object tricks, traps, and tips, as well as [perlman:perlmodlib|the perlmodlib manpage] for some style guides on constructing both modules and classes.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>394</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlobj</title>
+  <createtime>1999-08-25 02:34:44</createtime>
+  <nodeupdated>2005-08-15 14:20:25</nodeupdated>
+</node>

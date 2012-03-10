@@ -1,0 +1,165 @@
+<node>
+  <doctext>&lt;STRONG&gt;Name Change: From 'Simple Template' to 'Template with optional PHP execution'&lt;/STRONG&gt;&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Welcome&lt;/B&gt;:&lt;BR&gt;
+Well, I've been hearing quite a bit about the 'FastTemplate' and other Template modules in several languages, (Perl and PHP in particular), and while I think it probably works quite well and does it's job properly, I have found that it can be a little too complex at times, especially when you do not need anything nearly so complicated.
+&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;Purpose&lt;/B&gt;:&lt;BR&gt;
+I designed this template system because my website needed to have the template execute some PHP code within it, before being used by PERL as a template.  Although it was designed to do that, the first method of use discussed here does not use PHP.&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Description&lt;/B&gt;:&lt;BR&gt;
+This is a quick tutorial on creating and using a simple template.
+&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;The Template&lt;/B&gt;:&lt;BR&gt;
+All right, the first thing you need is the HTML or other code you will be making into a template.  The following is just our example code.&lt;BR&gt;
+&lt;CODE&gt;&lt;HTML&gt;
+   &lt;HEAD&gt;
+      &lt;TITLE&gt;MyCode&lt;/TITLE&gt;
+   &lt;/HEAD&gt;
+   &lt;BODY&gt;
+      &lt;A HREF=&quot;mypage.cgi&quot;&gt;Go to My Page!&lt;/A&gt;
+   &lt;/BODY&gt;
+&lt;/HTML&gt;&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;
+
+That should look like any other HTML document might since we have not started to make it into a template yet.  Now, lets say we want the title to always be &quot;MySite: page_name&quot;.  We would change the code to something like this:&lt;BR&gt;
+&lt;CODE&gt;&lt;HTML&gt;
+   &lt;HEAD&gt;
+      &lt;TITLE&gt;MySite: $title&lt;/TITLE&gt;
+   &lt;/HEAD&gt;
+   &lt;BODY&gt;
+      &lt;A HREF=&quot;mypage.cgi&quot;&gt;Go to My Page!&lt;/A&gt;
+   &lt;/BODY&gt;
+&lt;/HTML&gt;&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;
+Now, once that is done, lets say we want to make the link point to another page specified by a program.  It is just as simple as before:&lt;BR&gt;
+&lt;CODE&gt;&lt;HTML&gt;
+   &lt;HEAD&gt;
+      &lt;TITLE&gt;MySite: $title&lt;/TITLE&gt;
+   &lt;/HEAD&gt;
+   &lt;BODY&gt;
+      &lt;A HREF=&quot;$pagelink&quot;&gt;Go to My Page!&lt;/A&gt;
+   &lt;/BODY&gt;
+&lt;/HTML&gt;&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;
+&lt;BR&gt;
+&lt;B&gt;Explanation&lt;/B&gt;:&lt;BR&gt;
+Wherever we wish to include something that changes (The title, the page the link pointed to) we simply insert a Perl variable.&lt;BR&gt;&lt;BR&gt;Here is another example, with a few more sections being determined by the program:&lt;BR&gt;
+&lt;CODE&gt;&lt;HTML&gt;
+   &lt;HEAD&gt;
+      &lt;TITLE&gt;MySite: $title&lt;/TITLE&gt;
+      $aditional_header
+   &lt;/HEAD&gt;
+   &lt;BODY BGCOLOR=&quot;$bground&quot; TEXT=&quot;$text&quot;&gt;
+      $main
+      &lt;BR&gt;&lt;BR&gt;
+      &lt;CENTER&gt;
+         $copyright
+      &lt;/CENTER&gt;
+      &lt;BR&gt;
+   &lt;/BODY&gt;
+&lt;/HTML&gt;&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+That example is a bit more complex, but it still works.  Now, on to how to actually USE the template...&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Using the Template&lt;/B&gt;:&lt;BR&gt;
+Using the template is also quite simple.  In the program that needs to use the template, simply assign values to each of the Perl variables you declared in the template.  Here's an example:&lt;BR&gt;
+&lt;BR&gt;Step one:&lt;BR&gt;
+Insert this into a file named &quot;common.pl&quot; and place it in the same directory with the template file (I suggest naming the template HTML something simple... like &quot;template.html&quot; and placing them all within a &quot;Template&quot; folder if possible)
+&lt;CODE&gt;
+#Sub utemplate (use template)  Call only when ready to print.
+sub utemplate {                                
+   open(TEMPLATE,&quot;/pathtotemplate/template.html&quot;) || die(&quot;Unable to acess template: $!&quot;); #Open the template file
+   my @template = &lt;TEMPLATE&gt;;                     #Read it
+   close(TEMPLATE);                               #Close it
+   my $template = join(&quot;&quot;,@template);             #Move it all into one variable
+   $template =~ s/~/\\~/g;                        #Escape all ~ characters already present.
+   eval(&quot;print qq~$template~;&quot;);                  #Process and print
+}
+
+1;&lt;/CODE&gt;
+&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;Now we are ready to actually USE the template... this is a simple program which really doesn't do anything other than set variables and print the page:
+&lt;CODE&gt;#!/usr/bin/perl
+
+use CGI qw(:standard ); #Handy for printing header
+$CGI::HEADERS_ONCE = 1; #Make sure header is printed only once
+
+print header();
+
+require &quot;/pathtocommon/common.pl&quot;;
+
+$title = 'First Templated Page';
+$additional_header = qq~   &lt;SCRIPT LANGUAGE=&quot;JavaScript&quot;&gt;
+      alert(&quot;I'm a templated file!&quot;);
+   &lt;/SCRIPT&gt;~;
+$bground = &quot;#000000&quot;;
+$text = &quot;#ffffff&quot;;
+$main = &quot;Templating Rocks!&quot;;
+$copyright = &quot;(C) 2001 MyCompany&quot;;
+
+&amp;utemplate;&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;Explanation&lt;/B&gt;:&lt;BR&gt;
+This simple little bit of code takes all the variables used in the template and [perlfunc:eval|evaluates] them.  Causing Perl to replace all the variables in the template... with the values of the variable in the program.&lt;BR&gt;&lt;BR&gt;This means that the title line now reads &lt;code&gt;&lt;TITLE&gt;MySite: First Templated Page&lt;/TITLE&gt;&lt;/code&gt;&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Conclusion&lt;/B&gt;:&lt;BR&gt;
+That was a brief explanation of how to create those types of templates.  More little hints and tips can be found just below this paragraph.&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Hints &amp; Tips&lt;/B&gt;:&lt;BR&gt;
+If you have a variable that you don't think you will need to change often (IE: The copyright variable in the example) then declare it within common.pl to mean what it will normally mean.&lt;BR&gt;&lt;BR&gt;
+You can actually have Perl execute any PHP you have on the template by using the &lt;A HREF=&quot;http://search.cpan.org/search?dist=libwww-perl&quot;&gt;LWP&lt;/A&gt; module (or sockets) to get the file, here's an example of how to do that (New version of common.pl):&lt;BR&gt;
+&lt;CODE&gt;
+use LWP::Simple;
+
+sub utemplate {
+   my $template = get(&quot;http://yoursite.com/Templates/template.html&quot;);
+   $template =~ s/~/\\~/g;
+   eval(&quot;print qq~$template~;&quot;);
+   die($@) if($@);
+}
+
+1;&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;
+Try to keep all the template variables in the same case to prevent mistakes with $MAIN vs $Main or $main&lt;BR&gt;&lt;BR&gt;
+This system actually works with PHP pages as well as Perl due to the similar use of variables.&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Example Site&lt;/B&gt;:&lt;BR&gt;
+Although it won't be obvious, this &lt;A HREF=&quot;http://gms.uoe.org/&quot;&gt;site&lt;/A&gt; uses this template system.  (Ok, shameless plug... it's my site)&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Final Notes&lt;/B&gt;:&lt;BR&gt;
+I hope someone out there finds this useful.  There may be a few mistakes in syntax as I wrote this just after I woke up.  If you find one, please point it out and I'll try to have it corrected.&lt;BR&gt;&lt;BR&gt;
+To use a &lt;STRONG&gt;$&lt;/STRONG&gt; in your template, you will need to escape it like you would in any perl string.  &lt;STRONG&gt;\$&lt;/STRONG&gt;  The same may apply to &lt;STRONG&gt;&amp;&lt;/STRONG&gt;, &lt;STRONG&gt;%&lt;/STRONG&gt; and &lt;STRONG&gt;@&lt;/STRONG&gt;.&lt;BR&gt;&lt;BR&gt;
+&lt;I&gt;Warning&lt;/I&gt;: This method does &lt;strong&gt;NOT&lt;/strong&gt; work with use strict enabled... you may disable use strict around it however using [perlfunc:no|no] strict at the start and use strict once more at the bottom.  To use 'no strict' you will need to place all of the code for the template into a block of it's own.  Eg:&lt;BR&gt;
+&lt;CODE&gt;#!/usr/bin/perl
+
+use strict;
+use warnings;
+use CGI qw(:standard ); #Handy for printing header
+$CGI::HEADERS_ONCE = 1; #Make sure header is printed only once
+
+print header();
+
+{
+   no strict;
+   require &quot;/pathtocommon/common.pl&quot;;
+
+   $title = 'First Templated Page';
+   $additional_header = qq~   &lt;SCRIPT LANGUAGE=&quot;JavaScript&quot;&gt;
+      alert(&quot;I'm a templated file!&quot;);
+   &lt;/SCRIPT&gt;~;
+   $bground = &quot;#000000&quot;;
+   $text = &quot;#ffffff&quot;;
+   $main = &quot;Templating Rocks!&quot;;
+   $copyright = &quot;(C) 2001 MyCompany&quot;;
+
+   &amp;utemplate;
+}
+
+#Continue with everything else you had to do
+
+&lt;/CODE&gt;&lt;BR&gt;&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Other Templating Options&lt;/B&gt;:&lt;BR&gt;
+&lt;A HREF=&quot;http://search.cpan.org/search?mode=module&amp;query=HTML%3A%3AMason&quot;&gt;HTML::Mason&lt;/a&gt; (Mentioned by [id://66950|wog] )&lt;BR&gt;
+Generic Search: &lt;A HREF=&quot;http://search.cpan.org/search?mode=module&amp;query=Template&quot;&gt;Template&lt;/A&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>109641</node_id>
+  <author_user>103304</author_user>
+  <title>Template with optional PHP execution</title>
+  <createtime>2001-09-01 15:21:01</createtime>
+  <nodeupdated>2005-08-15 09:59:50</nodeupdated>
+</node>

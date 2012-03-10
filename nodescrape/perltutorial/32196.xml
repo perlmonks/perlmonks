@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="32196" title="Using Net::LDAP to access and update LDAP directories" created="2000-09-12 21:19:46" updated="2005-08-15 11:46:40">
+<type id="956">
+perltutorial</type>
+<author id="28130">
+araqnid</author>
+<data>
+<field name="doctext">
+&lt;p&gt; LDAP - a relatively low-profile buzzword, but becoming more and
+more popular. "What is it?" and "How do we do it with Perl?" are
+question I'll attempt to tackle in this article.
+
+&lt;p&gt; I won't really cover how to deisgn an LDAP directory- I'm
+concentrating on showing the bits of Perl you use to search/update
+one.
+
+&lt;h2&gt; What is it? &lt;/h2&gt;
+
+&lt;p&gt; (Skip this bit if you want to go right to the Net::LDAP bit) &lt;/p&gt;
+
+&lt;p&gt;
+LDAP is a way of providing a hierarchial directory service. It's
+actually somewhat similar to DNS and/or NIS/NIS+ in some ways. The
+comparison is by no means exact, but it might help you get a grasp of
+what it's for and give you some ideas on how it can be used. In fact,
+LDAP can be used as an alternative to NIS+ as a naming/authentication
+service using nss-ldap and pam-ldap.
+
+&lt;p&gt;
+So, just as a DNS domain is a collection of domain names, an LDAP
+directory is a collection of entries, each indentified by a
+Distinguished Name (DN).
+
+&lt;p&gt;
+A DN specfies a sequence of elements, each having a type and
+value. For example: "o=Example, c=GB" means "Organisation called
+\"Example\" in Country called \"GB\"". Like DNs, the hierarchy is
+written right-to-left as you descend from the root.
+
+&lt;p&gt;
+Any particular entry in an LDAP directory is uniquely identified by a
+DN. The entry that has a list of &lt;b&gt;attributes&lt;/b&gt;, each of which has
+a list of &lt;b&gt;values&lt;/b&gt;. So the LDAP entry for a particular user may
+have an attribute "userPassword", which a single value containing
+their encrypted password.
+
+&lt;p&gt;
+There are a bunch of standards that LDAP is built on that are handy to
+know about, but not necessary for basic use. e.g. ASN.1, BER (Basic
+Encoding Rules). This is where a lot of the terminology and
+conventions come from.
+
+&lt;h2&gt; How to use it &lt;/h2&gt;
+
+&lt;p&gt;
+In order to access an LDAP directory, you have to connect to an LDAP
+server that has the directory you want. A connection to an LDAP server
+is identified by a Net::LDAP object- the connection is made like this:
+
+&lt;code&gt;
+  my $hostname = "ldap.example.com";
+  my $ldap = Net::LDAP-&gt;new($hostname)
+   or die "Unable to connect to LDAP server $hostname: $@\n";
+&lt;/code&gt;
+
+&lt;h3&gt; Basic operations: bind &lt;/h3&gt;
+
+&lt;p&gt;
+"Binding" means identifying yourself to the LDAP server. This may be
+necessary in order to get any data from the server, or may only be
+necessary to update the server.
+
+&lt;p&gt;
+You bind my calling the "bind" method of your Net::LDAP object:
+
+&lt;code&gt;
+  my $result = $ldap-&gt;bind();
+&lt;/code&gt;
+
+&lt;p&gt;
+This is an example of an "anonymous" bind- no identification. This is
+a "guest logon", and often give you read-only access with perhaps some
+attributes elided (e.g. passwords, confidential information).
+
+&lt;p&gt;
+In order to actually do some identification, you supply parameters to
+the bind() method:
+
+&lt;code&gt;
+  my $binddn = "uid=jblow, ou=People, dc=Example, dc=Com";
+  my $password = readpassword();
+  my $result = $ldap-&gt;bind(dn =&gt; $binddn, password =&gt; $password);
+&lt;/code&gt;
+
+&lt;p&gt;
+Notice that you identify yourself using a DN. In this case, the DN is
+read as: "User id is \"jblow\", in the \"People\" organisational unit,
+in the \"example.com\" LDAP directory".
+
+&lt;h3&gt; LDAP result codes &lt;/h3&gt;
+
+&lt;p&gt;
+What is the result of the bind() call, $result ? The connection to the
+LDAP server is by default &lt;b&gt;asynchronous&lt;/b&gt;. Instead of waiting for
+the bind operation to complete, the bind() method merely sends the
+request to the server. The return value is an object that identifies
+the message you sent (an LDAP::Message object).
+
+&lt;p&gt;
+So how can you tell whether the bind was successful or not if we
+haven't got a response from the server yet? Well, if you call the
+"code" method on the LDAP::Message object, then Net::LDAP will block
+until the reply for that message has been received from the server.
+So you do this:
+
+&lt;code&gt;
+  my $result = $ldap-&gt;bind();
+  if ($result-&gt;code) { # This makes Net::LDAP get the server response
+    die "An error occurred binding to the LDAP server\n";
+  }
+&lt;/code&gt;
+
+&lt;p&gt;
+BTW the code for "success" is zero, so checking for a non-zero value
+of "code" will check for an error.
+
+&lt;p&gt;
+Of course, in the above example, we don't print a very helpful error
+message if something goes wrong. There is a module to help out here:
+Net::LDAP::Util contains functions for converting an error code into a
+message. So try this:
+
+&lt;code&gt;
+  use Net::LDAP::Util qw(ldap_error_text);
+  my $result = $ldap-&gt;bind();
+  if ($result-&gt;code) {
+    die "An error occurred binding to the LDAP server: "
+         .ldap_error_text($result-&gt;code)."\n";
+  }
+&lt;/code&gt;
+
+&lt;p&gt;
+Often, you will want to check every call for an error as soon as you
+can, so you can save yourself some code duplication by writting a
+wrapper subroutine to check the result code of an ldap call and
+die()ing as applicable:
+
+&lt;code&gt;
+  sub ldapassert {
+    my $mesg = shift;
+    my $action = shift;
+    if ($mesg-&gt;code) {
+      die "An error occurred $action: "
+           .ldap_error_text($mesg-&gt;code)."\n";
+    }
+    return $mesg;
+  }
+  my $result = ldapassert($ldap-&gt;bind(), "binding to the server");
+&lt;/code&gt;
+
+&lt;p&gt;
+This routine returns the LDAP::Message object, so you can still get
+any actual data that is returned as part of the message.
+
+&lt;h3&gt; Basic operations: search &lt;/h3&gt;
+
+&lt;p&gt;
+The most common operation, after binding, is searching. This is done
+with the "search" method of the Net::LDAP object. There are four
+parameters for a search:
+
+&lt;ul&gt;
+ &lt;li&gt; &lt;b&gt;base DN&lt;/b&gt;: This is the DN at which to start the search.
+ &lt;li&gt; &lt;b&gt;scope&lt;/b&gt;: How far to recurse down through the directory. The
+possible scopes are:
+  &lt;ul&gt;
+   &lt;li&gt; &lt;b&gt;sub&lt;/b&gt;: Search &lt;b&gt;all&lt;/b&gt; DNs under the base DN. 
+   &lt;li&gt; &lt;b&gt;one&lt;/b&gt;: Search only DNs one level below the base
+DN. e.g. if the base DN is "ou=People, dc=Example, dc=Com", then
+"uid=shaslam, ou=People, dc=Example, dc=Com" will be examined, but not
+"nstype=Bookmarks, uid=shaslam, ou=People, dc=Example, dc=Com".
+   &lt;li&gt; &lt;b&gt;base&lt;/b&gt;: Only examine the base DN.
+  &lt;/ul&gt;
+ &lt;li&gt; &lt;b&gt;attributes&lt;/b&gt;: A list of attributes to return for the
+matching entries
+ &lt;li&gt; &lt;b&gt;filter&lt;/b&gt;: The filter to determine which entries are to be
+returned.
+&lt;/ul&gt;
+
+&lt;p&gt;
+The &lt;b&gt;filter&lt;/b&gt; is crucial. It can be either a string or a
+Net::LDAP::Filter object. The format for writing LDAP filters as
+strings is described in RFC-2254. Briefly, you write
+"&lt;tt&gt;(attribute=value)&lt;/tt&gt;" to search for one of the values of
+"attribute" being "value". You then combine these expressions together
+in prefix form rather like LISP:
+
+&lt;ul&gt;
+ &lt;li&gt; &lt;tt&gt;(&amp; (attr1=val1) (attr2=val2) ... )&lt;/tt&gt;: logical AND
+ &lt;li&gt; &lt;tt&gt;(| (attr1=val1) (attr2=val2) ... )&lt;/tt&gt;: logical OR
+ &lt;li&gt; &lt;tt&gt;(!(....))&lt;/tt&gt;: negate
+&lt;/ul&gt;
+
+&lt;p&gt;
+When matching a value you can replace "=" with "~=" to mean
+"approximately equal", or with "&gt;=" or "&lt;=" for greater-equal or
+less-than-eqal respectively.
+
+&lt;p&gt;
+You can also prepend or append "*" characters to the value to
+represent intial, final or substring matches.
+
+&lt;p&gt;
+Some examples now:
+
+&lt;ul&gt;
+ &lt;li&gt; &lt;tt&gt; (&amp;(uid=jblow)(objectClass=posixAccount)) &lt;/tt&gt;
+  &lt;br&gt; Find an entry with a "uid" of "jblow" and an "objectClass" of "posixAccount"
+ &lt;li&gt; &lt;tt&gt; (&amp;(jpegPhoto=*)(!(accountStatus=disabled))(objectClass=posixAccount)) &lt;/tt&gt;
+  &lt;br&gt; Find an entry with a "jpegPhoto" attribute (regardless of value), with an "objectClass" of "posixAccount" that does &lt;b&gt;not&lt;/b&gt; have an "accountStatus" of "disabled"
+&lt;/ul&gt;
+
+&lt;p&gt; So how, does the search work? You just feed the parameters to the
+"search()" method and get an LDAP::Search (which is a subclass of
+LDAP::Message) back.
+
+&lt;code&gt;
+  my $searchresult = $ldap-&gt;search(base =&gt; "ou=People, dc=Example, dc=Com",
+                                   filter =&gt; "(objectClass=posixAccount)",
+		                   scope =&gt; "one",
+                                   attrs =&gt; ['cn', 'accountStatus'] );
+&lt;/code&gt;
+
+&lt;p&gt; By default, the scope will be "sub", and all attributes of
+matching entries will be returned. You can find other parameters
+describe in the Net::LDAP(3) manpage.
+
+&lt;p&gt; Of course, since the result is an LDAP::Message, you can wrap the search call with ldapassert().
+
+&lt;p&gt; Now, to get the entries that matched your search, you have several options. Perhaps the simplest is to use the "entries" method of the Net::LDAP::Search object, which returns an array of Net::LDAP::Entry objects:
+
+&lt;code&gt;
+   my $searchresult = do_search($ldap);
+   foreach my $entry ($searchresult-&gt;entries) {
+     print "Matched: ", $entry-&gt;dn, "\n";
+   }
+&lt;/code&gt;
+
+&lt;p&gt; With the Net::LDAP::Entry object you have these basic methods for getting their data:
+
+&lt;ul&gt;
+ &lt;li&gt; &lt;b&gt;dn()&lt;/b&gt;: returns the DN of the entry, as a string
+ &lt;li&gt; &lt;g&gt;get(attr)&lt;/b&gt;: returns a ref to a list of values for a particular attribute
+&lt;/ul&gt;
+
+&lt;p&gt; So here's a full example of how I could print out everyone's name ("cn" is a standard attribute for Common Name- i.e. someone's real name):
+
+&lt;code&gt;
+  my $sr = ldapassert($ldap-&gt;search(base =&gt; "ou=People, $ourdn",
+                                    filter =&gt; "(objectClass=person)"
+                                    scope =&gt; "one"), "searching the LDAP server");
+  foreach my $entry ($sr-&gt;entries) {
+   # Getting the first value of these attributes
+   # If they don't exist, we may be trying to unref undef here...
+   my $cn = ${$entry-&gt;get('cn')}[0];
+   my $uid = ${$entry-&gt;get('uid')}[0];
+   print "$uid: $cn\n";
+  }
+&lt;/code&gt;
+
+&lt;h2&gt; Modifying an entry &lt;/h2&gt;
+
+&lt;p&gt; Net::LDAP::Entry has methods for modifying the data of an
+entry. For example, if I wanted to change someones name:
+
+&lt;code&gt;
+  sub changename {
+    my $entry = shift;
+    my $newname = shift;
+    $entry-&gt;replace(cn =&gt; $newname);
+  }
+&lt;/code&gt;
+
+&lt;p&gt;
+replace() takes a hash of "attribute =&gt; value" pairs. The value may be
+an array reference to multiple values. &lt;/p&gt;
+
+&lt;p&gt;
+You can also call the "add()" method to add a single value to an
+existing list of values for a particular attribute, which takes
+parameters in the same format. And there is the "delete()" method
+which takes a single attribute name as a parameter and deletes
+it. &lt;/p&gt;
+
+&lt;p&gt;
+Note that all these methods only affect the representation of the
+entry kept by the Perl script. In order to update the entry on the
+directory server, you must call the "update()" method and pass it the
+Net::LDAP object to tell it which connection to update on. e.g.: &lt;/p&gt;
+
+&lt;code&gt;
+  # Add "extraClass" to everyone's "objectClass" attribute.
+  my $sr = ldapassert($ldap-&gt;search(base =&gt; $ourdn, filter =&gt; "(objectClass=person)"), "searching the LDAP server");
+  foreach ($sr-&gt;entries) {
+   $_-&gt;add(objectClass =&gt; "extraClass");
+   ldapassert($_-&gt;update($ldap), "updating the LDAP server");
+  }
+&lt;/code&gt;
+
+&lt;p&gt;
+add() is different to replace(). This could have been written:
+
+&lt;code&gt;
+   $_-&gt;replace(objectClass =&gt; [@{$_-&gt;get("objectClass")}, "extraClass"]
+&lt;/code&gt;
+
+&lt;p&gt;
+But as well as being more messy this would introduce a race condition-
+if someone else modified the entry between your &lt;b&gt;search&lt;/b&gt; and
+&lt;b&gt;modify&lt;/b&gt; commands, you would lose.
+
+&lt;h3&gt; Wrapping up &lt;/h3&gt;
+
+&lt;p&gt; I strongly recommend reading the Net::LDAP(3),
+Net::LDAP::Search(3) and Net::LDAP::Entry(3) manpages.
+
+&lt;p&gt; also, try the &lt;a href="http://www.openldap.org"&gt;OpenLDAP&lt;/a&gt;
+website (although Net::LDAP is purely in Perl, and doesn't use the
+OpenLDAP library)
+
+&lt;p&gt; Other links to good online LDAP resources should go here, but I
+don't really know any.
+</field>
+</data>
+</node>

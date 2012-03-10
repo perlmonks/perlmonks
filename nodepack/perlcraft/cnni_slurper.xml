@@ -1,0 +1,463 @@
+<node>
+  <doctext>#This was originally for jcwren's programming contest, 
+#but after suggestions from friends, it really doesn't 
+#match the critera anymore, so I didn't feel comfortable
+#posting in under the [id://43857|original thread], but
+#I'm still sufficiently happy with it that I wanted to 
+#post it. This is the first time I've used LWP, and the 
+#contest was a great way to learn about a great, versatile module.&lt;br&gt;
+
+#This script reads in CNNi's headlines, the &quot;interactive headlines&quot; (linked to larger write ups), and weather.
+
+#As always, I look forward to your comments, criticisms and suggestions.
+
+#updated 20000108 -- added some parameters and self_url() trickery.
+# see lines 101 and 201-237
+&lt;code&gt;
+use strict;
+use LWP::Simple;
+use LWP::UserAgent;
+use CGI::Pretty qw(:all);
+use Date::Manip; &amp;Date_Init (&quot;TZ=US/Mountain&quot;);
+my %state_abbr = (
+    &quot;ALABAMA&quot;               =&gt;      'AL',
+    &quot;ALASKA&quot;                =&gt;      'AK',
+    &quot;ARIZONA&quot;               =&gt;      'AZ',
+    &quot;ARKANSAS&quot;              =&gt;      'AR',
+    &quot;CALIFORNIA&quot;            =&gt;      'CA',
+    &quot;COLORADO&quot;              =&gt;      'CO',
+    &quot;CONNECTICUT&quot;           =&gt;      'CT',
+    &quot;DELAWARE&quot;              =&gt;      'DE',
+    &quot;D.C.&quot;                  =&gt;      'DC',
+    &quot;FLORIDA&quot;               =&gt;      'FL',
+    &quot;GEORGIA&quot;               =&gt;      'GA',
+    &quot;HAWAII&quot;                =&gt;      'HI',
+    &quot;IDAHO&quot;                 =&gt;      'ID',
+    &quot;ILLINOIS&quot;              =&gt;      'IL',
+    &quot;INDIANA&quot;               =&gt;      'IN',
+    &quot;IOWA&quot;                  =&gt;      'IA',
+    &quot;KANSAS&quot;                =&gt;      'KS',
+    &quot;KENTUCKY&quot;              =&gt;      'KY',
+    &quot;LOUISIANA&quot;             =&gt;      'LA',
+    &quot;MAINE&quot;                 =&gt;      'ME',
+    &quot;MARYLAND&quot;              =&gt;      'MD',
+    &quot;MASSACHUSETTS&quot;         =&gt;      'MA',
+    &quot;MICHIGAN&quot;              =&gt;      'MI',
+    &quot;MINNESOTA&quot;             =&gt;      'MN',
+    &quot;MISSISSIPPI&quot;           =&gt;      'MS',
+    &quot;MISSOURI&quot;              =&gt;      'MO',
+    &quot;MONTANA&quot;               =&gt;      'MT',
+    &quot;NEBRASKA&quot;              =&gt;      'NE',
+    &quot;NEVADA&quot;                =&gt;      'NV',
+    &quot;NEW HAMPSHIRE&quot;         =&gt;      'NH',
+    &quot;NEW JERSEY&quot;            =&gt;      'NJ',
+    &quot;NEW MEXICO&quot;            =&gt;      'NM',
+    &quot;NEW YORK&quot;              =&gt;      'NY',
+    &quot;NORTH CAROLINA&quot;        =&gt;      'NC',
+    &quot;NORTH DAKOTA&quot;          =&gt;      'ND',
+    &quot;OHIO&quot;                  =&gt;      'OH',
+    &quot;OKLAHOMA&quot;              =&gt;      'OK',
+    &quot;OREGON&quot;                =&gt;      'OR',
+    &quot;PENNSYLVANIA&quot;          =&gt;      'PA',
+    &quot;PUERTO RICO&quot;           =&gt;      'PR',
+    &quot;RHODE ISLAND&quot;          =&gt;      'RI',
+    &quot;SOUTH CAROLINA&quot;        =&gt;      'SC',
+    &quot;SOUTH DAKOTA&quot;          =&gt;      'SD',
+    &quot;TENNESSEE&quot;             =&gt;      'TN',
+    &quot;TEXAS&quot;                 =&gt;      'TX',
+    &quot;UTAH&quot;                  =&gt;      'UT',
+    &quot;VERMONT&quot;               =&gt;      'VT',
+    &quot;VIRGIN ISLANDS&quot;        =&gt;      'VI',
+    &quot;VIRGINIA&quot;              =&gt;      'VA',
+    &quot;WASHINGTON&quot;            =&gt;      'WA',
+    &quot;WEST VIRGINIA&quot;         =&gt;      'WV',
+    &quot;WISCONSIN&quot;             =&gt;      'WI',
+    &quot;WYOMING&quot;               =&gt;      'WY',
+    );
+
+
+
+my $newsurl     =&quot;http://headlinenews.cnn.com/QUICKNEWS/virtual/swf.headline.txt&quot;;
+my $weatherurl  =&quot;http://headlinenews.cnn.com/QUICKNEWS/virtual/swf.weather.txt&quot;;
+my $interurl    =&quot;http://headlinenews.cnn.com/QUICKNEWS/virtual/swf.interactive.txt&quot;;
+my $interactive_ticker;
+my $news_ticker = retrieve_news();
+my $weather_ticker = retrieve_weather();
+if (param(&quot;showinteractive&quot;)!~/no/i){
+    $interactive_ticker= retrieve_interactive();
+}
+my @state_weather =split /&amp;/, $weather_ticker;
+
+my $citystate;
+my $lowstate; my $lowtemp;
+my $histate; my  $hitemp;
+
+my ($URL, @lines, @entry, $content);
+my ($moddate);
+my (%headlines);
+
+write_header(&quot;CNN wrapup&quot;);
+%headlines = log_news ($news_ticker);
+write_news( $interactive_ticker, %headlines),&quot;&lt;P&gt;&quot;;
+if (param(&quot;showweather&quot;)!~/no/i){
+    write_weather(@state_weather);
+}
+write_footer();
+
+####################
+#
+#   Prints out a nice HTML header.
+#
+####################
+sub write_header {
+    my $title=shift;
+    print header();
+    print start_html(-Title =&gt; $title, -BGCOLOR=&gt;&quot;#000000&quot;,-TEXT=&gt;&quot;#00FF00&quot;, -LINK=&gt;&quot;#33FF00&quot;, -VLINK=&gt;&quot;00CC00&quot;, -ALINK=&gt;&quot;FFFFFF&quot;);
+    print start_form(); # start_multipart_form() if file upload
+    my $das_url =&amp;self_url();
+    print &quot;&lt;META HTTP-EQUIV='Refresh' CONTENT='600;URL=$das_url'&gt;&quot;;
+}
+
+####################
+#
+#   End of page stuff.
+#
+####################
+sub write_footer {
+    my $newsdate=get_moddate($newsurl);$newsdate= scalar localtime $newsdate; $newsdate = UnixDate($newsdate, &quot;%m/%d/%Y %H:%M&quot;);
+    my $weatherdate= get_moddate($weatherurl);$weatherdate= scalar localtime $weatherdate ;$weatherdate = UnixDate($weatherdate, &quot;%m/%d/%Y %H:%M&quot;);
+    my $presenttime=ParseDate(&quot;now&quot;);
+    print &quot;&lt;center&gt;&lt;p&gt;&lt;A HREF='$newsurl'&gt;Headlines&lt;/A&gt; last updated &quot;, $newsdate,
+    &quot;\n | &lt;A HREF='$weatherurl'&gt;Weather&lt;/A&gt; last updated &quot;, $weatherdate,
+    &quot;\n | This page last updated &quot;, UnixDate($presenttime, &quot;%m/%d/%Y %H:%M&quot;),&quot;&lt;/CENTER&gt;&quot;,
+    end_form(), end_html() }
+
+####################
+#
+#   wrapper for LWP-&gt;get() call.
+#
+####################
+sub retrieve_weather {
+    return &quot;&amp;&quot; . get ($weatherurl);
+}
+
+####################
+#
+#   wrapper for LWP-&gt;get() call.
+#
+####################
+sub retrieve_news {
+    return get ($newsurl);
+}
+
+####################
+#
+#   wrapper for LWP-&gt;get() call.
+#
+####################
+sub retrieve_interactive{
+    return get ($interurl);
+}
+
+####################
+#
+#   prints out the interactive and state headlines in a table
+#
+####################
+
+sub write_news{
+    my ($l_inter, %l_headlines) = @_;
+    my $statectr;
+    my $new_tagstart;
+    my $new_tagend;
+
+    #start the table.
+    print '&lt;TABLE  align=CENTER BORDER=&quot;1&quot;&gt;';
+    print '&lt;TR&gt;&lt;TD ALIGN=CENTER colspan=3 valign=center&gt;&lt;h4&gt; Breaking news&lt;/h4&gt;&lt;/TD&gt;&lt;/TR&gt;';
+
+    # split up the interactive headlines.
+    @lines = split /&amp;intheadline\d*\=/, $l_inter;
+
+    # get last modified date of the $interurl file. format nicely.
+    $moddate = scalar localtime get_moddate ($interurl);
+    $moddate= UnixDate($moddate, &quot;%m/%d/%Y %H:%M&quot;);
+
+    # split the headline information URL &amp; headline text &amp; put into table.
+    foreach (@lines) {
+        my $hl_found=0;
+        @entry = split /&amp;inturl\d*\=/;
+        @entry[1] =~ s/^\s//;
+        @entry[1] =~ s/\s\s/ /g;
+        @entry[0] =~ s/interactivecount\=\d*//;
+        if (@entry[0]){
+            print &quot;&lt;TR&gt;&lt;TD colspan =3 align=center&gt;&lt;A HREF=http:\/\/headlinenews.cnn.com@entry[1] target=new&gt;@entry[0]&lt;/a&gt;&lt;\/TD&gt;&lt;\/TR&gt;\n&quot;;
+        }
+    }
+
+
+    # begin next part of table.
+    print '&lt;TR&gt;&lt;TD colspan=3 align=center&gt;&lt;h4&gt;Headlines from around the country&lt;/h4&gt;';
+
+    # print out the state HTML anchors in two lines.
+    # note there's no checking to see if one exists or not :(
+    foreach my $thisstate ( sort keys %state_abbr) {
+        $statectr ++;
+        print &quot;&lt;A HREF=#&quot;,$state_abbr{$thisstate},&quot;&gt;&quot;, $state_abbr{$thisstate}, &quot;&lt;/a&gt;  &quot;;
+        ($statectr==26) &amp;&amp; print &quot;&lt;BR&gt;&quot;;
+    }
+    # print an HTML anchor to the Weather.
+    print '&lt;BR&gt;&lt;A HREF=#WEATHER&gt;Weather&lt;/A&gt;&lt;/TD&gt;&lt;/TR&gt;';
+
+    # sorting headlines on state, then timestamp, then headline text.
+    PRINTHEADLINE: foreach my $thisheadline (sort {($l_headlines{$a}{&quot;State&quot;} cmp $l_headlines{$b}{&quot;State&quot;})or
+                                    ($l_headlines{$b}{&quot;Timestamp&quot;} cmp $l_headlines{$a}{&quot;Timestamp&quot;}) or
+                                    ($l_headlines{$a}{&quot;Headline&quot;} cmp $l_headlines{$b}{&quot;Headline&quot;}) } keys %l_headlines) {
+        my $broken_headline =&quot;&quot;;# $l_headlines{$thisheadline}{&quot;Headline&quot;};
+
+        if (UnixDate ($l_headlines{$thisheadline}{&quot;Timestamp&quot;}, &quot;%m/%d/%Y&quot;) eq UnixDate (&amp;ParseDate(&quot;Today&quot;),&quot;%m/%d/%Y&quot;)) {
+            $new_tagstart='&lt;FONT COLOR=&quot;#FFFFFF&quot;&gt;' ;$new_tagend= '&lt;/FONT&gt;';
+        } else {
+            if (param (&quot;newonly&quot;)=~/yes/i) {
+                next PRINTHEADLINE
+            }
+            $new_tagstart='' ;$new_tagend= '';
+        }
+
+        if (param(&quot;search&quot;)!~/^$/) {
+            my $searchin = param(&quot;search&quot;);
+            $searchin =~ s/(\?)/\\w/gi;
+            $searchin =~ s/(\*)/\.$1?/gi;   #line noise? ha!
+            $searchin = &quot;\\b&quot;. $searchin . &quot;\\b&quot;;
+            if (defined(param(&quot;searchmethod&quot;))) {
+                if (param(&quot;searchmethod&quot;)=~/showonly/ ) {
+                    if ($l_headlines{$thisheadline}{&quot;Headline&quot;}!~/$searchin/i) {next PRINTHEADLINE}
+                }
+            }
+            $l_headlines{$thisheadline}{&quot;Headline&quot;}=~ s/($searchin)/&lt;FONT COLOR=&quot;#FF0000&quot;&gt;$1&lt;\/FONT&gt;/i;
+        }
+
+        if (param(&quot;definitions&quot;)=~/yes/i){
+            map {$broken_headline .= &quot;&lt;A HREF='http://www.m-w.com/cgi-bin/dictionary?va=$_'&gt;$_&lt;/A&gt; &quot; }split (/ /,$l_headlines{$thisheadline}{&quot;Headline&quot;});
+        } else {
+            $broken_headline=$l_headlines{$thisheadline}{&quot;Headline&quot;}
+        }
+
+        #
+        # Can you figure out why the anchor's printed out in the headline cell, rather than
+        # the state or at the beginning of the row?
+        #
+        print &quot;&lt;TR&gt;&quot;,
+                &quot;&lt;TD&gt;&quot;,$new_tagstart,$l_headlines{$thisheadline}{&quot;State&quot;},$new_tagend,&quot;&lt;\/TD&gt;&quot;,
+                &quot;&lt;TD&gt;&quot;,$new_tagstart,$l_headlines{$thisheadline}{&quot;Timestamp&quot;},&quot;&lt;\/TD&gt;&quot;,$new_tagend,
+                &quot;&lt;TD&gt;&quot;,&quot;&lt;A NAME='\#&quot;,$new_tagstart,$state_abbr{$l_headlines{$thisheadline}{&quot;State&quot;}},&quot;'&gt;  &quot;,$new_tagstart,$broken_headline,&quot;&lt;\/TD&gt;&quot;,$new_tagend,
+              &quot;&lt;\/TR&gt;\n&quot;;
+    }
+    # end table.
+    print &quot;&lt;\/TABLE&gt;&quot;;
+    print &amp;self_url();
+}
+####################
+#
+#   put the weather into a table.
+#
+#
+####################
+sub write_weather {
+my %cityinfo;
+my $ctr=0; # used for columnating.
+    #
+    #   split into  HoH format
+    #   {INDEX}{INFOTYPE}{INFODATA}
+    #   e.g. {1}{CITY}{BIRMINGHAM, AL}
+    #        {1}{TEMP}{-5}
+    #        etc...
+    #
+    foreach my $temp (@_) {
+        $temp=~/([a-zA-z]*)(\d*)\=(.*)/;
+        $cityinfo{$2}{$1}=$3;
+    }
+
+    # print out the HTML Anchor.
+    print &quot;&lt;A NAME=WEATHER&gt;&quot;;
+
+    # begin table.
+    print &quot;&lt;TABLE align=CENTER border=1&gt;\n&quot;;
+    print &quot;&lt;TR&gt;&lt;TD colspan=12 align=center&gt;Weather from all 50 states&lt;\/TD&gt;&lt;\/TR&gt;\n&quot;;
+    print &quot;&lt;TR&gt;&lt;TD&gt;City Name&lt;\/TD&gt;&lt;TD  colspan=2&gt; Current&lt;br&gt;Conditions&lt;\/TD&gt;&lt;TD&gt;Current&lt;br&gt;Temperature&lt;\/TD&gt;&quot;,
+              &quot;&lt;TD&gt;City Name&lt;\/TD&gt;&lt;TD  colspan=2&gt; Current&lt;br&gt;Conditions&lt;\/TD&gt;&lt;TD&gt;Current&lt;br&gt;Temperature&lt;\/TD&gt;&quot;,
+              &quot;&lt;TD&gt;City Name&lt;\/TD&gt;&lt;TD  colspan=2&gt; Current&lt;br&gt;Conditions&lt;\/TD&gt;&lt;TD&gt;Current&lt;br&gt;Temperature&lt;\/TD&gt;\n&quot;;
+
+    $ctr = 0;
+    foreach  my $thiscity (sort { $cityinfo{$a}{&quot;city&quot;}cmp $cityinfo{$b}{&quot;city&quot;}} keys  %cityinfo ) {
+        if ($cityinfo{$thiscity}{&quot;weatherurl&quot;} =~m#http://www.cnn.com/WEATHER/(c)(.)/#i) {
+            $citystate=&quot;,  Canada&quot;
+        } else {
+            # use the second saved part of the regexp to populate the state. or district.
+            # stupid districts.
+            $cityinfo{$thiscity}{&quot;weatherurl&quot; } =~m#http://www.cnn.com/WEATHER/(..)/(.*)/#i;
+            $citystate= &quot;,  $2 &quot;;
+        }
+        # most of the time, the picture for a weather condition is just the
+        # condition name, stripped of whitespace, plus '.GIF'.
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =  $cityinfo{$thiscity}{&quot;condition&quot;}.  &quot;.gif&quot;;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~ s/[  |\/]/./g;
+
+        # but not always. stupid special exceptions.
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/haze/hazy/g;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/foggy/fog/g;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/lgt\.snow\.fog/snow.fog/g;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/snow\.and\.fog/snow.fog/g;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/frz\.rain/freezing.rain/g;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/mist/misty/g;
+        $cityinfo{$thiscity}{&quot;weatherpic&quot;} =~  s/lgt.snowshower/light.snow/g;
+
+
+        # three columns to a row.
+        if (!(($ctr-1) % 3))  {print &quot;&lt;\/TR&gt;&quot;}
+
+        # print out one row of data.
+        $cityinfo{$thiscity}{weatherurl}  &amp;&amp; print &quot;&lt;TD&gt;&lt;A HREF='&quot;, $cityinfo{$thiscity}{weatherurl},&quot;' target=new&gt;&quot;,  $cityinfo{$thiscity}{&quot;city&quot;}  ,&quot;$citystate&lt;\/A&gt;&lt;\/TD&gt;&quot;,
+                              &quot;&lt;TD ALIGN='justify'&gt;&quot; ,   $cityinfo{$thiscity}{&quot;condition&quot;},
+                             &quot;&lt;\/TD&gt;&lt;TD&gt;&lt;IMG  SRC='http://www.cnn.com/WEATHER/images/9712/conds/&quot; ,  $cityinfo{$thiscity}{&quot;weatherpic&quot;},&quot;'&gt;&quot;,
+                              &quot;&lt;\/TD&gt;&quot;,
+                             &quot;&lt;TD  ALIGN='CENTER'&gt;&quot; ,    $cityinfo{$thiscity}{&quot;temperature&quot;},  &quot;&lt;\/TD&gt;&quot;;
+        print &quot;\n&quot;;
+
+        # log information for highest/ lowest temps.
+        if  (($cityinfo{$thiscity}{&quot;temperature&quot;} &lt; $lowtemp )or  ($lowtemp==undef)){
+            $lowstate =  &quot;&lt;A HREF='&quot;.  $cityinfo{$thiscity}{weatherurl}.&quot;' target=new&gt;&quot;.  $cityinfo{$thiscity}{&quot;city&quot;}  .&quot;$citystate&lt;\/A&gt;&quot;;
+            $lowtemp =  $cityinfo{$thiscity}{&quot;temperature&quot;}
+        }
+        if  ($cityinfo{$thiscity}{&quot;temperature&quot;} &gt; $hitemp){
+            $histate =   &quot;&lt;A HREF='&quot;.  $cityinfo{$thiscity}{weatherurl}.&quot;' target=new&gt;&quot;.  $cityinfo{$thiscity}{&quot;city&quot;}  .&quot;$citystate&lt;\/A&gt;&quot;;
+            $hitemp =  $cityinfo{$thiscity}{&quot;temperature&quot;} ;
+        }
+        $ctr++;
+    }
+    # reaching the end of the table.
+    # print out highest &amp; lowest of the moment.
+    print  &quot;&lt;TR&gt;&lt;TD colspan=12 align=center&gt;Extremes of the moment!&lt;\/TD&gt;&lt;\/TR&gt;\n&quot;;
+    print  &quot;&lt;TR&gt;&lt;TD&gt;High&lt;\/TD&gt;&lt;TD  colspan=4&gt;$histate&lt;\/TD&gt;&lt;TD&gt;$hitemp&lt;\/TD&gt;&lt;TD&gt;Lo&lt;\/TD&gt;&lt;TD  colspan=4&gt;$lowstate&lt;\/TD&gt;&lt;TD&gt;$lowtemp&lt;\/TD&gt;&lt;\/TR&gt;\n&quot;;
+    print  &quot;&lt;\/TABLE&gt;\n&quot;;
+}
+
+####################
+#
+#   checks for new news &amp; writes it to a headline file.
+#
+####################
+sub log_news {
+    my %l_data;
+    my @lines;
+    my $hl_found;
+    #
+    # no headlines? that's OK!
+    # (no die statement)
+    open HL, &quot;headlines.txt&quot;;
+    @lines = &lt;HL&gt; ; # headlines.txt format : state\ttimestamp\theadline
+    close HL;
+
+    #
+    #   start by reading all of the existing headlines from &quot;headlines.txt&quot;;
+    #
+    foreach (@lines) {
+        @entry = split /\t/;
+        my $nextkey = scalar keys %l_data;
+        if (@entry[0]) {
+            $l_data{$nextkey}{&quot;State&quot;}=@entry[0];
+            $l_data{$nextkey}{&quot;Timestamp&quot;}=@entry[1];
+            $l_data{$nextkey}{&quot;Headline&quot;}=@entry[2];
+            chomp $l_data{$nextkey}{&quot;Headline&quot;};
+        }
+    }
+
+    #
+    #   OK, read in the new headlines, and if they don't match any existing ones,
+    #   read em into the hash.
+    #
+    @lines = split /&amp;state\d*\=/, shift;
+    $moddate = scalar localtime get_moddate ($newsurl);
+    $moddate= UnixDate($moddate, &quot;%m/%d/%Y %H:%M&quot;);
+
+    foreach (@lines) {
+        $hl_found=0;
+        @entry = split /&amp;headline\d*\=/;
+        @entry[1] =~ s/&amp;headlineload\=done//;
+        @entry[1]=~s/^\s//;
+        @entry[1]=~s/\s\s/ /g;
+        @entry[0] =~ s/headlinecount\=\d*//;
+        @entry[0]= trim(@entry[0]);
+        my $nextkey = scalar keys %l_data;
+        foreach my $thisheadline (keys %l_data) {
+            if ($l_data{$thisheadline}{&quot;Headline&quot;} eq @entry[1]){$hl_found=1};
+            last if $hl_found;
+        }
+        if ((not $hl_found) &amp;&amp; (@entry[0])){
+            $l_data{$nextkey}{&quot;State&quot;}=@entry[0];
+            $l_data{$nextkey}{&quot;Timestamp&quot;}=$moddate ;
+            $l_data{$nextkey}{&quot;Headline&quot;}=@entry[1];
+        }
+    }
+
+
+    # Now that all that's been done,
+    # sort &amp; write all the headlines to &quot;headlines.txt&quot;.
+    open HL, &quot;&gt;headlines.txt&quot;;
+    foreach my $thisheadline (sort {($l_data{$a}{&quot;State&quot;} cmp $l_data{$b}{&quot;State&quot;})or
+                                    ($l_data{$a}{&quot;Timestamp&quot;} cmp $l_data{$b}{&quot;Timestamp&quot;}) or
+                                    ($l_data{$a}{&quot;Headline&quot;} cmp $l_data{$b}{&quot;Headline&quot;}) } keys %l_data){
+        print (HL $l_data{$thisheadline}{&quot;State&quot;},&quot;\t&quot;);
+        print (HL $l_data{$thisheadline}{&quot;Timestamp&quot;},&quot;\t&quot;);
+        print  (HL $l_data{$thisheadline}{&quot;Headline&quot;},&quot;\n&quot;);
+    }
+    close HL;
+    return %l_data;
+}
+
+
+####################
+#
+#   wrapper for LWP::Useragent code.
+#   returns last modified date of a url.
+#   in : the url to date
+#   out : last modified date, or 0 if unable to determine date
+#
+####################
+sub get_moddate {
+    my $ans;
+    my $lurl=shift;
+    my $ua = LWP::UserAgent-&gt;new();
+
+    $ans = $ua-&gt;request(HTTP::Request-&gt;new(&quot;HEAD&quot;, $lurl));
+    if ($ans-&gt;is_success) {
+        return $ans-&gt;last_modified || 0 ;
+    } else {
+        print STDERR &quot;$lurl: Error [&quot;, $ans-&gt;code, &quot;] &quot;, $ans-&gt;message, &quot;!\n&quot;;
+    }
+}
+
+####################
+#
+# emulates trim function found
+# in other languages. Thank you, cookbook! :)
+# in : a string
+# out : a string *cough*
+#
+####################
+sub trim {
+
+    my @out = @_;
+    for (@out) {
+        s/^\s+//;
+        s/\s+$//;
+    }
+    return wantarray ? @out : $out[0];
+}
+&lt;/code&gt;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>46408</node_id>
+  <author_user>24736</author_user>
+  <title>CNNi slurper</title>
+  <createtime>2000-12-13 13:29:38</createtime>
+  <nodeupdated>2005-07-21 01:24:55</nodeupdated>
+</node>

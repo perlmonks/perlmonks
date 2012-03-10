@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="393434" title="colorblend" created="2004-09-24 06:23:44" updated="2004-11-07 01:38:28">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+# [colorblend]
+#
+# htmlcode('colorblend','',$number_of_colors,\@array,$theme,$classes,$styletxt)
+#
+# Populates an array and returns a csv string of the colors generated.
+# If $classes is true then returns an html style tag with the classes
+# declared of the appropriate color as a string.
+# If $theme isnt provided it defaults to the current users $THEME
+# Supports multiple transition points by semicolon seperated lists in either
+# the "start" or "finish" slots.
+
+my ($num,$ref,$theme,$classes,$styletxt)=@_;
+
+$ref   ||= [];
+$theme ||= $THEME;
+
+my $colors;
+
+unless ($colors=$VARS-&gt;{blend_colors}) {
+  my $light =$VARS-&gt;{'blend_start_color'}
+           ||$theme-&gt;{'blend_start_color'}
+           ||$theme-&gt;{'clr_highlight'}
+           ||'FF0000';
+  my $dark  =$VARS-&gt;{'blend_finish_color'}
+           ||$theme-&gt;{'blend_finish_color'}
+           ||$theme-&gt;{'titlebgcolor'}
+           ||'0000FF';
+  $colors="$light;$dark";
+  if ($VARS-&gt;{'blend_finish_color'} || $VARS-&gt;{'blend_start_color'}) {
+    $VARS-&gt;{blend_colors}=$colors;
+    delete $VARS-&gt;{$_} for qw(blend_finish_color blend_start_color);
+  }
+}
+
+$colors=~s/[^#0-9A-Za-z\s.,;-]+/ /g;
+my @colors=map { s/^#?(.)(.)(.)$/$1$1$2$2$3$3/; $_ ? $_ : () } split /[\s.,;-]+/,$colors;
+push @colors,$colors[0] if @colors==1;
+$num||=@colors;
+my $expected=$num;
+my $current=shift @colors;
+$current=~s/^#?/#/;
+push @$ref,$current;
+$num--;
+while (@colors and @$ref&lt;$expected) {
+  my $n=int($num/@colors);
+  $num-=$n;
+  my $finish=shift @colors;
+  my (@s,@f,@d);
+  my $color='([0-9a-fA-F][0-9a-fA-F])';
+  push @s,map { hex $_ } $current=~/^#?$color$color$color/;
+  push @f,map { hex $_ } $finish=~/^#?$color$color$color/;
+  $d[$_]=($f[$_]-$s[$_])/$n for 0..2;
+  for (1..$n) {
+    for (0..2) {
+      $s[$_]+=$d[$_];
+      # sanity clause
+      if ($s[$_]&lt;0) {
+        $s[$_]=0;
+      } elsif ($s[$_]&gt;255) {
+        $s[$_]=255
+      }
+    }
+    push @{$ref},sprintf "#%02x%02x%02x",map { int($_+.5) } @s;
+  }
+  $current=$finish;
+}
+
+return join ",",@$ref unless $classes;
+$styletxt||='';
+join "\n",
+  qq[&lt;style type="text/css"&gt;],
+  $styletxt,
+  (map { "a.$classes-&gt;[$_] { color : $ref-&gt;[$_]; }" } 0..$#$classes),
+  qq[&lt;/style&gt;],
+;
+</field>
+</data>
+</node>

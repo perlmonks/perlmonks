@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="289568" title="Solving electronics problems with Perl" created="2003-09-07 09:48:28" updated="2005-08-11 07:30:18">
+<type id="121">
+perlcraft</type>
+<author id="287302">
+tsee</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+# Perl solving a physics / electrodynamics problem involving
+# symbolic mathematics, derivatives and complex numbers:
+
+use Math::Symbolic qw/:all/;
+use Math::Complex;
+
+# Given the following simple circuit:
+#
+#  ----|||||-----/\/\/\----       (R = resistor,
+# |      R          L      |       L = solenoid,
+# |                        |       U = alternating voltage)
+#  ---------O ~ O----------
+#            U(t)
+#
+# Question: What's the current in this circuit?
+#
+# We'll need some physics before letting the computer do the
+# math:
+# Applying Kirchhoff's rules, one quickly ends up with the
+# following differential equation for the current:
+#     (L * dI/dt) + (R * I)  =  U
+
+my $left  = parse_from_string('L * total_derivative(I(t), t) + R * I(t)');
+my $right = parse_from_string('U(t)');
+
+&lt;readmore&gt;
+# If we understand current and voltage to be complex functions,
+# we'll be able to derive. ("'" denoting complex here)
+#    I'(t) = I'_max * e^(i*omega*t)
+#    U'(t) = U_max  * e^(i*omega*t)
+# (Please note that omega is the frequency of the alternating voltage.
+# For example, the voltage from German outlets has a frequency of 50Hz.)
+
+my $argument = parse_from_string('e^(i*omega*t)');
+my $current  = parse_from_string('I_max') * $argument;
+my $voltage  = parse_from_string('U_max') * $argument;
+
+# Putting it into the equation:
+$left-&gt;implement( I  =&gt; $current );
+$right-&gt;implement( U =&gt; $voltage );
+
+$left = $left-&gt;apply_derivatives()-&gt;simplify();
+
+# Now, we can solve the equation to get a complex function for
+# the current:
+
+$left  /= $argument;
+$right /= $argument;
+my $quotient = parse_from_string('R + i*omega*L');
+$left  /= $quotient;
+$right /= $quotient;
+
+# Now we have:
+#    $left    = $right
+#    I_max(t) = U_max / (R + i*omega*L)
+# But I_max(t) is still complex and so is the right-hand-side of the
+# equation!
+
+# Making the symbolic i a "literal" Math::Complex i
+$right-&gt;implement(
+    e =&gt; Math::Symbolic::Constant-&gt;euler(),
+    i =&gt; Math::Symbolic::Constant-&gt;new(i),    # Math::Complex magic
+);
+
+print &lt;&lt;'HERE';
+Sample of complex maximum current with the following values:
+  U_max =&gt; 100
+  R     =&gt; 10
+  L     =&gt; 10
+  omega =&gt; 1
+HERE
+
+print "Computed to: "
+  . $right-&gt;value(
+    U_max =&gt; 100,
+    R     =&gt; 10,
+    L     =&gt; 10,
+    omega =&gt; 1,
+  ),
+  "\n\n";
+
+# Now, we're dealing with alternating current and voltage.
+# So let's make a generator that generates nice current
+# functions of time!
+#   I(t) = Re(I_max(t)) * cos(omega*t - phase);
+
+# Usage: generate_current(U_Max, R, L, omega, phase)
+sub generate_current {
+    my $current = $right-&gt;new();    # cloning
+
+    $current *= parse_from_string('cos(omega*t - phase)');
+
+    $current-&gt;implement(
+        U_max =&gt; $_[0],
+        R     =&gt; $_[1],
+        L     =&gt; $_[2],
+        omega =&gt; $_[3],
+        phase =&gt; $_[4],
+    );
+    $current = $current-&gt;simplify();
+    return sub { Re( $current-&gt;value( t =&gt; $_[0] ) ) };
+}
+
+print "Sample current function with: 230V, 2Ohms, 0.1H, 50Hz, PI/4\n";
+my $current_of_time = generate_current( 230, 2, 0.1, 50, PI / 4 );
+
+print "The current at 0 seconds:   " . $current_of_time-&gt;(0) . "\n";
+print "The current at 0.1 seconds: " . $current_of_time-&gt;(0.1) . "\n";
+print "The current at 1 second:    " . $current_of_time-&gt;(1) . "\n";
+
+&lt;/readmore&gt;</field>
+</data>
+</node>

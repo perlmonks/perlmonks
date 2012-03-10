@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="20524" title="Full Filesystem Notification" created="2000-06-30 00:57:55" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="20310">
+prodevel</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+#
+# Sorry for the simplicity of this script, but as a first submission...
+#
+# Emails/Pages me when a filesystem &gt; 90% full
+
+$df=`df -lk 2&gt;/dev/null`;
+$fs=`df -lk 2&gt;/dev/null | grep -v used | cut -d'%' -f2 | grep -v denied`;
+$full=`df -lk 2&gt;/dev/null | grep -v used | cut -d'%' -f1`;
+
+$full =~ s/.*(..\d)$/\1/mg;
+
+$fs=~s/\s+/ /g;
+$full=~s/\s+/ /g;
+
+@fs=split(" ",$fs);
+@full=split(" ",$full);
+$host=`hostname`;
+chomp($host);
+$fs=@fs;
+chomp($date);
+while ($fs)
+{$fs=shift(@fs);
+ $full=shift(@full);
+ chomp($fs);
+ chomp($full);
+ if ($full &gt; 90)
+ {print "Host: $host Filesystem: $fs is ${full}% full!\n";
+  @chk=grep(/$fs:$full/,@log);
+  undef(@log);
+  $chk=@chk;
+  close(LOG);
+  if ($chk == 0)
+  {`mailx -s "$host:$fs is ${full}%" youremail\@host.com &lt;&lt;EOF
+$df
+EOF
+`;
+   `mailx -s "$host:$fs is ${full}%" mypager\@pagerhost.com &lt;&lt;EOF
+
+EOF
+`;
+  }
+ }
+}
+
+</field>
+</data>
+</node>

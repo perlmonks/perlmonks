@@ -1,0 +1,104 @@
+<node>
+  <doctext>#!/usr/bin/perl
+#  yapsh - Yet Another Perl Shell
+#  Copyright (C) 2001 Drake Wilson
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  If you wish to receive a copy of the GNU General Public License, write to the Free Software
+#  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA, or see
+#  &lt;http://www.gnu.org/copyleft/gpl.html&gt;.
+#  
+#  You can contact me by e-mail at drake@libcom.com.
+
+use strict 'subs';
+use Term::ReadLine;
+use Shell;
+my (@brackets, %special, $nprompt, $bprompt, $reader, $command, $toe);
+@brackets = (%special = ());
+$nprompt=&quot;&amp; &quot;;
+$bprompt=&quot;. &quot;;
+$reader=new Term::ReadLine 'perl shell';
+
+print &quot;This is yapsh v1.0.  See source for license...\n\n&quot;;
+
+{
+    print $nprompt;
+    last unless (defined($_ = $reader-&gt;readline()));
+    $command=&quot;&quot;;
+    do
+    {
+	{
+	    my ($foo,$qux);
+	    foreach $foo (keys %special)
+	    {
+		if ($_ eq $foo)
+		{
+		    $qux = $special{$foo};
+		    &amp;$qux();
+		}
+	    }
+	}
+	$_ = scalar reverse $_;
+	{
+	    my $ch;
+	    while ($ch = chop $_)
+	    {
+		$command .= $ch;
+		foreach ('{','(','[')
+		{
+		    push @brackets, $ch if ($ch eq $_);
+		}
+		foreach ('}',')',']')
+		{
+		    if ($ch eq $_)
+		    {
+			$ch = '[' if ($ch eq ']'); 
+			$ch = '(' if ($ch eq ')');
+			$ch = '{' if ($ch eq '}');
+			warn &quot;Mismatched parentheses.\n&quot; unless ($ch eq pop @brackets);
+		    }
+		}
+	    }
+	}
+	if (@brackets)
+	{
+	    $command .= &quot; &quot;;
+	    print $bprompt;
+	    $_ = $reader-&gt;readline();
+	}
+    } while (@brackets);
+    eval ($command);
+    warn &quot;$@\n&quot; if ($@);
+    redo;
+}
+__END__
+
+=head1 yapsh - Yet Another Perl Shell
+
+As the title implies, this is -- yet another Perl Shell.  Any
+text typed in will be interpreted as Perl and executed immediately,
+unless there are unmatched open brackets, in which case a different
+prompt will be displayed to allow the user to continue until the
+bracket becomes matched.
+
+See the Shell.pm documentation for more information.
+
+=head1 COPYRIGHT
+
+Copyright (C) 2001 Drake Wilson, drake@libcom.com.
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>62667</node_id>
+  <author_user>59285</author_user>
+  <title>Perl shell</title>
+  <createtime>2001-03-07 03:51:56</createtime>
+  <nodeupdated>2005-07-21 01:25:27</nodeupdated>
+</node>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="244651" title="edithistory display page" created="2003-03-20 12:19:27" updated="2005-02-23 03:12:51">
+<type id="4">
+htmlcode</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="code">
+   my( $rowid )= @_;
+
+   if ( $HTMLVARS{guest_user} == getId($USER) ) {
+      return "No edit viewing for [Anonymous Monk], please login to view this";
+   }
+
+   my $N;
+   {
+      my $sth = $DB-&gt;sqlSelectMany(
+         "*",
+         "edithistory",
+         "rowid = $rowid",
+      );
+      $N = $sth-&gt;fetchrow_hashref();
+      $sth-&gt;finish();
+   }
+
+   if( $N-&gt;{private}  &amp;&amp;
+       ! Everything::isApproved( $USER, getNode('editors','usergroup') ) ) {
+      return 'This edit is marked private, sorry bud!';
+   }
+
+   my $html = '';
+
+   $html .= qq[\n&lt;p&gt;On ]
+      . htmlcode( 'parseTimeInString','', $N-&gt;{edittime} )
+      . qq[, ]
+      . linkNode( $N-&gt;{editor_user} )
+      . qq[ edited the ']
+      . $N-&gt;{fieldname}
+      . qq[' field of ]
+      . linkNode( $N-&gt;{edithistory_id} )
+      . qq[.  You can see the ]
+      . linkNode( $N-&gt;{edithistory_id}, "history of (non-owner) edits", {
+            displaytype=&gt;'edithistory',
+            ($q-&gt;param('limit') ? ( limit =&gt; 0+$q-&gt;param('limit')) : ()),
+        } )
+      . qq[ to that node.\n&lt;/p&gt;&lt;p&gt;Changes:&lt;/p&gt;];
+
+   require Everything::Diff;
+   Everything::Diff-&gt;import(qw( showDiff ));
+
+   my $diff= showDiff( $N-&gt;{starttext}, $N-&gt;{endtext} );
+
+   $diff =~ s#\n#&lt;br /&gt;\n#g;
+   $diff =~ s#  # &amp;nbsp;#g;
+   $html .= qq[&lt;p&gt;\n]
+      . $diff
+      . qq[\n&lt;/p&gt;\n];
+
+   return $html;
+
+</field>
+</data>
+</node>

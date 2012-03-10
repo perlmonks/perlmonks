@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="9096" title="Common Regex Gotchas" created="2000-04-25 20:00:22" updated="2005-08-15 15:10:24">
+<type id="956">
+perltutorial</type>
+<author id="1382">
+chromatic</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Common Regex Gotchas&lt;/h1&gt;
+
+Perl novices often stumble over a few gotchas when first learning regular expressions.  Learning the whys and the workarounds could save you hours of frustration.
+
+&lt;h2&gt;Greediness&lt;/h2&gt;
+Perl's regex engine likes to match the longest string possible, by default.  This is described as greediness.  Most people don't think that way, at least when looking at text.  Given the following string and regex, what will be in $1?
+&lt;code&gt;my $data = "&lt;tag&gt;this is a line of code&lt;/tag&gt;
+&lt;explanation&gt;this is where I wax poetic about my code&lt;/explanation&gt;
+&lt;tag&gt;this is another example of code&lt;/tag&gt;";
+if ($data =~ /&lt;tag&gt;(.*)&lt;\/tag&gt;/s) {
+	print "I found =&gt;$1&lt;=\n";
+}&lt;/code&gt;
+&lt;p&gt;
+If you said "this is a line of code", you're thinking the same thing most people do.  Unfortunately, that's not the way Perl thinks:
+&lt;code&gt;I found =&gt;this is a line of code&lt;/tag&gt;
+&lt;explanation&gt;this is where I wax poetic about my code&lt;/explanation&gt;
+&lt;tag&gt;this is another example of code&lt;=&lt;/code&gt;
+&lt;p&gt;
+The secret lies in the mysterious asterisk (&lt;em&gt;match zero or more of the preceding&lt;/em&gt;).  When the engine hits it, it jumps ahead to the end of the line and tries to match the next character -- the &lt; character.  Since the last character in the string is &gt;, the match fails, and the engine backtracks a character.  This continues through e, d, o, c, and /, until it finally reaches the final &lt; in $data.
+&lt;p&gt;
+Knowing that, you now understand the danger of greediness (and, hopefully, also why parsing HTML with a regex can be tricky).  The solution is very simple:
+&lt;code&gt; if ($data =~ /&lt;tag&gt;(.*?)&lt;\/tag&gt;/s) {
+	print "I found =&gt;$1&lt;=\n";
+}&lt;/code&gt;
+&lt;p&gt;
+Using the ? after a normally-greedy quantifier (* or +) tells the engine not to grab the longest string, but the first string that matches the whole pattern.
+
+&lt;h2&gt;Specifying Too Much&lt;/h2&gt;
+This gotcha is more stylistic, but it can come back to haunt you later.  Remember that regular expressions can be somewhat vague -- you don't have to specify the entire line, if you're only looking for a certain portion.  Suppose that you want to find the word Serial, followed by a colon and then a nine-digit number.  The data lines might look like this:
+&lt;code&gt;my $line = "Name: Some Soldier, Rank:  Leftenant, Serial: 426879824, Boots:  black";
+&lt;/code&gt;
+A regex novice might bite off more than he could chew with the following:
+&lt;code&gt;$line =~ /^\w*: \w*\s*\w*, \w*: \w*, \w+: (\d)*, \w*: \w*$/;
+&lt;/code&gt;
+If all you're interested in is the Serial number, only ask for that.  It'll make your regex simpler, and it will handle deviations from what you think the line ought to look like.  (That happens more often than you want to think.)
+&lt;code&gt;$line =~ /[Ss]erial: (\d{9})/;
+&lt;/code&gt;
+&lt;strong&gt;Caveat:&lt;/strong&gt; There are good reasons to break my Rule of Simplicity.  Performance is one, and error handling is another.  Be sure that the code works first, though, then try to make it tricky.
+
+&lt;h2&gt;Special Characters&lt;/h2&gt;
+Don't forget that certain characters (like &lt;strong&gt;.&lt;/strong&gt;, &lt;strong&gt;*&lt;/strong&gt;, &lt;strong&gt;/&lt;/strong&gt;, &lt;strong&gt;+&lt;/strong&gt;, and &lt;strong&gt;?&lt;/strong&gt;) have special meanings within regular expressions.  If you don't have a Unixy background (where escaping characters with a backslash is a little more common), you might write something like this, and stare at it in confusion for a while:
+&lt;code&gt;$line =~ /&lt;title&gt;(.*?)&lt;/title&gt;/;
+&lt;/code&gt;
+Hmm.  Check the [perlman:perlre] page for the skinny on exactly which characters have special meaning.  Also be aware that choosing alternate delimiters can help out, as well as being more visually appealing:
+&lt;code&gt;$line =~ m!&lt;title&gt;(.*?)&lt;/title&gt;!;
+&lt;/code&gt;
+One other caveat is that, within a character class, these rules often don't apply:
+&lt;code&gt;my $line = "a.b.cd*f.";
+$line =~ /([^.*]{2})/;&lt;/code&gt;
+
+&lt;h2&gt;Simple Substitutions&lt;/h2&gt;
+Want to make sure user input is completely uppercased?  Here's one approach:
+&lt;code&gt;my $input = "foo bar baz";
+$input =~ s/(\w+)/uc($1)/ge;&lt;/code&gt;
+While that works, it's serious overkill.  Even a less picky approach is sub-optimal:
+&lt;code&gt;$intput =~ s/([A-Za-z]+)/uc($1)/ge;
+&lt;/code&gt;
+Don't forget about the friendly [tr///] operator -- it's made for simple substitutions like this.  (Of course, if you're working with a [locale] different than simple English text, you're out of luck).
+&lt;code&gt;$input =~ tr/a-z/A-Z/;&lt;/code&gt;
+
+&lt;p&gt;Regular expressions give you a lot of power at the cost of some speed.  Don't get out the chainsaw when a penknife will do.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;Update:&lt;/strong&gt; a few small corrections.&lt;/p&gt;</field>
+</data>
+</node>

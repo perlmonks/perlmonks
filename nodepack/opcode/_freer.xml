@@ -1,0 +1,52 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>454957</node_id>
+  <author_user>142755</author_user>
+  <title>_freer</title>
+  <createtime>2005-05-07 23:48:31</createtime>
+  <code>my $want= ($q-&gt;param(&quot;at&quot;))[-1];
+my @where= $q-&gt;param(&quot;in&quot;);
+@where= &quot;free&quot;   if  ! @where;
+my $scratch;
+my $newScratch= 0;
+for my $where (  @where  ) {
+    my $isScratch= $where =~ /^(pub|priv)$/;
+    $scratch ||= htmlcode( 'get_user_scratchpads','', {one=&gt;1} )
+        if  $isScratch;
+    my $sv;
+    if(  $where eq &quot;free&quot;  ) {
+        $sv= \$VARS-&gt;{freenodelet};
+    } elsif(  $where eq &quot;pub&quot;  ) {
+        $sv= \$scratch-&gt;{doctext};
+    } elsif(  $where eq &quot;priv&quot;  ) {
+        $sv= \$scratch-&gt;{privatetext};
+    } else {
+        next;
+    }
+    my $html= $$sv;
+    my $update= 0;
+    $html =~ s{(&lt;!--(\w+-(?!-&gt;))?(.*?)(-\w+)?--&gt;)}{
+        my( $cmnt, $pre, $mid, $post )= ( $1, $2, $3, $4 );
+        my $found= $pre || $post || '';
+        $found =~ s/-//;
+        if(  $found ne $want  ) {
+            $cmnt;
+        } else {
+            my $add= htmlcode( 'expandfreenodelet','', $mid, 1 );
+            $update++;
+            $pre ? $add . $cmnt : $cmnt . $add;
+        }
+    }ges;
+    # Everything::printLog(
+    #     &quot;Expanding -$want- in $USER-&gt;{title}'s $where:&quot;
+    #   . &quot; $update updates$/&quot; );
+    if(  $update  ) {
+        $$sv= $html;
+        $newScratch ||= $isScratch;
+    }
+}
+$DB-&gt;updateNode( $scratch, $USER )
+    if  $newScratch;
+</code>
+  <nodeupdated>2005-05-07 23:56:24</nodeupdated>
+</node>

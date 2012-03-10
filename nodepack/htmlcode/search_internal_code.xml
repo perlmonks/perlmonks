@@ -1,0 +1,201 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>382266</node_id>
+  <author_user>357600</author_user>
+  <title>search_internal_code</title>
+  <createtime>2004-08-12 10:39:10</createtime>
+  <code>return ''   if  ! $q-&gt;param(&quot;searchterms&quot;);
+my $edit= 'viewcode';
+# $edit= 'edit'   if  isGod($USER);
+my @terms= split /;/, $q-&gt;param(&quot;searchterms&quot;);
+
+my $grep= $q-&gt;param('dogrep');
+$grep= $VARS-&gt;{sic_dogrep}   if  ! defined $grep;
+
+my $or_terms= $q-&gt;param('or_terms');
+$or_terms= $VARS-&gt;{sic_or_terms}   if  ! defined $or_terms;
+
+my @match;
+{
+    my %fieldOfTable= (
+        htmlpage =&gt; 'page',
+        htmlcode =&gt; 'code',
+        document =&gt; 'doctext',
+        container =&gt; 'context',
+        nodelet =&gt; 'nlcode',
+        setting =&gt; 'vars',
+    );
+    my %restrictForTable= (
+        document =&gt;
+            &quot; and type_nodetype in ( &quot;
+            . join(
+                &quot;,&quot;, map {
+                    $DB-&gt;sqlSelect( &quot;node_id&quot;, &quot;node&quot;,
+                        qq[type_nodetype=1 and title=&quot;$_&quot;] )
+                } 'fullpage', 'superdoc', 'rawpage', 'strangedoc', 'script', 'css',
+            ) . &quot; ) &quot;,
+        htmlcode =&gt;
+            &quot; and type_nodetype not in ( &quot;
+            . join(
+                &quot;,&quot;, map {
+                    $DB-&gt;sqlSelect( &quot;node_id&quot;, &quot;node&quot;,
+                      qq[type_nodetype=1 and title=&quot;$_&quot;] )
+                } 'patch'
+            ) . &quot; ) &quot;,
+        setting =&gt;
+            &quot; and type_nodetype not in ( &quot;
+            . join( &quot;,&quot;, map getId( getType( $_ ) ),
+               qw/user zombie_user doclist faqlist tutlist/
+            ) . &quot; ) &quot;,
+    );
+
+    my $title= '';
+    if(  1 == @terms  ) {
+        my $like= $terms[0];
+        $like =~ s#([%_\\\[\]])#\\$1#g;
+        $like =~ s#(['\\])#\\$1#g;
+        $title= &quot; or title like '%$like%'&quot;
+    }
+    for my $table (  keys %fieldOfTable  ) {
+        my $sth= $DB-&gt;sqlSelectMany(
+            &quot;node_id,title,type_nodetype,$fieldOfTable{$table}&quot;,
+            &quot;node,$table&quot;,
+            #my $where=
+            &quot;node_id=${table}_id and ( &quot; . join( ($or_terms ? &quot; or &quot; : &quot; and &quot;), map {
+                my $quoted= $_;
+                $quoted =~ s#([%_\\\[\]])#\\$1#g;
+                $quoted =~ s#(['\\])#\\$1#g;
+                &quot;$fieldOfTable{$table} like '%$quoted%'&quot;
+            } @terms )
+            . &quot;$title )&quot; . $restrictForTable{$table},
+        );
+        #$str .= qq[
+        #  where=] . $q-&gt;escapeHTML($where) . qq[
+        #  &lt;br /&gt;];
+        my $rec;
+        while(  $rec= $sth-&gt;fetchrow_hashref()  ) {
+            my @lines;
+            my $index= 0;
+            if(  $grep  &amp;&amp;  $table ne 'setting'  ) {
+                LINE:
+                foreach my $line (
+                    split /\n/, $rec-&gt;{$fieldOfTable{$table}}
+                ) {
+                    $index++;
+                    for my $term (  @terms  ) {
+                        if(  0 &lt;= index( lc($line), lc($term) )  ) {
+                            push @lines, sprintf &quot;% 4d:%s&quot;, $index, $line;
+                            next LINE;
+                        }
+                    }
+                }
+            }
+            push @match, [$rec,\@lines];
+        }
+        $sth-&gt;finish();
+    }
+}
+{
+    my $pmmod= getId( getType('pmmodule') );
+    my $sth= $DB-&gt;sqlSelectMany(
+        &quot;node_id,title,type_nodetype&quot;,
+        &quot;node&quot;,
+        &quot;type_nodetype=$pmmod&quot;,
+    );
+    my $mod;
+    $_= lc $_   for  @terms;
+
+MODULE:
+    while(  $mod= $sth-&gt;fetchrow_hashref()  ) {
+        my $name= $mod-&gt;{title};
+        my @mod;
+        htmlcode( 'readPmModule','', $name, {}, \@mod );
+        my @lines;
+        my $lineNo= 0;
+        my %matched;
+        LINE:
+        for my $line (  @mod  ) {
+            $lineNo++;
+            chomp $line;
+            local $_= lc $line;
+            my $pushed;
+            for my $term (  @terms  ) {
+                if(  0 &lt;= index( $_, $term )  ) {
+                    $matched{$term}++;
+                    if(  $grep  &amp;&amp;  !$pushed  ) {
+                        push @lines, sprintf &quot;%4d:%s&quot;, $lineNo, $line;
+                        $pushed= 1;
+                    }
+                }
+            }
+        }
+        push @match, [$mod,\@lines]
+            if  $or_terms &amp;&amp; @lines  or  keys %matched == @terms;
+    }
+    $sth-&gt;finish();
+}
+if(  $q-&gt;param('displaytype') eq 'xml'  ) {
+    my @data;
+    my $xml_nl= $/;
+    $xml_nl= &quot;&quot;   if  grep $_ eq &quot;clean&quot;, $q-&gt;param(&quot;xmlstyle&quot;);
+    my $xml= XML::Fling-&gt;new( \@data, &quot;&lt;&quot;,&quot;&gt;\n&quot;,&quot;&lt;&quot;,&quot;&gt;$xml_nl&quot;,&quot;&lt;&quot;,&quot;&gt;\n&quot; );
+    $xml-&gt;start('searchresult');
+    for my $term (  @terms  ) {
+        $xml-&gt;element( term =&gt; $term );
+    }
+    for my $item (  sort {
+            $a-&gt;[0]{type_nodetype} &lt;=&gt; $b-&gt;[0]{type_nodetype}
+        ||  uc($a-&gt;[0]{title}) cmp uc($b-&gt;[0]{title})
+        } @match
+    ) {
+        my( $match, $lines )= @$item;
+        $xml-&gt;start(
+            'match',
+            node_id =&gt; $match-&gt;{node_id},
+            type_nodetype =&gt; $match-&gt;{type_nodetype},
+            title =&gt; $match-&gt;{title},
+        );
+        $xml-&gt;element( line =&gt; $_ )
+            for  @$lines;
+        $xml-&gt;end('match');
+    }
+    $xml-&gt;end();
+    return join '', @data;
+}
+
+my $str .=
+    $/ . 0+@match . qq[ match(es) found&lt;br /&gt;$/]
+  . qq[&lt;table&gt;$/];
+for my $item (  sort {
+        $a-&gt;[0]{type_nodetype} &lt;=&gt; $b-&gt;[0]{type_nodetype}
+    ||  uc($a-&gt;[0]{title}) cmp uc($b-&gt;[0]{title})
+    } @match
+) {
+    my( $match, $lines )= @$item;
+    $str .= qq[&lt;tr&gt;&lt;td&gt;]
+      . linkNode( $match-&gt;{node_id}, $match-&gt;{title} )
+      . qq[&lt;/td&gt;$/&lt;td&gt;]
+      . linkNode(
+            $match-&gt;{node_id}, $edit,
+            { displaytype =&gt; $edit },
+            { trusted =&gt; 'yes' } )
+      . qq[&lt;/td&gt;$/&lt;td&gt;]
+      . linkNode( $match-&gt;{type_nodetype} )
+      . qq[&lt;/td&gt;&lt;/tr&gt;$/];
+    $str .= qq[&lt;tr class='grep'&gt;&lt;td colspan='3'&gt;$/]
+      . htmlcode( 'wrapcode','', join(&quot;\n&quot;,@$lines) )
+      . qq[&lt;/td&gt;&lt;/tr&gt;$/]
+        if  $grep;
+}
+$str .= qq[&lt;/table&gt;$/];
+return linkNode(
+    $NODE,
+    &quot;This Query As Link&quot;,
+    {   searchterms =&gt; join(&quot;;&quot;,@terms),
+        dogrep =&gt; $grep||0,
+        or_terms =&gt; $or_terms||0,
+    },
+) . &quot;&lt;br/&gt;$/&quot; . $str;
+</code>
+  <nodeupdated>2005-08-13 05:32:14</nodeupdated>
+</node>

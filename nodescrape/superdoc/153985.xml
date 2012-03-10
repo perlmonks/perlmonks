@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="153985" title="Edit User Vars" created="2002-03-24 20:16:52" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[{openform}]
+[%
+ $q-&gt;textfield(
+   -name    =&gt; 'user',
+   -size    =&gt; 15,
+   -default =&gt; $USER-&gt;{title}
+  )
+%]
+[{closeform:edit}]
+[%
+  return "I don't think so :)"
+    if not isGod($USER);
+
+  my $usr = $query-&gt;param('user');
+  return   if  not $usr;
+  $usr    = getNode( $usr, 'user' );
+  return   if  not $usr;
+
+  my $vars = getVars($usr);
+
+  my $str = '';
+
+  # Loop through params update vars based on query param
+
+  if ( $query-&gt;param('updatevars') eq 'yes' ) {
+    if ( $query-&gt;param('new_var') ) {
+      $query-&gt;param( 'set_' . $query-&gt;param('new_var')
+        =&gt; $query-&gt;param('new_var_val') );
+    }
+
+    foreach my $var ( grep /^set_/, $query-&gt;param ) {
+      my $val= $query-&gt;param($var);
+      $var =~ s/^set_//;
+       
+      next if ref($VARS-&gt;{$var}) 
+           || $vars-&gt;{$var} eq $val;
+
+      $vars-&gt;{$var} = $val;
+      if ( $USER-&gt;{title} eq $usr-&gt;{title} ) {
+        $VARS-&gt;{$var} = $val;
+      }
+    }
+    foreach my $var ( $query-&gt;param('delete') ) {
+      delete $vars-&gt;{$var};
+      if ( $USER-&gt;{title} eq $usr-&gt;{title} ) {
+        delete $VARS-&gt;{$var};
+      }
+    }
+    if ($q-&gt;param('remove_false')) {
+      foreach my $var ( keys %$vars ) {
+        next if $vars-&gt;{$var};
+        delete $vars-&gt;{$var};
+        if ( $USER-&gt;{title} eq $usr-&gt;{title} ) {
+          delete $VARS-&gt;{$var};
+        }
+      }
+    }
+    setVars( $usr, $vars );
+    $vars= getVars($usr);
+  }
+
+  foreach my $varname (  sort keys %$vars  ) {
+    $str .= sprintf &lt;&lt;"END",
+      &lt;tr&gt;
+        &lt;td&gt;%s&lt;/td&gt;
+        &lt;td&gt;%s&lt;/td&gt;
+        &lt;td&gt;%s&lt;/td&gt;
+      &lt;/tr&gt;
+END
+      $query-&gt;checkbox( -name=&gt;"delete",
+        -value=&gt;$varname, -label=&gt;"" ),
+      $varname,
+      ref $vars-&gt;{$varname} ? "&lt;code&gt;"
+                              .Data::Dumper-&gt;new([$vars-&gt;{$varname}])-&gt;Terse(1)-&gt;Indent(1)-&gt;Dump()
+                              ."&lt;/code&gt;" :
+      $query-&gt;textarea( -name=&gt;"set_$varname",
+        -columns=&gt;40, -rows=&gt;2, -style =&gt; 'width: 350px; height: 40px;',
+        -default=&gt;$vars-&gt;{$varname}, -override=&gt;1 );
+  }
+
+  $str  .= sprintf &lt;&lt;"END",
+      &lt;tr&gt;
+         &lt;td&gt;&lt;/td&gt;
+         &lt;td&gt;%s&lt;/td&gt;
+         &lt;td&gt;%s&lt;/td&gt;
+      &lt;/tr&gt;
+END
+      $query-&gt;textfield( -name =&gt; 'new_var' ),
+      $query-&gt;textfield( -name =&gt; 'new_var_val' );
+
+  return "&lt;hr /&gt;".
+    htmlcode('openform') .
+   $query-&gt;hidden( updatevars =&gt; 'yes' ) .
+   $query-&gt;hidden( user =&gt; $query-&gt;param('user') ) . 
+   qq[&lt;table&gt;&lt;tr&gt;&lt;td&gt;Remove&lt;/td&gt;&lt;td&gt;Setting&lt;/td&gt;&lt;td&gt;Value&lt;/td&gt;&lt;/tr&gt;$str&lt;/table&gt;] .
+   $query-&gt;checkbox(-name=&gt;'remove_false',
+                           -checked=&gt;0,
+                           -value=&gt;1,
+                           -force=&gt;1,
+                           -label=&gt;'Automatically delete keys whose values are false?').
+   qq[&lt;br /&gt;].
+   htmlcode('closeform');
+%]</field>
+</data>
+</node>

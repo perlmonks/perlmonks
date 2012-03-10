@@ -1,0 +1,517 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>15086</node_id>
+  <author_user>929</author_user>
+  <title>testmessage</title>
+  <createtime>2000-05-26 19:26:46</createtime>
+  <code>return; # Defang old test code
+
+Everything::printLog(&quot;message opcode called by $USER-&gt;{title}&quot;);
+return   if  getId($USER) == $HTMLVARS{default_user};
+
+my $BUN = getNode( 'borged users', 'setting' );
+my $BU = getVars( $BUN );
+
+return   if  time() &lt; $BU-&gt;{ $USER-&gt;{node_id} };
+
+my $replyto = $q-&gt;param('replyto');
+
+if(  $replyto  ) {
+   my $text = $q-&gt;param('replytotext');
+   my $dbh = $DB-&gt;getDatabaseHandle();
+   my $N = $DB-&gt;sqlSelectHashref( &quot;*&quot;, &quot;message&quot;,
+     &quot;message_id=&quot;.$dbh-&gt;quote($replyto) );
+   if(  $text  &amp;&amp;  $N  ) {
+
+      return   if  htmlcode( 'repeatedchatter', '',
+         getId($USER), $text, getId($N-&gt;{author_user}) );
+
+      $DB-&gt;sqlInsert( &quot;message&quot;, {
+         msgtext =&gt; $text,
+         author_user =&gt; getId($USER),
+         for_user =&gt; getId($N-&gt;{author_user})
+      } );
+   }
+}
+
+# Be sure to handle $q-&gt;param('replyto') before
+# deletemsg_* or else you won't be able to reply to
+# and delete a message in a single submission.
+
+foreach my $p (  $q-&gt;param()  ) {
+   if (  $p =~ /^deletemsg_(\d+)$/  ) {
+      $DB-&gt;sqlDelete( 'message', &quot;message_id=$1&quot; )
+         if  Everything::isApproved( $USER, $DB-&gt;sqlSelect(
+               &quot;for_user&quot;,&quot;message&quot;,&quot;message_id=$1&quot;) );
+   } elsif(  $p =~ /^(un)?archive_(\d+)$/  ) {
+      my( $for_user, $tstamp ) = $DB-&gt;sqlSelect(
+         &quot;for_user,tstamp&quot;, &quot;message&quot;, &quot;message_id=$2&quot; );
+      $DB-&gt;sqlUpdate( &quot;message&quot;, {
+            archive =&gt; ( $1 ? 0 : 1 ),
+            tstamp =&gt; $tstamp,
+         }, &quot;message_id = $2&quot; )
+         if  Everything::isApproved( $USER, $for_user );
+   }
+}
+
+my $message = $q-&gt;param(&quot;message&quot;);
+
+return   if  $message !~ /\S/;
+
+## $message= htmlScreen($message);
+
+if (  $message =~ /^\/(msg|tell)\s+\[([^\]]+)\]\s+(.*?)\s*$/si
+  ||  $message =~ /^\/(msg|tell)\s+(\S+)\s+(.*?)\s*$/si  ) {
+
+   $message = $3;
+   my $user = $2;
+   return   unless  $message =~ /\S/;
+
+   my $U = getNode( $user, &quot;user&quot; );
+   if(  ! $U  ) {
+      $U = getNode( $user, 'usergroup' );
+      if(  ! $U  &amp;&amp;  ( my $u = $user ) =~ s/_/ /gs  ) {
+         $U = getNode( $u, &quot;user&quot; )
+          ||  getNode( $u, 'usergroup' );
+      }
+
+   }
+
+   if (  not $U  ) {
+      $DB-&gt;sqlInsert( &quot;message&quot;, {
+         msgtext =&gt; $q-&gt;escapeHTML($user)
+            . qq[ doesn't exist but you tried to say &quot;]
+            . $q-&gt;escapeHTML($message)
+            . qq[&quot; to them.],
+         author_user =&gt; getId( getNode('root','user') ),
+         for_user =&gt; getId($USER),
+      } );
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;Send failed (see ]
+           . linkNodeTitle(&quot;Message Inbox&quot;) . qq[).&lt;/i&gt;]
+      );
+      return;
+   }
+
+   if (  $U-&gt;{type}{title} eq 'usergroup'  ) {
+
+      return   if  htmlcode( 'repeatedchatter', '',
+        getId($USER), $message, getId($U) );
+
+      $DB-&gt;sqlInsert(
+        'message',
+        {
+          msgtext     =&gt; $message,
+          author_user =&gt; getId($USER),
+          for_user    =&gt; getId($U),
+        }
+      );
+
+      return;
+   }
+
+   my $V = getVars( $U );
+   my $err= '';
+   if (  0 &lt;= index( $V-&gt;{ignoredusers}, &quot;|$USER-&gt;{user_id},&quot; )  ) {
+      $err= linkNode($U) . qq[ is ignoring you];
+   } elsif (  0 &lt;= index( $VARS-&gt;{ignoredusers}, &quot;|$U-&gt;{user_id},&quot; )  ) {
+      $err= qq[You are ignoring ] . linkNode($U)
+         . qq[; use &quot;/unignore ]
+         . $q-&gt;escapeHTML(&quot;[$U-&gt;{title}]&quot;)
+         . qq[&quot; before resending];
+   }
+   if (  $err  ) {
+      $DB-&gt;sqlInsert( &quot;message&quot;, {
+         msgtext =&gt; $err . qq[, but you tried to say &quot;]
+            . $q-&gt;escapeHTML($message) . qq[&quot; to them.],
+         author_user =&gt; getId( getNode('root','user') ),
+         for_user =&gt; getId($USER),
+      } );
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;Send failed (see ]
+           . linkNodeTitle(&quot;Message Inbox&quot;) . qq[).&lt;/i&gt;]
+      );
+      return;
+   }
+
+   return   if  htmlcode( 'repeatedchatter', '',
+      getId($USER), $message, getId($U) );
+
+   $DB-&gt;sqlInsert( &quot;message&quot;, {
+      msgtext =&gt; $message,
+      author_user =&gt; getId($USER),
+      for_user =&gt; getId($U),
+   } );
+
+} elsif (  $message =~ m#^/(un)?ignore\s+\[([^\]]+)\]\s*$#i
+       ||  $message =~ m#^/(un)?ignore\s+(\S+)\s*$#i  ) {
+
+   my $un = $1 || '';
+   my $user = $2;
+   my $U = getNode( $user, &quot;user&quot; );
+   if(  ! $U  ) {
+      if(  ( my $u= $user ) =~ s/_/ /gs  ) {
+         $U = getNode( $u, &quot;user&quot; );
+      }
+   }
+   if(  ! $U  ) {
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You tried to ${un}ignore a non-existant user (]
+            . $q-&gt;escapeHTML($user) . qq[)&lt;/i&gt;]
+      );
+      return;
+   }
+   my $userid = getId($U);
+   if(  ! $un  ) {
+      my $when= &quot;were already&quot;;
+      if(  $VARS-&gt;{ignoredusers} !~ m/\|$userid,/   ) {
+
+         $VARS-&gt;{ignoredusers} .= &quot;|$userid,&quot;;
+         $when= &quot;are now&quot;;
+      }
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You $when ignoring ]
+            . $q-&gt;escapeHTML($user) . qq[&lt;/i&gt;]
+      );
+   } else {
+      my $when= &quot;were not&quot;;
+      if(  $VARS-&gt;{ignoredusers} =~ s/\|$userid,//g   ) {
+         $when= &quot;are no longer&quot;;
+      }
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You $when ignoring ]
+            . $q-&gt;escapeHTML($user) . qq[&lt;/i&gt;]
+      );
+   }
+
+} elsif (  $message =~ m#^/(borg|consume)\s+\[([^\]]+)\](\s+\d+)?\s*$#i
+       ||  $message =~ m#^/(borg|consume)\s+(\S+)(\s+\d+)?\s*$#i  ) {
+
+   my $cmd = lc($1);
+   my $silent = $cmd eq 'consume';
+
+   my $user = $2;
+   my $time = $3 || 10;
+   ## $time= 10   if  ! isGod($USER);
+
+   my $PU = getNode( 'power users', 'usergroup' );
+   if(  ! isGod($USER)  and  ! Everything::isApproved( $USER, $PU )  ) {
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;The /$cmd command doesn't do anything.&lt;/i&gt;]
+      );
+      return;
+   }
+
+   if(  $silent  &amp;&amp;  ! isGod($USER)  ) {
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;Only [gods] can /$cmd users.&lt;/i&gt;]
+      );
+      return;
+   }
+
+   my $U = getNode( $user, &quot;user&quot; );
+   if(  ! $U  ) {
+      if(  ( my $u = $user ) =~ s/_/ /gs  ) {
+         $U = getNode( $u, &quot;user&quot; );
+      }
+   }
+   if(  ! $U  ) {
+      $q-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You can't /$cmd a non-existant user (]
+         . $q-&gt;escapeHTML($user) . qq[).&lt;/i&gt;]
+      );
+      return;
+   }
+   $user = $U-&gt;{title};
+   Everything::printLog( &quot;${cmd}'d $user&quot; );
+
+   $BU-&gt;{ $U-&gt;{node_id} } = time() + $time*60;
+   setVars( $BUN, $BU );
+
+   my $BORG = getNode( 'NodeReaper', 'user' );
+
+   my $message = &quot;/me has swallowed [$user]&quot;;
+   my @EDBURSTS = ( &quot;. *BURP*&quot;, &quot;, mmmmm...&quot;,
+      &quot;. [$user] is good food!&quot;,
+      &quot;. [$user] was tasty!&quot;,
+      &quot;. [$BORG-&gt;{title}] gets indigestion.&quot;,
+      &quot;. A loud grumbling is heard.&quot;,
+      &quot; but spits out the funny hat.&quot;,
+      &quot; whole.&quot;, &quot;. [$BORG-&gt;{title}] picks his teeth.&quot;,
+      &quot; (with great difficulty).&quot;,
+      &quot; (after only 3 tries).&quot;,
+      &quot;. Anyone have a napkin?&quot;,
+      &quot; (and a chair and a mouse).&quot;,
+      &quot;. [$BORG-&gt;{title}] looks queasy.&quot;,
+   );
+
+   $message .= $EDBURSTS[int(rand(@EDBURSTS))];
+   $DB-&gt;sqlInsert( &quot;message&quot;, {
+      msgtext     =&gt; $message,
+      author_user =&gt; getId($BORG),
+      for_user    =&gt; 0
+   } )   if  ! $silent;
+
+} elsif (  $message =~ m#^/reaper\s*(.*)$#i      ) {
+  my $msg = $1;
+
+  my $PU = getNode( 'power users', 'usergroup' );
+  if(  ! isGod($USER)  and  ! Everything::isApproved( $USER, $PU )  ) {
+    $q-&gt;param( 'sentmessage',
+      qq[&lt;i&gt;The /reaper command doesn't do anything.&lt;/i&gt;]
+    );
+    return;
+  }
+
+  $DB-&gt;sqlInsert(
+    'message',
+    {
+      msgtext     =&gt; $msg,
+      for_user    =&gt; 0,
+      author_user =&gt; $HTMLVARS{NodeReaperID}
+    }
+  );
+} elsif (  $message =~ m#^/clear(\s|$)#i  &amp;&amp;  isGod($USER)  ) {
+  $DB-&gt;getDatabaseHandle-&gt;do('
+    DELETE FROM message
+    WHERE       for_user = 0
+      AND       UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(tstamp) &lt; 600
+  ');
+
+} elsif (  $message =~ m#^/chatteroff\s*$#i  ) {
+    $VARS-&gt;{publicchatteroff} = 1;
+
+} elsif (  $message =~ m#^/chatteron\s*$#i  ) {
+    $VARS-&gt;{publicchatteroff} = 0;
+
+} elsif (  $VARS-&gt;{publicchatteroff}  ) {
+   $q-&gt;param( &quot;sentmessage&quot;,
+      &quot;&lt;i&gt;Say /chatteron if you wish to chat publicly.&lt;/i&gt;&quot;
+   );
+} else {
+   return   if  htmlcode( 'repeatedchatter', '',
+      getId($USER), $message, 0 );
+
+   $DB-&gt;sqlInsert( &quot;message&quot;, {
+      msgtext =&gt; $message,
+      author_user =&gt; getId($USER),
+      for_user =&gt; 0
+   } );
+}
+
+##########################################################
+##########################################################
+##########################################################
+
+'ignore' and &lt;&lt;'END' if 0;
+Everything::printLog(&quot;message opcode called by $USER-&gt;{title}&quot;);
+return   if  getId($USER) == $HTMLVARS{default_user};
+
+my $BUN = getNode( 'borged users', 'setting' );
+my $BU = getVars( $BUN );
+
+return   if  time() &lt; $BU-&gt;{ $USER-&gt;{node_id} };
+
+my $replyto = $query-&gt;param('replyto');
+
+if(  $replyto  ) {
+   my $text = $query-&gt;param('replytotext');
+   my $dbh = $DB-&gt;getDatabaseHandle();
+   my $N = $DB-&gt;sqlSelectHashref( &quot;*&quot;, &quot;message&quot;,
+     &quot;message_id=&quot;.$dbh-&gt;quote($replyto) );
+   if(  $text  &amp;&amp;  $N  ) {
+      htmlcode( 'insertmessage', '',
+         $text, getId($N-&gt;{author_user}) );
+   }
+}
+
+# Be sure to handle $query-&gt;param('replyto') before
+# deletemsg_* or else you won't be able to reply to
+# and delete the same message in a single submission.
+foreach my $p (  $query-&gt;param()  ) {
+   if (  $p =~ /^deletemsg_(\d+)$/  ) {
+      $DB-&gt;sqlDelete( 'message',
+         &quot;message_id=$1 and for_user=&quot; . getId($USER) );
+   } elsif(  $p =~ /^(un)?archive_(\d+)$/  ) {
+      my $tstamp = $DB-&gt;sqlSelect( &quot;tstamp&quot;, &quot;message&quot;, &quot;message_id=$2&quot; );
+      $DB-&gt;sqlUpdate( &quot;message&quot;, {
+         archive =&gt; ( $1 ? 0 : 1 ),
+         tstamp =&gt; $tstamp,
+      }, &quot;message_id = $2 AND for_user = &quot; . getId($USER) );
+   }
+}
+
+my $message = $query-&gt;param(&quot;message&quot;);
+
+return   if  $message !~ /\S/;
+
+if(  $message =~ m#^/(\w+)(?:\s+(.*\S))?\s*$#s  ) {
+   my( $cmd, $rest ) = ( lc($1), $2 );
+   $HTMLVARS{testmessage} = &quot;Found command, /$cmd.\n&quot;;
+   my $code= getCode( &quot;chat/$cmd&quot; );
+   if(  $code  ) {
+      my $NODE = $GNODE;
+      my $warnbuf = &quot;&quot;;
+      local $SIG{__WARN__} = sub { 
+         $warnbuf .= $_[0] 
+           unless $_[0] =~ /^Use of uninitialized value/;
+      };
+      $code =~ s/\015//gs;
+      @_= ( $cmd, $rest );
+      my $ret = eval $code;
+      local $SIG{__WARN__} = sub {};
+      if(  $@ or $warnbuf  ) {
+         return htmlFormatErr( $code, $@, $warnbuf );
+      }
+      if(  defined $ret   ) {
+         return   if  &quot;&quot; eq $ret;
+         $message = $ret;
+      }
+   }
+   return &quot;\n&lt;!-- testmessage:\n$HTMLVARS{testmessage}--&gt;\n&quot;;
+}
+
+if(  $message =~ m#^/(un)?ignore\s+\[([^\]]+)\]\s*$#i
+ ||  $message =~ m#^/(un)?ignore\s+(\S+)\s*$#i  ) {
+
+   my $un = $1 || '';
+   my $user = $2;
+   my $U = getNode( $user, &quot;user&quot; );
+   if(  ! $U  ) {
+      if(  ( my $u= $user ) =~ s/_/ /gs  ) {
+         $U = getNode( $u, &quot;user&quot; );
+      }
+   }
+   if(  ! $U  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You tried to ${un}ignore a non-existant user (]
+            . $query-&gt;escapeHTML($user) . qq[)&lt;/i&gt;]
+      );
+      return;
+   }
+   my $userid = getId($U);
+   if(  ! $un  ) {
+      my $when= &quot;were already&quot;;
+      if(  $VARS-&gt;{ignoredusers} !~ m/\|$userid,/   ) {
+
+         $VARS-&gt;{ignoredusers} .= &quot;|$userid,&quot;;
+         $when= &quot;are now&quot;;
+      }
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You $when ignoring ]
+            . $query-&gt;escapeHTML($user) . qq[&lt;/i&gt;]
+      );
+   } else {
+      my $when= &quot;were not&quot;;
+      if(  $VARS-&gt;{ignoredusers} =~ s/\|$userid,//g   ) {
+         $when= &quot;are no longer&quot;;
+      }
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You $when ignoring ]
+            . $query-&gt;escapeHTML($user) . qq[&lt;/i&gt;]
+      );
+   }
+
+} elsif (  $message =~ m#^/(borg|consume)\s+\[([^\]]+)\](\s+\d+)?\s*$#i
+       ||  $message =~ m#^/(borg|consume)\s+(\S+)(\s+\d+)?\s*$#i  ) {
+
+   my $cmd = lc($1);
+   my $silent = $cmd eq 'consume';
+
+   my $user = $2;
+   my $time = $3 || 10;
+   ## $time= 10   if  ! isGod($USER);
+
+   my $PU = getNode( 'power users', 'usergroup' );
+   if(  ! isGod($USER)  and  ! Everything::isApproved( $USER, $PU )  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;The /$cmd command doesn't do anything.&lt;/i&gt;]
+      );
+      return;
+   }
+
+   if(  $silent  &amp;&amp;  ! isGod($USER)  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;Only [gods] can /$cmd users.&lt;/i&gt;]
+      );
+      return;
+   }
+
+   my $U = getNode( $user, &quot;user&quot; );
+   if(  ! $U  ) {
+      if(  ( my $u = $user ) =~ s/_/ /gs  ) {
+         $U = getNode( $u, &quot;user&quot; );
+      }
+   }
+   if(  ! $U  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You can't /$cmd a non-existant user (]
+         . $query-&gt;escapeHTML($user) . qq[).&lt;/i&gt;]
+      );
+      return;
+   }
+   $user = $U-&gt;{title};
+   Everything::printLog( &quot;${cmd}'d $user&quot; );
+
+   $BU-&gt;{ $U-&gt;{node_id} } = time() + $time*60;
+   setVars( $BUN, $BU );
+
+   my $BORG = getNode( 'NodeReaper', 'user' );
+
+   my $message = &quot;/me has swallowed [$user]&quot;;
+   my @EDBURSTS = ( &quot;. *BURP*&quot;, &quot;, mmmmm...&quot;,
+      &quot;. [$user] is good food!&quot;,
+      &quot;. [$user] was tasty!&quot;,
+      &quot;. [$BORG-&gt;{title}] gets indigestion.&quot;,
+      &quot;. A loud grumbling is heard.&quot;,
+      &quot; but spits out the funny hat.&quot;,
+      &quot; whole.&quot;, &quot;. [$BORG-&gt;{title}] picks his teeth.&quot;,
+      &quot; (with great difficulty).&quot;,
+      &quot; (after only 3 tries).&quot;,
+      &quot;. Anyone have a napkin?&quot;,
+      &quot; (and a chair and a mouse).&quot;,
+      &quot;. [$BORG-&gt;{title}] looks queasy.&quot;,
+   );
+   $message .= $EDBURSTS[int(rand(@EDBURSTS))];
+   $DB-&gt;sqlInsert( &quot;message&quot;, {
+      msgtext     =&gt; $message,
+      author_user =&gt; getId($BORG),
+      for_user    =&gt; 0
+   } )   if  ! $silent;
+
+} elsif (  $message =~ m#^/reaper\s*(.*)$#i      ) {
+  my $msg = $1;
+
+  my $PU = getNode( 'power users', 'usergroup' );
+  if(  ! isGod($USER)  and  ! Everything::isApproved( $USER, $PU )  ) {
+    $query-&gt;param( 'sentmessage',
+      qq[&lt;i&gt;The /reaper command doesn't do anything.&lt;/i&gt;]
+    );
+    return;
+  }
+  htmlcode( 'insertmessage', '',
+      $msg, 0, $HTMLVARS{NodeReaperID} );
+
+} elsif (  $message =~ m#^/clear(\s|$)#i  &amp;&amp;  isGod($USER)  ) {
+  $DB-&gt;getDatabaseHandle-&gt;do('
+    DELETE FROM message
+    WHERE       for_user = 0
+      AND       UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(tstamp) &lt; 600
+  ');
+
+} elsif (  $message =~ m#^/chatteroff\s*$#i  ) {
+    $VARS-&gt;{publicchatteroff} = 1;
+
+} elsif (  $message =~ m#^/chatteron\s*$#i  ) {
+    $VARS-&gt;{publicchatteroff} = 0;
+
+} elsif (  $VARS-&gt;{publicchatteroff}  ) {
+   $query-&gt;param( &quot;sentmessage&quot;,
+      &quot;&lt;i&gt;Say /chatteron if you wish to chat publicly.&lt;/i&gt;&quot;
+   );
+} else {
+   htmlcode( 'insertmessage', '', $message );
+}
+END</code>
+  <nodeupdated>2004-10-27 07:53:12</nodeupdated>
+</node>

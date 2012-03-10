@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3866" title="timezonechooser" created="2000-02-22 17:17:07" updated="2005-08-09 11:29:28">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+return ''   if  $HTMLVARS{guest_user} == getId($USER);
+if(  '' ne $q-&gt;param('settimezone')  ) {
+    $VARS-&gt;{timezone}= $q-&gt;param('settimezone');
+}
+my $zone= $VARS-&gt;{timezone};
+my @array= ( -11..-1, '00', 1..12 );
+my %labels;
+foreach my $tz (  @array  ) {
+    $labels{$tz}= sprintf "GMT%+d: ", -$tz;
+    $labels{$tz} .= htmlcode( 'parseTimeInString','', '', $tz );
+    $labels{$tz} =~ s/[\r\n]/ /g;
+    $labels{$tz} =~ s/&lt;.*?&gt;//g;
+}
+if(  $zone !~ /^-?\d+$/  ) {
+    unshift @array, $zone;
+    $labels{$zone}= sprintf $zone . ": " . htmlcode('parseTimeInString');
+}
+for my $label ( values %labels ) {
+   $label =~ s/&amp;nbsp;/ /g;
+   $label =~ s/&amp;#8209;/-/g;
+}
+my $html= join $/,
+    "&lt;hr /&gt;",
+    htmlcode("openform"),
+    "Select a timezone above or pick a backward-compatability timezone",
+    $q-&gt;popup_menu(
+        -name    =&gt; 'settimezone',
+        -values  =&gt; \@array,
+        -labels  =&gt; \%labels,
+        -default =&gt; $zone,
+        -force   =&gt; 1,
+    ),
+    $q-&gt;submit( "sexisgood", "Use backward zone" ),
+    "&lt;/form&gt;", '';
+return $html;
+</field>
+</data>
+</node>

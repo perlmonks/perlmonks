@@ -1,0 +1,215 @@
+<node>
+  <doctext>[%
+return '';
+__END__
+[{openform}]
+[%
+    return $q-&gt;textfield(&quot;user&quot;);
+% ]
+[{closeform}]
+[%
+    my $U= $q-&gt;param(&quot;user&quot;) || 961;
+    $U= getNode($U,'user') || getNodeById($U);
+    my $user_id= $U-&gt;{user_id};
+    return &quot;Who?&quot;   if  ! $user_id;
+    my @qtypes = map { getId( getType($_) ) }
+        'categorized answer', 'categorized question';
+
+    my @types = map { getId( getType($_) ) }
+        'note', 'snippet', 'sourcecode', 'perlquestion', 'perlcraft',
+        'perlmeditation', 'poem', 'CUFP', 'obfuscated', 'perltutorial',
+        'monkdiscuss', 'modulereview', 'bookreview', 'perlnews';
+
+    my $where = join ' OR ', map { &quot;type_nodetype = $_&quot; } @types;
+    my $own= $DB-&gt;sqlSelect(
+      'COUNT(*)', 'node', &quot;author_user = $user_id AND ($where)&quot;
+    );
+    $where = join ' OR ', map { &quot;type_nodetype = $_&quot; } @qtypes;
+    my $qa= $DB-&gt;sqlSelect(
+      'COUNT(*)', 'node,contributor',
+      &quot;node_id=contributor_id and original_author=$user_id AND ($where)&quot;
+    );
+    my $V= getVars($U);
+    my $old= $V-&gt;{numwriteups};
+    my $count= $own + $qa;
+    if(  $count != $old  ) {
+      return &quot;\n&lt;p&gt;[id://$user_id]'s write-up count should be corrected&quot;
+        . &quot; from $old to $count ($own+$qa)&lt;/p&gt;\n&quot;;
+    }
+    return &quot;&lt;p&gt;[id://$user_id]'s write-up count is correct at $count ($own+$qa)&lt;/p&gt;\n&quot;;
+%]
+[%
+    my $rows= $q-&gt;param('rows');
+    my $cols= $q-&gt;param('cols');
+    my $col0= $q-&gt;param('col0');
+    my $col1= $q-&gt;param('col1');
+    my $col2= $q-&gt;param('col2');
+    my $col3= $q-&gt;param('col3');
+
+    use Everything::Experience;
+    my $level= isGod($USER) ? 'gods' : getLevel($USER); # can`t accessrule
+    my $maxSize= getVars(getNode('Modular Pascal Triangle Level Settings','setting'))-&gt;{$level};
+
+    $rows= 20   if  &quot;&quot; eq $rows;
+    $cols= 20   if  &quot;&quot; eq $cols;
+    $col0= &quot;000000&quot;   if  &quot;&quot; eq $col0;
+    $col1= &quot;0000ff&quot;   if  &quot;&quot; eq $col1;
+    $col2= &quot;00ff00&quot;   if  &quot;&quot; eq $col2;
+    $col3= &quot;ffff00&quot;   if  &quot;&quot; eq $col3;
+
+    $q-&gt;param('rows',$rows);
+    $q-&gt;param('cols',$cols);
+    $q-&gt;param('col0',$col0);
+    $q-&gt;param('col1',$col1);
+    $q-&gt;param('col2',$col2);
+    $q-&gt;param('col3',$col3);
+
+    my $raw= &quot;raw&quot; eq lc( $q-&gt;param(&quot;displaytype&quot;) );
+    my $html= '';
+    $html .= &quot;&lt;h3&gt;Test of [id://70521]&lt;/h3&gt;\n&quot;;
+    $html .= qq[&lt;form action=&quot;?&quot; method=&quot;get&quot;&gt;\n]
+      . $q-&gt;hidden( node_id =&gt; $NODE-&gt;{node_id} ) . $/
+      . $q-&gt;hidden( displaytype =&gt; &quot;display&quot; ) . $/
+      . &quot;Rows: &quot; . $q-&gt;textfield(&quot;rows&quot;,'',6) . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . &quot;Cols: &quot; . $q-&gt;textfield(&quot;cols&quot;,'',6) . &quot; &lt;br /&gt;\n&quot;
+      . &quot;Color 0: &quot; . $q-&gt;textfield(&quot;col0&quot;,'',6) . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . &quot;Color 1: &quot; . $q-&gt;textfield(&quot;col1&quot;,'',6) . &quot; &lt;br /&gt;\n&quot;
+      . &quot;Color 2: &quot; . $q-&gt;textfield(&quot;col2&quot;,'',6) . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . &quot;Color 3: &quot; . $q-&gt;textfield(&quot;col3&quot;,'',6) . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . $q-&gt;submit(&quot;&quot;,&quot;show&quot;) . qq[ &amp;nbsp; &amp;nbsp;\n]
+      . linkNode(
+            $NODE,
+            $/ . ( $raw ? &quot;Show&quot; : &quot;Hide&quot; ) . &quot;&amp;nbsp;nodelets&quot;, {
+                displaytype =&gt; $raw ? 'display' : 'raw',
+                rows =&gt; $rows, cols =&gt; $cols,
+                col0 =&gt; $col0, col1 =&gt; $col1,
+                col2 =&gt; $col2, col3 =&gt; $col3,
+            }
+        ) . $/
+      . qq[&lt;/form&gt;&lt;br /&gt;\n];
+
+    return $html . &quot;Please use a size between 1 and $maxSize&quot;
+       if  $rows &lt; 1  ||  $cols &lt; 1;
+
+    if(  $maxSize &lt; $rows  ||  $maxSize &lt; $cols  ) {
+        $html .= &quot;You only have access to display $maxSize rows/cols.&lt;br /&gt;\n&quot;;
+        $rows= $maxSize   if  $maxSize &lt; $rows;
+        $cols= $maxSize   if  $maxSize &lt; $cols;
+    }
+
+    $html .= qq[&lt;hr /&gt;\n&lt;table cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;1&quot;&gt;\n];
+    my @left= wobniar( $cols, $col0, $col2 );
+    my @right= wobniar( $cols, $col1, $col3 );
+    for my $i (  0 .. $#left  ) {
+        $html .= &quot;&lt;tr&gt;&quot;;
+        for my $col (  wobniar( $rows, $left[$i], $right[$i] )  ) {
+            $html .= qq[&lt;td bgcolor=&quot;#$col&quot;&gt;&lt;span title=&quot;#$col&quot;&gt;]
+                . qq[&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;/a&gt;&lt;/td&gt;];
+        }
+        $html .= &quot;&lt;/tr&gt;\r&quot;;
+    }
+    $html .= &quot;&lt;/table&gt;\n&quot;;
+    return $html;
+
+    # The wobniar sub takes 2 or three values:
+    # $cnt is the size of the array of colors you want back.  Optionally
+    #   it can be negated if you want the spectrum to rotate in reverse.
+    #   Thus red-&gt;yellow-&gt;green reversed gets you red-&gt;purple-&gt;blue-&gt;sky-&gt;green
+    # $col1 can be 000000 to FFFFFF and can optionally have a preceding '#'
+    # $col2 is optional and will be set to match $col1 if left off.
+
+    sub wobniar {
+       die &quot;ColorCount and at least 1 color like #AF32D3 needed\n&quot; if @_ &lt; 2;
+       my $cnt = shift;
+       my $col1 = shift;
+       my $col2 = shift || $col1;
+       my @murtceps;
+       push @murtceps, uc $col1;
+
+       my $pound = $col1 =~ /^#/ ? &quot;#&quot; : &quot;&quot;;
+       $col1 =~s/^#//;
+       $col2 =~s/^#//;
+
+       my $clockwise = 0;
+       $clockwise++ if ( $cnt &lt; 0 );
+       $cnt = int( abs( $cnt ) );
+
+       return ( wantarray() ? @murtceps : \@murtceps ) if $cnt == 1;
+       return ( wantarray() ? ($col1, $col2) : [$col1, $col2] ) if $cnt == 2;
+
+       # The RGB values need to be on the decimal scale,
+       # so we divide em by 255 enpassant.
+       my ( $h1, $s1, $i1 ) =
+          rgb2hsi( map { hex() / 255 } unpack( 'a2a2a2', $col1 ) );
+       my ( $h2, $s2, $i2 ) =
+          rgb2hsi( map { hex() / 255 } unpack( 'a2a2a2', $col2 ) );
+       $cnt--;
+       my $sd = ( $s2 - $s1 ) / $cnt;
+       my $id = ( $i2 - $i1 ) / $cnt;
+
+       my $hd = $h2 - $h1;
+       if ( uc( $col1 ) eq uc( $col2 ) ) {
+          $hd = ( $clockwise ? -1 : 1 ) / $cnt;
+       } else {
+          $hd = ( ( $hd &lt; 0 ? 1 : 0 ) + $hd - $clockwise) / $cnt;
+       }
+
+       while (--$cnt) {
+          $s1 += $sd;
+          $i1 += $id;
+          $h1 += $hd;
+          $h1 -= 1 if $h1&gt;1;
+          $h1 += 1 if $h1&lt;0;
+          push @murtceps, sprintf &quot;$pound%02X%02X%02X&quot;,
+             map { int( $_ * 255 +.5) }
+                hsi2rgb( $h1, $s1, $i1 );
+       }
+       push @murtceps, uc &quot;$pound$col2&quot;;
+       return wantarray() ? @murtceps : \@murtceps;
+    }
+
+    sub rgb2hsi {
+       my ( $r, $g, $b ) = @_;
+       my ( $h, $s, $i ) = ( 0, 0, 0 );
+
+       $i = ( $r + $g + $b ) / 3;
+       return ( $h, $s, $i ) if $i == 0;
+
+       my $x = $r - 0.5 * ( $g + $b );
+       my $y = 0.866025403 * ( $g - $b );
+       $s = ( $x ** 2 + $y ** 2 ) ** 0.5;
+            return ( $h, $s, $i ) if $s == 0;
+
+       $h = atan2( $y , $x ) / ( 2 * 3.1415926535 );
+       return ( $h, $s, $i );
+    }
+
+    sub hsi2rgb {
+       my ( $h, $s, $i ) =  @_;
+       my ( $r, $g, $b ) = ( 0, 0, 0 );
+
+       # degenerate cases. If !intensity it's black, if !saturation it's grey
+            return ( $r, $g, $b ) if ( $i == 0 );
+            return ( $i, $i, $i ) if ( $s == 0 );
+
+       $h = $h * 2 * 3.1415926535;
+       my $x = $s * cos( $h );
+       my $y = $s * sin( $h );
+
+       $r = $i + ( 2 / 3 * $x );
+       $g = $i - ( $x / 3 ) + ( $y / 2 / 0.866025403 );
+       $b = $i - ( $x / 3 ) - ( $y / 2 / 0.866025403 );
+
+       # limit 0&lt;=x&lt;=1  ## YUCK but we go outta range without it.
+       ( $r, $b, $g ) = map { $_ &lt; 0 ? 0 : $_ &gt; 1 ? 1 : $_ } ( $r, $b, $g );
+
+       return ( $r, $g, $b );
+    }
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>150409</node_id>
+  <author_user>485628</author_user>
+  <title>Tye considered handful</title>
+  <createtime>2002-03-08 14:56:27</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

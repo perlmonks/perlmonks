@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="271348" title="extractcode" created="2003-07-03 21:10:36" updated="2005-08-06 12:31:06">
+<type id="4">
+htmlcode</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="code">
+my( $field, $node ) = @_;
+$node ||= $NODE;
+my $text = $node-&gt;{$field};
+
+my $nl = "\n";
+$nl = "\r\n"   if  $text =~ /\r/;
+
+my @code;
+while(  $text =~ m[&lt;(c(?:ode)?)&gt;(.*?)&lt;/\1&gt;]sig  ) {
+   push @code, $2;
+}
+if (exists $VARS-&gt;{ignore_inline_dl_code}) {
+    # this is stupid and its my fault 
+    # it should be removed one day - demerphq 
+    $VARS-&gt;{show_inline_dl_code}=
+        not delete $VARS-&gt;{ignore_inline_dl_code};
+}
+
+@code = grep { /\n/ } @code
+   if  !$VARS-&gt;{show_inline_dl_code} 
+   and !$q-&gt;param('abspart');
+
+if ($q-&gt;param('part')) {
+    my @toshow = map { s/\D//g; $_ ? $_-1 : () } $q-&gt;param('part');
+    @code = @code[@toshow];
+} 
+
+for my $code (@code) {
+    if(  $code !~ /\n/  ) {
+        $code = "# $code[-1]$nl";
+    } else {
+        $code =~ s/^\r?\n//;
+        $code .= $nl   if  $code[-1] !~ /\n$/;
+    }
+} 
+
+@code = ("# no code to download") 
+    unless @code;
+
+$HTMLVARS{http_header}{'Content-Disposition'} = "inline; filename=$node-&gt;{node_id}.pl";
+$HTMLVARS{http_header}{'Content-Type'} = "text/plain";
+
+# Will mess up (really sneaky) obfuscations.
+# return "# From [id://$node-&gt;{node_id}|$node-&gt;{title}] by [$node-&gt;{author_user}{title}]\n" . 
+  
+return join "$nl##&lt;/code&gt;&lt;code&gt;##$nl$nl", @code;
+</field>
+</data>
+</node>

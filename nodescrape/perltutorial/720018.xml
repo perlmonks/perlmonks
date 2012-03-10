@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="720018" title="Using WWW::Selenium To Test Or Automate An Ajax Website" created="2008-10-28 10:49:29" updated="2008-10-28 10:49:29">
+<type id="956">
+perltutorial</type>
+<author id="180961">
+Limbic~Region</author>
+<data>
+<field name="doctext">
+All,
+&lt;br /&gt;
+If you have ever had needed to automate interaction with a website that relied heavily on JavaScript and Ajax, then you know there are not a lot of perl tools to help you.  You can't reach for your trusty [mod://WWW::Mechanize].  Sure there is [mod://WWW::Mechanize::Plugin::JavaScript] but it is still in the infantile stages of development.  Perhaps you were hoping [mod://Win32::IE::Mechanize] or [mod://Mozilla::Mechanize] were the solution.  They might be for you, but the limitations and caveats rendered them unfeasible for my project.
+&lt;p&gt;
+The solution for me was to use [http://selenium.openqa.org/|Selenium].  It supports a variety of [http://selenium.openqa.org/about/platforms.html|browsers, platforms, and programming languages] - including perl.  Selenium has a number of components but the two discussed in this tutorial are the Selenium IDE and Selenium RC.  The IDE is a FireFox add-on that allows you to "record" the interaction of a website and generate working test scripts in a variety of languages.  The Remote Control (RC) component provides an API controlling Selenium from your favorite language.
+&lt;/p&gt;
+&lt;READMORE&gt;
+&lt;h4&gt;Getting Started&lt;/h4&gt;
+I had some problems getting set up so here are some things that you may need to know.  I also posted this at the Selenium RC user forum [http://clearspace.openqa.org/message/49804|here].
+&lt;p&gt;
+I could not get FF to work using any of the default options Selenium RC provides (*firefox and *chrome).  I  ended up having to start firefox with -profilemanager and creating a custom profile.  This means going in and setting the proxy settings to Selenium's default port (4444) as well trusting the CyberVillian's CA for https support (more on that later).  The end result looked like:
+&lt;c&gt;
+"*custom C:/path/to/ff/firefox.exe -no-remote -profile C:/selenium/firefox/custom_profile"
+&lt;/c&gt;
+&lt;/p&gt;
+&lt;p&gt;
+I also ran into trouble with my software based firewall for Windows (Norton Internet Security).  It allowed Java to open a listening port on 4444 but it would not allow any outgoing connections.  Since you can configure different applications with different settings - this is something to watch out for.
+&lt;/p&gt;
+&lt;p&gt;
+In order for Selenium to allow interaction with SSL sites, you need to trust the Cybervillians CA certificate.  This is all supposed to be hidden under the covers if you use one of the default browser options like *chrome but I was stuck doing everything myself with *custom.  Keep in mind that you want to ONLY set up this trust in the custom profile for obvious security reasons.  Additionally, the last stable release of Selenium RC has an expired certificate.  You will need to get a current one from one of the nightly builds.  Lastly, the Selenium core can be started with -trustAllSSLCertificates which may be required for sites that you want to automate that do not have valid certs themselves.
+&lt;/p&gt;
+&lt;p&gt;
+Selenium gives extremely unfriendly error messages ("Permission denied to get property Window.seleniumMarker") if you attempt to access a site with a different base domain then the one you passed in in the constructor.  If you log on to https://example.com and it silently redirects you to https://www.example.com you will get that weird error message if you follow a link on the page.  Be sure to start a new browser if you need to go to a site with a different base domain name.
+&lt;/p&gt;
+&lt;p&gt;
+Finally, the output of the IDE is a test script where everything ends in _ok.  If you are automating and not testing, you will need to drop all of the _oks as well as remember to call $sel-&gt;start before any automation.
+&lt;/p&gt;
+&lt;h4&gt;How does Selenium make working with Ajax easy?&lt;/h4&gt;
+The Selenium IDE will follow any action such as open() or click() that results in a new page to load with &lt;c&gt;$sel-&gt;wait_for_page_to_load(30000);&lt;/c&gt; which means to wait 30 seconds for the page to load.  This may return before the page is actually finished if things are happening via Ajax.  Fortunately you can replace the call to $sel-&gt;wait_for_page_to_load(); with a number of other methods.
+&lt;p&gt;
+It is folly to try and use arbitrary pauses such as $sel-&gt;pause(5000) or sleep 5.  You really should use one of the wait_for alternatives.  These methods all follow the same naming scheme such as $sel-&gt;wait_for_pop_up($window_id, $timeout) and $sel-&gt;wait_for_element_present($locator, $timeout);  They can be wrapped in an eval block.  This is almost enough, but there are still circumstances when even wait_for will fail you (more on that later).
+&lt;/p&gt;
+&lt;p&gt;
+If you chose not to use the FF IDE to pre-record your session, you may find it difficult trying to figure out what Selenium wants for $locator when waiting for an element.  There are a number of different ways to specify a locator (and even an extension to add your own), but xpath seems to be the preferred way.  When you are using the IDE, you can right click over just about anything (button, form element, text) and get some additional options such as "assert_text_present" or "assert_element_present".  You can then copy/paste the xpath into $locator without having to figure anything else out.
+&lt;/p&gt;
+&lt;h4&gt;When are the wait_for methods not enough?&lt;/h4&gt;
+I had tried the wait_for methods and they didn't seem to work.  I went to arbitrary pauses which intermittently worked.  I googled.  I looked under the covers.  Nothing.  It was frustrating since I could see the element I was waiting for plain as day but clicking on it didn't behave the same way as when I interacted with the site myself.  The problem turned out to be that the element was loaded before the JS function behind it was.  Unfortunately, there is no $sel-&gt;wait_for_JS_function($func_name, $timeout);  I subclassed and added one.
+&lt;p&gt;
+The secret is that Selenium provides a very powerful method called $sel-&gt;get_eval(); which will allow you to execute arbitrary JS and return the results.  My subclass looked a bit like this:
+&lt;c&gt;
+sub wait_for_JS_function {
+    my ($self, $func, $timeout) = @_;
+    for (1 .. $timeout / 100) {
+        my $res = $self-&gt;get_eval("typeof( window.$func )");
+        return $res if $res ne 'null';
+        $self-&gt;pause(100);
+    }
+    croak "Timed out waiting for JS func: '$func'";
+}
+&lt;/c&gt;
+&lt;/p&gt;
+&lt;h4&gt;Working With Pop-Ups&lt;/h4&gt;
+Interacting with JS pop-ups is easy ($sel-&gt;select_window()).  Unfortunately, grabbing windows that were not opened by window.open() but as a result of clicking on a link with a target of _blank is less than straight forward.  I created the following subclass method but I will not stand by it not having any bugs:
+&lt;c&gt;
+# Assumes only 1 currently opened window with target _blank
+sub select_target_blank_window {
+    my ($self, $timeout) = @_;
+    my $window_name;
+    for (1 .. $timeout / 100) {
+       ($window_name) = grep {/selenium_blank\d+/} $self-&gt;get_all_window_names;
+       last if defined $window_name;
+       $self-&gt;pause(100);
+    }
+    croak "Timed out waiting to select blank target window" if ! defined $window_name;
+    return $self-&gt;select_window($window_name);
+}
+&lt;/c&gt;
+&lt;h4&gt;Setting Hidden Parameters&lt;/h4&gt;
+[mod://WWW::Mechanize] has a number of things that are desirable.  One of them is a convenient way to set hidden parameter values.  I recently needed to do this and came up with the following using the &lt;i&gt;get_eval()&lt;/i&gt; method which allows you to execute arbitrary JS.
+&lt;c&gt;
+sub set_hidden_parameter {
+    my ($self, $form, $elem, $val) = @_;
+    my $javascript = "window.document.$form.$elem.value = " . '"' . $val . '";';
+    my $rc = $self-&gt;get_eval('$javascript');
+    return $rc;
+}
+&lt;/c&gt;
+&lt;/p&gt;
+&lt;h4&gt;Triggering JS Events&lt;/h4&gt;
+I ran across a problem where typing a value into a form via &lt;c&gt;$sel-&gt;type($loc, $val);&lt;/c&gt; did not have the same affect as when doing it "manually".  By looking at the source after the form was submitted, I realized that a hidden parameter was being set via some JS.  Unfortunately, unraveling the JS initially proved too much for my feeble brain so I figured out how to set the hidden parameter by hand (see above).  Eventually, I figured out that there was an onblur event.  After that, the solution was quite easy:
+&lt;c&gt;
+$sel-&gt;type($loc, $val);
+$sel-&gt;fire_event($loc, 'onblur');
+&lt;/c&gt;
+&lt;h4&gt;Adding Your Own Goodness&lt;/h4&gt;
+Subclassing [mod://WWW::Selenium] isn't difficult.  It uses [mod://LWP::UserAgent] and [mod://HTTP::Request] under the covers.  I have been slowly adding much of the goodness in [mod://WWW::Mechanize].  I will eventually release it but for now, it is an ugly hack.
+&lt;/p&gt;
+&lt;/READMORE&gt;
+&lt;p&gt;
+This module is really deserving of a much larger FAQ and cookbook.  I know it would have made things easier for me.  I have been in contact with the module author who has been friendly and receptive.  If you have any interest in this at all, I highly recommend you share that information.
+&lt;/p&gt;
+&lt;div class="pmsig"&gt;&lt;div class="pmsig-180961"&gt;
+&lt;p&gt;
+Cheers - [Limbic~Region|L~R]
+&lt;/p&gt;
+&lt;/div&gt;&lt;/div&gt;</field>
+</data>
+</node>

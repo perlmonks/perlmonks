@@ -1,0 +1,437 @@
+<node>
+  <doctext>package Table;
+use strict;
+
+#############################################################
+#
+#   Table - a Textfile-based Database
+#
+#   Definitions:
+#
+#      a ROW is a string of tab-delimited fields.
+#      FIELDS is a row containing column names.
+#      
+#
+#   Usage:
+#
+#   my $table = new Table( &quot;tablename&quot; );      
+#
+#      $table-&gt;read( &quot;filename&quot; );
+#      $table-&gt;write( &quot;filename&quot; );
+#
+#      $table-&gt;name  ( $tablename );
+#      $table-&gt;fields( $colNames  );
+#      $table-&gt;rows  ( @rows      );
+#
+#      $table-&gt;addRow( @rows      );
+#      $table-&gt;row   ( @rowNums   );
+#
+#      $table-&gt;column           ( @colNames          );
+#      $table-&gt;insertColumnAfter( $newCol, $afterCol );
+#      $table-&gt;putColumn        ( $colName, @colData );
+#      $table-&gt;rmColumn         ( $colName           );
+#
+#      $table-&gt;sumColumn        ( $colName           );
+#
+#      $table-&gt;select( [colname, pattern], [colname, pattern] ... );
+#
+#   Not Implemented:
+#
+#   #  $table-&gt;join( $myColumn, $otherTable, $otherColumn );
+#
+#
+#
+#   EXAMPLE:
+#
+# !/usr/bin/perl
+# use strict;
+# use Table;
+#
+# my $tab = new Table();
+#
+#    $tab-&gt;fields( &quot;One&quot;, &quot;Two&quot;, &quot;Three&quot; );
+#    $tab-&gt;rows( &quot;a\tb\tc&quot;, &quot;d\te\tf&quot;, &quot;g\th\ti&quot; );
+#
+# print $tab-&gt;toString(), &quot;\n&quot;;
+#
+#    $tab-&gt;write( &quot;db2.txt&quot; );
+#
+# my $tab2 = new Table();
+#    $tab2-&gt;read( &quot;db2.txt&quot; );
+#
+# print $tab2-&gt;toString(), &quot;\n&quot;;
+#
+# print join( &quot;\n&quot;, $tab-&gt;select( [ 'Two', 'e' ], [ 'One', 'd' ] ) ), &quot;\n&quot;; 
+# print join( &quot;\n&quot;, $tab-&gt;select( [ 'Two', 'e' ], [ 'One', 'f' ] ) ), &quot;\n&quot;;
+#
+#
+#
+#
+#
+#
+#############################################################
+
+#########################################
+#
+#   Table constructor
+#
+#########################################
+sub new
+{
+   my $proto = shift;
+   my $class = ref($proto) || $proto;
+   my $self  = {};
+
+   $self-&gt;{NAME}       = '';
+   $self-&gt;{FIELDS}     = [];
+   $self-&gt;{FIELDINDEX} = {};
+   $self-&gt;{ROWS}       = [];
+
+   bless ($self, $class);
+   return $self;
+}
+
+#########################################
+#
+#   Read in table data from a file.
+#
+#########################################
+sub read
+{
+   my $self = shift;
+   my $file = shift;
+
+   #
+   #  Open and read in the specified file.
+   #
+   open( IN, $file );
+   my ($name, $fields, @rows) = &lt;IN&gt;;
+   close IN;
+
+   chomp ($name, $fields, @rows ); 
+
+   $self-&gt;name(   $name   );   # set the table name
+   $self-&gt;fields( $fields );   # set the field names
+   $self-&gt;rows(   @rows   );   # set the row data
+   return @rows;               # return the row data
+}
+
+#########################################
+#
+#   Write out table data to a file.
+#
+#########################################
+sub write
+{
+   my $self = shift;
+   my $file = shift;
+
+   open( OUT, &quot;&gt;$file&quot; );
+   print OUT $self-&gt;name(), &quot;\n&quot;;
+   print OUT join( &quot;\t&quot;, @{$self-&gt;{FIELDS}} ), &quot;\n&quot;;
+   print OUT join( &quot;\n&quot;, $self-&gt;rows() ), &quot;\n&quot;;
+   close OUT;
+}
+
+
+#########################################
+#
+#   toString method
+#
+#########################################
+sub toString
+{
+   my $self = shift;
+   return $self-&gt;name(). &quot;\n&quot;
+        . join( &quot;\t&quot;, $self-&gt;fields() ) . &quot;\n&quot;
+        . join( &quot;\n&quot;, $self-&gt;rows()   ) . &quot;\n&quot;;
+}
+
+#########################################
+#
+#   Name accessor
+#
+#########################################
+sub name
+{
+   my $self = shift;
+   $self-&gt;{NAME} = shift if @_;
+   return $self-&gt;{NAME};
+}
+
+###########################
+#
+#   Field hash refresh.  
+#   Called by fields().
+#
+###########################
+sub refreshFieldData
+{
+   my $self   = shift;
+   my $i      = 0;
+
+   %{$self-&gt;{FIELDINDEX}} = map
+   {
+      ($_, $i++);
+   } @{$self-&gt;{FIELDS}};
+}
+
+#########################################
+#
+#   Fields accessor
+#
+#########################################
+sub fields
+{
+   my $self = shift;
+   if (@_) 
+   { 
+      @{ $self-&gt;{FIELDS} } = split( &quot;\t&quot;, $_[0] ); # or just @_
+      $self-&gt;refreshFieldData();
+   }
+   return @{ $self-&gt;{FIELDS} };
+}
+
+#########################################
+#
+#   Return the position of a column.
+#
+#########################################
+sub indexOf
+{
+   my $self  = shift;
+   my $name  = shift; 
+   return @{$self-&gt;{FIELDINDEX}}{$name};
+}
+
+#########################################
+#
+#   Rows accessor
+#   Destructively assigns rows to table.
+#
+#########################################
+sub rows
+{
+   my $self = shift;
+   if (@_) { @{ $self-&gt;{ROWS} } = @_ }
+   return @{ $self-&gt;{ROWS} };
+}
+
+
+#########################################
+#
+#   Add rows
+#
+#########################################
+sub addRow
+{
+   my $self = shift;
+   push( @{ $self-&gt;{ROWS} }, @_ );
+}
+
+
+#########################################
+#
+#   Fetch rows by row numbers
+#
+#########################################
+sub row
+{
+   my $self  = shift;
+   return ${ $self-&gt;{ROWS} }[ @_ ];
+}
+
+
+#########################################
+#
+#   Fetch columns by column names
+#
+#########################################
+sub column
+{
+   my $self    = shift;
+   my @names   = @_;
+   my @indices = map { ${$self-&gt;{FIELDINDEX}}{$_} } @names;
+   my @response;
+ 
+   foreach ($self-&gt;rows())
+   {
+      push( @response, join( &quot;\t&quot;, (split &quot;\t&quot;)[@indices] ) );
+   }
+   return @response;
+}
+
+#########################################
+#
+#   Insert a new empty column.
+#
+#########################################
+sub insertColumnAfter
+{
+   my $self   = shift;
+   my $newCol = shift;
+   my $index  = $self-&gt;indexOf( shift ) + 1;
+   my @fields = $self-&gt;fields();
+
+   splice @fields, $index, 0, $newCol;
+   $self-&gt;fields( join( &quot;\t&quot;, @fields ) );
+   
+   my @newRows = ();
+   foreach ($self-&gt;rows())
+   {
+      my @row = split( &quot;\t&quot; );
+      splice @row, $index, 0, ' ';
+      $_ = join( &quot;\t&quot;, @row );
+      push @newRows, $_;
+   }
+   $self-&gt;rows( @newRows );
+}
+
+#########################################
+#
+#   Remove column by column name
+#
+#########################################
+sub rmColumn
+{
+   my $self    = shift;
+   my $name    = shift;
+   my $index   = $self-&gt;indexOf( $name );
+   my @fields  = $self-&gt;fields();
+
+   splice @fields, $index, 1;
+   $self-&gt;fields( join( &quot;\t&quot;, @fields ) );
+
+   my @newRows = ();
+   foreach ($self-&gt;rows())
+   {
+      my @row = split( &quot;\t&quot; );
+      splice @row, $index, 1;
+      $_ = join( &quot;\t&quot;, @row );
+      push @newRows, $_;
+   }
+   $self-&gt;rows( @newRows );
+}
+
+#########################################
+#
+#   Replace column data by column name
+#
+#########################################
+sub putColumn
+{
+   my $self    = shift;
+   my $index   = $self-&gt;indexOf( shift );
+   my @col     = @_;
+
+   my @newRows = ();
+   foreach ($self-&gt;rows())
+   {
+      my $value = shift @col;
+      my @row   = split( &quot;\t&quot; );
+      $row[$index] = $value;
+      push @newRows, join( &quot;\t&quot;, @row );
+   }   
+   $self-&gt;rows( @newRows );
+}
+
+#########################################
+#
+#   Return the sum of the column values.
+#
+#########################################
+sub sumColumn
+{
+   my $self = shift;
+   my @col  = $self-&gt;column( shift );
+   my $val  = 0;
+   
+   $val += $_ for @col;
+
+   return $val;
+}
+
+
+#########################################
+#
+#   Implementation of the select 
+#   statement: basically, do a multiple-
+#   column pattern match on the database
+#   and return any resulting matches.
+#
+#   WARNING: this only performs an 
+#   intersection select().
+#
+#########################################
+sub select
+{
+   my $self    = shift;
+   my @selects = @_;    # an array of references
+
+   my @patterns = ( '.*' ) x $self-&gt;rows();
+
+#   print &quot;patterns=&quot;, @patterns, &quot;\n&quot;;
+
+   #
+   #  First, copy the patterns into the
+   #  patterns array at the index corresponding
+   #  to the given column name.
+   #
+   foreach (@selects)
+   { 
+      # each member is a 2-element array
+      my ($column, $pattern) = @{$_};
+      $column = $self-&gt;indexOf( $column );
+#      print &quot;Inserting $pattern in column $column\n&quot;;
+      $patterns[$column] = $pattern;
+   }
+   
+#   print &quot;patterns=@patterns\n&quot;;
+
+   #
+   #  Now, turn the patterns array into something
+   #  that looks like a real row in our table.
+   #
+   my $select = join( &quot;\t&quot;, @patterns );
+
+#   print &quot;select=$select\n&quot;;
+
+   #
+   #   Now do a grep.
+   #
+   return grep( /$select/, $self-&gt;rows() );
+}
+
+#########################################
+#
+#   Implementation of the join statement:
+#   create a new table made up of the 
+#   union of rows based around the specified
+#   column names.
+#
+#########################################
+#sub join
+#{
+#   my $self  = shift;
+#   my $col   = shift;
+#   my $coli  = $self-&gt;indexOf( $col );
+#
+#   my $other = shift;
+#   my $ocol  = shift;
+#   my $ocoli = $other-&gt;indexOf( $ocol );
+#    
+#   my @rows  = $self-&gt;rows();
+#   my @orows = $other-&gt;rows();
+#}
+
+
+1; # end of package
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>166834</node_id>
+  <author_user>127615</author_user>
+  <title>SQL? We don't need no steenking SQL!</title>
+  <createtime>2002-05-15 15:55:17</createtime>
+  <nodeupdated>2005-07-21 01:31:35</nodeupdated>
+</node>

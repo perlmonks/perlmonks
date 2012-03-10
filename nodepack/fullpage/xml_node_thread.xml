@@ -1,0 +1,94 @@
+<node>
+  <doctext>[%
+  return &quot;&lt;error&gt;Error creatng fling object&lt;/error&gt;&quot;
+     unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),&quot;addheader&quot;);
+
+  local *kids = sub
+  {
+    my $parent = shift;
+    
+    $parent = ref $parent ? $parent-&gt;{node_id} : $parent;
+
+    my $dbh = $DB-&gt;getDatabaseHandle;
+
+    my $sth = $dbh-&gt;prepare_cached('
+      SELECT node_id, title, author_user, parent_node, root_node
+      FROM   note, node
+      WHERE  parent_node = ?
+      AND    note_id = node_id
+    ');
+
+    $sth-&gt;execute($parent);
+
+    return @{ $sth-&gt;fetchall_arrayref({}) || [] }
+  };
+  
+  local *flattree = sub 
+  {
+    my ($parent) = @_;
+    
+    my @these=kids($parent);
+    foreach my $kid (@these) {
+        my $title=delete $kid-&gt;{title};
+        $xml-&gt;element('node',%$kid,$title);
+        flattree($kid);
+    }
+  };
+  
+  local *tree = sub
+  {
+    my $parent = shift;
+
+    my @kids = kids($parent);
+    return unless @kids;
+
+    my @tree;
+
+    foreach my $kid ( @kids ) {
+      push @tree, [ $kid, tree($kid-&gt;{node_id}) ];
+    }
+
+    return @tree;
+  };
+
+  local *thread= sub
+  {
+    my $t = shift;
+    my $x = shift;
+
+    foreach my $n ( @$t ) {
+      my $i = shift @$n;
+
+      $x-&gt;start('node', id =&gt; $i-&gt;{node_id});
+      thread($n, $x);
+      $x-&gt;end('node');
+    }
+  };
+  
+  
+  my $id = $q-&gt;param('id') || 0;
+  $xml-&gt;start('thread', id =&gt; $id);
+  htmlcode('xml_info_tag','',$xml,\%xmlstyle);
+  if ( $q-&gt;param('flattree') &amp;&amp; ( my $node = getNodeById($id) ) ) {
+    $xml-&gt;element('node',
+         ( map { $node-&gt;{$_} ? ($_ =&gt; $node-&gt;{$_}) : () } 
+          qw(node_id author_user parent_node root_node)),
+          $node-&gt;{title}
+    );
+    flattree( $id );
+  } else {
+    my @replies = tree($id);
+    thread( \@replies, $xml ) if $id;
+  }
+  $xml-&gt;end('thread');
+  my $data = join &quot;&quot;,@data;       
+  htmlcode('postProcessXML','',\$data);
+  return $data;
+%]</doctext>
+  <type_nodetype>122</type_nodetype>
+  <node_id>180684</node_id>
+  <author_user>8948</author_user>
+  <title>xml node thread</title>
+  <createtime>2002-07-10 01:27:15</createtime>
+  <nodeupdated>2005-08-12 08:13:34</nodeupdated>
+</node>

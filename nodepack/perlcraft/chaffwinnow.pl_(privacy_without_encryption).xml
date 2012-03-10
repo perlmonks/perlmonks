@@ -1,0 +1,310 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+#
+#        Chaffing/winowing utility
+# (Achieving privacy without encryption)
+#      (Or 'textual steganography')
+#
+#        See my Node [Privacy without Encryption]
+#          for more info about the used scheme 
+#
+# TODO : _ Handle the packet size thru command line (or/and auto adapt size)
+#           packet size handling isn't coherent yet !!!
+#        _ Implement my 'modified' variant (without the sequence number) 
+#        _ Find/correct bugs
+#        _ Find a way to handle LARGE files
+
+use strict;   		# Let's pretend we're doing it right ;-)
+
+use Compress::LZV1;
+use Digest::MD5 qw(md5_base64);
+use MIME::Base64;
+use Getopt::Long;
+
+my $BSIZE	= 32;		# Block size
+my $VERSION	= '0.03';	# Did I mention pre-alpha ? ;-)
+
+#
+# Command line options variable
+#
+
+my $O_infile;
+my $O_afile;
+my $O_fake;
+my $O_outfile;
+my $O_encrypt;
+my $O_decrypt;
+my $O_key;
+my $O_akey;
+my $O_mpackets=4;
+
+GetOptions (	
+	'key=s'		=&gt;	\$O_key,
+	'akey=s'	=&gt;	\$O_akey,
+	'afile=s'	=&gt;	\$O_afile,
+	'encrypt'	=&gt;	\$O_encrypt,
+	'decrypt'	=&gt;	\$O_decrypt,
+	'infile=s'	=&gt;	\$O_infile,
+	'outfile=s',	=&gt;	\$O_outfile,
+	'maxpackets=s',	=&gt;	\$O_mpackets,
+	'&lt;&gt;'		=&gt;	\&amp;unknown
+);
+############################################################
+#             Command line option handling
+############################################################
+sub usage {
+	print &quot;\n\t$0 - chaffing/winowing utility $VERSION\n\n&quot;;
+	print &quot;\tUsage $0 (--encrypt | --decrypt) --infile=&lt;file1&gt; --outfile=&lt;file2&gt; --key=&lt;key&gt; [--afile=&lt;file&gt; --akey=&lt;key&gt;] [--maxpackets=&lt;number&gt;]\n\n&quot;;
+	print &quot;\t\t--encrypt\t\tAsk for encryption&amp;\n&quot;;
+	print &quot;\t\t--decrypt\t\tAsk for decryption\n&quot;;
+	print &quot;\t\t--infile=&lt;file&gt;\t\tInput file to be processed\n&quot;;
+	print &quot;\t\t--afile=&lt;file&gt;\t\tAlternate input file to be processed\n&quot;;
+	print &quot;\t\t--outfile=&lt;file&gt;\tOutput file to be produced\n\n&quot;;
+	print &quot;\t\t--key=&lt;key&gt;\tKey used to authenticate\n\n&quot;;
+	print &quot;\t\t--akey=&lt;key&gt;\tAlternate key used to authenticate\n\n&quot;;
+	print &quot;\t\t--maxpackets=&lt;number&gt;\tMaximum number of packets generated for a part of the message\n\n&quot;;
+}
+
+sub unknown {
+	print &quot;Unknown option : &quot;,shift,&quot;\n&quot; &amp;&amp; usage();
+}
+
+############################################################
+#             Encryption subs
+############################################################
+
+##############################
+# pre encryption process to handle all-or-nothing encoding
+#
+sub preencrypt {
+	my $file = shift;
+	open (INFILE,&quot;&lt;$file&quot;) 	or die &quot;Can't open $file  ($!)\n&quot;;
+	my @content=&lt;INFILE&gt;;
+	close (INFILE);
+	
+	# May be I should do it step by step ?
+	my $temp	=	encode_base64(compress(join('',@content)),''); 
+
+	return   reverse $temp;
+}
+
+sub encrypt {
+	my $pos	    = 0;
+	my $length  = 0;
+	my ($plaintext,$fake,$fprocessed);
+	my $processed=preencrypt($O_infile);
+	
+	if ($O_afile) { $fprocessed=preencrypt($O_afile) }
+
+	$length=length($processed);
+	
+	if ($fprocessed &amp;&amp; $length&lt;length($fprocessed)) { $length=length($fprocessed) }
+	
+	open (OUTFILE,&quot;&gt;$O_outfile&quot;)	or die &quot;Can't open $O_outfile ($!)\n&quot;;
+	
+	for(my $i=0;$pos&lt;$length;$i++) {
+		if ($O_afile &amp;&amp; ($pos&lt;length($fprocessed))) { 
+			$fake=substr($fprocessed,$pos,$BSIZE) 
+		} else {
+			$fake= undef;
+		}
+		if ($pos&lt;length($processed)) {
+			$plaintext=substr($processed,$pos,$BSIZE)
+		} else {
+			$plaintext=undef
+		}
+		my @packets=real_packets($i,$plaintext,$fake);
+		shuffle_packets(\@packets);
+		emit_packets(*OUTFILE,@packets);
+		$pos=$i*$BSIZE;
+	}
+}
+
+############################################################
+#             Decryption subs
+############################################################
+ 
+##############################
+# post decryption process to handle all-or-nothing encoding
+#
+sub postdecrypt {
+	my  $temp2 	= decode_base64(reverse(shift));
+	my  $temp;
+	eval {  $temp    = decompress $temp2;};		# Don't trust the documentation
+	if ($@) { die   &quot;ERREUR=($@)()\n&quot;}
+ 	return  $temp; 
+}
+
+sub decrypt {
+	my @content;	
+	
+	open (INFILE,&quot;&lt;$O_infile&quot;)	or die &quot;Can't open $O_outfile ($!)\n&quot;;
+	while (&lt;INFILE&gt;) {
+		my ($pos,$bloc,$mac)=split ',';
+		chomp $mac;
+		if (md5_base64($bloc.$O_key) eq $mac) { $content[$pos]=$bloc }
+	}
+	close(INFILE);
+	my $content=join '',@content;
+
+
+	open (OUTFILE,&quot;&gt;$O_outfile&quot;)	or die &quot;Can't open $O_outfile ($!) \n&quot;;
+	my $processed=postdecrypt($content);
+	print OUTFILE $processed;
+	close(OUTFILE);
+}
+
+############################################################
+#           Packet building/manipulation subs
+############################################################
+
+##############################
+# Shuffle packets  
+#
+sub shuffle_packets {   # Fisher-Yates shuffling algo 'stolen' from a snowcrash's post.
+    my $t = shift;
+    my $x;
+    for ($x = @$t; --$x; ) {
+        my $y = int rand ($x+1);
+        next if $x == $y;
+        @$t[$x,$y] = @$t[$y,$x];
+    }
+}
+
+##############################
+# Print the packets to the output file
+#
+sub emit_packets {
+	my $FH	= shift;
+	my @pkt = @_;
+	foreach (@pkt) { print $FH $_ }
+}
+
+##############################
+# Return a real packetS
+#
+sub real_packets {
+	my $step	= shift;
+	my $plaintext	= shift;
+	my $fake	= shift;
+	my $mpackets 	= $O_mpackets;
+	my @packets;
+	
+	while ($mpackets--) {
+		if (!$mpackets) 				{ 
+			if ($plaintext) {
+				push @packets,real_packet($step,$plaintext,$O_key) 
+			} else {
+				push @packets,fake_packet($step);
+			}
+		}
+		if (($O_afile)&amp;&amp;($mpackets==1)) { 
+			if ($fake) {
+				push @packets,real_packet($step,$fake,$O_akey)
+			} else {
+				push @packets,fake_packet($step);
+			}
+		}
+		push @packets,fake_packet($step);
+	}
+	return @packets;
+}
+
+##############################
+# Return a valid packet (wheat)
+#
+sub real_packet {
+	my $step	= shift;
+	my $plaintext	= shift; 
+	my $key		= shift;
+	
+	if ($plaintext) {
+		return &quot;$step,$plaintext,&quot;.md5_base64($plaintext.$key).&quot;\n&quot;;
+	} else {
+		return fake_packet($step)
+	}
+}
+
+##############################
+# Return a fake packet (chaff)
+#
+sub fake_packet {
+	my $step    = shift;
+	
+	return &quot;$step,&quot;.rand_data().&quot;,&quot;.md5_base64(rand_data()).&quot;\n&quot;;
+}
+
+##############################
+# Return random data
+#
+sub rand_data {
+    my $random =join '', map { chr(rand 255) } (1..24);  #UGLY ! I'm not supposed to obfuscate
+    return encode_base64($random,'');
+}
+
+###################################################################
+#                         Main program                            #
+###################################################################
+
+#
+# Check for correct command line parameters
+#
+if  ( ($O_encrypt &amp;&amp; $O_decrypt)  ||  (!$O_infile)  ||
+    (!($O_encrypt || $O_decrypt)) ||  (!$O_outfile) || (!$O_key) ||
+	($O_afile &amp;&amp; !$O_akey)        ||  (!$O_afile &amp;&amp; $O_akey)) {
+     	usage(); 
+	die
+}
+
+#
+# All is here ;-) guess what it does...
+#
+if	( $O_encrypt ) {
+	encrypt();
+} elsif ( $O_decrypt ) {
+	decrypt();
+}
+#
+# Following a 'chaffed' text
+# try to decipher it using 'noilluminati' password 
+#  (without quotes) after pasting it in a file and removing the #
+#
+#0,k5VXbo7skZ0eBw273YYuO0Z5ElzWK81p,++6IKesuyf71P1bd8fB+vQ
+#0,==vCukGdh5WatVHbslEIlhGVKogLztmb,ZP6XzVcLHgfqXB+i9p7pVg
+#0,Ngtvqm6sHXa9cakc578fugLZ6z7VCqFS,KquicDZSCPTwmIWCJQj2lw
+#0,=ogIhASa0Fmbp1WdsxWSgwmclBFIv5GI,iaN8T9QW40NXzyMO3Ufr0g
+#0,dXQbmi7tRep0RHSP2S5jL28foyXx4xc2,D13ZO25QvJmc5jj6Vs3Peg
+#0,O/XXJoxtfLP7QejNSNhZXPeJEcY7EOgk,CDYs03Z42dMzAqgvt4NLOQ
+#1,h0cBb46gj4e22g5BRN3EAQ7B/Ic444JJ,bKf3RiWEKW6AtG7gHek5YA
+#1,Gc0LTGrpMBzsH1GYio6sqYc3jwSNguPM,2+NCOWj9rZ4Rl+VGBaa+bQ
+#1,==vCukGdh5WatVHbslEIlhGVKogLztmb,ZP6XzVcLHgfqXB+i9p7pVg
+#1,vOk9JaQWC3VGWgcuOrWhHCQv3ng1kbOp,XePqzBtcyTeOB7oYQROP1w
+#1,WESG/Up8i9y1zLrplglsrXmQeDeC97n9,GkCJoaPkG0GsQwqxusvErQ
+#1,=ogIhASa0Fmbp1WdsxWSgwmclBFIv5GI,iaN8T9QW40NXzyMO3Ufr0g
+#2,v1GIlhGdgY2bgQ3cv1GIvRHI0VmcjV2c,3bQ70TJ8LprFvXmm027QKQ
+#2,e6t59MmADzczzOxQUZPeuafSAHlsZzw6,87CMpxoNZ5V+ZXH16/xnog
+#2,v27ZovnIWHa4RTIs0OZOqvrMoOQJsguw,HaYIHPDNKw01KTAZwDoz8A
+#2,zlGIlJXZoRlIKogOggGd1JHdgkHbu9GI,YtuomVRssOL5H3O93FwLKQ
+#2,o6F57TE1qgOCIZDu6dOS1JUS2K+Ma1pL,aWyekOAavnP30J1LjMyabQ
+#2,134KqWcow3Gotvo7vQRB7GuIsZuHkNlK,PQXtcFybDCWJjmZzNsmNBg
+#3,XZjtMRzywQ132+o1fIBM7lEhgHMIBcun,QwHh8axfX9b3O1aZVtnppQ
+#3,za805qiDVRNqRk7pHaSjkQYQcy3eY/6e,v6hp+yOzem9Iyyv7mD1A0w
+#3,g4Wah1WZyBCZsV3boNHIltWYoNHZuFGa,vqTDULwuwilPcCeJ8PBu4w
+#3,9ZFJA5b39uYB9w4wUGxnaiv2UBPQc+uV,RXT3oNiFzHBEvBPJL7WNIQ
+#3,RmfrKeyA+KNIYszgKcBpVp5bnhDJLrIu,jDooJK6UNABjEqTAazbCPw
+#3,lhGdgMXagUmclhUV,ztNOKDCwtiLGZR2Syly+oA
+#4,CYtEcUP40pZ/PkSDKBcNkWp8siY8RpPa,Pivu98789IuyHas9x7dEaw
+#4,gvvHE5ICpgrPj4Lw7ttD0Lir4fFN2+id,PVw4bA+9zzT8qHg1sIDJ2w
+#4,gQXZyNWZzBSZoRVV,sObdXXLTzTrB3ZhcJ56Hkw
+#4,2o5ydT4GTQfJqcCihKPRV+9vVa2cmvf9,hFNeDq6OtjzCGpbmgY3SXQ
+#4,oR53Eye8qP5MOdXuzKwGhrcsrkOMnAbQ,sX2i+IeO3ocE5ksZaxE/Vg
+#4,0VUxgoJB1ISiRw7RfmVFIVp0uDV1BTjV,RVVgPI1yY5LwAXNXDG/qBw
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>85436</node_id>
+  <author_user>53200</author_user>
+  <title>chaffwinnow.pl (Privacy without Encryption)</title>
+  <createtime>2001-06-04 10:10:50</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

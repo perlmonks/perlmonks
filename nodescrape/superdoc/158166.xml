@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="158166" title="user image browser" created="2002-04-10 19:31:18" updated="2005-08-22 15:40:20">
+<type id="14">
+superdoc</type>
+<author id="106850">
+pmdev</author>
+<data>
+<field name="doctext">
+&lt;table&gt;[%
+  my $start  = $query-&gt;param('start') || 0;
+  my $length = 10;
+
+  my @all;
+  my $row = &lt;&lt;'END';
+  &lt;tr&gt;
+    &lt;td&gt;%s&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;&lt;img src="%s" alt="user image" /&gt;&lt;hr /&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+END
+
+  my $sth = $DB-&gt;sqlSelectMany(
+    "node_id,title",
+    "node LEFT JOIN rawdata ON rawdata_id=node_id",
+    "type_nodetype = " . getId(getType('rawdata')),
+    "ORDER BY lastedit DESC LIMIT $start, $length",
+  );
+  while(  my $img= $sth-&gt;fetchrow_hashref()  ) {
+    my $caption;
+    if(  $img-&gt;{title} !~ /^(.*)'s user image$/  ) {
+      $caption = q[&lt;a href=] . urlGen({ node_id=&gt;getId($img) })
+        . qq[&gt;] . $q-&gt;escapeHTML($img-&gt;{title}) . qq[&lt;/a&gt;];
+    } else {
+      $caption = q[&lt;a href=] . urlGen({ node=&gt;$1, type=&gt;'user' })
+        . qq[&gt;$1&lt;/a&gt;'s &lt;a href=]
+        . urlGen({ node_id=&gt;$img-&gt;{node_id} })
+        . qq[&gt;user image&lt;/a&gt;];
+    }
+    push @all, sprintf $row, $caption, urlGen({ node_id =&gt; getId($img) }, -1);
+  }
+
+  return join '', @all;
+  %]&lt;tr&gt;
+    &lt;td&gt;
+      [% linkNode( $NODE, "Next 10",
+           { start =&gt; 10 + ($query-&gt;param('start') || 0) } ) %]
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;</field>
+</data>
+</node>

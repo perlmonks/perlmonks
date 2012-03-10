@@ -1,0 +1,67 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>222801</node_id>
+  <author_user>8948</author_user>
+  <title>linkWiki</title>
+  <createtime>2002-12-28 16:58:47</createtime>
+  <code>my( $node, $newtitle, $flag )= @_;
+$flag ||= '(*)';
+
+return $q-&gt;escapeHTML('[no wiki given]')
+    if  ! $node;
+
+# Avoid loading (often large) wiki text into cache just to display
+# whether the wiki was updated.  But use cached version if present.
+my @where;
+if(  ! ref $node  ) {
+    my $cached;
+    if(  $node =~ /\D/  ) {
+        $cached= $DB-&gt;getCache()-&gt;getCachedNodeByName( $node, 'wiki' );
+        my $nodetype= getId( getNode('wiki','nodetype') );
+        push @where,
+            'title = ' . $DB-&gt;quote($node),
+            &quot;type_nodetype = $nodetype&quot;;
+    } else {
+        $cached= $DB-&gt;getCache()-&gt;getCachedNodeById( $node );
+        push @where, 'node_id = ' . $node;
+    }
+    $node= $cached
+        if  $cached;
+}
+if(  ! ref $node  ) {
+    my( $node_id, $title, $lastedit )= $DB-&gt;sqlSelect(
+        'node_id, title, lastedit',
+        'node, document',
+        join( ' AND ', @where, 'node_id = document_id' ),
+    );
+    return $q-&gt;escapeHTML( &quot;[no such wiki, $node]&quot; )
+        if  ! $node_id;
+
+    $node= {
+        title =&gt; $title,
+        node_id =&gt; $node_id,
+        lastedit =&gt; $lastedit,
+    };
+}
+
+my $wid= 'wiki' . getId($node);
+my $updated=
+        exists $VARS-&gt;{$wid}
+    &amp;&amp;  $node-&gt;{lastedit} ne $VARS-&gt;{$wid};
+
+my $link= genLink(
+    $newtitle || $node-&gt;{title},
+    { node_id =&gt; getId($node) },
+);
+
+my $class = 'wikilink';
+
+if ( $updated ) {
+    $link .= $q-&gt;span( { class =&gt; 'wikiupdate' }, $flag );
+    $class .= ' updated';
+}
+
+return qq(&lt;span class=&quot;$class&quot;&gt;$link&lt;/span&gt;);
+</code>
+  <nodeupdated>2004-11-20 19:06:58</nodeupdated>
+</node>

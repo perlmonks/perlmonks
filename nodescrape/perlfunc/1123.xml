@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1123" title="perlman:lib:Safe" created="1999-12-22 19:49:28" updated="2005-08-15 10:43:11">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+Safe - Compile and execute code in restricted compartments
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+&lt;PRE&gt;  use Safe;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  $compartment = new Safe;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  $compartment-&amp;gt;permit(qw(time sort :browse));
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  $result = $compartment-&amp;gt;reval($unsafe_code);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="description">
+
+&lt;P&gt;
+The Safe extension module allows the creation of compartments in which perl
+code can be evaluated. Each compartment has
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_a"&gt;a new namespace&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The ``root'' of the namespace (i.e. ``main::'') is changed to a different
+package and code evaluated in the compartment cannot refer to variables
+outside this namespace, even with run-time glob lookups and other tricks.
+
+&lt;P&gt;
+Code which is compiled outside the compartment can choose to place
+variables into (or &lt;EM&gt;share&lt;/EM&gt; variables with) the compartment's namespace and only that data will be
+visible to code evaluated in the compartment.
+
+&lt;P&gt;
+By default, the only variables shared with compartments are the
+``underscore'' variables &lt;CODE&gt;$_&lt;/CODE&gt; and &lt;CODE&gt;@_&lt;/CODE&gt; (and,
+technically, the less frequently used %_, the _ filehandle and so on). This
+is because otherwise perl operators which default to &lt;CODE&gt;$_&lt;/CODE&gt; will
+not work and neither will the assignment of arguments to &lt;CODE&gt;@_&lt;/CODE&gt; on
+subroutine entry.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_an"&gt;an operator mask&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Each compartment has an associated ``operator mask''. Recall that perl code
+is compiled into an internal format before execution. Evaluating perl code
+(e.g. via ``eval'' or ``do 'file''') causes the code to be compiled into an
+internal format and then, provided there was no error in the compilation,
+executed. Code evaulated in a compartment compiles subject to the
+compartment's operator mask. Attempting to evaulate code in a compartment
+which contains a masked operator will cause the compilation to fail with an
+error. The code will not be executed.
+
+&lt;P&gt;
+The default operator mask for a newly created compartment is the ':default'
+optag.
+
+&lt;P&gt;
+It is important that you read the 
+&lt;CODE&gt;Opcode(3)&lt;/CODE&gt; module
+documentation for more information, especially for detailed definitions of
+opnames, optags and opsets.
+
+&lt;P&gt;
+Since it is only at the compilation stage that the operator mask applies,
+controlled access to potentially unsafe operations can be achieved by
+having a handle to a wrapper subroutine (written outside the compartment)
+placed into the compartment. For example,
+
+&lt;P&gt;
+&lt;PRE&gt;    $cpt = new Safe;
+    sub wrapper {
+        # vet arguments and perform potentially unsafe operations
+    }
+    $cpt-&amp;gt;share('&amp;amp;wrapper');
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="WARNING"&gt;WARNING&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The authors make &lt;STRONG&gt;no warranty&lt;/STRONG&gt;, implied or otherwise, about the suitability of this software for safety
+or security purposes.
+
+&lt;P&gt;
+The authors shall not in any case be liable for special, incidental,
+consequential, indirect or other similar damages arising from the use of
+this software.
+
+&lt;P&gt;
+Your mileage will vary. If in any doubt &lt;STRONG&gt;do not use it&lt;/STRONG&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="RECENT_CHANGES"&gt;RECENT CHANGES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The interface to the Safe module has changed quite dramatically since
+version 1 (as supplied with Perl5.002). Study these pages carefully if you
+have code written to use Safe version 1 because you will need to makes
+changes.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Methods_in_class_Safe"&gt;Methods in class Safe&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+To create a new compartment, use
+
+&lt;P&gt;
+&lt;PRE&gt;    $cpt = new Safe;
+&lt;/PRE&gt;
+&lt;P&gt;
+Optional argument is 
+&lt;FONT SIZE=-1&gt;(NAMESPACE),&lt;/FONT&gt; where 
+&lt;FONT SIZE=-1&gt;NAMESPACE&lt;/FONT&gt; is the root namespace to use for the compartment (defaults to ``Safe::Root0'', incremented for each new compartment).
+
+&lt;P&gt;
+Note that version 1.00 of the Safe module supported a second optional parameter, 
+&lt;FONT SIZE=-1&gt;MASK.&lt;/FONT&gt; That functionality has been withdrawn pending deeper consideration. Use the permit and deny methods described below.
+
+&lt;P&gt;
+The following methods can then be used on the compartment object returned
+by the above constructor. The object argument is implicit in each case.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_permit"&gt;permit (OP, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Permit the listed operators to be used when compiling code in the
+compartment (in &lt;EM&gt;addition&lt;/EM&gt; to any operators already permitted).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_permit_only"&gt;permit_only (OP, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Permit &lt;EM&gt;only&lt;/EM&gt; the listed operators to be used when compiling code in the compartment (&lt;EM&gt;no&lt;/EM&gt; other operators are permitted).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_deny"&gt;deny (OP, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Deny the listed operators from being used when compiling code in the
+compartment (other operators may still be permitted).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_deny_only"&gt;deny_only (OP, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Deny &lt;EM&gt;only&lt;/EM&gt; the listed operators from being used when compiling code in the compartment
+(&lt;EM&gt;all&lt;/EM&gt; other operators will be permitted).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_trap"&gt;trap (OP, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_untrap"&gt;untrap (OP, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The trap and untrap methods are synonyms for deny and permit respectfully.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_share"&gt;share (NAME, ...)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This shares the 
+&lt;CODE&gt;variable(s)&lt;/CODE&gt; in the
+argument list with the compartment. This is almost identical to exporting
+variables using the &lt;EM&gt;Exporter(3)&lt;/EM&gt;
+module.
+
+&lt;P&gt;
+Each 
+&lt;FONT SIZE=-1&gt;NAME&lt;/FONT&gt; must be the &lt;STRONG&gt;name&lt;/STRONG&gt; of a variable, typically with the leading type identifier included. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; bareword is treated as a function name.
+
+&lt;P&gt;
+Examples of legal names are '$foo' for a scalar, '@foo' for an array,
+'%foo' for a hash, '&amp;amp;foo' or 'foo' for a subroutine and '*foo' for a
+glob (i.e. all symbol table entries associated with ``foo'', including
+scalar, array, hash, sub and filehandle).
+
+&lt;P&gt;
+Each 
+&lt;FONT SIZE=-1&gt;NAME&lt;/FONT&gt; is assumed to be in the calling package. See
+share_from for an alternative method (which share uses).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_share_from"&gt;share_from (PACKAGE, ARRAYREF)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method is similar to 
+&lt;CODE&gt;share()&lt;/CODE&gt; but allows you to
+explicitly name the package that symbols should be shared from. The symbol
+names (including type characters) are supplied as an array reference.
+
+&lt;P&gt;
+&lt;PRE&gt;    $safe-&amp;gt;share_from('main', &amp;#091; '$foo', '%bar', 'func' &amp;#093;);
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_varglob"&gt;varglob (VARNAME)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This returns a glob reference for the symbol table entry of 
+&lt;FONT SIZE=-1&gt;VARNAME&lt;/FONT&gt; in the package of the compartment. 
+&lt;FONT SIZE=-1&gt;VARNAME&lt;/FONT&gt; must be the
+ &lt;STRONG&gt;name&lt;/STRONG&gt; of a variable without any leading type marker. For example,
+
+&lt;P&gt;
+&lt;PRE&gt;    $cpt = new Safe 'Root';
+    $Root::foo = &amp;quot;Hello world&amp;quot;;
+    # Equivalent version which doesn't need to know $cpt's package name:
+    ${$cpt-&amp;gt;varglob('foo')} = &amp;quot;Hello world&amp;quot;;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_reval"&gt;reval (STRING)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This evaluates 
+&lt;FONT SIZE=-1&gt;STRING&lt;/FONT&gt; as perl code inside the compartment.
+
+&lt;P&gt;
+The code can only see the compartment's namespace (as returned by the
+&lt;STRONG&gt;root&lt;/STRONG&gt; method). The compartment's root package appears to be the
+&lt;CODE&gt;main::&lt;/CODE&gt; package to the code inside the compartment.
+
+&lt;P&gt;
+Any attempt by the code in 
+&lt;FONT SIZE=-1&gt;STRING&lt;/FONT&gt; to use an operator which is not permitted by the compartment will cause an error (at run-time of the main program but at compile-time for the code in 
+&lt;FONT SIZE=-1&gt;STRING).&lt;/FONT&gt; The error is of the form ``%s trapped by operation mask operation...''.
+
+&lt;P&gt;
+If an operation is trapped in this way, then the code in 
+&lt;FONT SIZE=-1&gt;STRING&lt;/FONT&gt; will not be executed. If such a trapped operation occurs or any other compile-time or return error, then $@ is set to the error message, just as with an 
+&lt;CODE&gt;eval().&lt;/CODE&gt;
+
+&lt;P&gt;
+If there is no error, then the method returns the value of the last
+expression evaluated, or a return statement may be used, just as with
+subroutines and &lt;STRONG&gt;eval()&lt;/STRONG&gt;. The context (list or scalar) is determined by the caller as usual.
+
+&lt;P&gt;
+This behaviour differs from the beta distribution of the Safe extension where earlier versions of perl made it hard to mimic the return behaviour of the 
+&lt;CODE&gt;eval()&lt;/CODE&gt; command and the context was always scalar.
+
+&lt;P&gt;
+Some points to note:
+
+&lt;P&gt;
+If the entereval op is permitted then the code can use eval ``...'' to
+'hide' code which might use denied ops. This is not a major problem since
+when the code tries to execute the eval it will fail because the opmask is
+still in effect. However this technique would allow clever, and possibly
+harmful, code to 'probe' the boundaries of what is possible.
+
+&lt;P&gt;
+Any string eval which is executed by code executing in a compartment, or by
+code called from code executing in a compartment, will be eval'd in the
+namespace of the compartment. This is potentially a serious problem.
+
+&lt;P&gt;
+Consider a function 
+&lt;CODE&gt;foo()&lt;/CODE&gt; in package pkg compiled outside a compartment but shared with it. Assume the compartment has a root package called 'Root'. If 
+&lt;CODE&gt;foo()&lt;/CODE&gt; contains an eval statement like eval '$foo = 1' then, normally, $pkg::foo will be set to 1. If 
+&lt;CODE&gt;foo()&lt;/CODE&gt; is called from the compartment (by whatever means) then instead of setting $pkg::foo, the eval will actually set $Root::pkg::foo.
+
+&lt;P&gt;
+This can easily be demonstrated by using a module, such as the Socket module, which uses eval ``...'' as part of an 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; function. You can 'use' the module outside the compartment and share an (autoloaded) function with the compartment. If an autoload is triggered by code in the compartment, or by any code anywhere that is called by any means from the compartment, then the eval in the Socket module's 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; function happens in the namespace of the compartment. Any variables created or used by the eval'd code are now under the control of the code in the compartment.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; similar effect applies to &lt;EM&gt;all&lt;/EM&gt; runtime symbol lookups in code called from a compartment but not compiled
+within it.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_rdo"&gt;rdo (FILENAME)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This evaluates the contents of file 
+&lt;FONT SIZE=-1&gt;FILENAME&lt;/FONT&gt; inside the compartment. See above
+documentation on the &lt;STRONG&gt;reval&lt;/STRONG&gt; method for further details.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_root"&gt;root (NAMESPACE)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This method returns the name of the package that is the root of the
+compartment's namespace.
+
+&lt;P&gt;
+Note that this behaviour differs from version 1.00 of the Safe module where
+the root module could be used to change the namespace. That functionality
+has been withdrawn pending deeper consideration.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mask"&gt;mask (MASK)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is a get-or-set method for the compartment's operator mask.
+
+&lt;P&gt;
+With no 
+&lt;FONT SIZE=-1&gt;MASK&lt;/FONT&gt; argument present, it returns the current operator
+mask of the compartment.
+
+&lt;P&gt;
+With the 
+&lt;FONT SIZE=-1&gt;MASK&lt;/FONT&gt; argument present, it sets the operator mask for
+the compartment (equivalent to calling the deny_only method).
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Some_Safety_Issues"&gt;Some Safety Issues&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This section is currently just an outline of some of the things code in a
+compartment might do (intentionally or unintentionally) which can have an
+effect outside the compartment.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Memory"&gt;Memory&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Consuming all (or nearly all) available memory.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_CPU"&gt;CPU&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Causing infinite loops etc.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Snooping"&gt;Snooping&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Copying private information out of your system. Even something as simple as
+your user name is of value to others. Much useful information could be
+gleaned from your environment variables for example.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Signals"&gt;Signals&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Causing signals (especially 
+&lt;FONT SIZE=-1&gt;SIGFPE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;SIGALARM)&lt;/FONT&gt; to affect your process.
+
+&lt;P&gt;
+Setting up a signal handler will need to be carefully considered and
+controlled. What mask is in effect when a signal handler gets called? If a
+user can get an imported function to get an exception and call the user's
+signal handler, does that user's restricted mask get re-instated before the
+handler is called? Does an imported handler get called with its original
+mask or the user's one?
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_State"&gt;State Changes&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ops such as chdir obviously effect the process as a whole and not just the
+code in the compartment. Ops such as rand and srand have a similar but more
+subtle effect.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="AUTHOR"&gt;AUTHOR&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Originally designed and implemented by Malcolm Beattie, &lt;A
+HREF="mailto:mbeattie@sable.ox.ac.uk."&gt;mbeattie@sable.ox.ac.uk.&lt;/A&gt;
+
+&lt;P&gt;
+Reworked to use the Opcode module and other changes added by Tim Bunce
+&amp;lt;&lt;EM&gt;Tim.Bunce@ig.co.uk&lt;/EM&gt;&amp;gt;.
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

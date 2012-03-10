@@ -1,0 +1,104 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>21511</node_id>
+  <author_user>114</author_user>
+  <title>linkHandler</title>
+  <createtime>1999-08-30 17:48:29</createtime>
+  <code># Bugs:
+#   isbn:// is broken?
+
+  my( $content, $lastnodeid )= @_;
+
+  my $handlers= getVars( getNode( 'link handlers', 'setting' ) );
+
+  my( $prefix, $location )= $content =~ m!^(\w+)://(.+)!gs
+    or  return linkNodeTitle( $content );
+
+  my $code= $handlers-&gt;{ lc($prefix) };
+  $code= $handlers-&gt;{ lc($code) }   if  $code !~ /\W/;
+  if(  ! $code  ) {
+    return $q-&gt;escapeHTML( &quot;[$content]&quot; );
+  }
+
+  my( $data, $tail, $desc )= split /(?&lt;!\\)((?:\\\\)*)\|/, $location, 2;
+  $data .= $tail;
+  my $spec= $q-&gt;escapeHTML($data);
+
+  # Build uri-escaped string:
+  {
+    my %ent= qw( amp &amp; lt &lt; gt &gt; quot &quot; lsb [ rsb ] );
+
+    $data =~ s{
+      \G(                               # Don't skip any characters
+        \\(\W)                          # $2 escape($2)
+      | (\\\w)                          # $3 escape($3)
+      | %[0-9a-f]{2}                    # $1 $1
+      | &amp;(amp|lt|gt|quot|lsb|rsb)\b;?   # $4 $ent{lc($4)}
+      | &amp;[#](\d+);?                     # $5 pack&quot;C&quot;,$5
+      | [/?&amp;;=#\w.-]                    # $1 $1
+      | (.)                             # $6 escape($6)
+      )
+    }{
+      $2 ? $q-&gt;escape($2) :
+      $3 ? $q-&gt;escape($3) :
+      $4 ? $ent{lc($4)} :
+      defined $5 ? pack(&quot;C&quot;,$5) :
+      defined $6 ? $q-&gt;escape($6) :
+      $1
+    }gsex;
+  }
+
+  my( $escaped, $extra, $anchor )= split m[(?=[/?&amp;;#])], $data, 2;
+  ( $extra, $anchor )= split m[(?=#)], $extra, 2;
+  my $base= $q-&gt;escapeHTML(  $q-&gt;unescape( $escaped )  );
+
+  $desc= $spec   if  ! defined $desc;
+  $desc= &quot;0 &quot;   if  &quot;0&quot; eq $desc;
+  if(  $desc  ) {
+    my $AUCT= getVars( getNode('approved user chatter tags','setting') );
+    $desc= htmlScreen( $desc, $AUCT );
+  }
+  my $label= $desc;
+
+  my( $url, $params );
+  ( $label, $url, $params )= eval( $code )
+    or  return $q-&gt;escapeHTML( &quot;[$content]&quot; );
+
+  if(  $prefix eq &quot;id&quot;  &amp;&amp;   ! $desc  ) {
+    my $node= getNodeById( $base, 'light' );
+    if(  ! ref $node  ) {
+      $label= $q-&gt;escapeHTML( &quot;[no such node, ID $base]&quot; );
+    } else {
+      $label= $q-&gt;escapeHTML( $node-&gt;{title} )
+        || $q-&gt;escapeHTML( &quot;[untitled node, ID $base]&quot; );
+    }
+  }
+  $label ||= $base || $q-&gt;escapeHTML(&quot;[link]&quot;);
+
+  #vvv
+  #!#my %h=(content=&gt;$content,last=&gt;$lastnodeid,spec=&gt;$spec,
+  #!#  code=&gt;$code,prefix=&gt;$prefix,location=&gt;$location,
+  #!#  escaped=&gt;$escaped,label=&gt;$label,url=&gt;$url,data=&gt;$data,
+  #!#  extra=&gt;$extra,params=&gt;$params);
+  #!#return join &quot;&lt;br /&gt;\n&quot;, map
+  #!#  &quot;$_=(&quot;.$q-&gt;escapeHTML($h{$_}).&quot;)&quot;, sort keys %h if 0;
+  #^^^
+
+  if(  $url =~ m#^/\?#  ) {
+    $url= $ENV{SCRIPT_NAME} . $url;
+  }
+
+  if(  $params  &amp;&amp;  $extra  ) {
+    for my $pair (  split /[;&amp;]/, $extra  ) {
+      my( $param, $value )= split /=/, $pair, 2;
+      $params =~ s/[;&amp;]$param=[^;&amp;]+//g;
+      if(  defined $value  &amp;&amp;  &quot;&quot; eq $value  ) {
+        $extra =~ s/[;&amp;]$param=(?=[^;&amp;]|$)//;
+      }
+    }
+  }
+
+  return qq[&lt;a href=&quot;$url$extra$params$anchor&quot;&gt;$label&lt;/a&gt;];
+</code>
+  <nodeupdated>2005-08-12 05:49:05</nodeupdated>
+</node>

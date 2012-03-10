@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1859" title="Q&amp;A_Section display page" created="2000-01-07 18:43:24" updated="2005-08-09 07:29:50">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+[%
+   use Everything::Experience;
+
+   my $notes=$DB-&gt;getDatabaseHandle()-&gt;selectcol_arrayref(
+     'select note_id from note where parent_node=' 
+     . getId($NODE)
+   );
+
+   my $html="&lt;!--\nQ&amp;A_Section display page :\n"
+            . "Group: " . join(" ",@{$NODE-&gt;{group}||[]})
+            . "\nNotes: " . join(" ",@{$notes||[]}) . "\n--&gt;";
+
+   # Filter dupes out of the group and notes list that we get.
+   my %unique=map { ( $_ =&gt; 1 ) } (@{$NODE-&gt;{group} || []}, @{$notes || []});
+   
+   $html .= qq[&lt;p&gt;&lt;b&gt;Questions:&lt;/b&gt;&lt;ul&gt;\n];
+   foreach my $N (  sort {$b &lt;=&gt; $a} keys  %unique  ) {
+      my $id= $N;
+      $N= $DB-&gt;getNodeById( $N, 'light' );
+      if(  ! $N  ) {
+         # We used to have rows in [note] w/o a node where node_id=note_id:
+         $html .= "&lt;!-- $id --&gt;";
+      } else {
+         $html .= "&lt;li&gt;" . linkNode($N);
+         my $replies= $DB-&gt;sqlSelect(
+            'count(*)', 'note', 'parent_node=' . (getId($N)||0)
+         );
+         $html .= "&amp;nbsp;&amp;nbsp; $replies answer";
+         $html .= "s"   if  1 != $replies;
+         $html .= "&lt;/li&gt;\n";
+      }
+   }
+   $html .= "&lt;/ul&gt;&lt;/p&gt;&lt;p&gt;\n";
+   if( ! Everything::isApproved($USER,'CanAskQuestion') ) {
+       $html .= "Please add new questions to "
+          . linkNode(getNode('Seekers of perl Wisdom','superdoc'))
+          . " instead (Categorized Questions should be FAQs carefully
+              chosen and worded by more experienced monks).";
+   } else {
+       $html .= htmlcode('addnewquestion');
+   }
+   if(  canUpdateNode($USER,$NODE)  ) {
+      $html .= "&lt;br /&gt;" . htmlcode('windowview','editor,launch editor');
+   }
+   return  $html . "&lt;/p&gt;";
+%]</field>
+<field name="displaytype">
+display</field>
+</data>
+</node>

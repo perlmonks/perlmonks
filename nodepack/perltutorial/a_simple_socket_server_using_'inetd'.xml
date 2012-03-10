@@ -1,0 +1,155 @@
+<node>
+  <doctext>&lt;B&gt;Using &lt;c&gt;inetd&lt;/c&gt; to serve a socket&lt;/b&gt;&lt;BR&gt;&lt;BR&gt;
+It is often the case that one needs to test a system before the hardware is available or on-line. In my case, I'm developing an interface which will talk to a socket on a complex piece of Fab Metrology gear called an Applied Materials NanoSEM, using a complex protocol called SEMI SECS-II/GEM HSMS. I needed a quick and dirty handler to act as the NanoSEM while I get the protocol parser working.
+&lt;BR&gt;&lt;BR&gt;
+UNIX-like systems such as FreeBSD and Linux have a nifty feature called &lt;c&gt;inetd&lt;/c&gt;, which comes to our rescue. &lt;code&gt;inetd&lt;/code&gt; runs a program you specify whenever somebody else tries to connect to the socket you've chosen. By making a few simple configuration improvements, we can send our input to the specified socket, and inetd invokes our program, passing our input to it as STDIN. Our handler then processes it and spits out its response as STDOUT back to our socket. Cool, huh? What's even more cool is that if another process (or system) also tries to connect to the same socket, &lt;c&gt;inetd&lt;/c&gt; will invoke another copy of our handler without bothering the first one.
+&lt;BR&gt;&lt;BR&gt;
+&lt;READMORE&gt;
+Interested? Okay, here's the code...&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;The  server handler:&lt;/b&gt;&lt;BR&gt;&lt;BR&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w -T
+
+# sinet.pl A simple inetd socket server.
+
+use strict;
+
+my $old_fh = select(STDOUT);
+$| = 1;
+select($old_fh);
+
+while( my $line = &lt;STDIN&gt; )
+{
+    $line =~ s/\r?\n$//;
+    if ($line =~ /endit/) 
+    {
+	die &quot;shutting down\n&quot;;
+    }
+# do your processing here!
+    print &quot;  $line\n&quot;;
+}
+&lt;/code&gt;
+This little program will process anything that comes in on the specified port, clearing carriage returns and line feeds, and (in this simple case) spitting it back with two spaces in front and a newline at the end. An input containing &quot;endit&quot; causes the handler to exit, and, thanks to the flush sequence at the top, output is immediate. Make your program executable:
+&lt;code&gt;
+# chmod +x /usr/local/bin/sinet.pl
+&lt;/code&gt;
+&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;The configuration:&lt;/b&gt;&lt;BR&gt;&lt;BR&gt;
+Okay, now, here's the setup. In /etc (you need to be superuser), edit /etc/services to add your port number to the known services list, making up a unique name for the service. My port is 6100, its service is 'secshsms', and I've asked it to handle both stream (tcp) and datagram (udp) packets, although this example will only deal with tcp.
+&lt;code&gt;
+secshsms	6100/tcp   # DSW Handler for SECS-II/GEM HSMS traffic
+secshsms	6100/udp   # DSW
+&lt;/code&gt;
+Next, edit /etc/inetd.conf to attach your program to that service:
+&lt;code&gt;
+# DSW add-on for SECS-II over HSMS
+secshsms	stream	tcp	nowait	nobody	/usr/local/bin/sinet.pl secshsms
+&lt;/code&gt;
+Okay, find inetd and restart it.
+&lt;code&gt;
+# ps -ax | grep inetd
+  563  ??  Is      0:00.01 /usr/sbin/inetd -wW -C 60
+# kill -1 563
+
+&lt;/code&gt;
+From now on, any process that attempts to talk to my machine's port 6100 gets its output routed to my handler sinet.pl.
+&lt;BR&gt;&lt;BR&gt;
+With that in hand, here's a sample client, adapted from Perl Cookbook recipe 17.10. It can be installed on any machine within a routable network (i.e., no firewall) and it will talk to my handler.
+&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;A simple client:&lt;/B&gt; &lt;BR&gt;&lt;BR&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+
+# ncliauto.pl a simple automated client
+
+use warnings;
+use strict;
+
+use IO::Socket;
+
+my ( $confstr, $host, $port, $kidpid, $handle, $line, @say );
+
+# the config file contains host name (or IP addr) and port number, with a space between
+# examples:  localhost 6100
+#            myserv.mynet.com 6100
+#            123.456.789.1 6100
+
+open( CONF, &quot;&lt;./hsms.conf&quot;) or die &quot;conf file: $!\n&quot;;
+$confstr = &lt;CONF&gt;;
+close( CONF ) or die &quot;closing conf file: $!\n&quot;;
+
+chomp $confstr;
+( $host, $port ) = split( /\s+/, $confstr );
+
+# This is our demo array of outputs sent to the handler
+
+@say = ( 'You are getting sleepy...',
+	 '... very sleepy.',
+	 'Your eyes are getting very heavy!',
+	 &quot;... it's so hard to hold them open.&quot;,
+	 &quot;You're so very sleepy now.&quot;,
+	 'You just want to go to sleep.',
+	 'Sleep feels so good!',
+	 &quot;You're asleep. Sleep!&quot;,
+	 &quot;You've earned it, just relax and sleep!&quot;,
+	 &quot;... Sleep!&quot;,
+	 &quot;              Sleep!&quot;,
+	 &quot;                        Sleep!&quot;,
+	 '',
+	 '... zzz... zzz... ...zzz ...',
+	 'endit');
+
+# This creates our client socket
+
+$handle = IO::Socket::INET-&gt;new( Proto =&gt; &quot;tcp&quot;,
+				 PeerAddr =&gt; $host,
+				 PeerPort =&gt; $port )
+    or die &quot;can't connect to port '$port' on host '$host': $!\n&quot;;
+
+# make sure it turns around inputs immediately
+
+$handle-&gt;autoflush(1);
+
+# announce our connection
+print STDERR &quot;[connected to $host:$port]\n&quot;;
+
+# fork a child to handle sending our data to the socket
+die &quot;can't fork: $!\n&quot; unless defined($kidpid = fork());
+
+if ( $kidpid )
+{
+#   The parent handles data coming from the socket server to us
+    while ( defined( $line = &lt;$handle&gt; ) )
+    {
+	print STDOUT $line;
+    }
+#   ... until the connection is broken
+    kill( &quot;TERM&quot; =&gt; $kidpid );
+}
+else
+{
+#   The child process receives data for us
+    foreach my $item ( @say )
+    {
+	print $handle $item . &quot;\r\n&quot;;
+	sleep 1;
+    } 
+}
+exit;
+
+&lt;/code&gt;
+Working from this skeleton, a more elaborate language can be developed. The program on each end can be made to parse and respond to commands from the other.
+&lt;BR&gt;&lt;BR&gt;UPDATE 1: changed server user to nobody, thank you [idsfa].
+&lt;/READMORE&gt;
+
+&lt;div class=&quot;pmsig&quot;&gt;&lt;div class=&quot;pmsig-420266&quot;&gt;
+&lt;BR&gt;&lt;EM&gt;Don Wilde&lt;/EM&gt;&lt;BR&gt;
+&lt;FONT COLOR='#4F8EFF'&gt;&quot;&lt;i&gt;There's more than one level to any answer.&lt;/i&gt;&quot;&lt;/FONT&gt;
+&lt;/div&gt;&lt;/div&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>544341</node_id>
+  <author_user>420266</author_user>
+  <title>A Simple Socket Server Using 'inetd'</title>
+  <createtime>2006-04-19 08:26:24</createtime>
+  <nodeupdated>2006-04-19 04:26:24</nodeupdated>
+</node>

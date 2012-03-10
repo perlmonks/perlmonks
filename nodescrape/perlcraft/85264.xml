@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="85264" title="URI::Unprotocol" created="2001-06-03 02:20:37" updated="2005-07-21 01:27:14">
+<type id="121">
+perlcraft</type>
+<author id="59285">
+premchai21</author>
+<data>
+<field name="doctext">
+# In regard of the google://, the id://, and the recent request for dict://,
+# I offer you: URI::Unprotocol!
+
+package URI::Unprotocol;
+#  URI::Unprotocol
+#  Copyright (C) 2001 Drake Wilson
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  If you wish to receive a copy of the GNU General Public License, write to the Free Software
+#  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA, or see
+#  &lt;http://www.gnu.org/copyleft/gpl.html&gt;.
+#  
+#  You can contact me by e-mail at (backward) moc.toofgib@12iahcmerp.
+
+=head1 NAME
+
+URI::Unprotocol
+
+=head1 SYNOPSIS
+
+    use URI::Unprotocol qw/google e2/;
+    URI::Unprotocol::apply ("google://stuff");
+    URI::Unprotocol::setwrap('',1);
+    URI::Unprotocol::add ("somesite", sub { "http://somesite.com/$_.html" } );
+    URI::Unprotocol::modify ("somesite", sub { "http://somesite.net/$_.cfm" } );
+    URI::Unprotocol::remove ("somesite");
+
+=head1 DESCRIPTION
+
+URI::Unprotocol was created for sites such as Perlmonks which need / want / could use
+"unprotocols", that is, foreign protocols that actually map onto known protocols.
+The package contains the following items:
+
+=over 4
+
+=item apply (string)
+
+Applies the current set of Unprotocols to a given string, which must
+be a valid URI.  Returns a converted string if an Unprotocol with that
+name exists, otherwise returns URI-string unconverted.
+
+=item setwrap (protocol or undef, setting), iswrap (protocol or undef)
+
+Sets or gets the wrappering value for either a given unprotocol, or
+the default for newly defined unprotocols.  When unwrappered, an
+unprotocol sub will receive a URI object in $_ containing the URI.  When
+wrappered, an unprotocol sub will receive a string in $_ containing the
+URI minus the leading unprotocol name.  The default is currently
+stored in $Wrap.
+
+=item add (protocol, sub)
+
+Adds a protocol to the current set with the specified sub.  See
+L&lt;/setwrap&gt;.
+
+=item remove (protocol)
+
+Self-explanatory, I hope.
+
+=item modify (protocol, sub)
+
+Sets the sub for the protocol to the specified sub.  See
+L&lt;/setwrap&gt;.
+
+=item %standard
+
+(internal) The set of unprotocols that can be imported from the
+use line.
+
+=item %list
+
+(internal) The current set of unprotocols.
+
+=back
+
+=head1 SEE ALSO
+
+L&lt;URI&gt;
+
+=cut
+
+use Carp;
+use URI;
+use vars qw/%list %standard $Wrap/;
+
+%standard = (
+	     google =&gt; [ sub { "http://www.google.com/search?q=$_" }, 1 ],
+	     pm =&gt; [ sub { "http://www.perlmonks.org/index.pl?node=$_" }, 1 ],
+	     pmid =&gt; [ sub { "http://www.perlmonks.org/index.pl?id=$_" }, 1 ],
+	     e2 =&gt; [ sub { "http://www.everything2.com/index.pl?node=$_" }, 1 ],
+	     e2id =&gt; [ sub { "http://www.everything2.com/index.pl?node_id=$_" }, 1 ],
+	     altavista =&gt; [ sub { "http://www.altavista.com/sites/search/web?q=$_&amp;kl=XX&amp;pg=q" },
+			    1 ],
+             dict =&gt; [ sub { "http://www.dictionary.com/cgi-bin/dict.pl?term=$_" }, 1 ],
+	    );
+%list = ();
+$Wrap = 0;
+
+sub import
+{
+    foreach (@_)
+    {
+        if ($_ eq ':all')
+        {
+            %list = (%list, %standard);
+            last;
+        }
+	$list{$_} = $standard{$_};
+    }
+}
+
+sub add   ($&amp;) { $list{$_[0]}=[$_[1], $Wrap] }
+sub modify($&amp;) { $list{$_[0]}-&gt;[0] = $_[1] }
+sub remove($ ) { delete $list{$_[0]}}
+
+sub iswrap($ )
+{
+    return $Wrap if (!$_[0]);
+    return $list{$_[0]}-&gt;[1] if (exists $list{$_[0]});
+    return undef;
+}
+
+sub setwrap($$)
+{
+    $Wrap = $_[1] if (!$_[0]);
+    $list{$_[0]}-&gt;[1] = $_[1] if (exists $list{$_[0]});
+}
+
+sub apply($ )
+{
+    if (my $uri = URI-&gt;new($_[0]))
+    {
+	my $sch = $uri-&gt;scheme;
+	my $qsch = quotemeta($sch);
+	if (exists $list{$sch})
+	{
+	    my $iru = $uri;
+	    $list{$sch}-&gt;[1] &amp;&amp; do
+	    {
+		$iru = "$iru";
+		$iru =~ s/^$qsch(?:\:\/{0,3})?//;
+	    };
+	    for ($iru)
+	    {
+                return (($list{$sch}-&gt;[0])-&gt;());
+	    }
+	}
+	return $_[0];
+    }
+    croak "Bad URI";
+}
+
+1;
+</field>
+</data>
+</node>

@@ -1,0 +1,54 @@
+<node>
+  <doctext>#!/usr/bin/perl
+#
+# Sorry for the simplicity of this script, but as a first submission...
+#
+# Emails/Pages me when a filesystem &gt; 90% full
+
+$df=`df -lk 2&gt;/dev/null`;
+$fs=`df -lk 2&gt;/dev/null | grep -v used | cut -d'%' -f2 | grep -v denied`;
+$full=`df -lk 2&gt;/dev/null | grep -v used | cut -d'%' -f1`;
+
+$full =~ s/.*(..\d)$/\1/mg;
+
+$fs=~s/\s+/ /g;
+$full=~s/\s+/ /g;
+
+@fs=split(&quot; &quot;,$fs);
+@full=split(&quot; &quot;,$full);
+$host=`hostname`;
+chomp($host);
+$fs=@fs;
+chomp($date);
+while ($fs)
+{$fs=shift(@fs);
+ $full=shift(@full);
+ chomp($fs);
+ chomp($full);
+ if ($full &gt; 90)
+ {print &quot;Host: $host Filesystem: $fs is ${full}% full!\n&quot;;
+  @chk=grep(/$fs:$full/,@log);
+  undef(@log);
+  $chk=@chk;
+  close(LOG);
+  if ($chk == 0)
+  {`mailx -s &quot;$host:$fs is ${full}%&quot; youremail\@host.com &lt;&lt;EOF
+$df
+EOF
+`;
+   `mailx -s &quot;$host:$fs is ${full}%&quot; mypager\@pagerhost.com &lt;&lt;EOF
+
+EOF
+`;
+  }
+ }
+}
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>20524</node_id>
+  <author_user>20310</author_user>
+  <title>Full Filesystem Notification</title>
+  <createtime>2000-06-30 00:57:55</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

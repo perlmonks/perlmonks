@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="745674" title="Basic debugging checklist" created="2009-02-22 19:06:08" updated="2009-02-22 19:06:08">
+<type id="956">
+perltutorial</type>
+<author id="622051">
+toolic</author>
+<data>
+<field name="doctext">
+Are you new to Perl?  Is your program misbehaving? Not sure where or how to begin debugging? Well, here is a concise &lt;b&gt;checklist&lt;/b&gt; of tips and techniques to get you started.
+
+&lt;p&gt;This list is meant for debugging some of the most common Perl programming problems; it assumes no prior working experience with the Perl debugger ([doc://perldebtut]). Think of it as a First Aid kit, rather than a fully-staffed state-of-the-art operating room.
+
+&lt;p&gt;These tips are meant to act as a guide to help you answer the following questions:
+
+&lt;ul&gt;
+&lt;li&gt;Are you sure your data is what you think it is?
+&lt;li&gt;Are you sure your &lt;i&gt;code&lt;/i&gt; is what you think it is?
+&lt;li&gt;Are you inadvertently ignoring error and warning messages?
+&lt;/ul&gt;
+
+&lt;readmore&gt;
+
+&lt;ol&gt;
+
+&lt;li&gt;Add the "stricture" pragmas ([id://111088])&lt;/li&gt;
+&lt;c&gt;
+use strict;
+use warnings;
+use diagnostics;
+&lt;/c&gt;
+
+&lt;li&gt;Display the contents of variables using [doc://print] or [doc://warn]&lt;/li&gt;
+&lt;c&gt;
+warn "$var\n";
+print "@things\n";   # array with spaces between elements
+&lt;/c&gt;
+
+&lt;li&gt;Check for unexpected whitespace&lt;/li&gt;
+&lt;ul&gt;
+&lt;li&gt;[doc://chomp|&lt;c&gt;chomp&lt;/c&gt;], then [doc://print|&lt;c&gt;print&lt;/c&gt;] with delimiters of your choice, such as colons or balanced brackets, for visibility
+&lt;c&gt;
+chomp $var;
+print "&gt;&gt;&gt;$var&lt;&lt;&lt;\n";
+&lt;/c&gt;
+&lt;/li&gt;
+
+&lt;li&gt;
+Check for unprintable characters by converting them into their ASCII hex codes using [doc://ord|&lt;c&gt;ord&lt;/c&gt;]
+&lt;c&gt;
+my $copy = $str;
+$copy =~ s/([^\x20-\x7E])/sprintf '\x{%02x}', ord $1/eg;
+print ":$copy:\n";
+&lt;/c&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;li&gt;
+[doc://Data::Dumper|Dump] arrays, hashes and arbitrarily complex data structures. You can get started using the core module [doc://Data::Dumper]. Should the output prove to be unsuitable to you, other alternatives can be downloaded from CPAN, such as [mod://Data::Dump], [mod://YAML], or [mod://JSON]. See also [id://481745]
+&lt;/li&gt;
+
+&lt;c&gt;
+use Data::Dumper;
+print Dumper(\%hash);
+print Dumper($ref);
+&lt;/c&gt;
+
+&lt;li&gt;
+If you were expecting a [doc://ref|&lt;c&gt;ref&lt;/c&gt;]erence, make sure it is the right kind (ARRAY, HASH, etc.)
+&lt;/li&gt;
+&lt;c&gt;
+print ref $ref, "\n";
+&lt;/c&gt;
+
+
+&lt;li&gt;
+&lt;p&gt;Check to see if your code is what you thought it was: [doc://B::Deparse|&lt;c&gt;B::Deparse&lt;/c&gt;]
+&lt;/li&gt;
+
+&lt;c&gt;
+$ perl -MO=Deparse -p program.pl
+&lt;/c&gt;
+
+&lt;li&gt;
+&lt;p&gt;
+Check the return ([doc://perlvar#Error-Indicators|error]) status of your commands
+&lt;/li&gt;
+
+&lt;ul&gt;
+&lt;li&gt;
+[doc://open|&lt;c&gt;open&lt;/c&gt;] with [doc://perlvar#$!|&lt;c&gt;$!&lt;/c&gt;]
+&lt;c&gt;
+open my $fh, '&lt;', 'foo.txt' or die "can not open foo.txt: $!";
+&lt;/c&gt;
+&lt;/li&gt;
+
+&lt;li&gt;
+[doc://system|&lt;c&gt;system&lt;/c&gt;] and backticks ([doc://qx|&lt;c&gt;qx&lt;/c&gt;]) with [doc://perlvar#$?|&lt;c&gt;$?&lt;/c&gt;]
+&lt;c&gt;
+if (system $cmd) {
+    print "Error: $? for command $cmd"
+}
+else {
+    print "Command $cmd is OK"
+}
+$out = `$cmd`; print $? if $?;
+&lt;/c&gt;
+&lt;/li&gt;
+
+&lt;li&gt;
+[doc://eval|&lt;c&gt;eval&lt;/c&gt;] with [doc://perlvar#$@|&lt;c&gt;$@&lt;/c&gt;]
+&lt;c&gt;
+eval { do_something() }; warn $@ if $@;
+&lt;/c&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;li&gt;
+Use [doc://Carp] to display variables with a stack trace of module names and function calls.
+&lt;/li&gt;
+
+&lt;c&gt;
+use Carp qw(cluck);
+cluck("var is ($var)");
+&lt;/c&gt;
+
+&lt;p&gt;Better yet, install and use the [mod://Carp::Always|&lt;c&gt;Carp::Always&lt;/c&gt;]
+ CPAN module to make your existing [doc://warn|&lt;c&gt;warn&lt;/c&gt;]/[doc://die|&lt;c&gt;die&lt;/c&gt;] complain with a stack trace:
+
+&lt;c&gt;
+$ perl -MCarp::Always program.pl
+&lt;/c&gt;
+
+
+&lt;li&gt;
+Demystify regular expressions by installing and using the CPAN module [mod://YAPE::Regex::Explain|&lt;c&gt;YAPE::Regex::Explain&lt;/c&gt;]
+&lt;/li&gt;
+
+&lt;c&gt;
+# what the heck does /^\s+$/ mean?
+use YAPE::Regex::Explain;
+print YAPE::Regex::Explain-&gt;new('/^\s+$/')-&gt;explain();
+&lt;/c&gt;
+
+&lt;li&gt;
+Neaten up your code by installing and using the CPAN script [mod://perltidy].  Poor indentation can often obscure problems.
+&lt;/li&gt;
+
+&lt;p&gt;
+
+&lt;li&gt;
+Checklist for debugging when using CPAN modules:
+&lt;/li&gt;
+
+&lt;ul&gt;
+&lt;li&gt;
+Check the Bug List by following the module's "View Bugs" link.
+&lt;/li&gt;
+&lt;li&gt;
+Is your installed version the latest version? If not, check the change log by following the "Changes" link. Also follow the "Other Tools" link to "Diff" and "Grep" the release.
+&lt;/li&gt;
+&lt;li&gt;
+If a module provides status methods, check them in your code as you would check return status of built-in functions:
+&lt;c&gt;
+use WWW::Mechanize;
+if ($mech-&gt;success()) { ... }
+&lt;/c&gt;
+&lt;/ul&gt;
+
+&lt;/ol&gt;
+
+What's next? If you are not already doing so, use an editor that understands Perl syntax (such as vim or emacs), a GUI debugger (such as [mod://Devel::ptkdb]) or use a full-blown IDE. Lastly, use a version control system so that you can fearlessly make these temporary hacks to your code without trashing the real thing.
+
+&lt;p&gt;For more relevant discussions, refer to the initial Meditation post: [id://744845]
+
+
+&lt;p&gt;&lt;small&gt;
+&lt;b&gt;Updated:&lt;/b&gt; Sep 8, 2009: 
+Added CPAN Diff/Grep tip.
+&lt;br&gt;
+&lt;b&gt;Updated:&lt;/b&gt; Jan 11, 2011: 
+Added Carp::Always.
+&lt;/small&gt;
+
+&lt;/readmore&gt;
+</field>
+</data>
+</node>

@@ -1,0 +1,92 @@
+<node>
+  <doctext>This module is used for reading character separated data. At the&lt;BR&gt;
+suggestion of it's [tilly|creator], I used it in a [QuizTaker.pl|project] of mine,and I am&lt;BR&gt;
+quite glad that I did so.&lt;BR&gt;&lt;BR&gt;
+Here are the available methods within this module:&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;new()&lt;/B&gt;&lt;BR&gt;
+This is the constructor. It will take a hash of three arguments, all of which are optional. The file name, file handle, and the single character separator are the three arguments.  If a filename is passed, and a file handle isn't, it will open a filehandle on that file and set the filehandle accordingly.  Also, the separator value is a comma by default.&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;set_filename()&lt;BR&gt;
+set_fh()&lt;BR&gt;
+set_sep()&lt;BR&gt;&lt;/B&gt;
+These are the set methods for the optional arguments for the &lt;B&gt;new()&lt;/B&gt; constructor.&lt;BR&gt;
+&lt;BR&gt;
+&lt;B&gt;open_file()&lt;/B&gt;&lt;BR&gt;
+This method takes the name of a file and opens it. It will also set the filename&lt;BR&gt;
+and file handle.&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;bind_fields()&lt;/B&gt;&lt;BR&gt;
+Takes an array of field names and memorizes the positions for later use.&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;bind_headers()&lt;/B&gt;
+Reads a row from the file as a header line, and memorizes the field positions for&lt;BR&gt;
+later use. This method is preferred over the &lt;B&gt;bind_fields&lt;/B&gt; method.&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;get_row()&lt;/B&gt;&lt;BR&gt;
+Reads row from file and returns an array or a reference to an array, depending&lt;BR&gt;
+upon context. It also stores the row in the row property for later use.&lt;BR&gt;&lt;BR&gt;
+&lt;B&gt;extract()&lt;/B&gt;&lt;BR&gt;
+Extracts a list of fields out of the last row read.&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;The Good&lt;/B&gt;&lt;BR&gt;
+As [tilly] points out in the POD that accompanies the module, most people try to use&lt;BR&gt;
+split to separate value separated lines, or they read the line and try to parse it. This&lt;BR&gt;
+makes it impossible to handle returns that are embedded in a field.&lt;BR&gt;
+This problem is solved by the creation of the xSV object with access to the filehandle, and&lt;BR&gt;
+if in parsing, it notices that a new line is needed, it can read the file at will.&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;The Bad (and Ugly)&lt;/B&gt;&lt;BR&gt;
+The module is very unforgiving concerning the character separator. It only works on a single&lt;BR&gt;
+character as a separator. The overall speed isn't to bad, but like in all things, there is always&lt;BR&gt;
+room for improvement.&lt;BR&gt;&lt;BR&gt;
+
+&lt;B&gt;Example&lt;/B&gt;&lt;BR&gt;
+The below section of code is taken from my [QuizTaker.pl] program. This function&lt;BR&gt;
+is what reads all of the questions into a hash reference, where I later pull &lt;BR&gt;
+questions from it at random.&lt;BR&gt;
+&lt;CODE&gt;
+sub Loader{
+   my $Data = shift;
+   my $file = shift;
+   ## I declare the Text::xSV object
+   my $XSV = Text::xSV-&gt;new();
+
+   my $question_number;
+   my $length;
+   my $f;
+   my @Sorter=();
+
+   ## I set my separator here, otherwise it 
+   ## defaults to a comma.  
+  $XSV-&gt;set_sep(&quot;|&quot;); 
+
+  open(FH,&quot;$file&quot;)||die &quot;Can't open $file: $!\n&quot;;
+  
+  while(&lt;FH&gt;){ 
+   ## Here I get use the get_row method to retrieve
+   ## the row, which also parses it. 
+   @Sorter = $XSV-&gt;get_row();
+
+    $question_number = shift @Sorter;
+    $length = @Sorter;
+  
+    for($f = 0;$f &lt; $length;$f++){
+         $Data{$question_number}[$f] = $Sorter[$f];
+    }#End of for loop
+  }#End of while loop  
+
+ close FH;  
+ return $Data;
+}#End of sub 
+&lt;/CODE&gt; 
+
+One thing I did notice is that if the lines were of different lengths (If one question was multiple choice, and the next was a true/false question), the module would spit out a warning to that effect, the information was also stored in the row property,and it noticed the difference. This, however, did not affect the overall performance of the program itself.&lt;BR&gt;
+  </doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>21156</author_user>
+  <createtime>2001-05-14 14:33:25</createtime>
+  <itemdescription>Read and separate character separated data</itemdescription>
+  <identifier></identifier>
+  <node_id>80212</node_id>
+  <usercomment></usercomment>
+  <title>Text::xSV</title>
+  <nodeupdated>2005-08-09 23:56:44</nodeupdated>
+</node>

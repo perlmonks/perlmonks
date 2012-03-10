@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="420" title="perlman:perltoot2" created="1999-08-25 03:13:06" updated="2005-08-14 07:25:58">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+&lt;H2&gt;&lt;A NAME="Autoloaded_Data_Methods"&gt;Autoloaded Data Methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+You probably began to get a little suspicious about the duplicated code way
+back earlier when we first showed you the Person class, and then later the
+Employee class. Each method used to access the hash fields looked virtually
+identical. This should have tickled that great programming virtue,
+Impatience, but for the time, we let Laziness win out, and so did nothing.
+Proxy methods can cure this.
+
+&lt;P&gt;
+Instead of writing a new function every time we want a new data field,
+we'll use the autoload mechanism to generate (actually, mimic) methods on
+the fly. To verify that we're accessing a valid member, we will check
+against an &lt;CODE&gt;_permitted&lt;/CODE&gt; (pronounced ``under-permitted'') field, which is a reference to a file-scoped lexical (like a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; file static) hash of permitted fields in this record called %fields. Why the underscore? For the same reason as the 
+&lt;FONT SIZE=-1&gt;_CENSUS&lt;/FONT&gt; field we once used: as a marker that means ``for internal use only''.
+
+&lt;P&gt;
+Here's what the module initialization code and class constructor will look
+like when taking this approach:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Person;
+    use Carp;
+    use vars qw($AUTOLOAD);  # it's a package global
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my %fields = (
+        name        =&amp;gt; undef,
+        age         =&amp;gt; undef,
+        peers       =&amp;gt; undef,
+    );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $that  = shift;
+        my $class = ref($that) || $that;
+        my $self  = {
+            _permitted =&amp;gt; \%fields,
+            %fields,
+        };
+        bless $self, $class;
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If we wanted our record to have default values, we could fill those in
+where current we have [perlfunc:undef|undef] in the &lt;CODE&gt;%fields&lt;/CODE&gt; hash.
+
+&lt;P&gt;
+Notice how we saved a reference to our class data on the object itself?
+Remember that it's important to access class data through the object itself
+instead of having any method reference &lt;CODE&gt;%fields&lt;/CODE&gt; directly, or
+else you won't have a decent inheritance.
+
+&lt;P&gt;
+The real magic, though, is going to reside in our proxy method, which will handle all calls to undefined methods for objects of class Person (or subclasses of Person). It has to be called 
+&lt;FONT SIZE=-1&gt;AUTOLOAD.&lt;/FONT&gt; Again, it's all caps because it's called for us implicitly by Perl itself, not by a user directly.
+
+&lt;P&gt;
+&lt;PRE&gt;    sub AUTOLOAD {
+        my $self = shift;
+        my $type = ref($self)
+                    or croak &amp;quot;$self is not an object&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        my $name = $AUTOLOAD;
+        $name =~ s/.*://;   # strip fully-qualified portion
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        unless (exists $self-&amp;gt;{_permitted}-&amp;gt;{$name} ) {
+            croak &amp;quot;Can't access `$name' field in class $type&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        if (@_) {
+            return $self-&amp;gt;{$name} = shift;
+        } else {
+            return $self-&amp;gt;{$name};
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Pretty nifty, eh? All we have to do to add new data fields is modify
+%fields. No new functions need be written.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; could have avoided the &lt;CODE&gt;_permitted&lt;/CODE&gt; field entirely, but 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; wanted to demonstrate how to store a reference to
+class data on the object so you wouldn't have to access that class data
+directly from an object method.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Inherited_Autoloaded_Data_Method"&gt;Inherited Autoloaded Data Methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+But what about inheritance? Can we define our Employee class similarly?
+Yes, so long as we're careful enough.
+
+&lt;P&gt;
+Here's how to be careful:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Employee;
+    use Person;
+    use strict;
+    use vars qw(@ISA);
+    @ISA = qw(Person);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my %fields = (
+        id          =&amp;gt; undef,
+        salary      =&amp;gt; undef,
+    );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub new {
+        my $that  = shift;
+        my $class = ref($that) || $that;
+        my $self = bless $that-&amp;gt;SUPER::new(), $class;
+        my($element);
+        foreach $element (keys %fields) {
+            $self-&amp;gt;{_permitted}-&amp;gt;{$element} = $fields{$element};
+        }
+        @{$self}{keys %fields} = values %fields;
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Once we've done this, we don't even need to have an 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; function in the Employee package, because
+we'll grab Person's version of that via inheritance, and it will all work
+out just fine.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Metaclassical_Tools"&gt;Metaclassical Tools&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Even though proxy methods can provide a more convenient approach to making
+more struct-like classes than tediously coding up data methods as
+functions, it still leaves a bit to be desired. For one thing, it means you
+have to handle bogus calls that you don't mean to trap via your proxy. It
+also means you have to be quite careful when dealing with inheritance, as
+detailed above.
+
+&lt;P&gt;
+Perl programmers have responded to this by creating several different class construction classes. These metaclasses are classes that create other classes. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; couple worth looking at are Class::Struct and Alias. These and other related metaclasses can be found in the modules directory on 
+&lt;FONT SIZE=-1&gt;CPAN.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Class_Struct"&gt;Class::Struct&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+One of the older ones is Class::Struct. In fact, its syntax and interface were sketched out long before perl5 even solidified into a real thing. What it does is provide you a way to ``declare'' a class as having objects whose fields are of a specific type. The function that does this is called, not surprisingly enough, 
+&lt;CODE&gt;struct().&lt;/CODE&gt; Because structures or records are not base types in Perl, each time you want to create a class to provide a record-like data object, you yourself have to define a 
+&lt;CODE&gt;new()&lt;/CODE&gt; method, plus separate data-access methods for each of that record's fields. You'll quickly become bored with this process. The Class::Struct::struct() function alleviates this tedium.
+
+&lt;P&gt;
+Here's a simple example of using it:
+
+&lt;P&gt;
+&lt;PRE&gt;    use Class::Struct qw(struct);
+    use Jobbie;  # user-defined; see below
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    struct 'Fred' =&amp;gt; {
+        one        =&amp;gt; '$',
+        many       =&amp;gt; '@',
+        profession =&amp;gt; Jobbie,  # calls Jobbie-&amp;gt;new()
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $ob = Fred-&amp;gt;new;
+    $ob-&amp;gt;one(&amp;quot;hmmmm&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $ob-&amp;gt;many(0, &amp;quot;here&amp;quot;);
+    $ob-&amp;gt;many(1, &amp;quot;you&amp;quot;);
+    $ob-&amp;gt;many(2, &amp;quot;go&amp;quot;);
+    print &amp;quot;Just set: &amp;quot;, $ob-&amp;gt;many(2), &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $ob-&amp;gt;profession-&amp;gt;salary(10_000);
+&lt;/PRE&gt;
+&lt;P&gt;
+You can declare types in the struct to be basic Perl types, or user-defined types (classes). User types will be initialized by calling that class's 
+&lt;CODE&gt;new()&lt;/CODE&gt; method.
+
+&lt;P&gt;
+Here's a real-world example of using struct generation. Let's say you wanted to override Perl's idea of 
+&lt;CODE&gt;gethostbyname()&lt;/CODE&gt; and 
+&lt;CODE&gt;gethostbyaddr()&lt;/CODE&gt; so that they would return objects that acted like 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structures. We don't care about high-falutin' 
+&lt;FONT SIZE=-1&gt;OO&lt;/FONT&gt; gunk. All we want is for these objects to act like structs in the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; sense.
+
+&lt;P&gt;
+&lt;PRE&gt;    use Socket;
+    use Net::hostent;
+    $h = gethostbyname(&amp;quot;perl.com&amp;quot;);  # object return
+    printf &amp;quot;perl.com's real name is %s, address %s\n&amp;quot;,
+        $h-&amp;gt;name, inet_ntoa($h-&amp;gt;addr);
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's how to do this using the Class::Struct module. The crux is going to
+be this call:
+
+&lt;P&gt;
+&lt;PRE&gt;    struct 'Net::hostent' =&amp;gt; &amp;#091;          # note bracket
+        name       =&amp;gt; '$',
+        aliases    =&amp;gt; '@',
+        addrtype   =&amp;gt; '$',
+        'length'   =&amp;gt; '$',
+        addr_list  =&amp;gt; '@',
+     &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Which creates object methods of those names and types. It even creates a 
+&lt;CODE&gt;new()&lt;/CODE&gt; method for us.
+
+&lt;P&gt;
+We could also have implemented our object this way:
+
+&lt;P&gt;
+&lt;PRE&gt;    struct 'Net::hostent' =&amp;gt; {          # note brace
+        name       =&amp;gt; '$',
+        aliases    =&amp;gt; '@',
+        addrtype   =&amp;gt; '$',
+        'length'   =&amp;gt; '$',
+        addr_list  =&amp;gt; '@',
+     };
+&lt;/PRE&gt;
+&lt;P&gt;
+and then Class::Struct would have used an anonymous hash as the object
+type, instead of an anonymous array. The array is faster and smaller, but
+the hash works out better if you eventually want to do inheritance. Since
+for this struct-like object we aren't planning on inheritance, this time
+we'll opt for better speed and size over better flexibility.
+
+&lt;P&gt;
+Here's the whole implementation:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Net::hostent;
+    use strict;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    BEGIN {
+        use Exporter   ();
+        use vars       qw(@EXPORT @EXPORT_OK %EXPORT_TAGS);
+        @EXPORT      = qw(gethostbyname gethostbyaddr gethost);
+        @EXPORT_OK   = qw(
+                           $h_name         @h_aliases
+                           $h_addrtype     $h_length
+                           @h_addr_list    $h_addr
+                       );
+        %EXPORT_TAGS = ( FIELDS =&amp;gt; &amp;#091; @EXPORT_OK, @EXPORT &amp;#093; );
+    }
+    use vars      @EXPORT_OK;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Class::Struct forbids use of @ISA
+    sub import { goto &amp;amp;Exporter::import }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use Class::Struct qw(struct);
+    struct 'Net::hostent' =&amp;gt; &amp;#091;
+       name        =&amp;gt; '$',
+       aliases     =&amp;gt; '@',
+       addrtype    =&amp;gt; '$',
+       'length'    =&amp;gt; '$',
+       addr_list   =&amp;gt; '@',
+    &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub addr { shift-&amp;gt;addr_list-&amp;gt;&amp;#091;0&amp;#093; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub populate (@) {
+        return unless @_;
+        my $hob = new();  # Class::Struct made this!
+        $h_name     =    $hob-&amp;gt;&amp;#091;0&amp;#093;              = $_&amp;#091;0&amp;#093;;
+        @h_aliases  = @{ $hob-&amp;gt;&amp;#091;1&amp;#093; } = split ' ', $_&amp;#091;1&amp;#093;;
+        $h_addrtype =    $hob-&amp;gt;&amp;#091;2&amp;#093;              = $_&amp;#091;2&amp;#093;;
+        $h_length   =    $hob-&amp;gt;&amp;#091;3&amp;#093;              = $_&amp;#091;3&amp;#093;;
+        $h_addr     =                             $_&amp;#091;4&amp;#093;;
+        @h_addr_list = @{ $hob-&amp;gt;&amp;#091;4&amp;#093; } =         @_&amp;#091; (4 .. $#_) &amp;#093;;
+        return $hob;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub gethostbyname ($)  { populate(CORE::gethostbyname(shift)) }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub gethostbyaddr ($;$) {
+        my ($addr, $addrtype);
+        $addr = shift;
+        require Socket unless @_;
+        $addrtype = @_ ? shift : Socket::AF_INET();
+        populate(CORE::gethostbyaddr($addr, $addrtype))
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub gethost($) {
+        if ($_&amp;#091;0&amp;#093; =~ /^\d+(?:\.\d+(?:\.\d+(?:\.\d+)?)?)?$/) {
+           require Socket;
+           &amp;amp;gethostbyaddr(Socket::inet_aton(shift));
+        } else {
+           &amp;amp;gethostbyname;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    1;
+&lt;/PRE&gt;
+&lt;P&gt;
+We've snuck in quite a fair bit of other concepts besides just dynamic
+class creation, like overriding core functions, import/export bits,
+function prototyping, short-cut function call via &lt;CODE&gt;&amp;amp;whatever&lt;/CODE&gt;, and function replacement with &lt;CODE&gt;goto &amp;amp;whatever&lt;/CODE&gt;. These all mostly make sense from the perspective of a traditional module,
+but as you can see, we can also use them in an object module.
+
+&lt;P&gt;
+You can look at other object-based, struct-like overrides of core functions in the 5.004 release of Perl in File::stat, Net::hostent, Net::netent, Net::protoent, Net::servent, Time::gmtime, Time::localtime, User::grent, and User::pwent. These modules have a final component that's all lowercase, by convention reserved for compiler pragmas, because they affect the compilation and change a builtin function. They also have the type names that a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; programmer would most expect.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Data_Members_as_Variables"&gt;Data Members as Variables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you're used to 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; objects, then you're accustomed to being able to
+get at an object's data members as simple variables from within a method.
+The Alias module provides for this, as well as a good bit more, such as the
+possibility of private methods that the object can call but folks outside
+the class cannot.
+
+&lt;P&gt;
+Here's an example of creating a Person using the Alias module. When you
+update these magical instance variables, you automatically update value
+fields in the hash. Convenient, eh?
+
+&lt;P&gt;
+&lt;PRE&gt;    package Person;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # this is the same as before...
+    sub new {
+         my $that  = shift;
+         my $class = ref($that) || $that;
+         my $self = {
+            NAME  =&amp;gt; undef,
+            AGE   =&amp;gt; undef,
+            PEERS =&amp;gt; &amp;#091;&amp;#093;,
+        };
+        bless($self, $class);
+        return $self;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use Alias qw(attr);
+    use vars qw($NAME $AGE $PEERS);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub name {
+        my $self = attr shift;
+        if (@_) { $NAME = shift; }
+        return    $NAME;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub age {
+        my $self = attr shift;
+        if (@_) { $AGE = shift; }
+        return    $AGE;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub peers {
+        my $self = attr shift;
+        if (@_) { @PEERS = @_; }
+        return    @PEERS;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub exclaim {
+        my $self = attr shift;
+        return sprintf &amp;quot;Hi, I'm %s, age %d, working with %s&amp;quot;,
+            $NAME, $AGE, join(&amp;quot;, &amp;quot;, @PEERS);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub happy_birthday {
+        my $self = attr shift;
+        return ++$AGE;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The need for the &lt;CODE&gt;use vars&lt;/CODE&gt; declaration is because what Alias does is play with package globals with
+the same name as the fields. To use globals while &lt;CODE&gt;use strict&lt;/CODE&gt; is in effect, you have to predeclare them. These package variables are localized to the block enclosing the 
+&lt;CODE&gt;attr()&lt;/CODE&gt; call just as if you'd used a 
+&lt;CODE&gt;local()&lt;/CODE&gt; on them. However, that means that they're still considered global variables with temporary values, just as with any other 
+&lt;CODE&gt;local().&lt;/CODE&gt;
+
+&lt;P&gt;
+It would be nice to combine Alias with something like Class::Struct or
+Class::MethodMaker.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="NOTES"&gt;NOTES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Object_Terminology"&gt;Object Terminology&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In the various 
+&lt;FONT SIZE=-1&gt;OO&lt;/FONT&gt; literature, it seems that a lot of different words
+are used to describe only a few different concepts. If you're not already
+an object programmer, then you don't need to worry about all these fancy
+words. But if you are, then you might like to know how to get at the same
+concepts in Perl.
+
+&lt;P&gt;
+For example, it's common to call an object an &lt;EM&gt;instance&lt;/EM&gt; of a class and to call those objects' methods &lt;EM&gt;instance methods&lt;/EM&gt;. Data fields peculiar to each object are often called &lt;EM&gt;instance data&lt;/EM&gt; or &lt;EM&gt;object
+attributes&lt;/EM&gt;, and data fields common to all members of that class are
+&lt;EM&gt;class data&lt;/EM&gt;, &lt;EM&gt;class attributes&lt;/EM&gt;, or &lt;EM&gt;static data members&lt;/EM&gt;.
+
+&lt;P&gt;
+Also, &lt;EM&gt;base class&lt;/EM&gt;, &lt;EM&gt;generic class&lt;/EM&gt;, and &lt;EM&gt;superclass&lt;/EM&gt; all describe the same notion, whereas &lt;EM&gt;derived class&lt;/EM&gt;, &lt;EM&gt;specific class&lt;/EM&gt;, and
+&lt;EM&gt;subclass&lt;/EM&gt; describe the other related one.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers have &lt;EM&gt;static methods&lt;/EM&gt; and &lt;EM&gt;virtual methods&lt;/EM&gt;, but Perl only has &lt;EM&gt;class methods&lt;/EM&gt; and &lt;EM&gt;object methods&lt;/EM&gt;. Actually, Perl only has methods. Whether a method gets used as a class or
+object method is by usage only. You could accidentally call a class method
+(one expecting a string argument) on an object (one expecting a reference),
+or vice versa.
+
+&lt;P&gt;
+From the 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; perspective, all methods in Perl are virtual.
+This, by the way, is why they are never checked for function prototypes in
+the argument list as regular builtin and user-defined functions can be.
+
+&lt;P&gt;
+Because a class is itself something of an object, Perl's classes can be
+taken as describing both a ``class as meta-object'' (also called &lt;EM&gt;object
+factory&lt;/EM&gt;) philosophy and the ``class as type definition'' (&lt;EM&gt;declaring&lt;/EM&gt;
+behaviour, not &lt;EM&gt;defining&lt;/EM&gt; mechanism) idea. 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; supports the latter notion, but not the former.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The following manpages will doubtless provide more background for this one:
+[perlman:perlmod|the perlmod manpage],
+[perlman:perlref|the perlref manpage],
+[perlman:perlobj|the perlobj manpage],
+[perlman:perlbot|the perlbot manpage],
+[perlman:perltie|the perltie manpage], and
+&lt;U&gt;the overload manpage&lt;/U&gt;&lt;!--../lib/overload.html--&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="AUTHOR_AND_COPYRIGHT"&gt;AUTHOR AND COPYRIGHT&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Copyright (c) 1997, 1998 Tom Christiansen All rights reserved.
+
+&lt;P&gt;
+When included as part of the Standard Version of Perl, or as part of its
+complete documentation whether printed or otherwise, this work may be
+distributed only under the terms of Perl's Artistic License. Any
+distribution of this file or derivatives thereof &lt;EM&gt;outside&lt;/EM&gt;
+of that package require that special arrangements be made with copyright
+holder.
+
+&lt;P&gt;
+Irrespective of its distribution, all code examples in this file are hereby placed into the public domain. You are permitted and encouraged to use this code in your own programs for fun or for profit as you see fit. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; simple comment in the code giving credit would be courteous but is not required.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="COPYRIGHT"&gt;COPYRIGHT&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Acknowledgments"&gt;Acknowledgments&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Thanks to Larry Wall, Roderick Schertler, Gurusamy Sarathy, Dean Roehrich,
+Raphael Manfredi, Brent Halsey, Greg Bacon, Brad Appleton, and many others
+for their helpful comments.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

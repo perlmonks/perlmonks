@@ -1,0 +1,203 @@
+<node>
+  <doctext>#! /usr/local/bin/perl -w
+
+use strict;
+use warnings;
+use diagnostics;
+use Data::Dumper;
+
+# I found the Sunday Times teaser 2021 interesting enough
+# to write a program to solve after I had a few goes on
+# paper and kept getting it wrong.
+#
+# It manages to do what should be a depth first search
+# using a simple for loop due to the relative simplicity
+# of the search space.
+# P.S. There is a prize for sending in the first correct
+# answers, but you'll need to have a copy of the ST in
+# order to find the address.
+#
+# Problem taken from Sunday Times 10-Jun-01
+#
+# Spladders, a game like snakes and ladders, is played
+# on a board with spaces numbered 0..N .
+# A Player starts at 0, casts the die and moves his
+# counter forward the number of squares shown. If he
+# lands on a prime, he moves up to the next prime.
+# If he lands on a square, he moves down to the next
+# lower square (e.g. 25 to 16). Tom and I played a game.
+# I went first, and we each threw the die seven times.
+# Each time, after Tom threw, his position was double mine
+# (and never zero).
+#
+# What were our positions after seven throws ?
+
+my $last = 0;
+my $next;
+my %primes = ();
+
+for (2,3,5,7,11,13,17,19,23,29,31,37,41,43,47)
+{
+   $primes{$last} = int($_);
+   $last = $_;
+}
+delete $primes{0};
+
+my %squares = ();
+map {$squares{$_ * $_} = int(($_ - 1) * ($_ - 1))} (1..10);
+
+my @posshim = ();
+my @possme  = ();
+my $start   = 0;
+my @carry   = ();
+my @record  = (0);
+my @all     = ();
+my %record  = (0=&gt;[0]);
+
+### roll
+
+for (1..7)
+{
+   roll($_);
+}
+die &quot;Failed, More than 1 possible sequence&quot;
+   if @all &gt; 1;
+die &quot;Failed, no possible sequences&quot;
+   if @all &lt; 0;
+
+print &quot;-------\n\n&quot;;
+report(&quot;My final Sequence&quot;,@{$record{$all[0]}});
+
+
+#########
+
+sub roll
+{
+   my $roll = shift;
+   @carry = @record;
+   @record = @all = ();
+   report(&quot;-----\nRoll $roll&quot;,@carry);
+   for (@carry)
+   {
+      my $start    = $_;
+      print &quot;Starting with $_\n------\n&quot;;
+      @possme = MyTry($start);
+      @posshim = HisTry($start*2);
+
+      report(&quot;His possibles        &quot;,@posshim);
+      #report(&quot;My  possibles&quot;,@possme);
+
+      my @newme  = carry_me(\@possme, @posshim);
+      report(&quot;My Matching possibles&quot;,@newme);
+      for my $val (@newme)
+      {
+         push(@record,$val) unless grep {$_ == $val} @record;
+      }
+      record($start,@newme);
+   }
+}
+
+sub record
+{
+   my $end = shift;
+   my @poss = @_;
+   my $i;
+   my @ref;
+   my $found = -1;
+
+   #print Data::Dumper-&gt;Dump([\%record],[&quot;Record&quot;]) , $/;
+   for my $poss (@poss)
+   {
+      my @new = @{$record{$end}};
+      push(@new,$poss);
+      $record{$poss} = \@new;
+      report(&quot;Carrying Forward&quot;,@new);
+      push(@all,$poss);
+
+   }
+   #print Data::Dumper-&gt;Dump([\%record],[&quot;Post - Record&quot;]) , $/;
+}
+
+sub report
+{
+   my $name = shift;
+   my $values = join(', ',@_);
+   print &quot;$name =&gt; [$values]\n&quot;;
+}
+
+sub HisTry
+{
+   my $start = shift;
+   my @poss  = ();
+   for my $die (1..6)
+   {
+      my $mid = $start + $die;
+      my $new = move($start,$die);
+      $new = move($start,$die);
+      my $valid = validHim($new);
+      #print &quot;Him =&gt; $start + $die =&gt; $mid =&gt; $new $valid\n&quot;;
+      push(@poss,$new) if $valid;
+   }
+   return @poss;
+}
+
+sub MyTry
+{
+   my $start = shift;
+   my @poss  = ();
+   for my $die (1..6)
+   {
+      my $mid = $start + $die;
+      my $new = move($start,$die);
+      $new = move($start,$die);
+      my $valid = validMe($new);
+      #print &quot;Me  =&gt; $start + $die =&gt; $mid =&gt; $new $valid\n&quot;;
+      push(@poss,$new) if $valid;
+   }
+   return @poss;
+}
+
+sub carry_me
+{
+  my $ref = shift;
+  my @him = @_;
+  my @new = ();
+  for my $value (@$ref)
+  {
+     push(@new,$value) if grep {$value*2 == $_} @him;
+  }
+  return @new;
+}
+
+sub validHim
+{
+   my $value = shift;
+   return 0 if $value % 2;
+   return 0 if $value == 0;
+   return 1;
+}
+
+sub validMe
+{
+   my $value = shift;
+   return 0 if $value == 0;
+   return 1;
+}
+
+sub move
+{
+   my $old = shift;
+   my $roll = shift;
+   my $new = $old + $roll;
+   $new = $primes{$new} if defined($primes{$new});
+   $new = $squares{$new} if defined($squares{$new});
+   return int($new);
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>87617</node_id>
+  <author_user>80482</author_user>
+  <title>Solver for Sunday Times teaser 2021</title>
+  <createtime>2001-06-11 19:01:39</createtime>
+  <nodeupdated>2005-08-11 05:22:04</nodeupdated>
+</node>

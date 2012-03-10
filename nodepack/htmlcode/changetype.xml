@@ -1,0 +1,39 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>46698</node_id>
+  <author_user>929</author_user>
+  <title>changetype</title>
+  <createtime>2000-12-14 19:37:23</createtime>
+  <code>my( $N, $endtype )= @_;
+getRef( $N );
+my $html= '';
+my $STARTTYPE= $N-&gt;{type};
+my $ENDTYPE= getType( $endtype );
+my %startTables;
+@startTables{ @$_ }= ( 1 ) x @$_
+    for  $DB-&gt;getNodetypeTables( $STARTTYPE );
+my %endTables;
+@endTables{ @$_ }= ( 1 ) x @$_
+    for  $DB-&gt;getNodetypeTables( $ENDTYPE );
+my @tablesToDel= grep { ! $endTables{$_} } keys %startTables;
+my @tablesToAdd= grep { ! $startTables{$_} } keys %endTables;
+
+$html .= &quot;&lt;p&gt;TABLES that need adding&lt;br /&gt;&quot;;
+for my $table (  @tablesToAdd  ) {
+    $html .= &quot;&lt;li&gt;$table&quot;;
+    $DB-&gt;sqlInsert( $table, { $table . &quot;_id&quot; =&gt; getId($N) } );
+}
+
+$html .= &quot;&lt;p&gt;Tables that need deleting&lt;br /&gt;&quot;;
+for my $table (  @tablesToDel  ) {
+    $html .= &quot;&lt;li&gt;$table&quot;;
+    $DB-&gt;sqlDelete( $table, $table . &quot;_id=&quot; . getId($N) );
+}
+
+$N-&gt;{type}= $ENDTYPE;
+$N-&gt;{type_nodetype}= getId($ENDTYPE);
+updateNode( $N, -1 );
+return $html;
+</code>
+  <nodeupdated>2005-08-07 09:14:58</nodeupdated>
+</node>

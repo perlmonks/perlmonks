@@ -1,0 +1,1189 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+overload - Package for overloading perl operations
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Declaration_of_overloaded_functi&quot;&gt;Declaration of overloaded functions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The compilation directive
+
+&lt;P&gt;
+&lt;PRE&gt;    package Number;
+    use overload
+        &amp;quot;+&amp;quot; =&amp;gt; \&amp;amp;add, 
+        &amp;quot;*=&amp;quot; =&amp;gt; &amp;quot;muas&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+declares function Number::add() for addition, and method 
+&lt;CODE&gt;muas()&lt;/CODE&gt; in the ``class'' &lt;CODE&gt;Number&lt;/CODE&gt; (or one of its base classes) for the assignment form &lt;CODE&gt;*=&lt;/CODE&gt; of multiplication.  
+
+&lt;P&gt;
+Arguments of this directive come in (key, value) pairs. Legal values are
+values legal inside a &lt;CODE&gt;&amp;amp;{ ... }&lt;/CODE&gt; call, so the name of a subroutine, a reference to a subroutine, or an
+anonymous subroutine will all work. Note that values specified as strings
+are interpreted as methods, not subroutines. Legal keys are listed below.
+
+&lt;P&gt;
+The subroutine &lt;CODE&gt;add&lt;/CODE&gt; will be called to execute &lt;CODE&gt;$a+$b&lt;/CODE&gt; if &lt;CODE&gt;$a&lt;/CODE&gt; is a reference to an object blessed into the package &lt;CODE&gt;Number&lt;/CODE&gt;, or if &lt;CODE&gt;$a&lt;/CODE&gt; is not an object from a package with defined
+mathemagic addition, but &lt;CODE&gt;$b&lt;/CODE&gt; is a reference to a &lt;CODE&gt;Number&lt;/CODE&gt;. It can also be called in other situations, like
+&lt;CODE&gt;$a+=7&lt;/CODE&gt;, or &lt;CODE&gt;$a++&lt;/CODE&gt;. See &lt;A HREF=&quot;#MAGIC_AUTOGENERATION&quot;&gt;MAGIC AUTOGENERATION&lt;/A&gt;. (Mathemagical methods refer to methods triggered by an overloaded
+mathematical operator.)
+
+&lt;P&gt;
+Since overloading respects inheritance via the &lt;CODE&gt;@ISA&lt;/CODE&gt; hierarchy,
+the above declaration would also trigger overloading of &lt;CODE&gt;+&lt;/CODE&gt; and &lt;CODE&gt;*=&lt;/CODE&gt; in all the packages which inherit from &lt;CODE&gt;Number&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Calling_Conventions_for_Binary_O&quot;&gt;Calling Conventions for Binary Operations&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The functions specified in the &lt;CODE&gt;use overload ...&lt;/CODE&gt; directive are called with three (in one particular case with four, see &lt;A HREF=&quot;#Last_Resort&quot;&gt;Last Resort&lt;/A&gt;) arguments. If the corresponding operation is binary, then the first two
+arguments are the two arguments of the operation. However, due to general
+object calling conventions, the first argument should always be an object
+in the package, so in the situation of &lt;CODE&gt;7+$a&lt;/CODE&gt;, the order of the arguments is interchanged. It probably does not matter
+when implementing the addition method, but whether the arguments are
+reversed is vital to the subtraction method. The method can query this
+information by examining the third argument, which can take three different
+values:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FALSE&quot;&gt;FALSE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+the order of arguments is as in the current operation.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TRUE&quot;&gt;TRUE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+the arguments are reversed.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_undef&quot;&gt;undef&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+the current operation is an assignment variant (as in
+&lt;CODE&gt;$a+=7&lt;/CODE&gt;), but the usual function is called instead. This additional information
+can be used to generate some optimizations. Compare
+&lt;A HREF=&quot;#Calling_Conventions_for_Mutators&quot;&gt;Calling Conventions for Mutators&lt;/A&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Calling_Conventions_for_Unary_Op&quot;&gt;Calling Conventions for Unary Operations&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Unary operation are considered binary operations with the second argument
+being [perlfunc:undef|undef]. Thus the functions that overloads &lt;CODE&gt;{&amp;quot;++&amp;quot;}&lt;/CODE&gt;
+is called with arguments &lt;CODE&gt;($a,undef,'')&lt;/CODE&gt; when $a++ is executed.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Calling_Conventions_for_Mutators&quot;&gt;Calling Conventions for Mutators&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Two types of mutators have different calling conventions:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__&quot;&gt;++ and --&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The routines which implement these operators are expected to actually
+&lt;EM&gt;mutate&lt;/EM&gt; their arguments. So, assuming that &lt;CODE&gt;$obj&lt;/CODE&gt; is a reference to a
+number,
+
+&lt;P&gt;
+&lt;PRE&gt;  sub incr { my $n = $ {$_&amp;#091;0&amp;#093;}; ++$n; $_&amp;#091;0&amp;#093; = bless \$n}
+&lt;/PRE&gt;
+&lt;P&gt;
+is an appropriate implementation of overloaded &lt;CODE&gt;++&lt;/CODE&gt;. Note that
+
+&lt;P&gt;
+&lt;PRE&gt;  sub incr { ++$ {$_&amp;#091;0&amp;#093;} ; shift }
+&lt;/PRE&gt;
+&lt;P&gt;
+is 
+&lt;FONT SIZE=-1&gt;OK&lt;/FONT&gt; if used with preincrement and with postincrement.
+(In the case of postincrement a copying will be performed, see &lt;A HREF=&quot;#Copy_Constructor&quot;&gt;Copy Constructor&lt;/A&gt;.)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_x&quot;&gt;x= and other assignment versions&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+There is nothing special about these methods. They may change the value of
+their arguments, and may leave it as is. The result is going to be assigned
+to the value in the left-hand-side if different from this value.
+
+&lt;P&gt;
+This allows for the same method to be used as averloaded &lt;CODE&gt;+=&lt;/CODE&gt; and
+&lt;CODE&gt;+&lt;/CODE&gt;. Note that this is &lt;EM&gt;allowed&lt;/EM&gt;, but not recommended, since by the semantic of &lt;A HREF=&quot;#Fallback&quot;&gt;Fallback&lt;/A&gt; Perl will call the method for &lt;CODE&gt;+&lt;/CODE&gt; anyway, if &lt;CODE&gt;+=&lt;/CODE&gt; is not overloaded.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;STRONG&gt;Warning.&lt;/STRONG&gt;  Due to the presense of assignment versions of operations, routines which
+may be called in assignment context may create self-referencial structures.
+Currently Perl will not free self-referential structures until cycles are &lt;CODE&gt;explicitly&lt;/CODE&gt; broken. You may get problems when traversing your structures too.
+
+&lt;P&gt;
+Say, 
+
+&lt;P&gt;
+&lt;PRE&gt;  use overload '+' =&amp;gt; sub { bless &amp;#091; \$_&amp;#091;0&amp;#093;, \$_&amp;#091;1&amp;#093; &amp;#093; };
+&lt;/PRE&gt;
+&lt;P&gt;
+is asking for trouble, since for code &lt;CODE&gt;$obj += $foo&lt;/CODE&gt; the subroutine is called as &lt;CODE&gt;$obj = add($obj, $foo, undef)&lt;/CODE&gt;, or &lt;CODE&gt;$obj = &amp;#091;\$obj, 
+\$foo&amp;#093;&lt;/CODE&gt;. If using such a subroutine is an important optimization, one can overload &lt;CODE&gt;+=&lt;/CODE&gt; explicitly by a non-``optimized'' version, or switch to non-optimized
+version if &lt;CODE&gt;not defined $_&amp;#091;2&amp;#093;&lt;/CODE&gt; (see 
+&lt;A HREF=&quot;#Calling_Conventions_for_Binary_O&quot;&gt;Calling Conventions for Binary Operations&lt;/A&gt;).
+
+&lt;P&gt;
+Even if no &lt;EM&gt;explicit&lt;/EM&gt; assignment-variants of operators are present in the script, they may be
+generated by the optimizer. Say, &lt;CODE&gt;&amp;quot;,$obj,&amp;quot;&lt;/CODE&gt; or
+&lt;CODE&gt;',' . $obj . ','&lt;/CODE&gt; may be both optimized to
+
+&lt;P&gt;
+&lt;PRE&gt;  my $tmp = ',' . $obj;    $tmp .= ',';
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Overloadable_Operations&quot;&gt;Overloadable Operations&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The following symbols can be specified in &lt;CODE&gt;use overload&lt;/CODE&gt; directive:
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Arithmetic&quot;&gt;Arithmetic operations&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+&lt;PRE&gt;    &amp;quot;+&amp;quot;, &amp;quot;+=&amp;quot;, &amp;quot;-&amp;quot;, &amp;quot;-=&amp;quot;, &amp;quot;*&amp;quot;, &amp;quot;*=&amp;quot;, &amp;quot;/&amp;quot;, &amp;quot;/=&amp;quot;, &amp;quot;%&amp;quot;, &amp;quot;%=&amp;quot;,
+    &amp;quot;**&amp;quot;, &amp;quot;**=&amp;quot;, &amp;quot;&amp;lt;&amp;lt;&amp;quot;, &amp;quot;&amp;lt;&amp;lt;=&amp;quot;, &amp;quot;&amp;gt;&amp;gt;&amp;quot;, &amp;quot;&amp;gt;&amp;gt;=&amp;quot;, &amp;quot;x&amp;quot;, &amp;quot;x=&amp;quot;, &amp;quot;.&amp;quot;, &amp;quot;.=&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+For these operations a substituted non-assignment variant can be called if
+the assignment variant is not available. Methods for operations ``&lt;CODE&gt;+&lt;/CODE&gt;'', ``&lt;CODE&gt;-&lt;/CODE&gt;'', ``&lt;CODE&gt;+=&lt;/CODE&gt;'', and ``&lt;CODE&gt;-=&lt;/CODE&gt;'' can be called to automatically generate increment and decrement methods.
+The operation ``&lt;CODE&gt;-&lt;/CODE&gt;'' can be used to autogenerate missing methods for unary minus or [perlfunc:abs|abs].
+
+&lt;P&gt;
+See &lt;A HREF=&quot;#MAGIC_AUTOGENERATION&quot;&gt;MAGIC AUTOGENERATION&lt;/A&gt;, &lt;A HREF=&quot;#Calling_Conventions_for_Mutators&quot;&gt;Calling Conventions for Mutators&lt;/A&gt; and
+&lt;A HREF=&quot;#Calling_Conventions_for_Binary_O&quot;&gt;Calling Conventions for Binary Operations&lt;/A&gt;) for details of these substitutions.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Comparison&quot;&gt;Comparison operations&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;    &amp;quot;&amp;lt;&amp;quot;,  &amp;quot;&amp;lt;=&amp;quot;, &amp;quot;&amp;gt;&amp;quot;,  &amp;quot;&amp;gt;=&amp;quot;, &amp;quot;==&amp;quot;, &amp;quot;!=&amp;quot;, &amp;quot;&amp;lt;=&amp;gt;&amp;quot;,
+    &amp;quot;lt&amp;quot;, &amp;quot;le&amp;quot;, &amp;quot;gt&amp;quot;, &amp;quot;ge&amp;quot;, &amp;quot;eq&amp;quot;, &amp;quot;ne&amp;quot;, &amp;quot;cmp&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+If the corresponding ``spaceship'' variant is available, it can be used to
+substitute for the missing operation. During [perlfunc:sort|sort]ing arrays, &lt;CODE&gt;cmp&lt;/CODE&gt; is used to compare values subject to &lt;CODE&gt;use overload&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Bit&quot;&gt;Bit operations&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;    &amp;quot;&amp;amp;&amp;quot;, &amp;quot;^&amp;quot;, &amp;quot;|&amp;quot;, &amp;quot;neg&amp;quot;, &amp;quot;!&amp;quot;, &amp;quot;~&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+``&lt;CODE&gt;neg&lt;/CODE&gt;'' stands for unary minus. If the method for &lt;CODE&gt;neg&lt;/CODE&gt; is not specified, it can be autogenerated using the method for subtraction.
+If the method for ``&lt;CODE&gt;!&lt;/CODE&gt;'' is not specified, it can be autogenerated using the methods for ``&lt;CODE&gt;bool&lt;/CODE&gt;'', or ``&lt;CODE&gt;\&amp;quot;\&amp;quot;&lt;/CODE&gt;'', or ``&lt;CODE&gt;0+&lt;/CODE&gt;''.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Increment&quot;&gt;Increment and decrement&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;    &amp;quot;++&amp;quot;, &amp;quot;--&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+If undefined, addition and subtraction methods can be used instead. These
+operations are called both in prefix and postfix form.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Transcendental&quot;&gt;Transcendental functions&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;    &amp;quot;atan2&amp;quot;, &amp;quot;cos&amp;quot;, &amp;quot;sin&amp;quot;, &amp;quot;exp&amp;quot;, &amp;quot;abs&amp;quot;, &amp;quot;log&amp;quot;, &amp;quot;sqrt&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+If [perlfunc:abs|abs] is unavailable, it can be autogenerated using methods for ``&amp;lt;'' or
+``&amp;lt;=&amp;gt;'' combined with either unary minus or subtraction.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Boolean&quot;&gt;Boolean, string and numeric conversion&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;    &amp;quot;bool&amp;quot;, &amp;quot;\&amp;quot;\&amp;quot;&amp;quot;, &amp;quot;0+&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+If one or two of these operations are unavailable, the remaining ones can
+be used instead.  &lt;CODE&gt;bool&lt;/CODE&gt; is used in the flow control operators (like &lt;CODE&gt;while&lt;/CODE&gt;) and for the ternary ``&lt;CODE&gt;?:&lt;/CODE&gt;'' operation. These functions can return any arbitrary Perl value. If the
+corresponding operation for this value is overloaded too, that operation
+will be called again with this value.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Special&quot;&gt;Special&lt;/A&gt;&lt;/STRONG&gt;
+
+&lt;PRE&gt;    &amp;quot;nomethod&amp;quot;, &amp;quot;fallback&amp;quot;, &amp;quot;=&amp;quot;,
+&lt;/PRE&gt;
+&lt;P&gt;
+see &lt;A HREF=&quot;#SPECIAL_SYMBOLS_FOR_C_use_overlo&quot;&gt;SPECIAL SYMBOLS FOR &lt;CODE&gt;use overload&lt;/CODE&gt;&lt;/A&gt;.
+
+&lt;/UL&gt;
+&lt;P&gt;
+See &lt;A HREF=&quot;#Fallback&quot;&gt;Fallback&lt;/A&gt; for an explanation of when a missing method can be autogenerated.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; computer-readable form of the above table is
+available in the hash %overload::ops, with values being space-separated
+lists of names:
+
+&lt;P&gt;
+&lt;PRE&gt; with_assign      =&amp;gt; '+ - * / % ** &amp;lt;&amp;lt; &amp;gt;&amp;gt; x .',
+ assign           =&amp;gt; '+= -= *= /= %= **= &amp;lt;&amp;lt;= &amp;gt;&amp;gt;= x= .=',
+ str_comparison   =&amp;gt; '&amp;lt; &amp;lt;= &amp;gt; &amp;gt;= == !=',
+ '3way_comparison'=&amp;gt; '&amp;lt;=&amp;gt; cmp',
+ num_comparison   =&amp;gt; 'lt le gt ge eq ne',
+ binary           =&amp;gt; '&amp;amp; | ^',
+ unary            =&amp;gt; 'neg ! ~',
+ mutators         =&amp;gt; '++ --',
+ func             =&amp;gt; 'atan2 cos sin exp abs log sqrt',
+ conversion       =&amp;gt; 'bool &amp;quot;&amp;quot; 0+',
+ special          =&amp;gt; 'nomethod fallback ='
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Inheritance_and_overloading&quot;&gt;Inheritance and overloading&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Inheritance interacts with overloading in two ways.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Strings&quot;&gt;Strings as values of use overload directive&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If &lt;CODE&gt;value&lt;/CODE&gt; in
+
+&lt;P&gt;
+&lt;PRE&gt;  use overload key =&amp;gt; value;
+&lt;/PRE&gt;
+&lt;P&gt;
+is a string, it is interpreted as a method name.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Overloading&quot;&gt;Overloading of an operation is inherited by derived classes&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Any class derived from an overloaded class is also overloaded. The set of
+overloaded methods is the union of overloaded methods of all the ancestors.
+If some method is overloaded in several ancestor, then which description
+will be used is decided by the usual inheritance rules:
+
+&lt;P&gt;
+If &lt;CODE&gt;A&lt;/CODE&gt; inherits from &lt;CODE&gt;B&lt;/CODE&gt; and [perlman:perlop|perlop] (in this order), &lt;CODE&gt;B&lt;/CODE&gt; overloads
+&lt;CODE&gt;+&lt;/CODE&gt; with &lt;CODE&gt;\&amp;amp;D::plus_sub&lt;/CODE&gt;, and [perlman:perlop|perlop] overloads &lt;CODE&gt;+&lt;/CODE&gt; by &lt;CODE&gt;&amp;quot;plus_meth&amp;quot;&lt;/CODE&gt;, then the subroutine &lt;CODE&gt;D::plus_sub&lt;/CODE&gt; will be called to implement operation &lt;CODE&gt;+&lt;/CODE&gt; for an object in package &lt;CODE&gt;A&lt;/CODE&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+Note that since the value of the &lt;CODE&gt;fallback&lt;/CODE&gt; key is not a subroutine, its inheritance is not governed by the above
+rules. In the current implementation, the value of &lt;CODE&gt;fallback&lt;/CODE&gt; in the first overloaded ancestor is used, but this is accidental and
+subject to change.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SPECIAL_SYMBOLS_FOR_C_use_overlo&quot;&gt;SPECIAL SYMBOLS FOR &lt;CODE&gt;use overload&lt;/CODE&gt;&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Three keys are recognized by Perl that are not covered by the above
+description.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Last_Resort&quot;&gt;Last Resort&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;CODE&gt;&amp;quot;nomethod&amp;quot;&lt;/CODE&gt; should be followed by a reference to a function of four parameters. If
+defined, it is called when the overloading mechanism cannot find a method
+for some operation. The first three arguments of this function coincide
+with the arguments for the corresponding method if it were found, the
+fourth argument is the symbol corresponding to the missing method. If
+several methods are tried, the last one is used. Say, &lt;CODE&gt;1-$a&lt;/CODE&gt; can be equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;        &amp;amp;nomethodMethod($a,1,1,&amp;quot;-&amp;quot;)
+&lt;/PRE&gt;
+&lt;P&gt;
+if the pair &lt;CODE&gt;&amp;quot;nomethod&amp;quot; =&amp;gt; &amp;quot;nomethodMethod&amp;quot;&lt;/CODE&gt; was specified in the
+&lt;CODE&gt;use overload&lt;/CODE&gt; directive.
+
+&lt;P&gt;
+If some operation cannot be resolved, and there is no function assigned to &lt;CODE&gt;&amp;quot;nomethod&amp;quot;&lt;/CODE&gt;, then an exception will be raised via 
+&lt;CODE&gt;die()--&lt;/CODE&gt; unless &lt;CODE&gt;&amp;quot;fallback&amp;quot;&lt;/CODE&gt; was specified as a key in &lt;CODE&gt;use overload&lt;/CODE&gt; directive.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Fallback&quot;&gt;Fallback&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The key &lt;CODE&gt;&amp;quot;fallback&amp;quot;&lt;/CODE&gt; governs what to do if a method for a particular operation is not found.
+Three different cases are possible depending on the value of &lt;CODE&gt;&amp;quot;fallback&amp;quot;&lt;/CODE&gt;:
+
+&lt;UL&gt;
+&lt;LI&gt;&lt;STRONG&gt;undef&lt;/STRONG&gt;
+&lt;P&gt;
+Perl tries to use a substituted method (see &lt;A HREF=&quot;#MAGIC_AUTOGENERATION&quot;&gt;MAGIC AUTOGENERATION&lt;/A&gt;). If this fails, it then tries to calls &lt;CODE&gt;&amp;quot;nomethod&amp;quot;&lt;/CODE&gt; value; if missing, an exception will be raised.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;TRUE&lt;/STRONG&gt;
+
+The same as for the [perlfunc:undef|undef] value, but no exception is raised. Instead, it silently reverts to what it
+would have done were there no &lt;CODE&gt;use overload&lt;/CODE&gt;
+present.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_defined&quot;&gt;defined, but FALSE&lt;/A&gt;&lt;/STRONG&gt;
+
+No autogeneration is tried. Perl tries to call
+&lt;CODE&gt;&amp;quot;nomethod&amp;quot;&lt;/CODE&gt; value, and if this is missing, raises an exception. 
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;STRONG&gt;Note.&lt;/STRONG&gt;  &lt;CODE&gt;&amp;quot;fallback&amp;quot;&lt;/CODE&gt; inheritance via &lt;CODE&gt;@ISA&lt;/CODE&gt; is not carved in stone yet, see &lt;A HREF=&quot;#Inheritance_and_overloading&quot;&gt;Inheritance and overloading&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Copy_Constructor&quot;&gt;Copy Constructor&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The value for &lt;CODE&gt;&amp;quot;=&amp;quot;&lt;/CODE&gt; is a reference to a function with three arguments, i.e., it looks like the
+other values in &lt;CODE&gt;use
+overload&lt;/CODE&gt;. However, it does not overload the Perl assignment operator. This would go
+against Camel hair.
+
+&lt;P&gt;
+This operation is called in the situations when a mutator is applied to a
+reference that shares its object with some other reference, such as
+
+&lt;P&gt;
+&lt;PRE&gt;        $a=$b; 
+        ++$a;
+&lt;/PRE&gt;
+&lt;P&gt;
+To make this change &lt;CODE&gt;$a&lt;/CODE&gt; and not change $b, a copy of &lt;CODE&gt;$$a&lt;/CODE&gt; is made, and &lt;CODE&gt;$a&lt;/CODE&gt; is assigned a reference to this new object.
+This operation is done during execution of the &lt;CODE&gt;++$a&lt;/CODE&gt;, and not during the assignment, (so before the increment &lt;CODE&gt;$$a&lt;/CODE&gt; coincides with &lt;CODE&gt;$$b&lt;/CODE&gt;). This is only done if &lt;CODE&gt;++&lt;/CODE&gt; is expressed via a method for &lt;CODE&gt;'++'&lt;/CODE&gt; or &lt;CODE&gt;'+='&lt;/CODE&gt; (or
+&lt;CODE&gt;nomethod&lt;/CODE&gt;). Note that if this operation is expressed via &lt;CODE&gt;'+'&lt;/CODE&gt;
+a nonmutator, i.e., as in
+
+&lt;P&gt;
+&lt;PRE&gt;        $a=$b; 
+        $a=$a+1;
+&lt;/PRE&gt;
+&lt;P&gt;
+then &lt;CODE&gt;$a&lt;/CODE&gt; does not reference a new copy of &lt;CODE&gt;$$a&lt;/CODE&gt;, since &lt;CODE&gt;$$a&lt;/CODE&gt; does not appear as lvalue when the above code is
+executed.
+
+&lt;P&gt;
+If the copy constructor is required during the execution of some mutator,
+but a method for &lt;CODE&gt;'='&lt;/CODE&gt; was not specified, it can be autogenerated as a string copy if the object
+is a plain scalar.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Example&quot;&gt;Example&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The actually executed code for 
+
+&lt;P&gt;
+&lt;PRE&gt;        $a=$b; 
+        Something else which does not modify $a or $b....
+        ++$a;
+&lt;/PRE&gt;
+&lt;P&gt;
+may be
+
+&lt;P&gt;
+&lt;PRE&gt;        $a=$b; 
+        Something else which does not modify $a or $b....
+        $a = $a-&amp;gt;clone(undef,&amp;quot;&amp;quot;);
+        $a-&amp;gt;incr(undef,&amp;quot;&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+if &lt;CODE&gt;$b&lt;/CODE&gt; was mathemagical, and &lt;CODE&gt;'++'&lt;/CODE&gt; was overloaded with &lt;CODE&gt;\&amp;amp;incr&lt;/CODE&gt;,
+&lt;CODE&gt;'='&lt;/CODE&gt; was overloaded with &lt;CODE&gt;\&amp;amp;clone&lt;/CODE&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+Same behaviour is triggered by &lt;CODE&gt;$b = $a++&lt;/CODE&gt;, which is consider a synonim for
+&lt;CODE&gt;$b = $a; ++$a&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;MAGIC_AUTOGENERATION&quot;&gt;MAGIC AUTOGENERATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+If a method for an operation is not found, and the value for  &lt;CODE&gt;&amp;quot;fallback&amp;quot;&lt;/CODE&gt; is 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; or undefined, Perl tries to autogenerate a
+substitute method for the missing operation based on the defined
+operations. Autogenerated method substitutions are possible for the
+following operations:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Assignment&quot;&gt;Assignment forms of arithmetic operations&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;$a+=$b&lt;/CODE&gt; can use the method for &lt;CODE&gt;&amp;quot;+&amp;quot;&lt;/CODE&gt; if the method for &lt;CODE&gt;&amp;quot;+=&amp;quot;&lt;/CODE&gt;
+is not defined.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Conversion&quot;&gt;Conversion operations&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+String, numeric, and boolean conversion are calculated in terms of one
+another if not all of them are defined.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Increment&quot;&gt;Increment and decrement&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;++$a&lt;/CODE&gt; operation can be expressed in terms of &lt;CODE&gt;$a+=1&lt;/CODE&gt; or &lt;CODE&gt;$a+1&lt;/CODE&gt;, and &lt;CODE&gt;$a--&lt;/CODE&gt; in terms of &lt;CODE&gt;$a-=1&lt;/CODE&gt; and &lt;CODE&gt;$a-1&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_abs&quot;&gt;abs($a)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+can be expressed in terms of &lt;CODE&gt;$a&amp;lt;0&lt;/CODE&gt; and &lt;CODE&gt;-$a&lt;/CODE&gt; (or &lt;CODE&gt;0-$a&lt;/CODE&gt;).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Unary&quot;&gt;Unary minus&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+can be expressed in terms of subtraction.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Negation&quot;&gt;Negation&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;CODE&gt;!&lt;/CODE&gt; and &lt;CODE&gt;not&lt;/CODE&gt; can be expressed in terms of boolean conversion, or string or numerical
+conversion.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Concatenation&quot;&gt;Concatenation&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+can be expressed in terms of string conversion.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Comparison&quot;&gt;Comparison operations&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+can be expressed in terms of its ``spaceship'' counterpart: either
+&lt;CODE&gt;&amp;lt;=&amp;gt;&lt;/CODE&gt; or &lt;CODE&gt;cmp&lt;/CODE&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;lt;, &amp;gt;, &amp;lt;=, &amp;gt;=, ==, !=        in terms of &amp;lt;=&amp;gt;
+    lt, gt, le, ge, eq, ne      in terms of cmp
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Copy&quot;&gt;Copy operator&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+can be expressed in terms of an assignment to the dereferenced value, if
+this value is a scalar and not a reference.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Losing_overloading&quot;&gt;Losing overloading&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The restriction for the comparison operation is that even if, for example,
+`&lt;CODE&gt;cmp&lt;/CODE&gt;' should return a blessed reference, the autogenerated `&lt;CODE&gt;lt&lt;/CODE&gt;' function will produce only a standard logical value based on the
+numerical value of the result of `&lt;CODE&gt;cmp&lt;/CODE&gt;'. In particular, a working numeric conversion is needed in this case
+(possibly expressed in terms of other conversions).
+
+&lt;P&gt;
+Similarly, &lt;CODE&gt;.=&lt;/CODE&gt;  and &lt;CODE&gt;x=&lt;/CODE&gt; operators lose their mathemagical properties if the string conversion
+substitution is applied.
+
+&lt;P&gt;
+When you 
+&lt;CODE&gt;chop()&lt;/CODE&gt; a mathemagical object it
+is promoted to a string and its mathemagical properties are lost. The same
+can happen with other operations as well.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Run_time_Overloading&quot;&gt;Run-time Overloading&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Since all [perlfunc:use|use] directives are executed at compile-time, the only way to change overloading
+during run-time is to
+
+&lt;P&gt;
+&lt;PRE&gt;    eval 'use overload &amp;quot;+&amp;quot; =&amp;gt; \&amp;amp;addmethod';
+&lt;/PRE&gt;
+&lt;P&gt;
+You can also use
+
+&lt;P&gt;
+&lt;PRE&gt;    eval 'no overload &amp;quot;+&amp;quot;, &amp;quot;--&amp;quot;, &amp;quot;&amp;lt;=&amp;quot;';
+&lt;/PRE&gt;
+&lt;P&gt;
+though the use of these constructs during run-time is questionable.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Public_functions&quot;&gt;Public functions&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Package &lt;CODE&gt;overload.pm&lt;/CODE&gt; provides the following public functions:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_overload&quot;&gt;overload::StrVal(arg)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Gives string value of &lt;CODE&gt;arg&lt;/CODE&gt; as in absence of stringify overloading.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_overload&quot;&gt;overload::Overloaded(arg)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns true if &lt;CODE&gt;arg&lt;/CODE&gt; is subject to overloading of some operations.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_overload&quot;&gt;overload::Method(obj,op)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns [perlfunc:undef|undef] or a reference to the method that implements &lt;CODE&gt;op&lt;/CODE&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Overloading_constants&quot;&gt;Overloading constants&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+For some application Perl parser mangles constants too much. It is possible
+to hook into this process via overload::constant() and
+overload::remove_constant() functions.
+
+&lt;P&gt;
+These functions take a hash as an argument. The recognized keys of this
+hash are
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_integer&quot;&gt;integer&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+to overload integer constants,
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_float&quot;&gt;float&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+to overload floating point constants,
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_binary&quot;&gt;binary&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+to overload octal and hexadecimal constants,
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_q&quot;&gt;q&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+to overload [perlman:perlop|perlop]-quoted strings, constant pieces of [perlman:perlop|perlop]- and [perlman:perlop|perlop]-quoted strings and here-documents,
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_qr&quot;&gt;qr&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+to overload constant pieces of regular expressions.
+
+&lt;/DL&gt;
+&lt;P&gt;
+The corresponding values are references to functions which take three
+arguments: the first one is the &lt;EM&gt;initial&lt;/EM&gt; string form of the constant, the second one is how Perl interprets this
+constant, the third one is how the constant is used. Note that the initial
+string form does not contain string delimiters, and has backslashes in
+backslash-delimiter combinations stripped (thus the value of delimiter is
+not relevant for processing of this string). The return value of this
+function is how this constant is going to be interpreted by Perl. The third
+argument is undefined unless for overloaded [perlman:perlop|perlop]- and [perlman:perlop|perlop]- constants, it is [perlman:perlop|perlop] in single-quote context (comes from strings, regular expressions, and single-quote 
+&lt;FONT SIZE=-1&gt;HERE&lt;/FONT&gt; documents), it is
+ [perlman:perlop|perlop] for arguments of [perlman:perlop|perlop]/[perlman:perlop|perlop] operators, it is [perlman:perlop|perlop] for right-hand side of [perlman:perlop|perlop]-operator, and it is [perlman:perlop|perlop] otherwise.
+
+&lt;P&gt;
+Since an expression &lt;CODE&gt;&amp;quot;ab$cd,,&amp;quot;&lt;/CODE&gt; is just a shortcut for &lt;CODE&gt;'ab' . $cd . ',,'&lt;/CODE&gt;, it is expected that overloaded constant strings are equipped with
+reasonable overloaded catenation operator, otherwise absurd results will
+result. Similarly, negative numbers are considered as negations of positive
+constants.
+
+&lt;P&gt;
+Note that it is probably meaningless to call the functions overload::constant() and overload::remove_constant() from anywhere but 
+&lt;CODE&gt;import()&lt;/CODE&gt; and 
+&lt;CODE&gt;unimport()&lt;/CODE&gt; methods. From these methods they may be called as
+
+&lt;P&gt;
+&lt;PRE&gt;        sub import {
+          shift;
+          return unless @_;
+          die &amp;quot;unknown import: @_&amp;quot; unless @_ == 1 and $_&amp;#091;0&amp;#093; eq ':constant';
+          overload::constant integer =&amp;gt; sub {Math::BigInt-&amp;gt;new(shift)};
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;BUGS&lt;/STRONG&gt; Currently overloaded-ness of constants does not propagate into [perlfunc:eval|eval].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;IMPLEMENTATION&quot;&gt;IMPLEMENTATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+What follows is subject to change 
+&lt;FONT SIZE=-1&gt;RSN.&lt;/FONT&gt;
+
+&lt;P&gt;
+The table of methods for all operations is cached in magic for the symbol
+table hash for the package. The cache is invalidated during processing of &lt;CODE&gt;use overload&lt;/CODE&gt;, &lt;CODE&gt;no overload&lt;/CODE&gt;, new function definitions, and changes in 
+&lt;FONT SIZE=-1&gt;@ISA.&lt;/FONT&gt; However, this invalidation remains unprocessed
+until the next [perlfunc:bless|bless]ing into the package. Hence if you want to change overloading structure
+dynamically, you'll need an additional (fake) [perlfunc:bless|bless]ing to update the table.
+
+&lt;P&gt;
+(Every SVish thing has a magic queue, and magic is an entry in that queue.
+This is how a single variable may participate in multiple forms of magic
+simultaneously. For instance, environment variables regularly have two
+forms at once: their &lt;CODE&gt;%ENV&lt;/CODE&gt; magic and their taint magic.
+However, the magic which implements overloading is applied to the stashes,
+which are rarely used directly, thus should not slow down Perl.)
+
+&lt;P&gt;
+If an object belongs to a package using overload, it carries a special
+flag. Thus the only speed penalty during arithmetic operations without
+overloading is the checking of this flag.
+
+&lt;P&gt;
+In fact, if &lt;CODE&gt;use overload&lt;/CODE&gt; is not present, there is almost no overhead for overloadable operations, so most programs should not suffer measurable performance penalties. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; considerable effort was made to minimize the overhead when overload is used in some package, but the arguments in question do not belong to packages using overload. When in doubt, test your speed with
+ &lt;CODE&gt;use overload&lt;/CODE&gt; and without it. So far there have been no reports of substantial speed
+degradation if Perl is compiled with optimization turned on.
+
+&lt;P&gt;
+There is no size penalty for data if overload is not used. The only size
+penalty if overload is used in some package is that &lt;EM&gt;all&lt;/EM&gt; the packages acquire a magic during the next [perlfunc:bless|bless]ing into the package. This magic is three-words-long for packages without
+overloading, and carries the cache tabel if the package is overloaded.
+
+&lt;P&gt;
+Copying (&lt;CODE&gt;$a=$b&lt;/CODE&gt;) is shallow; however, a one-level-deep copying is carried out before any
+operation that can imply an assignment to the object &lt;CODE&gt;$a&lt;/CODE&gt; (or
+$b) refers to, like &lt;CODE&gt;$a++&lt;/CODE&gt;. You can override this behavior by defining your own copy constructor (see &lt;A HREF=&quot;#Copy_Constructor&quot;&gt;Copy Constructor&lt;/A&gt;).
+
+&lt;P&gt;
+It is expected that arguments to methods that are not explicitly supposed
+to be changed are constant (but this is not enforced).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Metaphor_clash&quot;&gt;Metaphor clash&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+One may wonder why the semantic of overloaded &lt;CODE&gt;=&lt;/CODE&gt; is so counterintuive. If it &lt;EM&gt;looks&lt;/EM&gt; counterintuive to you, you are subject to a metaphor clash.  
+
+&lt;P&gt;
+Here is a Perl object metaphor:
+
+&lt;P&gt;
+&lt;EM&gt;&lt;PRE&gt;  object is a reference to blessed data
+&lt;/PRE&gt;
+&lt;/EM&gt;
+
+&lt;P&gt;
+and an arithmetic metaphor:
+
+&lt;P&gt;
+&lt;EM&gt;&lt;PRE&gt;  object is a thing by itself
+&lt;/PRE&gt;
+&lt;/EM&gt;.
+
+&lt;P&gt;
+The &lt;EM&gt;main&lt;/EM&gt; problem of overloading &lt;CODE&gt;=&lt;/CODE&gt; is the fact that these metaphors imply different actions on the assignment &lt;CODE&gt;$a = $b&lt;/CODE&gt; if &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt; are objects. Perl-think implies that
+&lt;CODE&gt;$a&lt;/CODE&gt; becomes a reference to whatever &lt;CODE&gt;$b&lt;/CODE&gt; was
+referencing. Arithmetic-think implies that the value of ``object''
+&lt;CODE&gt;$a&lt;/CODE&gt; is changed to become the value of the object $b, preserving
+the fact that &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt; are separate entities.
+
+&lt;P&gt;
+The difference is not relevant in the absence of mutators. After a Perl-way
+assignment an operation which mutates the data referenced by
+&lt;CODE&gt;$a&lt;/CODE&gt; would change the data referenced by &lt;CODE&gt;$b&lt;/CODE&gt; too.
+Effectively, after 
+&lt;CODE&gt;$a = $b&lt;/CODE&gt; values of &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt; become &lt;EM&gt;indistinguishable&lt;/EM&gt;.
+
+&lt;P&gt;
+On the other hand, anyone who has used algebraic notation knows the
+expressive power of the arithmetic metaphor. Overloading works hard to
+enable this metaphor while preserving the Perlian way as far as possible.
+Since it is not not possible to freely mix two contradicting metaphors,
+overloading allows the arithmetic way to write things &lt;EM&gt;as
+far as all the mutators are called via overloaded access only&lt;/EM&gt;. The way it is done is described in &lt;A HREF=&quot;#Copy_Constructor&quot;&gt;Copy Constructor&lt;/A&gt;.
+
+&lt;P&gt;
+If some mutator methods are directly applied to the overloaded values, one
+may need to &lt;EM&gt;explicitly unlink&lt;/EM&gt; other values which references the same value:
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = new Data 23;
+    ...
+    $b = $a;            # $b is &amp;quot;linked&amp;quot; to $a
+    ...
+    $a = $a-&amp;gt;clone;     # Unlink $b from $a
+    $a-&amp;gt;increment_by(4);
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that overloaded access makes this transparent:
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = new Data 23;
+    $b = $a;            # $b is &amp;quot;linked&amp;quot; to $a
+    $a += 4;            # would unlink $b automagically
+&lt;/PRE&gt;
+&lt;P&gt;
+However, it would not make
+
+&lt;P&gt;
+&lt;PRE&gt;    $a = new Data 23;
+    $a = 4;             # Now $a is a plain 4, not 'Data'
+&lt;/PRE&gt;
+&lt;P&gt;
+preserve ``objectness'' of $a. But Perl &lt;EM&gt;has&lt;/EM&gt; a way to make assignments to an object do whatever you want. It is just not the overload, but 
+&lt;CODE&gt;tie()ing&lt;/CODE&gt; interface (see
+ [perlfunc:tie|tie]). Adding a 
+&lt;CODE&gt;FETCH()&lt;/CODE&gt; method which returns the object itself, and 
+&lt;CODE&gt;STORE()&lt;/CODE&gt; method which changes the value of the object, one can reproduce the arithmetic metaphor in its completeness, at least for variables which were 
+&lt;CODE&gt;tie()d&lt;/CODE&gt; from the start.
+
+&lt;P&gt;
+(Note that a workaround for a bug may be needed, see &lt;A HREF=&quot;#BUGS&quot;&gt;BUGS&lt;/A&gt;.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Cookbook&quot;&gt;Cookbook&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Please add examples to what follows!
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Two_face_scalars&quot;&gt;Two-face scalars&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Put this in &lt;EM&gt;two_face.pm&lt;/EM&gt; in your Perl library directory:
+
+&lt;P&gt;
+&lt;PRE&gt;  package two_face;             # Scalars with separate string and
+                                # numeric values.
+  sub new { my $p = shift; bless &amp;#091;@_&amp;#093;, $p }
+  use overload '&amp;quot;&amp;quot;' =&amp;gt; \&amp;amp;str, '0+' =&amp;gt; \&amp;amp;num, fallback =&amp;gt; 1;
+  sub num {shift-&amp;gt;&amp;#091;1&amp;#093;}
+  sub str {shift-&amp;gt;&amp;#091;0&amp;#093;}
+&lt;/PRE&gt;
+&lt;P&gt;
+Use it as follows:
+
+&lt;P&gt;
+&lt;PRE&gt;  require two_face;
+  my $seven = new two_face (&amp;quot;vii&amp;quot;, 7);
+  printf &amp;quot;seven=$seven, seven=%d, eight=%d\n&amp;quot;, $seven, $seven+1;
+  print &amp;quot;seven contains `i'\n&amp;quot; if $seven =~ /i/;
+&lt;/PRE&gt;
+&lt;P&gt;
+(The second line creates a scalar which has both a string value, and a
+numeric value.) This prints:
+
+&lt;P&gt;
+&lt;PRE&gt;  seven=vii, seven=7, eight=8
+  seven contains `i'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Symbolic_calculator&quot;&gt;Symbolic calculator&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Put this in &lt;EM&gt;symbolic.pm&lt;/EM&gt; in your Perl library directory:
+
+&lt;P&gt;
+&lt;PRE&gt;  package symbolic;             # Primitive symbolic calculator
+  use overload nomethod =&amp;gt; \&amp;amp;wrap;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  sub new { shift; bless &amp;#091;'n', @_&amp;#093; }
+  sub wrap {
+    my ($obj, $other, $inv, $meth) = @_;
+    ($obj, $other) = ($other, $obj) if $inv;
+    bless &amp;#091;$meth, $obj, $other&amp;#093;;
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+This module is very unusual as overloaded modules go: it does not provide
+any usual overloaded operators, instead it provides the &lt;A HREF=&quot;#Last_Resort&quot;&gt;Last Resort&lt;/A&gt; operator &lt;CODE&gt;nomethod&lt;/CODE&gt;. In this example the corresponding subroutine returns an object which
+encupsulates operations done over the objects: &lt;CODE&gt;new symbolic 3&lt;/CODE&gt; contains &lt;CODE&gt;&amp;#091;'n', 3&amp;#093;&lt;/CODE&gt;, &lt;CODE&gt;2 + new
+symbolic 3&lt;/CODE&gt; contains &lt;CODE&gt;&amp;#091;'+', 2, &amp;#091;'n', 3&amp;#093;&amp;#093;&lt;/CODE&gt;.
+
+&lt;P&gt;
+Here is an example of the script which ``calculates'' the side of
+circumscribed octagon using the above package:
+
+&lt;P&gt;
+&lt;PRE&gt;  require symbolic;
+  my $iter = 1;                 # 2**($iter+2) = 8
+  my $side = new symbolic 1;
+  my $cnt = $iter;
+  
+  while ($cnt--) {
+    $side = (sqrt(1 + $side**2) - 1)/$side;
+  }
+  print &amp;quot;OK\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+The value of &lt;CODE&gt;$side&lt;/CODE&gt; is
+
+&lt;P&gt;
+&lt;PRE&gt;  &amp;#091;'/', &amp;#091;'-', &amp;#091;'sqrt', &amp;#091;'+', 1, &amp;#091;'**', &amp;#091;'n', 1&amp;#093;, 2&amp;#093;&amp;#093;,
+                       undef&amp;#093;, 1&amp;#093;, &amp;#091;'n', 1&amp;#093;&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that while we obtained this value using a nice little script, there is
+no simple way to &lt;EM&gt;use&lt;/EM&gt; this value. In fact this value may be inspected in debugger (see [perlman:perldebug|perldebug]), but ony if
+&lt;CODE&gt;bareStringify&lt;/CODE&gt;  &lt;STRONG&gt;O&lt;/STRONG&gt;ption is set, and not via &lt;CODE&gt;p&lt;/CODE&gt; command.
+
+&lt;P&gt;
+If one attempts to print this value, then the overloaded operator
+&lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt; will be called, which will call &lt;CODE&gt;nomethod&lt;/CODE&gt; operator. The result of this operator will be stringified again, but this
+result is again of type &lt;CODE&gt;symbolic&lt;/CODE&gt;, which will lead to an infinite loop.
+
+&lt;P&gt;
+Add a pretty-printer method to the module &lt;EM&gt;symbolic.pm&lt;/EM&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;  sub pretty {
+    my ($meth, $a, $b) = @{+shift};
+    $a = 'u' unless defined $a;
+    $b = 'u' unless defined $b;
+    $a = $a-&amp;gt;pretty if ref $a;
+    $b = $b-&amp;gt;pretty if ref $b;
+    &amp;quot;&amp;#091;$meth $a $b&amp;#093;&amp;quot;;
+  } 
+&lt;/PRE&gt;
+&lt;P&gt;
+Now one can finish the script by
+
+&lt;P&gt;
+&lt;PRE&gt;  print &amp;quot;side = &amp;quot;, $side-&amp;gt;pretty, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+The method &lt;CODE&gt;pretty&lt;/CODE&gt; is doing object-to-string conversion, so it is natural to overload the
+operator &lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt; using this method. However, inside such a method it is not necessary to
+pretty-print the
+&lt;EM&gt;components&lt;/EM&gt; &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt; of an object. In the above subroutine
+&lt;CODE&gt;&amp;quot;&amp;#091;$meth $a $b&amp;#093;&amp;quot;&lt;/CODE&gt; is a catenation of some strings and components &lt;CODE&gt;$a&lt;/CODE&gt; and $b. If
+these components use overloading, the catenation operator will look for an
+overloaded operator &lt;CODE&gt;.&lt;/CODE&gt;, if not present, it will look for an overloaded operator &lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt;. Thus it is enough to use
+
+&lt;P&gt;
+&lt;PRE&gt;  use overload nomethod =&amp;gt; \&amp;amp;wrap, '&amp;quot;&amp;quot;' =&amp;gt; \&amp;amp;str;
+  sub str {
+    my ($meth, $a, $b) = @{+shift};
+    $a = 'u' unless defined $a;
+    $b = 'u' unless defined $b;
+    &amp;quot;&amp;#091;$meth $a $b&amp;#093;&amp;quot;;
+  } 
+&lt;/PRE&gt;
+&lt;P&gt;
+Now one can change the last line of the script to
+
+&lt;P&gt;
+&lt;PRE&gt;  print &amp;quot;side = $side\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+which outputs
+
+&lt;P&gt;
+&lt;PRE&gt;  side = &amp;#091;/ &amp;#091;- &amp;#091;sqrt &amp;#091;+ 1 &amp;#091;** &amp;#091;n 1 u&amp;#093; 2&amp;#093;&amp;#093; u&amp;#093; 1&amp;#093; &amp;#091;n 1 u&amp;#093;&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+and one can inspect the value in debugger using all the possible methods.  
+
+&lt;P&gt;
+Something is is still amiss: consider the loop variable &lt;CODE&gt;$cnt&lt;/CODE&gt;
+of the script. It was a number, not an object. We cannot make this value of
+type &lt;CODE&gt;symbolic&lt;/CODE&gt;, since then the loop will not terminate.
+
+&lt;P&gt;
+Indeed, to terminate the cycle, the &lt;CODE&gt;$cnt&lt;/CODE&gt; should become false.
+However, the operator &lt;CODE&gt;bool&lt;/CODE&gt; for checking falsity is overloaded (this time via overloaded &lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt;), and returns a long string, thus any object of type &lt;CODE&gt;symbolic&lt;/CODE&gt; is true. To overcome this, we need a way to compare an object to 0. In
+fact, it is easier to write a numeric conversion routine.
+
+&lt;P&gt;
+Here is the text of &lt;EM&gt;symbolic.pm&lt;/EM&gt; with such a routine added (and slightly modifed 
+&lt;CODE&gt;str()):&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;  package symbolic;             # Primitive symbolic calculator
+  use overload
+    nomethod =&amp;gt; \&amp;amp;wrap, '&amp;quot;&amp;quot;' =&amp;gt; \&amp;amp;str, '0+' =&amp;gt; \&amp;amp;num;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  sub new { shift; bless &amp;#091;'n', @_&amp;#093; }
+  sub wrap {
+    my ($obj, $other, $inv, $meth) = @_;
+    ($obj, $other) = ($other, $obj) if $inv;
+    bless &amp;#091;$meth, $obj, $other&amp;#093;;
+  }
+  sub str {
+    my ($meth, $a, $b) = @{+shift};
+    $a = 'u' unless defined $a;
+    if (defined $b) {
+      &amp;quot;&amp;#091;$meth $a $b&amp;#093;&amp;quot;;
+    } else {
+      &amp;quot;&amp;#091;$meth $a&amp;#093;&amp;quot;;
+    }
+  } 
+  my %subr = ( n =&amp;gt; sub {$_&amp;#091;0&amp;#093;}, 
+               sqrt =&amp;gt; sub {sqrt $_&amp;#091;0&amp;#093;}, 
+               '-' =&amp;gt; sub {shift() - shift()},
+               '+' =&amp;gt; sub {shift() + shift()},
+               '/' =&amp;gt; sub {shift() / shift()},
+               '*' =&amp;gt; sub {shift() * shift()},
+               '**' =&amp;gt; sub {shift() ** shift()},
+             );
+  sub num {
+    my ($meth, $a, $b) = @{+shift};
+    my $subr = $subr{$meth} 
+      or die &amp;quot;Do not know how to ($meth) in symbolic&amp;quot;;
+    $a = $a-&amp;gt;num if ref $a eq __PACKAGE__;
+    $b = $b-&amp;gt;num if ref $b eq __PACKAGE__;
+    $subr-&amp;gt;($a,$b);
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+All the work of numeric conversion is done in &lt;CODE&gt;%subr&lt;/CODE&gt; and 
+&lt;CODE&gt;num().&lt;/CODE&gt; Of course, &lt;CODE&gt;%subr&lt;/CODE&gt; is not complete, it contains only operators used in teh example below. Here is the extra-credit question: why do we need an explicit recursion in 
+&lt;CODE&gt;num()?&lt;/CODE&gt; (Answer is at the end of this section.)
+
+&lt;P&gt;
+Use this module like this:
+
+&lt;P&gt;
+&lt;PRE&gt;  require symbolic;
+  my $iter = new symbolic 2;    # 16-gon
+  my $side = new symbolic 1;
+  my $cnt = $iter;
+  
+  while ($cnt) {
+    $cnt = $cnt - 1;            # Mutator `--' not implemented
+    $side = (sqrt(1 + $side**2) - 1)/$side;
+  }
+  printf &amp;quot;%s=%f\n&amp;quot;, $side, $side;
+  printf &amp;quot;pi=%f\n&amp;quot;, $side*(2**($iter+2));
+&lt;/PRE&gt;
+&lt;P&gt;
+It prints (without so many line breaks)
+
+&lt;P&gt;
+&lt;PRE&gt;  &amp;#091;/ &amp;#091;- &amp;#091;sqrt &amp;#091;+ 1 &amp;#091;** &amp;#091;/ &amp;#091;- &amp;#091;sqrt &amp;#091;+ 1 &amp;#091;** &amp;#091;n 1&amp;#093; 2&amp;#093;&amp;#093;&amp;#093; 1&amp;#093;
+                          &amp;#091;n 1&amp;#093;&amp;#093; 2&amp;#093;&amp;#093;&amp;#093; 1&amp;#093;
+     &amp;#091;/ &amp;#091;- &amp;#091;sqrt &amp;#091;+ 1 &amp;#091;** &amp;#091;n 1&amp;#093; 2&amp;#093;&amp;#093;&amp;#093; 1&amp;#093; &amp;#091;n 1&amp;#093;&amp;#093;&amp;#093;=0.198912
+  pi=3.182598
+&lt;/PRE&gt;
+&lt;P&gt;
+The above module is very primitive. It does not implement mutator methods (&lt;CODE&gt;++&lt;/CODE&gt;, &lt;CODE&gt;-=&lt;/CODE&gt; and so on), does not do deep copying (not required without mutators!), and
+implements only those arithmetic operations which are used in the example.
+
+&lt;P&gt;
+To implement most arithmetic operattions is easy, one should just use the
+tables of operations, and change the code which fills &lt;CODE&gt;%subr&lt;/CODE&gt; to
+
+&lt;P&gt;
+&lt;PRE&gt;  my %subr = ( 'n' =&amp;gt; sub {$_&amp;#091;0&amp;#093;} );
+  foreach my $op (split &amp;quot; &amp;quot;, $overload::ops{with_assign}) {
+    $subr{$op} = $subr{&amp;quot;$op=&amp;quot;} = eval &amp;quot;sub {shift() $op shift()}&amp;quot;;
+  }
+  my @bins = qw(binary 3way_comparison num_comparison str_comparison);
+  foreach my $op (split &amp;quot; &amp;quot;, &amp;quot;@overload::ops{ @bins }&amp;quot;) {
+    $subr{$op} = eval &amp;quot;sub {shift() $op shift()}&amp;quot;;
+  }
+  foreach my $op (split &amp;quot; &amp;quot;, &amp;quot;@overload::ops{qw(unary func)}&amp;quot;) {
+    print &amp;quot;defining `$op'\n&amp;quot;;
+    $subr{$op} = eval &amp;quot;sub {$op shift()}&amp;quot;;
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+Due to &lt;A HREF=&quot;#Calling_Conventions_for_Mutators&quot;&gt;Calling Conventions for Mutators&lt;/A&gt;, we do not need anything special to make &lt;CODE&gt;+=&lt;/CODE&gt; and friends work, except filling &lt;CODE&gt;+=&lt;/CODE&gt; entry of %subr, and defining a copy constructor (needed since Perl has no
+way to know that the implementation of &lt;CODE&gt;'+='&lt;/CODE&gt; does not mutate the argument, compare &lt;A HREF=&quot;#Copy_Constructor&quot;&gt;Copy Constructor&lt;/A&gt;).
+
+&lt;P&gt;
+To implement a copy constructor, add &lt;CODE&gt;'=' =&lt;/CODE&gt; \&amp;amp;cpy&amp;gt; to &lt;CODE&gt;use overload&lt;/CODE&gt;
+line, and code (this code assumes that mutators change things one level
+deep only, so recursive copying is not needed):
+
+&lt;P&gt;
+&lt;PRE&gt;  sub cpy {
+    my $self = shift;
+    bless &amp;#091;@$self&amp;#093;, ref $self;
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+To make &lt;CODE&gt;++&lt;/CODE&gt; and &lt;CODE&gt;--&lt;/CODE&gt; work, we need to implement actual mutators, either directly, or in &lt;CODE&gt;nomethod&lt;/CODE&gt;. We continue to do things inside
+&lt;CODE&gt;nomethod&lt;/CODE&gt;, thus add
+
+&lt;P&gt;
+&lt;PRE&gt;    if ($meth eq '++' or $meth eq '--') {
+      @$obj = ($meth, (bless &amp;#091;@$obj&amp;#093;), 1); # Avoid circular reference
+      return $obj;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+after the first line of 
+&lt;CODE&gt;wrap().&lt;/CODE&gt; This is not a most
+effective implementation, one may consider
+
+&lt;P&gt;
+&lt;PRE&gt;  sub inc { $_&amp;#091;0&amp;#093; = bless &amp;#091;'++', shift, 1&amp;#093;; }
+&lt;/PRE&gt;
+&lt;P&gt;
+instead.
+
+&lt;P&gt;
+As a final remark, note that one can fill &lt;CODE&gt;%subr&lt;/CODE&gt; by
+
+&lt;P&gt;
+&lt;PRE&gt;  my %subr = ( 'n' =&amp;gt; sub {$_&amp;#091;0&amp;#093;} );
+  foreach my $op (split &amp;quot; &amp;quot;, $overload::ops{with_assign}) {
+    $subr{$op} = $subr{&amp;quot;$op=&amp;quot;} = eval &amp;quot;sub {shift() $op shift()}&amp;quot;;
+  }
+  my @bins = qw(binary 3way_comparison num_comparison str_comparison);
+  foreach my $op (split &amp;quot; &amp;quot;, &amp;quot;@overload::ops{ @bins }&amp;quot;) {
+    $subr{$op} = eval &amp;quot;sub {shift() $op shift()}&amp;quot;;
+  }
+  foreach my $op (split &amp;quot; &amp;quot;, &amp;quot;@overload::ops{qw(unary func)}&amp;quot;) {
+    $subr{$op} = eval &amp;quot;sub {$op shift()}&amp;quot;;
+  }
+  $subr{'++'} = $subr{'+'};
+  $subr{'--'} = $subr{'-'};
+&lt;/PRE&gt;
+&lt;P&gt;
+This finishes implementation of a primitive symbolic calculator in 50 lines
+of Perl code. Since the numeric values of subexpressions are not cached,
+the calculator is very slow.
+
+&lt;P&gt;
+Here is the answer for the exercise: In the case of 
+&lt;CODE&gt;str(),&lt;/CODE&gt; we need no explicit
+recursion since the overloaded &lt;CODE&gt;.&lt;/CODE&gt;-operator will fall back to an existing overloaded operator &lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt;. Overloaded arithmetic operators &lt;EM&gt;do not&lt;/EM&gt; fall back to numeric conversion if &lt;CODE&gt;fallback&lt;/CODE&gt; is not explicitly requested. Thus without an explicit recursion 
+&lt;CODE&gt;num()&lt;/CODE&gt; would convert &lt;CODE&gt;&amp;#091;'+', $a, $b&amp;#093;&lt;/CODE&gt; to &lt;CODE&gt;$a + $b&lt;/CODE&gt;, which would just rebuild the argument of 
+&lt;CODE&gt;num().&lt;/CODE&gt;
+
+&lt;P&gt;
+If you wonder why defaults for conversion are different for 
+&lt;CODE&gt;str()&lt;/CODE&gt; and 
+&lt;CODE&gt;num(),&lt;/CODE&gt; note how easy it was to write the symbolic calculator. This simplicity is due to an appropriate choice of defaults. One extra note: due to teh explicit recursion 
+&lt;CODE&gt;num()&lt;/CODE&gt; is more fragile than 
+&lt;CODE&gt;sym():&lt;/CODE&gt; we need to explicitly check for the type of &lt;CODE&gt;$a&lt;/CODE&gt; and $b. If componets &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt; happen to be of some related type, this may lead to problems.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;I_Really_symbolic_calculator&quot;&gt;&lt;EM&gt;Really&lt;/EM&gt; symbolic calculator&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+One may wonder why we call the above calculator symbolic. The reason is
+that the actual calculation of the value of expression is postponed until
+the value is &lt;EM&gt;used&lt;/EM&gt;.
+
+&lt;P&gt;
+To see it in action, add a method
+
+&lt;P&gt;
+&lt;PRE&gt;  sub STORE { 
+    my $obj = shift; 
+    $#$obj = 1; 
+    @$obj-&amp;gt;&amp;#091;0,1&amp;#093; = ('=', shift);
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+to the package &lt;CODE&gt;symbolic&lt;/CODE&gt;. After this change one can do
+
+&lt;P&gt;
+&lt;PRE&gt;  my $a = new symbolic 3;
+  my $b = new symbolic 4;
+  my $c = sqrt($a**2 + $b**2);
+&lt;/PRE&gt;
+&lt;P&gt;
+and the numeric value of &lt;CODE&gt;$c&lt;/CODE&gt; becomes 5. However, after calling
+
+&lt;P&gt;
+&lt;PRE&gt;  $a-&amp;gt;STORE(12);  $b-&amp;gt;STORE(5);
+&lt;/PRE&gt;
+&lt;P&gt;
+the numeric value of &lt;CODE&gt;$c&lt;/CODE&gt; becomes 13. There is no doubt now that
+the module symbolic provides a &lt;EM&gt;symbolic&lt;/EM&gt; calculator indeed.
+
+&lt;P&gt;
+To hide the rough edges under the hood, provide a 
+&lt;CODE&gt;tie()d&lt;/CODE&gt; interface to the
+package &lt;CODE&gt;symbolic&lt;/CODE&gt; (compare with &lt;A HREF=&quot;#Metaphor_clash&quot;&gt;Metaphor clash&lt;/A&gt;). Add methods
+
+&lt;P&gt;
+&lt;PRE&gt;  sub TIESCALAR { my $pack = shift; $pack-&amp;gt;new(@_) }
+  sub FETCH { shift }
+  sub nop {  }          # Around a bug
+&lt;/PRE&gt;
+&lt;P&gt;
+(the bug is described in &lt;A HREF=&quot;#BUGS&quot;&gt;BUGS&lt;/A&gt;). One can use this new interface as
+
+&lt;P&gt;
+&lt;PRE&gt;  tie $a, 'symbolic', 3;
+  tie $b, 'symbolic', 4;
+  $a-&amp;gt;nop;  $b-&amp;gt;nop;    # Around a bug
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  my $c = sqrt($a**2 + $b**2);
+&lt;/PRE&gt;
+&lt;P&gt;
+Now numeric value of &lt;CODE&gt;$c&lt;/CODE&gt; is 5. After &lt;CODE&gt;$a = 12; $b = 5&lt;/CODE&gt; the numeric value of &lt;CODE&gt;$c&lt;/CODE&gt; becomes 13. To insulate the user of
+the module add a method
+
+&lt;P&gt;
+&lt;PRE&gt;  sub vars { my $p = shift; tie($_, $p), $_-&amp;gt;nop foreach @_; }
+&lt;/PRE&gt;
+&lt;P&gt;
+Now
+
+&lt;P&gt;
+&lt;PRE&gt;  my ($a, $b);
+  symbolic-&amp;gt;vars($a, $b);
+  my $c = sqrt($a**2 + $b**2);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  $a = 3; $b = 4;
+  printf &amp;quot;c5  %s=%f\n&amp;quot;, $c, $c;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  $a = 12; $b = 5;
+  printf &amp;quot;c13  %s=%f\n&amp;quot;, $c, $c;
+&lt;/PRE&gt;
+&lt;P&gt;
+shows that the numeric value of &lt;CODE&gt;$c&lt;/CODE&gt; follows changes to the
+values of &lt;CODE&gt;$a&lt;/CODE&gt; and $b.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Ilya Zakharevich &amp;lt;&lt;EM&gt;ilya@math.mps.ohio-state.edu&lt;/EM&gt;&amp;gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DIAGNOSTICS&quot;&gt;DIAGNOSTICS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+When Perl is run with the &lt;STRONG&gt;-Do&lt;/STRONG&gt; switch or its equivalent, overloading induces diagnostic messages.
+
+&lt;P&gt;
+Using the [perlman:perlop|perlop] command of Perl debugger (see [perlman:perldebug|perldebug]) one can deduce which operations are overloaded (and which ancestor
+triggers this overloading). Say, if &lt;CODE&gt;eq&lt;/CODE&gt; is overloaded, then the method &lt;CODE&gt;(eq&lt;/CODE&gt;
+is shown by debugger. The method &lt;CODE&gt;()&lt;/CODE&gt; corresponds to the &lt;CODE&gt;fallback&lt;/CODE&gt;
+key (in fact a presence of this method shows that this package has
+overloading enabled, and it is what is used by the &lt;CODE&gt;Overloaded&lt;/CODE&gt;
+function of module &lt;CODE&gt;overload&lt;/CODE&gt;).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;BUGS&quot;&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Because it is used for overloading, the per-package hash
+&lt;CODE&gt;%OVERLOAD&lt;/CODE&gt; now has a special meaning in Perl. The symbol table
+is filled with names looking like line-noise.
+
+&lt;P&gt;
+For the purpose of inheritance every overloaded package behaves as if
+&lt;CODE&gt;fallback&lt;/CODE&gt; is present (possibly undefined). This may create interesting effects if
+some package is not overloaded, but inherits from two overloaded packages.
+
+&lt;P&gt;
+Relation between overloading and 
+&lt;CODE&gt;tie()ing&lt;/CODE&gt; is broken.
+Overloading is triggered or not basing on the &lt;EM&gt;previous&lt;/EM&gt; class of 
+&lt;CODE&gt;tie()d&lt;/CODE&gt; value.
+
+&lt;P&gt;
+This happens because the presence of overloading is checked too early, before any 
+&lt;CODE&gt;tie()d&lt;/CODE&gt; access is attempted. If the 
+&lt;CODE&gt;FETCH()ed&lt;/CODE&gt; class of the 
+&lt;CODE&gt;tie()d&lt;/CODE&gt; value does not change, a simple workaround is to access the value immediately after 
+&lt;CODE&gt;tie()ing,&lt;/CODE&gt; so that after this call the
+ &lt;EM&gt;previous&lt;/EM&gt; class coincides with the current one.
+
+&lt;P&gt;
+&lt;STRONG&gt;Needed:&lt;/STRONG&gt; a way to fix this without a speed penalty.
+
+&lt;P&gt;
+Barewords are not covered by overloaded string constants.
+
+&lt;P&gt;
+This document is confusing. There are grammos and misleading language used
+in places. It would seem a total rewrite is needed.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:49:32</createtime>
+  <node_id>1145</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    package SomeThing;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use overload 
+        '+' =&amp;gt; \&amp;amp;myadd,
+        '-' =&amp;gt; \&amp;amp;mysub;
+        # etc
+    ...
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    package main;
+    $a = new SomeThing 57;
+    $b=5+$a;
+    ...
+    if (overload::Over</synopsis>
+  <title>perlman:lib:overload</title>
+  <nodeupdated>2005-08-10 15:43:13</nodeupdated>
+</node>

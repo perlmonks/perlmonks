@@ -1,0 +1,977 @@
+<node>
+  <doctext>&lt;h3&gt;A crash course on trees&lt;/h3&gt;
+There are many theoretical things to say about trees.
+You are not going to hear them from me though.
+I will spend some words to explain the basics, from a
+pure utilitarian point of view.
+For a more complete view on trees, see Sean Burke's 
+&lt;a href=&quot;http://search.cpan.org/perldoc?HTML::Tree::AboutTrees&quot;&gt;article&lt;/a&gt; included in [CPAN://HTML::Tree], available on CPAN.
+&lt;br&gt;
+
+&lt;h4&gt;Tree types&lt;/h4&gt;
+When we talk about trees, we often mix two concepts
+both defined by the same word. A search tree, or
+&lt;B&gt;binary tree&lt;/B&gt; is a structure having two links per node, and
+it is used to sort items, store them and retrieve them
+efficiently. Then we have &lt;B&gt;B-Trees&lt;/B&gt;, having more than
+two links per node, commonly used to store information
+(usually indexes) bigger than the available memory. They
+use an algorithm to retrieve items from a disk and put them
+into the main memory on demand. Both binary trees and B-trees
+share the concept of a calculated insertion. A new node
+is inserted in the appropriate part of the tree depending
+on its value. These trees are indexing black boxes that
+accept a new value and store it following some pre-determined
+criteria and retrieve it quickly when required.
+&lt;br&gt;
+
+But we also have trees that don't insert nodes by their
+internal engine rules, and allow you to create complex
+structures to suit your needs. Trees of this sort don't
+insert nodes in the most appropriate spot, don't keep
+your nodes sorted, actually they don't know anything about
+sorting nodes. However, they keep your nodes ordered.
+What's the difference between sorted and ordered? &lt;B&gt;Sorted&lt;/B&gt;
+means that, given a rule, each node will end up in a
+determined logical position, every time we insert it
+into the tree. For example, given the rule &quot;alphabetical
+sort&quot;, a node with key &quot;c&quot; will be placed between two
+nodes with keys &quot;b&quot; and &quot;d&quot;. The physical position may
+change, but the logical result will always be the same.
+&lt;B&gt;Ordered&lt;/B&gt;, on the other hand, could be sorted, but not
+necessarily. We insert the nodes in the order we want,
+and the tree structure will keep that order, rather than
+trying to organize our nodes according to a given rule.
+&lt;br&gt;
+
+To understand the implication of what I am saying, let's
+compare the features offered by some different data
+structures.
+&lt;br&gt;
+
+&lt;h4&gt;Data structures comparison&lt;/h4&gt;
+&lt;code&gt;
+             +-------+--------+----------+
+             | order | insert | retrieve |
++------------+-------+--------+----------+
+|array       | yes   | slow   | fast     |
+|hash        | no    | fast   | fast     |
+|linked list | yes   | fast   | slow     |
+|binary tree | yes   | fast   | fast     |
+|DAG tree    | yes   | fast   | slow     |
++------------+-------+--------+----------+
+&lt;/code&gt;
+
+Using a sorted array, we can retrieve elements quite
+fast, by means of a binary search. However, inserting a new 
+element in a large sorted array is an expensive operation.
+&lt;br&gt;
+
+Using a hash, both inserting and retrieving are quite fast.
+But the elements can't be kept ordered.
+&lt;br&gt;
+
+A linked list keeps a given order and inserts faster than
+arrays, but searching is sequential, and can be as slow as
+looking to all the elements.
+&lt;br&gt;
+
+A binary tree keeps the given order, allows fast insertions 
+and fast retrieving.
+&lt;br&gt;
+
+A DAG &lt;sup&gt;1&lt;/sup&gt; tree, finally, keeps the given order, allows for fast
+insertion, even though it doesn't have any mechanism for
+fast retrieval. Why? What's the difference? The fast retrieval
+in binary trees is due to the insertion mechanism, which inserts
+the nodes according to sorting rules. Therefore, an inverse
+rule allows the quick retrieval. DAG trees, instead, give you
+freedom of insertion and you pay such freedom with less speed
+in searching.
+&lt;br&gt;
+&lt;br&gt;
+&lt;small&gt;&lt;sup&gt;1&lt;/sup&gt; DAG stands for Directed Acyclic Graph, but I stated before that I wasn't going to tell anything theoretical here. So I am afraid that you should resort to the recommended reading.&lt;/small&gt;
+&lt;br&gt;
+&lt;h4&gt;Tree nodes&lt;/h4&gt;
+A tree is a funny thing, bearing semantics from comparison 
+to different pieces of reality. The name &quot;tree&quot; calls for a
+botanical symbology, which breaks as soon as we realize that
+Information Technology trees have their roots at the top.
+However, following the same idea, we can talk about branches
+and leaves to describe the forking of sub elements in the
+tree.
+&lt;br&gt;
+
+Often, tree elements are described as having a parent (the
+node above them) and children (the nodes below them).
+In Tree::DAG_Node, the parent is called &lt;B&gt;mother&lt;/B&gt;, and the
+nodes below are called appropriately &lt;B&gt;daughters&lt;/B&gt;. 
+&lt;br&gt;
+
+Whatever we call them, tree elements have a link to two or
+more nodes below them and a link to another node above them. 
+Such link could be unidirectional (from parent to child only) 
+or bidirectional (so the child can point to its parent.)
+&lt;br&gt;
+
+The lack of bi-directional link may be seen as a terrible
+design blunder, since we can go from the top node down to
+the lowest one, but we can't go back. Everything will become
+clear when we remember that trees are recursive structures
+and we access them exploiting this quality of theirs.
+&lt;br&gt;
+
+&lt;h4&gt;Traversing a tree&lt;/h4&gt;
+The most common way of accessing a tree is by recursively
+accessing the subnodes of the starting node. For efficiency
+sake, there are methods to avoid recursion, by means of more
+fortified data structures, but the principle remains.
+&lt;br&gt;
+
+When we access all the nodes of a tree, we say that we 
+&lt;B&gt;traverse&lt;/B&gt; a tree. Depending on what we do while traversing,
+our walk can be called in-order, pre-order or post-order
+traversal. The understanding of these concepts is crucial to
+be able to do anything meningful to a tree.
+&lt;br&gt;
+
+&lt;B&gt;In-order&lt;/B&gt; traversal is when we access the nodes in sort order,
+and this usually applies to binary trees and B-trees. 
+&lt;br&gt;
+
+The &lt;B&gt;pre-order&lt;/B&gt; traversal means accessing a node, doing something
+and then accessing the nodes below.
+&lt;br&gt;
+
+&lt;B&gt;Post-order&lt;/B&gt; is when we access a node, recurse to the subnodes 
+and then do something.
+&lt;br&gt;
+
+&lt;code&gt;
+               company
+             /    |   \
+        sales    R&amp;D    pers
+        /  \     / \
+     net  store |   |
+          research development
+&lt;/code&gt;
+
+pre-order (action: print the node name)
+&lt;I&gt;company, sales, net, store, R&amp;amp;D, research, development, pers&lt;/I&gt;.
+Useful to print the company organigram, from top to bottom. Had
+we udes post-order, we would have printed it upside-down.
+&lt;br&gt;
+
+post-order (action: sum the number of employees)
+&lt;I&gt;net, store,  sales,  research, development,  R&amp;amp;D, pers, company&lt;/I&gt;.
+Since the action is post-order, we can sum the employees in
+each node to the ones in the parent. Had we done this in
+pre-order, we would have given to &quot;company&quot; the employees 
+from &quot;sales&quot; before receiving the quantity from &quot;net&quot; and 
+&quot;store&quot; (i.e. when it was still zero).
+&lt;br&gt;
+
+&lt;h4&gt;What is a Tree::DAG_Node?&lt;/h4&gt;
+Tree::DAG_Node is a class to build generic trees.
+This is opposed to some specialized trees, such as HTML::trees
+or XML::Trees.
+Strictly speaking, as the name suggests, DAG_Node is not a tree,
+but a node. However, since trees are recursive structures, each
+node contains a subtree. The DAG_Node class has all the methods
+to deal with individual nodes or with the whole tree. 
+As my first programming book said, and the module author wants to
+stress, a program is made of algorithms plus data structures 
+(N. Wirth, 1978). When these two elements are combined together
+in an object, the result is a powerful engine.
+&lt;br&gt;
+
+Coming back to our DAG_Node, it is a quite rich module, having
+a large collection of methods to manipulate both nodes and trees.
+There are no specialized methods related to the node data, such 
+as the ones of HTML::Element. This lack of specialization doesn't
+prevent DAG_Node from being a powerful tool even without any
+addition.
+&lt;br&gt;
+
+&lt;h3&gt;Using Tree::DAG_Node&lt;/h3&gt;
+&lt;h4&gt;Using the base class directly&lt;/h4&gt;
+Let's see some basic usage of the class.
+&lt;br&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+use Tree::DAG_Node;
+
+my $pm = Tree::DAG_Node-&gt;new;
+$pm-&gt;name('PerlMonks');
+&lt;/code&gt;
+
+Here we create a node, the root of our tree.
+The costructor doesn't need any parameter. 
+You can pass some options through a hash reference
+although it doesn't currently do anything. It is there
+for the descending classes benefit. After we create a
+node, we can assign a name. No need to do it, although 
+for this example we are using names as the only visible
+attribute of each node.
+&lt;br&gt;
+
+&lt;code&gt;
+my $tutorials = Tree::DAG_Node-&gt;new;
+$tutorials-&gt;name('tutorials');
+$tutorials-&gt;new_daughter-&gt;name('basics');
+$tutorials-&gt;new_daughter-&gt;name('syntax');
+$tutorials-&gt;new_daughter-&gt;name('references');
+$tutorials-&gt;new_daughter-&gt;name('data');
+&lt;/code&gt;
+
+Create a new node, with the same procedure, and then
+construct some sub nodes (daughters). The &lt;B&gt;new_daughter&lt;/B&gt;
+method is a constructor that creates an object of the
+same class as the caller and adds it to the list of its
+subnodes. Since the result of new_daughter() is an object,
+we can apply the name() method to it.
+After the above statements, $tutorials is a new tree.
+&lt;br&gt;
+
+&lt;code&gt;
+$pm-&gt;add_daughter($tutorials);
+&lt;/code&gt;
+
+Now $tutorials becomes a daughter of $pm, retaining
+all its daughters, which become $pm's descendants.
+&lt;br&gt;
+
+&lt;code&gt;
+my $reviews = Tree::DAG_Node-&gt;new;
+
+$reviews-&gt;name('reviews');
+$reviews-&gt;new_daughter-&gt;name('books');
+$reviews-&gt;new_daughter-&gt;name('modules');
+my $SOPW = Tree::DAG_Node-&gt;new;
+$SOPW-&gt;name('SOPW');
+$pm-&gt;add_daughter($reviews, $SOPW); 
+&lt;/code&gt;
+
+Here we create two more nodes, $reviews with two daughters,
+and $SOPW, childless. Using add_daughter() we can add them
+to the root at once. This method accepts either a single node
+or a list of nodes.
+&lt;br&gt;
+
+&lt;code&gt;
+print map &quot;$_\n&quot;, @{$pm-&gt;draw_ascii_tree};
+&lt;/code&gt;
+
+Prints a ascii art representation of the tree, using
+the names as identifiers. It might become quite large on
+
+complex trees.
+&lt;br&gt;
+
+&lt;code&gt;
+$pm-&gt;new_daughter-&gt;name('Meditations');
+&lt;/code&gt;
+
+One more daughter, using the new_daughter() constructor.
+&lt;br&gt;
+
+&lt;code&gt;
+print $pm-&gt;dump_names;
+&lt;/code&gt;
+
+This method prints a vertical representation of the tree,
+improving readability for trees with long lists of daughters.
+Check the resulting output. The whole representation of
+PerlMonks structure wouldn't fit in this page.
+&lt;br&gt;
+
+&lt;code&gt;
+                              |
+                         &lt;PerlMonks&gt;
+                  /---------------------------+-----------\
+                  |                           |           |
+             &lt;tutorials&gt;                  &lt;reviews&gt;     &lt;SOPW&gt;
+   /--------+----------+---------\       /--------\
+   |        |          |         |       |        |
+&lt;basics&gt; &lt;syntax&gt; &lt;references&gt; &lt;data&gt; &lt;books&gt; &lt;modules&gt;
+
+'PerlMonks'
+  'tutorials'
+    'basics'
+    'syntax'
+    'references'
+    'data'
+  'reviews'
+    'books'
+    'modules'
+  'SOPW'
+  'Meditations'
+&lt;/code&gt;
+
+&lt;h4&gt;Traversing a tree&lt;/h4&gt;
+The main method to traverse a tree is walk_down(\%options).
+This method touches all the nodes in the tree, starting at
+the calling node, and calls a sub for each one. The sub is 
+passed as a value in the \%options parameter. Depending on
+the key name, it will be called before ('callback' = 
+pre-order) or after ('callbackback' = post-order) accessing 
+the sub-nodes.
+You should provide at least one of them. Anything else you
+define in the %options hash is passed to the sub as second
+parameter. Especially useful is the &quot;_depth&quot; parameter, which
+states the starting depth for the tree and it is incremented
+at each level.
+&lt;br&gt;
+
+&lt;code&gt;
+$pm-&gt;walk_down({
+    callback =&gt; sub {
+        my $node = shift;
+            print &quot;  &quot; x $_[0]-&gt;{_depth};
+            print &quot;(*) &quot; 
+               if $node-&gt;name eq $_[0]-&gt;{treename};
+            print $node-&gt;name, &quot;\n&quot;
+        },
+    _depth =&gt; 0,
+    treename =&gt; 'PerlMonks' 
+});
+&lt;/code&gt;
+
+In this call, we define an anonymous sub to print each node,
+with special treatment for the root. The sub is called for each
+node, with the node as first parameter and an anonymous hash
+containing '_depth' and 'treename' as second parameter.
+&lt;br&gt;
+
+&lt;code&gt;
+(*) PerlMonks
+  tutorials
+      basics
+      syntax
+      references
+      data
+  reviews
+    books
+    modules
+  SOPW
+  Meditations
+&lt;/code&gt;
+
+Changing the name of the sub key to 'callbackback', the result
+is a post-order traversal. For a more useful example of post-order,
+see &lt;i&gt;Inheriting the base class&lt;/i&gt; below.
+&lt;br&gt;
+
+&lt;code&gt;
+    basics
+    syntax
+    references
+    data
+  tutorials
+    books
+    modules
+  reviews
+  SOPW
+  Meditations
+(*) PerlMonks
+&lt;/code&gt;
+
+One important caveat. The callback sub will be called as 
+long as it returns a true value. A false value will stop
+the recursion. Useful when we are searching for something,
+and we want to avoid unnecessary walking down after the
+result has been achieved. Remember that a &lt;B&gt;print&lt;/B&gt; statement
+returns always true. If you want to stop a printing walk 
+down, you must return &quot;0&quot;, an empty string or undef.
+&lt;br&gt;
+
+But we are not limited to using the walk_down() method.
+Writing our own traverse routine is quite easy.
+&lt;br&gt;
+
+&lt;code&gt;
+sub traverse {
+    my $node = shift;
+    my $depth = scalar $node-&gt;ancestors || 0;
+    # a pre-order traversal. First we do something ...
+    print &quot;..&quot; x $depth, $node-&gt;name,&quot; &quot;, $node-&gt;address, &quot;\n&quot;;
+	 # ... and then we recurse the subodes
+    traverse($_) for $node-&gt;daughters;
+}
+
+PerlMonks 0
+..tutorials 0:0
+....basics 0:0:0
+....syntax 0:0:1
+....references 0:0:2
+....data 0:0:3
+..reviews 0:1
+....books 0:1:0
+....modules 0:1:1
+..SOPW 0:2
+..Meditations 0:3
+&lt;/code&gt;
+
+See &lt;i&gt;Search for nodes&lt;/i&gt; below for an explanation of the 
+address() method.
+&lt;br&gt;
+
+If we want a post-order traversal in the above routine, 
+then it's enough to move the print statement after the 
+recursive call to traverse.
+&lt;br&gt;
+
+&lt;h4&gt;Node attributes&lt;/h4&gt;
+What we have seen so far is not extremely useful. Playing
+with the node name might be thrilling as long as we limit
+our programming efforts to drawing ascii trees and counting
+nodes. But in the real world we need to assign more content 
+to our nodes. To achieve this goal, we could either inherit 
+the base class, or use the attributes() method, which gives 
+us access to a node field, where we can store anything we 
+need. By default, the internal attributes field is set to an 
+empty anonymous hash, but we can set it up to pretty much 
+anything we like, as long as it's a reference.
+&lt;br&gt;
+
+&lt;code&gt;
+$pm-&gt;attributes (['The', ['best', 'Perl'],['site']]);
+$tutorials-&gt;attributes ({
+    useful =&gt; 'yes', 
+    available =&gt; ['day','night']
+    });
+$SOPW-&gt;attributes (\&amp;check_if_strict);
+$reviews-&gt;attributes(Tree::DAG_Node-&gt;new);
+
+$pm-&gt;walk_down({callback=&gt;sub{
+   print $_[0]-&gt;name,&quot; &quot;, ref $_[0]-&gt;attributes,&quot;\n&quot;; 
+}});
+&lt;/code&gt;
+
+Of course, the only way to access these attributes is through
+the attributes() method itself. If we want to use an Object 
+Oriented interface, we need to inherit from Tree::DAG_Node, 
+or to store an object into attributes().
+&lt;br&gt;
+
+&lt;h4&gt;Walking around the tree&lt;/h4&gt;
+Traversing a tree is one of the most common tasks, but not
+the most flexible one, when we need to access specific nodes
+relative to others.
+&lt;br&gt;
+
+Tree::DAG_Node offers a large variety of node walking methods,
+to go from one node to its neighbours.
+&lt;br&gt;
+
+&lt;code&gt;
+                           |                           
+                         &lt;root&gt;                         
+               /---------------------------\           
+               |                           |           
+              &lt;a&gt;                         &lt;b&gt;          
+       /---------------\          /---+---+---+---+---\ 
+       |               |          |   |   |   |   |   | 
+      &lt;1&gt;             &lt;2&gt;        &lt;p&gt; &lt;q&gt; &lt;r&gt; &lt;s&gt; &lt;t&gt; &lt;u&gt;
+   /-------\       /-------\     
+   |       |       |       |    
+  &lt;w&gt;     &lt;x&gt;     &lt;y&gt;     &lt;z&gt;   
+ /---\   /---\         /---+---\                         
+ |   |   |   |         |   |   |                         
+&lt;i&gt; &lt;j&gt; &lt;k&gt; &lt;l&gt;       &lt;5&gt; &lt;6&gt; &lt;7&gt;                        
+&lt;/code&gt;
+
+Considering the above tree, starting with $root.
+Its daughters are accessed by calling $root-&amp;gt;daughters. They
+are returned as a list of nodes. 
+&lt;br&gt;
+
+&lt;code&gt;
+my @daughters = $root-&gt;daughters; # &lt;a&gt; and &lt;b&gt;
+my @b_daughthers = $daughters[1]-&gt;daughters; # &lt;b&gt;'s daughters
+my $third = $b_daughthers[2]; # &lt;r&gt;
+my $ls = $third-&gt;left_sister; # &lt;q&gt;
+my $rs = $third-&gt;right_sister; # &lt;s&gt;
+my @left = $third-&gt;left_sisters; # &lt;p&gt; and &lt;q&gt;
+my @right = $third-&gt;right_sisters; # &lt;s&gt;, &lt;t&gt; &lt;u&gt;
+my $mama = $third-&gt;mother; # &lt;b&gt;
+my @ancestors = $third-&gt;ancestors; # &lt;b&gt; &lt;root&gt;
+&lt;/code&gt;
+
+Down among the daughters, we can identify them by their position
+relative to a given node.
+Every node can access its parent by calling $node-&amp;gt;mother.
+The complete list of the node ancestors is at our disposal
+by using the appropriate method. If we access the node named &quot;7&quot;,
+for example, its ancestors will be the nodes named 'z', '2','a','root'.
+&lt;br&gt;
+
+If we want to do something to all the nodes in a subtree, without
+bothering about using walk_down(), we can use the descendants() 
+method, which returns a list of all the nodes below the calling
+one. If we want to include the caller, then self_and_descendants()
+will give us the entire subtree.
+&lt;br&gt;
+
+Let's say that $node1 represents the node named '1'.
+&lt;br&gt;
+
+&lt;code&gt;
+my @descnames = map {$_-&gt;name} $node1-&gt;descendants;
+# @descnames = qw(w i j x k l);
+&lt;/code&gt;
+
+Check the reference documentation for more methods to move from
+node to node. 
+&lt;br&gt;
+
+&lt;h4&gt;Inheriting the base class&lt;/h4&gt;
+To inherit from Tree::DAG_Node, we must remember that the
+class constructor accepts an optional parameter, an 
+anonymous hash. This parameter is not used by the base
+class constructor, but it's there for the convenience
+of the descending classes. It means that if we pass 
+parameters to the new() constructor through this 
+anonymous hash, we can use the other constructors without
+modification. The new_daughter() and new_daughter_left 
+constructors will call new(), passing the anonymous hash
+that they receive as an argument. The bottom line is, if
+we can live with the idea of passing parameters through a
+hash reference, we only need to modify one constructor,
+otherwise we must rewrite all three of them.
+In our example, we agree to the convention and we 
+override the main constructor only.
+&lt;br&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+package CompanyTree;
+use Tree::DAG_Node;
+our @ISA=qw(Tree::DAG_Node);
+
+sub new {
+    my $class = shift;
+    my $options = shift;
+    my $self = bless $class-&gt;SUPER::new();
+    $self-&gt;attributes($options);
+    return $self;
+}
+&lt;/code&gt;
+
+This new() constructor simply passes the $options hash 
+reference to the internal attributes(). Actually, nothing
+prevents us from using a different reference, say an object
+instead of a hash, but it will do for now. It's worth noting
+that the author of the base class marks this construction as
+&lt;I&gt;a bad thing&lt;/I&gt;. While I agree in principle, my Impatience
+took me to embracing this shortcut.
+&lt;br&gt;
+
+Next, we add three more methods, two being a simple 
+interface to the object's internal data, while the third 
+one adds some general functionality to the base class.
+&lt;br&gt;
+
+&lt;code&gt;
+sub employees {
+    my $node = shift;
+    my $val = shift;
+    $node-&gt;attributes-&gt;{employees} = $val if $val;
+    return $node-&gt;attributes-&gt;{employees};
+}
+
+sub budget {
+    my $node = shift;
+    my $val = shift;
+    $node-&gt;attributes-&gt;{budget} = $val if $val;
+    return $node-&gt;attributes-&gt;{budget};
+}
+
+sub by_name {
+    my ($self, $name) = @_;
+    my @found =();
+    my $retvalue = wantarray ? 1 : 0;
+    $self-&gt;walk_down({callback=&gt;sub{
+        if ($_[0]-&gt;name eq $name) {
+            push @found, $_[0];
+            return $retvalue;
+        }
+        1}});
+    return wantarray? @found : @found ? $found[0] : undef;
+}
+&lt;/code&gt;
+
+The by_name() method walks down the tree starting at the
+calling node, and returns a list of all the nodes matching
+the given name. In scalar context, only the first matching 
+node is returned. If the name was not found, returns undef.
+&lt;br&gt;
+
+&lt;br&gt;
+
+Finally, we prepare three mode methods that work 
+specifically with this particular class, using the tree
+for calculations and showing results.
+&lt;br&gt;
+
+&lt;code&gt;
+sub clear_totals {
+    $_[0]-&gt;walk_down({ callback =&gt; sub {
+        my $node = shift;
+        if ($node-&gt;daughters) {
+            $node-&gt;budget(0);
+            $node-&gt;employees(0);
+        }
+    }})
+}
+
+sub sum_up {
+    $_[0]-&gt;walk_down({ callbackback=&gt; sub {
+        my $node = shift;
+        return 1 unless $node-&gt;mother;
+        $node-&gt;mother-&gt;attributes-&gt;{employees}
+            += $node-&gt;attributes-&gt;{employees};
+        $node-&gt;mother-&gt;attributes-&gt;{budget}
+            += $node-&gt;attributes-&gt;{budget};
+    }});
+}
+
+sub print_wealth {
+    $_[0]-&gt;walk_down({callback=&gt; sub {
+        my $node = shift;
+        printf &quot;%s%.7s\templ: %2d  budget: %8d\n&quot;,
+            &quot;  &quot; x $_[0]-&gt;{_depth},
+            $node-&gt;name, $node-&gt;employees,
+            $node-&gt;budget
+    }, _depth =&gt; 0 });
+}
+&lt;/code&gt;
+
+clear_totals() sets to 0 the values for employees and
+budget in each node that has subnodes, thus preparing the
+way for the next method. sum_up() gets the total values for
+employees and budget from each subnode, recursively, using
+a post-order traversal. The total value pops up to the root
+by virtue of this engine. Eventually, print_wealth() shows
+the amount of employees and budget for each node and for
+the whole company.
+&lt;br&gt;
+
+Now, let's see an application of this new package.
+&lt;br&gt;
+
+&lt;code&gt;
+package main;
+
+my $company = CompanyTree-&gt;new({employees=&gt;0, budget=&gt;0});
+$company-&gt;name('company');
+$company-&gt;new_daughter(
+    {employees=&gt;0,budget=&gt;0})-&gt;name('sales');
+$company-&gt;by_name('sales')-&gt;new_daughter(
+    {employees=&gt;6,budget=&gt;25_000})-&gt;name('net');
+$company-&gt;by_name('sales')-&gt;new_daughter(
+    {employees=&gt;8,budget=&gt;65_000})-&gt;name('str');
+
+$company-&gt;new_daughter(
+    {employees=&gt;4,budget=&gt;10_000})-&gt;name('pers');
+
+$company-&gt;new_daughter({employees=&gt;0,budget=&gt;0})-&gt;name('R&amp;D');
+$company-&gt;by_name('R&amp;D')-&gt;new_daughter(
+    {employees=&gt;10,budget=&gt;100_000})-&gt;name('res');
+$company-&gt;by_name('R&amp;D')-&gt;new_daughter(
+    {employees=&gt;15,budget=&gt;90_000})-&gt;name('dev');
+    
+$company-&gt;clear_totals;
+$company-&gt;sum_up;
+$company-&gt;print_wealth;
+print map &quot;$_\n&quot;, @{$company-&gt;draw_ascii_tree};
+&lt;/code&gt;
+
+The new company is created using the derived class. Then, 
+the new_daughter() constructor is used, with an anonymous
+hash as a parameter, that gets passed to the main constructor.
+Soon we have three departments, two of which have a few sub
+departments. We initialize to 0 the number of employees in 
+the non-terminal nodes, to prepare for the summing up.
+The sum_up() method performs a post-order traversal, to
+collect the totals. Finally, a pre-order traversal with
+print_wealth() gives us a nice printout of the company
+strength.
+&lt;br&gt;
+
+&lt;code&gt;
+company empl: 43  budget:   290000
+  sales empl: 14  budget:    90000
+    net empl:  6  budget:    25000
+    str empl:  8  budget:    65000
+  pers  empl:  4  budget:    10000
+  R&amp;D   empl: 25  budget:   190000
+    res empl: 10  budget:   100000
+    dev empl: 15  budget:    90000
+&lt;/code&gt;
+
+&lt;code&gt;
+              |
+          &lt;company&gt;
+     /--------+---------\
+     |        |         |
+  &lt;sales&gt;   &lt;pers&gt;    &lt;R&amp;D&gt;
+  /-----\            /-----\
+  |     |            |     |
+&lt;net&gt; &lt;str&gt;        &lt;res&gt; &lt;dev&gt;
+&lt;/code&gt;
+
+&lt;h3&gt;Searching for nodes&lt;/h3&gt;
+In one of the previous examples, we met the address() 
+method. This function returns a string describing the 
+position of a given node within the tree. &quot;0&quot; is the root.
+&quot;0:0&quot; is the first daughter, &quot;0:1&quot; the second and so on.
+This address is not a static attribute, but it is calculated
+on demand. One interesting feature of this method is that
+if we pass a valid address, it will return the 
+corresponding node.
+&lt;br&gt;
+
+Thus, in the latest example, 'company' has address '0',
+'sales' has '0:0', 'R&amp;amp;D' has '0:2' and 'dev' has '0:2:1'.
+The address for a given node is always the parent's 
+address plus the position of that node within the parent's
+daughters' list.
+If we can figure out the address of a node, we can get the
+relative node without traversing the tree.
+&lt;br&gt;
+
+&lt;code&gt;
+my $node = $root-&gt;address('0:2:1');
+&lt;/code&gt;
+
+However, calling nodes by their address is not always
+convenient, since humans handle names more easily than 
+numbers, and since the address can change if we insert
+nodes before the one we are looking for.
+&lt;br&gt;
+
+&lt;code&gt;
+my $node = $root-&gt;address('0:2:1');
+$node-&gt;mother-&gt;new_daughter_left; 
+# now $node's address is '0:2:2'
+&lt;/code&gt;
+
+In the previous section we have seen a sub to retrieve
+a node by name. It works fine as long as our name is
+unique. If not, we should build a more selective method
+that will find exactly what we need. Let's assume that
+all our nodes have attributes() set as a hash ref, and
+each one has a key holding a unique identifier.
+To search for this unique ID is not so hard.
+&lt;br&gt;
+
+&lt;code&gt;
+sub by_attribute {
+    my ($self, $key, $id) = @_;
+    my $found = undef;
+    $self-&gt;walk_down({callback=&gt;sub{
+        if (ref $_[0]-&gt;attributes eq &quot;HASH&quot;
+        &amp;&amp; exists $_[0]-&gt;attributes-&gt;{$key}
+        &amp;&amp; $_[0]-&gt;attributes-&gt;{$key} eq $id)
+        {
+            $found = $_[0];
+            return 0;
+        }
+        1}});
+    return $found;
+}
+&lt;/code&gt;
+
+&lt;code&gt;
+my $node = $root-&gt;by_attribute( 'ID', 'nutcracker');
+&lt;/code&gt;
+
+This instruction will return the node with attributes
+containing { ID =&amp;gt; 'nutcracker'}, or undef if not found.
+For more complex conditions, when your nodes contain 
+objects, remember to check the type of attributes (using
+&lt;B&gt;ref&lt;/B&gt;), to avoid run-time exceptions.
+&lt;br&gt;
+
+&lt;h3&gt;Modifying the tree&lt;/h3&gt;
+One of the advantages of trees over less flexible data 
+structures is their ability of moving subtrees around
+with minumum effort. To show how Tree::DAG_Node achieves
+this goal, we'll see some of the moving routines available.
+Let's build a sample tree, first.
+&lt;br&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+use Tree::DAG_Node;
+
+my $root = Tree::DAG_Node-&gt;new;
+$root-&gt;name('root');
+$root-&gt;new_daughter-&gt;name($_) for ('1'..'3');
+my @names = qw(abc def ghi);
+my $count =0;
+for my $n ($root-&gt;daughters) {
+    for (split //, $names[$count++]) {
+        $n-&gt;new_daughter-&gt;name($_)
+    }
+}
+print map &quot;$_\n&quot;, @{$root-&gt;draw_ascii_tree};
+&lt;/code&gt;
+
+&lt;code&gt;
+                 |                 
+              &lt;root&gt;               
+     /-----------+-----------\     
+     |           |           |     
+    &lt;1&gt;         &lt;2&gt;         &lt;3&gt;    
+ /---+---\   /---+---\   /---+---\ 
+ |   |   |   |   |   |   |   |   | 
+&lt;a&gt; &lt;b&gt; &lt;c&gt; &lt;d&gt; &lt;e&gt; &lt;f&gt; &lt;g&gt; &lt;h&gt; &lt;i&gt;
+&lt;/code&gt;
+
+Our first task is to remove the node named '2' and assign
+its daughters to the root. We identify the node by its
+address, and then use the method replace_with_daughters().
+The effect of this method is to unlink the node from its
+mother and to add all its daughter in its place, moving
+to the right all existing right nodes.
+&lt;br&gt;
+
+&lt;code&gt;
+my $node = $root-&gt;address('0:1');
+$node-&gt;replace_with_daughters;
+print map &quot;$_\n&quot;, @{$root-&gt;draw_ascii_tree};
+
+&lt;/code&gt;
+The result is that node '2' has disappeared, and in its
+place we have three new daughters for 'root'.
+&lt;br&gt;
+
+&lt;code&gt;
+                 |
+              &lt;root&gt;               
+     /-------+---+---+-------\     
+     |       |   |   |       |     
+    &lt;1&gt;     &lt;d&gt; &lt;e&gt; &lt;f&gt;     &lt;3&gt;    
+ /---+---\               /---+---\ 
+ |   |   |               |   |   | 
+&lt;a&gt; &lt;b&gt; &lt;c&gt;             &lt;g&gt; &lt;h&gt; &lt;i&gt;
+&lt;/code&gt;
+
+The next task is to move the subtree starting at node '3'
+under node named 'e'.
+&lt;br&gt;
+
+&lt;code&gt;
+$node = $root-&gt;address('0:4');
+my $dest = $root-&gt;address('0:2');
+$dest-&gt;add_daughter($node);
+print map &quot;$_\n&quot;, @{$root-&gt;draw_ascii_tree};
+&lt;/code&gt;
+
+Notice that the address of the node to move, that was
+'0:2' in the original tree, is now '0:4', due to the
+insertion of new nodes on its left.
+Calling add_daughter() with $node as an argument causes
+the link $node-&amp;gt;mother to be cut, and a new one to be 
+created in its stead. If we just want to get rid of that
+subtree, the method $node-&amp;gt;unlink_from_mother will do.
+We should just take care of the memory still occupied
+by this subtree, and call $node-&amp;gt;delete_tree.
+&lt;br&gt;
+
+&lt;code&gt;
+               |               
+            &lt;root&gt;             
+     /-------+-------+-------\ 
+     |       |       |       | 
+    &lt;1&gt;     &lt;d&gt;     &lt;e&gt;     &lt;f&gt;
+ /---+---\           |         
+ |   |   |          &lt;3&gt;        
+&lt;a&gt; &lt;b&gt; &lt;c&gt;      /---+---\     
+                 |   |   |     
+                &lt;g&gt; &lt;h&gt; &lt;i&gt;    
+&lt;/code&gt;
+
+&lt;h3&gt;Conclusion&lt;/h3&gt;
+So many things, so little space (and time!)
+&lt;br&gt;
+
+I could go on for several pages, without exhausting the 
+subject&lt;sup&gt;1&lt;/sup&gt;, which is indeed rich and fascinating.&lt;br&gt;
+The purpose of this tutorial, however, is only to give
+you a general view of the module. Once you are confident 
+with its main issues, you will find the reference manual 
+easier to read.
+&lt;br&gt;
+
+One last recommendation, before I leave you. Trees are 
+memory consuming, and unlike other data structures, they
+are not cleaned up by Perl's garbage collector (GC). 
+This is due to the many references held in each node, which
+prevent the GC from sweeping away your tree once it goes
+out of scope. Therefore, if you don't need the tree any
+longer, call the delete_tree() method, to let the GC do
+its job.
+&lt;br&gt;
+&lt;br&gt;
+&lt;small&gt;&lt;sup&gt;1&lt;/sup&gt; But I might have exhausted the reader!&lt;/small&gt;
+
+&lt;h3&gt;General information - Recommended reading&lt;/h3&gt;
+&lt;ol&gt;
+
+&lt;li&gt;
+&lt;a href=&quot;http://search.cpan.org/doc/SBURKE/Tree-DAG_Node-1.04/DAG_Node.pm&quot;&gt;The module documentation&lt;/a&gt;&lt;br&gt;
+
+In the module itself. Mandatory, I would say.
+There are many juicy methods waiting for you to find them.
+This tutorial was only a glimpse. I skipped many details
+that you would like to explore.
+Pay particular attention to the &quot;See also&quot; section, where
+you'll find valuable recommendations.
+&lt;br&gt;
+
+&lt;/li&gt;
+&lt;li&gt;
+[id://21675|Mastering Algorithms with Perl]&lt;br&gt;
+
+by Jon Orwant, Jarkko Hietanieni, John MacDonald 
+(www.oreilly.com)
+For the theory behind the babbling in this article, MAwP
+is a must.
+&lt;br&gt;
+
+&lt;/li&gt;
+&lt;li&gt;
+[id://21666|Object Oriented Perl]&lt;br&gt;
+
+by Damian Conway (www.manning.com/conway). 
+Is the most authoritative work on Perl object oriented 
+methodology. Tree theory and implementation
+is discussed passim with interesting examples.
+&lt;br&gt;
+
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;br&gt;
+&lt;br&gt;
+&lt;b&gt;update&lt;/b&gt;&lt;br&gt;
+Amended the post-order traversal, that I reported from the wrong example. Thanks [ChemBoy].&lt;br&gt;
+
+&lt;pre&gt;
+ _  _ _  _  
+(_|| | |(_|&gt;&lt;
+ _|   
+&lt;/pre&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>153259</node_id>
+  <author_user>127116</author_user>
+  <title>Introduction to Tree::DAG_Node</title>
+  <createtime>2002-03-21 02:13:20</createtime>
+  <nodeupdated>2005-08-15 11:46:56</nodeupdated>
+</node>

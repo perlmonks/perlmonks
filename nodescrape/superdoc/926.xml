@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="926" title="bug query results" created="1999-11-02 22:05:42" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+# We are given various query parameters from the bug query
+# page.  The parameters can either be values (fields that
+# have limited possible values) or text (fields that are
+# strings of text like description, etc).  We need to form
+# a "where" string for searching the bug table.
+  
+my $str = "";
+my $param;
+my $tmpparam;
+my @values;
+my $value;
+my $type;
+my $field;
+foreach $param ($query-&gt;param)
+{
+  # The param name is in the form of query_type_fieldname.
+  # We need to strip the field name and type.  Note that
+  # the field name could have an underscore in it so we
+  # need to be aware of that case.
+  next unless($param =~ /query_/);
+  $tmpparam = $param;
+  $tmpparam =~ s/^.*query_//;  # got type_fieldname
+  $tmpparam =~ s/_/,/;  # convert the first underscore to a comma
+  ($type, $field) = split ',', $tmpparam;
+
+  undef @values;
+  push @values, $query-&gt;param($param);
+  next if(@values == 0);
+  
+  if($type eq "text")
+  {
+    my $likestr = "";
+    my @words = split ' ', $values[0];
+    my $word;
+
+    next if(@words == 0);
+
+    $str .= " &amp;&amp; " if($str ne "");
+    $str .= "(";
+    foreach $word (@words)
+    {
+      $likestr .= " or " if($likestr ne "");     
+      $likestr .= "($field like " . $dbh-&gt;quote("\%$word\%") . ")"; 
+    }
+    $str .= $likestr . ")";
+  }
+  else
+  {
+    my $likestr = "";
+    $str .= " &amp;&amp; " if($str ne "");
+    $str .= "("; 
+    foreach $value (@values)
+    {
+      $likestr .= " or " if($likestr ne "");
+      $likestr .= "(" . $field . "=" . $dbh-&gt;quote($value) . ")";
+    }
+    $str .= $likestr . ")";
+  }
+}
+
+# We have the where string for this query.  Now we need
+# to execute the query and display the result.
+my $sql = "select * from bug";
+$sql .= " WHERE $str" if($str ne "");
+my $cursor = $dbh-&gt;prepare($sql);
+my $ROW;
+my $html;
+my $total = 0;
+$cursor-&gt;execute();
+
+$html = "&lt;p&gt;Bug Query Results:\n";
+$html .= "&lt;ul&gt;\n";
+while($ROW = $cursor-&gt;fetchrow_hashref())
+{
+  $html .= "&lt;li&gt; " . linkNode($$ROW{bug_id}) . "&lt;/li&gt;\n";
+  $total++;
+}
+
+$html .= "&lt;/ul&gt;\n";
+$html .= "Total bugs matching query: $total\n";
+$html;
+%]</field>
+</data>
+</node>

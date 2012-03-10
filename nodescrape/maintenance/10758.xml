@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="10758" title="note maintenance delete" created="1999-11-02 20:58:56" updated="2005-05-04 12:36:05">
+<type id="868">
+maintenance</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $NODE )= @_;
+getRef( $NODE );
+my $nodeid= getId($NODE);
+
+my $dbh= $DB-&gt;getDatabaseHandle();
+my $parent= $NODE-&gt;{parent_node};
+my $root= $NODE-&gt;{root_node};
+
+# TODO: reparent children to parent?
+
+# adjust counts of immediate parent
+$dbh-&gt;do( join ' ',
+    "update repliesinfo set",
+    "directreplies=directreplies-1",
+    "where parent=$parent",
+);
+$dbh-&gt;do( join ' ',
+    "update repliesinfo set",
+    "repliesbelow=repliesbelow-1",
+    "where parent=$root",
+);
+
+my $AUTHOR= $NODE-&gt;{author_user};
+getRef( $AUTHOR );
+my $V= getVars($AUTHOR);
+$V-&gt;{numwriteups}--;
+setVars( $AUTHOR, $V );
+</field>
+</data>
+</node>

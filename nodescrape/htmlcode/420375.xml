@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="420375" title="html_scrub" created="2005-01-07 16:00:29" updated="2005-05-28 22:10:22">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ($html,$no_img)=@_;
+
+my @type;
+my $scrub =  $q-&gt;param('scrub');
+$scrub=$VARS-&gt;{jsoff}
+  unless defined $scrub;
+
+$scrub=1 if isGod($USER)
+  || $NODE-&gt;{title} eq 'de-merphq';
+
+$HTMLVARS{buybook}= $html =~ /(book)|(reference)/i;
+
+$html =~ s[(&lt;code&gt;(.*?)&lt;/code&gt;)]{
+   my $whole= $1;
+   my $code= $2;
+   $HTMLVARS{code} .= $code;
+   if(  $HTMLVARS{codereplaceoff}  ) {
+      $whole;
+   } else {
+      htmlcode( 'wrapcode','', $code );
+   }
+}gies;
+
+$html=htmlcode('handle_readmore','',$NODE-&gt;{node_id},$html,0,1);
+if(  getId($NODE) == 142755  ) { # [tye&amp;nbsp;] for testing
+   $html =~ s#\[([^\[\]]{0,4096})\]#
+      my $x= $1;
+      htmlcode( 'linkHandler','', $x, getId($NODE) )#eg;
+} else {
+   $html =~ s#\[(.*?)\]#handleLinks($1,getId($NODE))#egs;
+}
+
+my $APPROVED= getVars( getNode('approved html tags','setting') );
+my $OVERRIDE = getVars( getNode('scrub override tags','setting') );
+foreach my $key (keys %$OVERRIDE) {
+  unless ($OVERRIDE-&gt;{$key}) {
+    delete $APPROVED-&gt;{$key};
+  } else {
+    $APPROVED-&gt;{$key}=$OVERRIDE-&gt;{$key};
+  }
+}
+
+if ($no_img) {
+  delete $APPROVED-&gt;{img};
+} else {
+  $APPROVED-&gt;{img}||= 'alt,border,height,src,width';
+}
+
+$html= htmlScreen($html,$APPROVED);
+
+$html=~s/(s)(crip)(t)/$1&amp;#x200E;$2&amp;#x200E;$3/gi;
+
+return $html;</field>
+</data>
+</node>

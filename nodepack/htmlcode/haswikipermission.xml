@@ -1,0 +1,39 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>73992</node_id>
+  <author_user>929</author_user>
+  <title>hasWikiPermission</title>
+  <createtime>2001-04-19 20:58:19</createtime>
+  <code>my ( $type, $node, $user )= @_;
+$node ||= $NODE;
+$user ||= $USER;
+getRef( $node );
+getRef( $user );
+
+$type= substr( lc( $type || &quot;-&quot; ), 0, 1 );
+
+return 0 unless $type eq &quot;r&quot; or $type eq &quot;w&quot;;
+$type= $type eq 'r' ? 'readers' : 'writers';
+
+my $uid= getId( $user );
+
+return 1 if $uid == $node-&gt;{author_user};
+
+my $field= $node-&gt;{$type};
+
+return 0
+  if $type eq &quot;writers&quot;
+  &amp;&amp; $uid == $HTMLVARS{guest_user};
+
+if ( $field =~ /^lvl_(\d+)/ ) {
+  my $lvl = $1;
+  require Everything::Experience;
+  return 0 if Everything::Experience::getLevel( $user ) &lt; $lvl;
+} elsif ( $field =~ /^ug_(\d+)/ ) {
+  my $UG= getNodeById( $1 );
+  return $DB-&gt;isApproved( $user, $UG );
+}
+
+return 1;</code>
+  <nodeupdated>2005-01-19 12:34:07</nodeupdated>
+</node>

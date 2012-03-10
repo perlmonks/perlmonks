@@ -1,0 +1,168 @@
+<node>
+  <doctext>&lt;p&gt;
+Object Oriented Perl&lt;br&gt;
+(c) 2001 [Juerd] &amp;lt;juerd at juerd dit nl&amp;gt;
+&lt;/p&gt;
+
+&lt;p&gt;
+Dit is niet een vertaling van het document `[perltoot]'.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;strong&gt;INLEIDING&lt;/strong&gt;&lt;br&gt;
+
+    Meer en meer wil men object georienteerd werken. Of het een hype is of
+    daadwerkelijk handig, laat ik aan jou over. Vaak wordt beweerd dat Perl
+    geen ondersteuning heeft voor objecten; niets is minder waar. Perl heeft al
+    sinds versie 5 goede mogelijkheden voor object georienteerd werken. Hoewel
+    de aanpak iets afwijkt van (of: veel flexibeler is dan) bij andere talen,
+    kan hetzelfde effect makkelijk of zelfs makkelijker worden bereikt.
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;WAT IS EEN OBJECT?&lt;/strong&gt;&lt;br&gt;
+
+    Een object is een ding. Dat ding heeft informatie over zichzelf en je kunt
+    er iets mee doen. Dat wat je er mee doet gaat via een methode. Een object
+    is vooral handig om een simpele interface te maken naar je code, terwijl
+    je degene die jouw code gaat gebruiken niet lastig valt met de interne
+    details. Objecten zorgen er ook voor dat je goed moet nadenken over het
+    design van je programma. Als je ze goed gebruikt, dan maakt het je
+    programma's veel overzichtelijker.
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;JA MAAR WAT IS EEN OBJECT NOU ECHT?&lt;/strong&gt;&lt;br&gt;
+
+    In Perl is een object een blessed reference (gezegende referentie). Dit
+    houdt in een normale Perl reference, met als verschil dat het weet bij welke
+    package het hoort.&lt;Br&gt;
+    In Perl zijn methods (methodes) simpele subs die het object als eerste
+    parameter meekrijgen.&lt;br&gt;
+    Als je niet weet wat refs zijn, of hoe ze werken, lees dan nu
+    perlref en/of perlreftut (beide documenten zijn op te vragen met perldoc).
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;HOE MAAK IK EEN OBJECT?&lt;/strong&gt;&lt;br&gt;
+
+    Allereerst moet je een package hebben. Voordat je object bestaat gebruik je
+    die als aanspreekpunt.
+
+&lt;code&gt;
+ package Foo;
+&lt;/code&gt;
+
+    Binnen je package heb je een subroutine die een blessed ref teruggeeft.
+    De package wordt gebruikt als object, en in plaats van een object zal $_&amp;#90;0&amp;#91;
+    de naam van de package zijn.
+
+&lt;code&gt;
+ sub new {
+     my $package = shift;
+     my $object = { };        # Nieuwe lege hash ref
+     bless $object, $package; # De magie
+     return $object;
+ }
+&lt;/code&gt;
+
+    Er is niets bijzonders aan de naam `new', het had netzogoed `kauwgom' kunnen
+    heten, maar het is wel fijn als iedereen `new' gebruikt.&lt;br&gt;
+    We maken een object als volgt:
+
+&lt;code&gt;
+ my $object = Foo-&gt;new;
+ # of
+ my $object = new Foo;
+&lt;/code&gt;
+
+    `Foo-&gt;new' is de normale aanspreekvorm, `new Foo' is een synoniem daarvoor.
+    Het pijltje zorgt ervoor dat voor de normale parameters de naam van het
+    package wordt meegegeven (of het object, als het om een object gaat).
+    In feite wordt hierboven `my $objectje = Foo::new('Foo');' uitgevoerd.
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;METHODS&lt;/strong&gt;&lt;br&gt;
+
+    Methods zijn subroutines die het object als eerste parameter krijgen. Dat is
+    ECHT alles.
+
+&lt;code&gt;
+ package Schaap;
+
+ sub new {
+     my $package = shift;
+     my $obj = { };
+     bless $obj, $package;
+     return $obj;
+ }
+
+ sub blaat {
+     my ($self, $blaat) = @_;
+     $self-&gt;{geblaat}++;
+     print &quot;Dit schaap blaat nu al voor de $self-&gt;{geblaat}e keer.\n&quot;;
+     print &quot;De parameter was: $blaat\n&quot;
+ }
+
+ package main;
+
+ my $dolly = new Schaap;         # $dolly weet nu dat het bij ...
+        # ... package Schaap hoort. $dolly-&gt;method wordt dus Schaap::method
+
+ $dolly-&gt;blaat('Hoi');           # Schaap::blaat($dolly, 'Hoi')
+ $dolly-&gt;blaat('Hallo');         # Schaap::blaat($dolly, 'Hallo')
+ blaat $dolly('Ook dit werkt');  # Schaap::blaat($dolly,
+                                 # 'Ook dit werkt');
+&lt;/code&gt;
+
+    Dat is eigenlijk genoeg om te weten. Je kunt alle data zetten in je
+    reference (wat ook best een arrayref had kunnen zijn, maar ik vind
+    hashreferences wel erg fijn voor objecten).
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;PROPERTIES&lt;/strong&gt;&lt;br&gt;
+
+    Je wilt vast variabelen kunnen manipuleren. $obj-&gt;{geblaat} direct
+    aanspreken wordt gezien als inbreuk op de privacy. Daarom kun je beter
+    methods ervoor maken. Dat gaat doorgaans als volgt:
+
+&lt;code&gt;
+ sub kleur {
+     my ($self, $kleur) = @_;
+     $self-&gt;{kleur} = $kleur if defined $kleur;
+     return $self-&gt;{kleur};
+ }
+
+ $obj-&gt;kleur(&quot;Blauw&quot;);
+ print &quot;De kleur is &quot;, $obj-&gt;kleur(), &quot;.\n&quot;; # De kleur is blauw.
+&lt;/code&gt;
+
+    En dan wordt er een vriendelijk loket geopend en is de privacy goed
+    beschermd.
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;MEER INFORMATIE&lt;/strong&gt;&lt;br&gt;
+
+    Je hebt nu de simpele informatie om met objecten in Perl aan de slag te
+    gaan. Deze simpele introductie is geen vervanging voor de Engelstalige
+    tutorial `[perltoot]', die via perldoc (`perldoc perltoot') te lezen is.
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;DISCLAIMER&lt;/strong&gt;&lt;br&gt;
+
+    Hoewel ik ervan uitga dat hier geen fouten instaan, is alles op eigen
+    risico. Veel dingen zijn niet aan bod gekomen, en veel dingen laat ik over
+    aan je eigen verstand. Lees de echte perldocumentatie voor een compleet
+    overzicht.
+
+&lt;/p&gt;&lt;p&gt;
+&lt;strong&gt;AUTEUR&lt;/strong&gt;&lt;br&gt;
+
+    [Juerd], Perlverslaafde.&lt;Br&gt;
+    [http://juerd.nl/]&lt;br&gt;
+    [http://japh.nl]&lt;br&gt;
+&lt;/p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>132425</node_id>
+  <author_user>132236</author_user>
+  <title>(lang: nl) Objecten voor beginners</title>
+  <createtime>2001-12-16 23:11:36</createtime>
+  <nodeupdated>2005-08-15 10:45:37</nodeupdated>
+</node>

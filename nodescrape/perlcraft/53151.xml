@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="53151" title="Unique-Character Substring" created="2001-01-19 23:46:49" updated="2005-08-05 09:09:59">
+<type id="121">
+perlcraft</type>
+<author id="1936">
+japhy</author>
+<data>
+<field name="doctext">
+=pod
+
+  @longest = pinyan_UCS($string)
+
+This function returns the set of the longest substrings
+in a given string.  It seems rather efficient, even though
+it calls C&lt;index()&gt; quite a bit.  I found that using a hash
+to figure if I'd seen a character had adverse effects.
+
+=cut
+
+sub pinyan_UCS {
+  my $str = shift;
+  my $len = length $str;
+  my ($diff,$biggest) = (0,0);
+  my ($jump,@ahead,@matches);
+
+  for (my $i = 0; $i &lt; $len; ) {
+    my $match = [ $i, $len ];
+    if ($len - $i &gt;= $biggest) {
+      for (my $k = $i; $k &lt; $match-&gt;[1]; $k++) {
+        $ahead[$k] ||= index($str, substr($str,$k,1), $k+1);
+        if ($ahead[$k] != -1 and $match-&gt;[1] &gt; $ahead[$k]) {
+          $match-&gt;[1] = $ahead[$k];
+          $jump = $k;
+        }
+      }
+
+      $diff = $match-&gt;[1] - $match-&gt;[0];
+  
+      if ($diff &gt; $biggest) { ($biggest,@matches) = ($diff,$match) }
+      elsif ($diff == $biggest) { push @matches, $match; }
+    }
+    else { last }
+    
+    $i = ++$jump;
+  }   
+      
+  return map substr($str, $_-&gt;[0], $_-&gt;[1] - $_-&gt;[0]), @matches;
+}
+</field>
+</data>
+</node>

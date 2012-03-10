@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="28892" title="consider container" created="1999-09-23 16:24:03" updated="2005-08-05 06:24:56">
+<type id="2">
+container</type>
+<author id="929">
+developers</author>
+<data>
+<field name="context">
+[%
+    $HTMLVARS{embed_node}{considervoted} = 
+        $DB-&gt;sqlSelect( "*", "considervote",
+            "considervote_id=$HTMLVARS{embed_node}{node_id} and voter_user="
+            . getId($USER) );
+    ''
+%]
+&lt;tr class="ntc-head[%
+    $HTMLVARS{embed_node}{considervoted} ? " ntc-voted" : ''
+ %]"
+    id="consider-row-id[% $HTMLVARS{embed_node}{node_id} %]"&gt;
+   &lt;td valign="top" style="padding-left:.2em"&gt;
+
+&lt;!-- TITLE --&gt;
+      [% linkNode($HTMLVARS{embed_node}{node_id}) %]
+
+&lt;!-- REPLIES --&gt;
+     &lt;br/&gt;
+      [%
+         my $replytag= $HTMLVARS{embed_node}{numreplies};
+         $replytag .=  1 == $replytag  ?  " reply"  :  " replies";
+         return  linkNode( $HTMLVARS{embed_node}, $replytag );
+      %]
+
+   &lt;/td&gt;
+   &lt;td valign="top" align=right style="padding-right:.2em"&gt;
+
+&lt;!-- AUTHOR --&gt;
+      by [%
+         return ''
+            if  ! exists $HTMLVARS{embed_node}{author_user}
+            ||  $HTMLVARS{embed_node}{author_user} &lt; 0;
+         return  linkNode( $HTMLVARS{embed_node}{author_user} );
+      %]
+
+&lt;!-- DATE --&gt;
+     &lt;br/&gt;
+      on [%
+         htmlcode( 'parseTimeInString', $HTMLVARS{embed_node}{createtime} )
+      %]
+
+   &lt;/td&gt;
+&lt;/tr&gt;&lt;tr class="ntc-moderation[%
+    $HTMLVARS{embed_node}{considervoted} ? " ntc-voted" : ''
+%]"&gt;
+   &lt;td colspan="2"&gt;
+      [%
+        return qq(Considered: $HTMLVARS{embed_node}{reason}&lt;br/&gt;\n);
+      %]
+      [%
+         if( $HTMLVARS{embed_node}{considervoted} ) {
+            my( $keep, $edit, $delete )= $DB-&gt;sqlSelect(
+               "keep,edit,del", "considernodes",
+               "considernodes_id=$HTMLVARS{embed_node}{node_id}" );
+            return qq[&lt;center&gt;&lt;font size="2"&gt;
+                  keep: $keep  edit: $edit  reap: $delete
+               &lt;/font&gt;&lt;/center&gt;];
+         }
+
+         my @list= qw( keep edit reap nada );
+         push @list, qw( reallydelete unconsider )
+            if  isGod($USER);
+         return "&lt;center&gt;"
+            . $q-&gt;radio_group(
+                  -name=&gt;$HTMLVARS{embed_node}{node_id},
+                  -values=&gt;\@list,
+                  -default=&gt;"nada" )
+            . "&lt;/center&gt;\n";
+      %]
+&lt;/tr&gt;&lt;tr class="ntc-body[%
+    $HTMLVARS{embed_node}{considervoted} ? " ntc-voted" : ''
+%]"&gt;
+   &lt;td colspan="2"&gt;
+CONTAINED_STUFF
+   &lt;/td&gt;
+&lt;/tr&gt;
+</field>
+<field name="parent_container">
+0</field>
+</data>
+</node>

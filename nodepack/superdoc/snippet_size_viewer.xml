@@ -1,0 +1,111 @@
+<node>
+  <doctext>[{get_sitedoclet}]
+[%
+local *form_get_size = sub
+{
+    my ($override) = @_;
+    return
+      htmlcode('openform') .
+      $query-&gt;hidden('node_id' =&gt; getId($NODE)) . qq[
+         Restrict to size &amp;gt;&amp;nbsp;
+         ${ \$query-&gt;textfield(
+             -name      =&gt; 'size',
+             -value     =&gt; '',
+             -size      =&gt; 6,
+             -maxlength =&gt; 10,
+             -override  =&gt; $override
+         ) } (characters)
+         ${ \$query-&gt;submit('sexisgood' =&gt; 'Search') }
+      ] .
+      $query-&gt;end_form;
+};
+
+local *commify = sub {
+    1 while $_[0] =~ s/^([-+]?\d+)(\d{3})/$1,$2/;
+};
+
+use vars qw/$limit/;
+local *limit = \50;
+my $size     = $query-&gt;param('size')     || 0;
+my $start_at = $query-&gt;param('start_at') || 0;
+for($size, $start_at) {
+    /^\d+$/ or $_ = 0; # sterilize
+}
+
+my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare(qq[
+  SELECT  snippet_id, title, CHAR_LENGTH(snippetcode) AS size
+    FROM  snippet INNER JOIN node
+      ON  node.node_id = snippet.snippet_id
+   WHERE  CHAR_LENGTH(snippetcode) &gt; $size
+   ORDER BY size DESC
+   LIMIT  $start_at, $limit
+]);
+$sth-&gt;execute(); # $size, $start_at, $limit
+
+my $search_space_size = $DB-&gt;sqlSelect(
+    'count(snippet_id)',
+    'snippet',
+    &quot;CHAR_LENGTH(snippetcode) &gt; $size&quot;
+);
+
+my $count = $start_at + 1;
+my $str = form_get_size(!$size) .
+          qq[&lt;table border=&quot;1&quot; width=&quot;100%&quot; cellspacing=&quot;0&quot;
+               cellpadding=&quot;3&quot;&gt;
+               &lt;tr&gt;&lt;th&gt;Rank&lt;/th&gt;
+                   &lt;th&gt;Title&lt;/th&gt;
+                   &lt;th&gt;Size (in chars)&lt;/th&gt;&lt;/tr&gt;
+          ];
+while (  my $node = $sth-&gt;fetchrow_hashref  ) {
+    my $url = urlGen({node_id =&gt; $node-&gt;{snippet_id}});
+    $node-&gt;{title} ||= $node-&gt;{snippet_id};
+    commify($node-&gt;{size}) if $node-&gt;{size} &gt; 9999;
+    $str .= qq[
+      &lt;tr&gt;
+        &lt;td align=&quot;right&quot;&gt;$count&lt;/td&gt;
+        &lt;td width=&quot;80%&quot;&gt;
+          &lt;a href=&quot;?node_id=$node-&gt;{snippet_id}&quot;&gt;$node-&gt;{title}&lt;/a&gt;
+        &lt;/td&gt;
+        &lt;td align=&quot;right&quot;&gt;${\$query-&gt;escapeHTML($node-&gt;{size})}&lt;/td&gt;
+      &lt;/tr&gt;
+    ];
+    $count++;
+}
+$str .= '&lt;/table&gt;';
+
+my %pages = (
+    next =&gt; '&amp;nbsp;',
+    prev =&gt; '&amp;nbsp;'
+);
+local *nav_link = sub {
+    urlGen({
+        node_id  =&gt; $$NODE{node_id},
+        start_at =&gt; $start_at + $_[0] * $limit,
+        size =&gt; $size },
+        -1
+     );
+};
+if ($start_at != 0) {
+    $pages{prev} = nav_link(-1);
+    $pages{prev} = qq[&amp;larr; &lt;a href=&quot;$pages{prev}&quot;&gt;Prev $limit&lt;/a&gt;];
+}
+if ($start_at + $limit &lt; $search_space_size) {
+    $pages{next} = nav_link(+1);
+    $pages{next} = qq[&lt;a href=&quot;$pages{next}&quot;&gt;Next $limit&lt;/a&gt; &amp;rarr;];
+}
+$str .= qq[&lt;table border=&quot;0&quot; width=&quot;100%&quot;&gt;
+             &lt;tr&gt;&lt;td align=&quot;left&quot; width=&quot;50%&quot;&gt;$pages{prev}&lt;/td&gt;
+                 &lt;td align=&quot;right&quot; width=&quot;50%&quot;&gt;$pages{next}&lt;/td&gt;
+             &lt;/tr&gt;
+           &lt;/table&gt;
+        ];
+return $str;
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>492844</node_id>
+  <author_user>225942</author_user>
+  <title>Snippet Size Viewer</title>
+  <createtime>2005-09-17 07:26:09</createtime>
+  <nodeupdated>2005-09-17 03:26:09</nodeupdated>
+</node>

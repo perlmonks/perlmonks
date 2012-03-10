@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="187598" title="saferegex" created="2002-08-05 03:12:57" updated="2004-09-21 15:00:28">
+<type id="4">
+htmlcode</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="code">
+    my( $pattern )= @_;
+    my $error;
+    my %helper= (
+        '\w' =&gt; '[_[:alnum:]]',
+        '\W' =&gt; '[^_[:alnum:]]',
+        '\s' =&gt; '[[:space:]]',
+        '\S' =&gt; '[^[:space:]]',
+        '\d' =&gt; '[0-9]',
+        '\D' =&gt; '[^0-9]',
+        '\n' =&gt; "\n",
+        '\t' =&gt; "\t",
+        '\b' =&gt; '[[:&lt;:]]',
+        '\B' =&gt; '[[:&gt;:]]',
+        '\A' =&gt; '^',
+        '\z' =&gt; '$',
+        '\Z' =&gt; "\n?\$",
+        '^'  =&gt; "(^|\n)",
+        '$'  =&gt; "(\n|\$)",
+    );
+    my $prev= '';
+    my @replace;
+    my @mult= ( 0 );
+    while(  $pattern =~ m&lt;      # Tokenize the potential regex
+          \G                    # Don't let it skip bits
+            (                   # Return what we find
+              \\x..             # A hexadecimal character
+            | \\0[0-7]{0,3}     # An octal character
+            | \\.               # A boring escaped character
+            | [^\[\{]           # Not '[' nor '{' so treat as a token   #}
+            | \{(?=\D)          # Literal but unescaped '{'             #}
+            | \{\d+,?\d*}       # Bounded repetitions
+            | \[                # '[' starts a character class
+                \^?             #  '^' can go in front of the literal ']'
+                \]?             #   ']' at start is taken literally
+                (?:             #     Inside, there can be some subtokens
+                  [^\]]         #       Not '[' so isn't a subtoken
+                | \[(?=[^.=:])  #       '[' but not '[.', '[=', nor '[:'
+                | \[            #       Must be '[' of '[.', '[=', or '[:'
+                    [^\]]*      #       Anything but the closing ']'
+                  \]            #       ']' closes out subtoken
+                )*              #     Any number of subtokens
+              \]                # ']' closes out the character class
+            | (.)               # Found something invalid (sets $2)
+            )
+        &gt;xsg
+    ) {
+        my $token= $1;
+        if(  defined $2  ) {
+            $error= "Your regex appears to be invalid."
+              . " I understood '"
+              . $q-&gt;escapeHTML(
+                  substr( $pattern, 0, pos($pattern)-1 )
+                ) . "' but not '"
+              . $q-&gt;escapeHTML(
+                  substr( $pattern, pos($pattern)-1 )
+                ) . "'.";
+            last;
+        }
+        if(  ')' eq $prev  ) {
+            if(    0 &lt; $mult[-1]
+              and      $token =~ /^[+*]/
+                   ||  $token =~ /^{./                  #}
+            ) {
+                $error= "We don't allow a () that contains"
+                    . " +, *, or {} to have +, *, or {} applied to it"
+                    . " (to prevent excess server load).";
+                last;
+            }
+            my $mult= pop @mult;
+            $mult[-1] += $mult;
+        }
+        if(  '(' eq $token  ) {
+            push @mult, 0;
+        } elsif(  $token =~ /^[+*]/  ||  $token =~ /^{./  ) {       #}
+            $mult[-1]++;
+        }
+        if(  exists $helper{$token}  ) {
+            push @replace, pos($pattern), length($token), $helper{$token};
+        } elsif(  $token =~ /^\\x([0-9a-fA-F][0-9a-fA-F])\z/  ) {
+            push @replace, pos($pattern), length($token), chr(hex($1));
+        } elsif(  $token =~ /^\\(0[0-7]{0,3})\z/  ) {
+            push @replace, pos($pattern), length($token), chr(oct($1));
+        } elsif(  $token =~ /^\\\w\z/  ) {
+            $error= "Illegal escape ($token) in regex.";
+            last;
+        }
+        $prev= $token;
+    }
+    if(  6 &lt; $mult[0]  ) {
+        $error= "Your regex had $mult[0] instances of +, *, or {}."
+            . " We don't allow more than 6 instances"
+            . " (to prevent excess server load).";
+    }
+    if(  $error  ) {
+        return "\\9$error";
+    }
+    while(  @replace  ) {
+        my( $pos, $len, $str )= splice @replace, -3;
+        substr( $pattern, $pos-$len, $len )= $str;
+    }
+    return $pattern;
+</field>
+</data>
+</node>

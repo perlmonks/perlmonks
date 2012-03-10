@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="205262" title="Unix Sysadmin User'sShell History Reporting Tool" created="2002-10-14 21:31:58" updated="2005-06-11 06:16:53">
+<type id="121">
+perlcraft</type>
+<author id="961">
+Anonymous Monk</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+# script to show users' csh history with dates
+# ammended to add support for displaying all user's history files
+# on a given date (switch -d)
+# useful for running daily from a cron job and having 
+# the output mailed to an admin
+
+=comment
+Addendum - the shell script I run from cron around
+11.50pm daily is as follows:
+#!/bin/sh
+TODAY=`date | awk '{print $2,$3}'
+
+/home/munk/bin/perl/showhistory.pl -d "$TODAY"
+=cut
+
+use strict;
+use Getopt::Std;
+
+my %opt=();
+my($user, $date, $histdate, $histfile, $err);
+my $div="#"x68;
+
+my $progname = $0;
+$progname =~ s,.*/,,;  # use basename only
+$progname =~ s/\.\w*$//; # strip extension, if any
+
+# find out what options we're passed:
+&amp;getopts('u:d:h', \%opt);
+
+# display usage if bad opts:
+if($opt{h}){ &amp;usage(); }
+
+# parse options:
+if($opt{u}){
+	&amp;showUserHistory($opt{u});	
+} elsif ($opt{d}) {
+	&amp;showDateHistory($opt{d});
+} else {
+	&amp;usage("No options specified\n");
+}
+
+sub showUserHistory {
+	($user, $date) = @_;
+	chomp($date);
+
+	# make sure the date format is right (for matching against system 'date' cmd):
+	$date=~s/(\w+) (\d)$/$1  $2/;
+	
+	my $output="";
+	my $line;
+	my $header="${div}\nHistory for user $user:\n$div\n";
+	
+	$histfile="/home/$user/.history";
+	open(FD, "$histfile") or ($opt{u} &amp;&amp; print "${div}\nCouldn't open history file $histfile\n$div\n");
+
+	while(&lt;FD&gt;){
+		s/^#//;
+		
+		$histdate=`date -r $_`;
+		chomp($histdate);
+		# if this history command occurs on the date passed to us, 
+		# or if we're just listing all commands for a user,
+		# append the command history to the $output vbl:
+		my $cmd=&lt;FD&gt;;
+		if( ($histdate=~/$date/) || $opt{u} ){
+			$output.=sprintf("%s %40s", $histdate, $cmd);
+		}
+	}
+	
+	# if there's anything in output, show it, otherwise print a msg:
+	if($output){
+		print $header.$output;
+	} else {
+		# only if single user, otherwise omit:
+		$opt{u} &amp;&amp; print "\n${div}\nNo history for user $user\n$div\n";
+	}
+}
+
+sub showDateHistory{
+	$date=shift;
+
+	opendir(DH, "/home/");
+
+	while(($user=readdir DH)){
+		if($user ne "." &amp;&amp; $user ne ".."){
+			&amp;showUserHistory($user, $date);
+		}
+	}
+}
+
+sub usage{
+	$err &amp;&amp; (print $err,"\n");
+	die&lt;&lt;"~USAGE~";
+Usage: $progname [-u &lt;user&gt;] [-d &lt;date&gt;] [-h]
+       -h                     Display this help.
+
+       -d &lt;date&gt;              Display shell history listing for all users on
+                              date &lt;date&gt;.
+                              Example: $progname -d "Oct 13"
+                              Displays shell history listings for all users
+                              who logged in on Oct 13 this year.
+
+       -u &lt;user&gt;              Display complete shell history listing for 
+                              the user &lt;user&gt;.
+                              Example: $progname -u munk
+                              Display a complete shell history listing for
+                              the user 'munk'.
+~USAGE~
+}</field>
+</data>
+</node>

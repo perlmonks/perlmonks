@@ -1,0 +1,128 @@
+<node>
+  <doctext>The question of how to use CGI scripts to generate HTML comes up frequently.  Consistently, people try to embed the HTML directly in the 
+CGI script.  While for simple scripts, this may be useful, it quickly becomes a maintenance nightmare for large sites.
+&lt;p&gt;
+Imagine even a relatively small site that has 5 CGI scripts that each generate 5 Web pages.  Since we want a common look and feel, those Web pages often have duplicate elements that get repeated throughout the code.  Sometimes, the programmer realizes that common elements should be stuffed in a single location and then added to each page as appropriate.  This is useful because it makes updating the pages easier, but it still faces the &quot;mixing HTML and code&quot; problem.
+&lt;p&gt;
+Typically, an organization has relatively few programmers, so updating these Web pages require having relatively high-priced programmers doing HTML maintenance.  The programmers often hate this and the company suffers.  Another annoying problem with this is a problem that Perl has with &quot;here&quot; documents.  Imagine a 100 line here document beginning on line 219 of a script.  If one of the values embedded in a document is undefined, you often get an error message like the following:
+&lt;code&gt;
+Use of uninitialized value in concatenation (.) at D:\oursite\local\cgi-bin\script.cgi line 219.
+&lt;/code&gt;
+Perl reports the first line that begins the here document as the one containing the unitialized value.  Often, this can be a difficult bug to track down!
+&lt;p&gt;
+While there are many reasons to consider alternatives to embedding HTML in your CGI scripts, I'll just leave it at that and suggest that you consider a template scheme.  Many recommend using [http://www.template-toolkit.org|Template Toolkit] for this.  However, for a light-weight, easy to implement system, consider using [cpan://HTML::Template].
+&lt;p&gt;
+Here's a simple example.  We'll create a small Web page that will print out all of your environment variables.  We'll show four basic functions of HTML::Template:  embedded values, looping, branching, and including external HTML files in the main HTML document.
+&lt;code&gt;
+&lt;html&gt;
+  &lt;head&gt;&lt;title&gt;Test Template&lt;/title&gt;&lt;/head&gt;
+  &lt;body bgcolor='#999999'&gt;
+    &lt;h1&gt;&lt;TMPL_VAR NAME=HEADING&gt;&lt;/h1&gt;
+    &lt;table border=&quot;1&quot;&gt;&lt;TMPL_LOOP NAME=ENV_VARS&gt;
+      &lt;tr bgcolor='&lt;TMPL_VAR NAME=BGCOLOR&gt;'&gt;
+        &lt;td&gt;&lt;TMPL_VAR NAME=NAME&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;TMPL_VAR NAME=VALUE&gt;&lt;/td&gt;
+      &lt;/tr&gt;&lt;/TMPL_LOOP&gt;
+    &lt;/table&gt;
+    &lt;p&gt;
+    &lt;TMPL_INCLUDE NAME=&quot;footer.tmpl&quot;&gt;
+    &lt;p&gt;
+    &lt;TMPL_IF NAME=&quot;BOOL&quot;&gt;
+      Some text that only gets displayed if BOOL is true!
+    &lt;TMPL_ELSE&gt;
+      Looks like BOOL was false.
+    &lt;/TMPL_IF&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+&lt;/code&gt;
+Create the above document and save it as &quot;template.tmpl&quot;.  You'll notice some new tags in there.  Here's what they do:
+&lt;code&gt;
+&lt;TMPL_VAR NAME=HEADING&gt;
+&lt;/code&gt;
+The &lt;tt&gt;TMPL_VAR&lt;/tt&gt; tag allows you to assign a value to a name (in this case, &lt;TT&gt;HEADING&lt;/TT&gt; will be assigned a scalar value in the CGI script.
+&lt;code&gt;
+&lt;TMPL_LOOP NAME=ENV_VARS&gt;
+&lt;/code&gt;
+This tells HTML::Template that we want to start a loop named &lt;tt&gt;ENV_VARS&lt;/tt&gt;.  While it's iterating through the loop, it will look for &lt;tt&gt;TMPL_VAR&lt;/tt&gt; tags and assign them scalar values that the CGI script creates.  The following tags are used in the HTML template:
+&lt;code&gt;
+&lt;TMPL_VAR NAME=BGCOLOR&gt;
+&lt;TMPL_VAR NAME=NAME&gt;
+&lt;TMPL_VAR NAME=VALUE&gt;
+&lt;/code&gt;
+To populate them, an array of anonymous hash references will be created.  Each hash reference will look like the following:
+&lt;code&gt;
+{
+    BGCOLOR =&gt; '#FFFFFF',
+    NAME    =&gt; 'Some Name',
+    VALUE   =&gt; 'Some Value'
+}
+&lt;/code&gt;
+As HTML::Template iterates over the array, it will take the name/value pairs in the hash reference and use them to duplicate the items in the loop with the name/value pairs filled in appropriately.
+&lt;code&gt;
+&lt;TMPL_INCLUDE NAME=&quot;footer.tmpl&quot;&gt;
+&lt;/code&gt;
+The &lt;tt&gt;TMPL_INCLUDE&lt;/tt&gt; tag tells HTML::Template to take the contents of the filename specified and insert them into the HTML document where the tag is found.  Note that, as of this writing, you cannot include HTML::Template tags in the included document.
+&lt;p&gt;
+For now, just create a file named &lt;tt&gt;footer.tmpl&lt;/tt&gt; and add the following line to it:
+&lt;code&gt;
+&lt;small&gt;This document brought to you by the letter 'P'&lt;/small&gt;
+&lt;/code&gt;
+Simple branching is also possible:
+&lt;code&gt;
+&lt;TMPL_IF NAME=&quot;BOOL&quot;&gt;
+  Some text that only gets displayed if BOOL is true!
+&lt;TMPL_ELSE&gt;
+  Looks like BOOL was false.
+&lt;/TMPL_IF&gt;
+&lt;/code&gt;
+This is a simple branch.  It tests the value of the &lt;tt&gt;BOOL&lt;/tt&gt; scalar that gets passed to the template object.  If it evaluates as true... well, you get the idea.
+&lt;p&gt;
+Finally, here's the script that gets this to work:
+&lt;code&gt;
+C:\perl\bin\perl.exe -T
+# Strictly speaking, taint checking is not required when you are
+# simply printing a Web page, but don't leave it out!
+use warnings;
+use strict;
+use HTML::Template;
+
+# Always be sure to encode anything that you print to a Web page, particularly 
+# if it's not from a trusted source.  One Porn image in your guestbook or properly
+# chosen meta tags can make your life a headache.
+use HTML::Entities;
+use CGI qw/:standard/;
+
+# Here we create a new template object and tell it where the template is
+my $template = HTML::Template-&gt;new( filename =&gt; 'template.tmpl' );
+
+# We'll use toggle to set background colors
+my $toggle = 1;
+
+# This array contains a anonymous hash references that correspond to values in the template
+my @ENV;
+
+for ( sort keys %ENV ) {
+    # This toggles $toggle between 0 and 1
+    $toggle ^= 1;
+    push @ENV, { BGCOLOR =&gt; ( $toggle ? '#FFFFFF' : '#CCCCCC' ) ,
+                 NAME    =&gt; $_, 
+                 VALUE   =&gt; encode_entities( $ENV{$_} ) };
+}
+$template-&gt;param( { HEADING  =&gt; 'Some Environment Variables',
+                    ENV_VARS =&gt; \@ENV,
+                    BOOL     =&gt; 1 } );
+
+print header, $template-&gt;output;
+&lt;/code&gt;
+It's the &lt;tt&gt;$template-&gt;param()&lt;/tt&gt; call that actually sets up the template.  Note that &lt;tt&gt;HEADING&lt;/tt&gt; and &lt;tt&gt;BOOL&lt;/tt&gt; are simply scalar values, while &lt;tt&gt;ENV_VARS&lt;/tt&gt; is the array of hash references that is used for the loop.  Try playing around with some of these values to get a feel for how this works.
+&lt;p&gt;
+HTML::Template actually has quite a bit of functionality beyond what I have described here, so be sure to read the documentation.  Further, there are a variety of ways to get the output that I did above.
+&lt;p&gt;
+Incidentally, I did not describe the use of &quot;loop context vars.&quot;  They can be handy to control the behavior of loops, but they've been noted to be buggy in the past and I have found them to still have some issues.  Handle with care.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>46976</node_id>
+  <author_user>17000</author_user>
+  <title>Using HTML::Template</title>
+  <createtime>2000-12-15 22:44:53</createtime>
+  <nodeupdated>2005-08-15 13:40:31</nodeupdated>
+</node>

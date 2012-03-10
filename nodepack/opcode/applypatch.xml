@@ -1,0 +1,47 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>117586</node_id>
+  <author_user>929</author_user>
+  <title>applypatch</title>
+  <createtime>2001-10-09 00:07:46</createtime>
+  <code>return   unless  isGod($USER);
+
+my $PATCH= $q-&gt;param('patchnum');
+getRef( $PATCH );
+return   unless  $PATCH;
+
+my $N= getNodeById( $PATCH-&gt;{for_node} );
+return   unless  $N;
+
+$q-&gt;param( 'oldvalue', $N-&gt;{ $PATCH-&gt;{field} } );
+$N-&gt;{ $PATCH-&gt;{field} }= $PATCH-&gt;{code};
+updateNode( $N, $USER );
+
+my $applier_id = getId($USER);
+
+$DB-&gt;getDatabaseHandle()-&gt;prepare(
+    &quot;update patch set applied=now(), applied_by=? where patch_id=?&quot;
+)-&gt;execute( $applier_id, getId($PATCH) );
+
+my $AUTHOR = getNodeById( $PATCH-&gt;{author_user} );
+my $msg = &quot;[id://$applier_id] has applied your patch [id://$PATCH-&gt;{node_id}].&quot;;
+$DB-&gt;sqlInsert( &quot;message&quot;, {
+    msgtext =&gt; $msg,
+    author_user =&gt; getId( getNode('root','user') ),
+    for_user =&gt; $PATCH-&gt;{author_user},
+} )
+    if  $PATCH-&gt;{author_user} ne $applier_id
+    &amp;&amp;  $USER-&gt;{nick} ne $AUTHOR-&gt;{title};
+
+getNodeById( $PATCH, 'force' );
+
+if ( $q-&gt;param('apply_mode') ) {
+    $q-&gt;param( 'node_id',getId($PATCH));
+    $q-&gt;param( 'displaytype', $q-&gt;param('apply_mode'));
+} else {
+    $q-&gt;param( 'node', 'patch completed page' );
+    $q-&gt;param( 'type', 'strangedoc' );
+    $q-&gt;param( 'node_id', '' );
+}</code>
+  <nodeupdated>2004-11-08 18:58:54</nodeupdated>
+</node>

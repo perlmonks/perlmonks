@@ -1,0 +1,96 @@
+<node>
+  <doctext># deprecated - pragmatic module to mark a package or a sub as unsupported
+
+package deprecated;
+
+=head1 NAME
+
+deprecated - pragmatic module to mark a package or a sub as unsupported
+
+=head1 SYNOPSIS
+
+    package OldeCrufte;
+    use deprecated qw(do_hack);  # calling OldeCrufte::do_hack() will carp
+
+    package OldeCrufte;
+    use deprecated;              # using the OldeCrufte module will carp
+
+=head1 DESCRIPTION
+
+The word 'deprecated' is used to describe something that has lost support
+or is otherwise not recommended.  In programming, this usually means that
+a newer, faster, safer or more supportable method has replaced an earlier
+routine.
+
+When added to a package, this pragma will mark the package, or select
+subs within it, as being deprecated.  It does not change the behavior of
+the subs within the package, except that on the first call of the sub, a
+helpful message is printed to the C&lt;STDERR&gt; stream before running.
+
+The runtime messages are suppressed if the PERLLIB environment variable
+does not contain the words 'home', 'devel', or 'test'.
+This way, only developers see these messages when working with
+the programs, but normal end-users do not see them.  This
+test is easy to customize for other company library
+situations.
+
+=cut
+
+use strict;
+
+sub debug
+{
+    return (defined $ENV{PERLLIB} and
+	    $ENV{PERLLIB} =~ /home|devel|test/i);
+}
+
+use constant EVAL_CODE =&gt; &lt;&lt;'END_CODE';
+sub %s::INIT
+{
+    my $overridden = \&amp;%s;
+    *%s =
+	sub
+	{
+	    if (deprecated::debug())
+	    {
+		require Carp;
+		Carp::carp('%s() is deprecated; ' .
+			   'see the documentation for an alternative;');
+	    }
+	    *%s = $overridden;
+	    goto &amp;$overridden;
+	};
+}
+END_CODE
+
+sub import {
+    my $class = shift;
+    my $pkg = caller;
+    if (not @_ and debug())
+    {
+	require Carp;
+	Carp::carp(&quot;Module $pkg is deprecated; &quot; .
+		   'see the documentation for an alternative;');
+    }
+    eval join('', map { sprintf(EVAL_CODE, $pkg, (&quot;$pkg\::$_&quot;) x 4) } @_);
+}
+
+1;
+
+__END__
+
+=head1 AUTHORS
+
+Proposed and tested by Ed Halley &lt;F&lt;ed@halley.cc&gt;&gt;, and draft
+implementation by 'Aristotle', as posted on F&lt;http://www.perlmonks.org/&gt;
+in 2003.
+
+=cut
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>321803</node_id>
+  <author_user>249603</author_user>
+  <title>use deprecated;</title>
+  <createtime>2004-01-16 10:26:56</createtime>
+  <nodeupdated>2005-08-12 21:10:32</nodeupdated>
+</node>

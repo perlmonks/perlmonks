@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="465937" title="selectcode" created="2005-06-12 07:35:09" updated="2005-07-31 11:52:07">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my( $field, $node ) = @_;
+$node ||= $NODE;
+my $text = $node-&gt;{$field};
+
+my (@code,@html);
+while(  $text =~ m[&lt;(c(?:ode)?)&gt;(.*?)&lt;/\1&gt;]sig  ) {
+  push @code, $2;
+}
+
+if (exists $VARS-&gt;{ignore_inline_dl_code}) {
+    # this is stupid and its my fault 
+    # it should be removed one day - demerphq 
+    $VARS-&gt;{show_inline_dl_code}=
+        not delete $VARS-&gt;{ignore_inline_dl_code};
+}
+
+
+push @html,
+   qq[&lt;p align="right"&gt;&lt;a href="/?node_id=626918"&gt;Help for this page&lt;/a&gt;&lt;/p&gt;\n],
+   "&lt;h1&gt;Select Code to Download&lt;/h1&gt;",
+   "&lt;p&gt;",
+   htmlcode( 'openform' ),
+   htmlcode( 'checkvar', '',
+            'show_inline_dl_code',
+            "Show inline code blocks?",
+            "show"
+   ),
+   $q-&gt;submit( 'sexisgood', 'stumbit'),
+   $q-&gt;endform,
+   "&lt;/p&gt;";
+
+@code = grep { /\n/ } @code
+   if !$VARS-&gt;{show_inline_dl_code};
+
+push @html,
+   htmlcode( 'openform', '', -displaytype =&gt; 'displaycode' ),
+   $q-&gt;submit(
+      -name =&gt; 'ShowCode',
+      -value =&gt; "Download Selected Code"
+   ),
+   "&lt;br /&gt;",
+   $q-&gt;ol(
+      $q-&gt;li([
+         map {
+                 my $sample=$code[$_-1];
+                 my @lines=split /\n/,$sample;
+                 if (@lines&gt;6) {
+                    @lines=(@lines[0..2],"...",@lines[-3,-2,-1]);
+                 }
+
+                 $q-&gt;checkbox(
+                       -name =&gt; "part",
+                       -checked =&gt; 0,
+                       -value =&gt; $_,
+                       -label =&gt; "Select",
+                 )." or ".
+                 linkNode(
+                       $node,
+                       qq[&lt;font size="-1"&gt;download this&lt;/font&gt;],
+                       { displaytype =&gt; 'displaycode', part =&gt; $_ },
+                       { trusted =&gt; 'yes' },
+                 )."&lt;br /&gt;".
+                 htmlcode( 'wrapcode', '', join "\n",@lines )
+           } 1..@code
+       ]),
+   ),
+   $q-&gt;submit(
+       -name =&gt; 'ShowCode',
+       -value =&gt; "Download Selected Code"
+   ),
+   "&lt;br /&gt;",
+   $q-&gt;endform,
+;
+
+return join "\n", @html;</field>
+</data>
+</node>

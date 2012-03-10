@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="468108" title="get_cached_xml_chatter" created="2005-06-19 09:03:58" updated="2005-08-07 13:17:09">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ( $style, $timeout, $limit )= @_;
+
+my $ustyle= $q-&gt;param('xmlstyle');
+
+if ( $ustyle &amp;&amp; 
+     $ustyle=~/^(old|new|modern)$/i ) 
+{
+    $style = lc $ustyle;
+}
+$style='modern' if !$style or $style!~/^(old|new|modern)$/i;
+
+
+my $code_id= $HTMLVARS{"xml_chatter_cache_code_id_$style"} 
+   or return 
+     qq[&lt;error&gt;]
+   . qq[no "xml_chatter_cache_code_id_$style" in system settings]
+   . qq[&lt;/error&gt;];
+
+my ($fromid)= $q-&gt;param('fromid')=~/^(\d+)$/;
+my $hadfromid= $fromid;
+my $ukey= "$style/$ENV{REMOTE_ADDR}/$ENV{HTTP_USER_AGENT}";
+my $ukexpect=2;
+if ($VARS-&gt;{ukeyclear}!=$ukexpect) {
+  $VARS-&gt;{ukeyclear}=$ukexpect;
+  $VARS-&gt;{ukeyhash}={};
+}
+
+my $ukeyhash= ref $VARS-&gt;{ukeyhash} ? $VARS-&gt;{ukeyhash} : {};
+
+if ( !$fromid &amp;&amp; $ukeyhash-&gt;{$ukey} &amp;&amp; $ENV{HTTP_USER_AGENT}!~/framechat/i ) {
+  my ( $id, $time )= split/,/, $ukeyhash-&gt;{$ukey};
+  $fromid= $id;
+}
+
+$timeout=$1 if $q-&gt;param('timeout')=~/^(\d+)$/;
+$timeout=600 if !$timeout or ($timeout&gt;600 &amp;&amp; !isGod($USER)); #for debugging
+$limit=$1 if $q-&gt;param('limit')=~/^(\d+)$/;
+$limit=10 if !defined $limit and !$fromid;
+
+#------------
+
+require XML::Fling;
+my ($xml,@data,%xmlstyle);
+push @data,getHttpHeader("text/xml");
+$xmlstyle{$style}=1;
+
+if ($style eq 'old') {
+    $xml= XML::Fling-&gt;new( \@data, ("&lt;","&gt;\n")x3 );
+} else {
+    $xmlstyle{clean} = 1;
+    $xml= XML::Fling-&gt;new( \@data );
+}
+$xml-&gt;header("Windows-1252");
+push @data,"\n" if $style ne 'old';
+
+
+$xml-&gt;start($style eq 'old' ? 'CHATTER' : 'chatter');
+push @data,"\n" if $style ne 'old';
+
+my @and_clause=("code_id = $code_id");
+
+my $ignore_list = $VARS-&gt;{ignoredusers};
+$ignore_list =~ s/\|//g;
+$ignore_list =~ s/,$//;
+push @and_clause,"updateinterval not in ($ignore_list)"
+    if $ignore_list;
+
+push @and_clause, sprintf "cachekey &gt; '%08d'",$fromid
+  if $fromid;
+
+push @and_clause, "subdate( now(), INTERVAL $timeout SECOND ) &lt; lastupdate"
+  if $timeout;
+
+$limit=$limit ? "limit $limit" : "";
+
+my $csr = $DB-&gt;sqlSelectMany(
+    "cachekey, cachedata",
+    "cachedinfo",
+    join(" and ",@and_clause),
+    "order by cachekey desc $limit",
+);
+
+my $array= $csr-&gt;fetchall_arrayref({});
+
+my $lastid= ($array &amp;&amp; @$array) ? 0+$array-&gt;[0]{cachekey} : 0;
+
+htmlcode( 'xml_info_tag', '', $xml, \%xmlstyle, 0,
+          $fromid ? ( 'fromid' =&gt; $fromid ) : (),
+          $lastid ? ( 'lastid' =&gt; $lastid ) : (),
+          'count' =&gt; ($lastid ? 0+@$array : 0),
+);
+push @data,"\n" if $style ne 'old';
+
+foreach my $msg ( reverse @$array ) {
+  my $text= $msg-&gt;{cachedata};  
+  if ($style eq 'modern') {
+     $text=~s{(&lt;parsed&gt;)(.*?)(&lt;/parsed&gt;)}
+             {my ($o,$v,$e)=($1,$2,$3); 
+              $o.htmlcode('convert_links_to_html','',$v,0,0,1).$e
+             }se;
+  }
+  htmlcode('postProcessXML','',\$text);
+  push @data, $text;
+  push @data,"\n" if $style ne 'old';
+}
+$xml-&gt;end();
+my $max= @$array ? $array-&gt;[0]{cachekey} : $fromid;
+
+htmlcode('log_ticker','', $style, 
+         "$hadfromid/$fromid/$max - $timeout/$limit - " . (0+@$array) ) 
+  or Everything::printLog( 
+       "CB - $style - $hadfromid/$fromid/$max - $timeout/$limit - " .
+      (0+@$array) . " - " .
+      "$USER-&gt;{title} ($ENV{REMOTE_ADDR}) - $ENV{'HTTP_USER_AGENT'}" );
+
+if ( !$hadfromid ) {
+  my $time= time;
+  foreach my $key ( keys %$ukeyhash ) {
+     my ( $id, $rtime )= split /,/, $ukeyhash-&gt;{$key};
+     if ( $time - $rtime &gt; 60*60 ) {
+       delete $ukeyhash-&gt;{$key};
+     }
+  }
+  $ukeyhash-&gt;{$ukey}= "$max,$time";
+  $VARS-&gt;{ukeyhash}= $ukeyhash; # yah this works!
+}
+
+return join "", @data;</field>
+</data>
+</node>

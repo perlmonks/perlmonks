@@ -1,0 +1,95 @@
+<node>
+  <doctext>#!/usr/bin/perl
+# Ed Dijkstra's Shortest-Path, by pope
+#
+# Demonstrates practical uses of Infinity
+# (http://www.perl.com/CPAN-local/doc/FMTEYEWTK/is_numeric.html).
+# Feed a file consisting neighbourhood matrices like shown below to 
+# this script:
+#
+#  0, 50, 10, 40, 45, ~
+#  ~,  0, 15,  ~, 10, ~
+# 20,  ~,  0, 15,  ~, ~
+#  ~, 20,  ~,  0, 35, ~
+#  ~,  ~,  ~, 30,  0, ~
+#  ~,  ~,  ~,  3,  ~, 0
+#
+# Tilde is used to represent unavailable route (infinite distance in 
+# mathematical sense).
+
+use strict;
+use vars qw(@m %state $FINISH $opt_s);
+use Getopt::Std;
+
+BEGIN { $FINISH = 0 }
+
+sub sum {
+    my $s;
+    while (@_ &gt; 1) { $s += $m[shift()]-&gt;[$_[0]] }
+    $s;
+}
+
+sub output {
+    my %s = @_;
+    print &quot;The shortest route from &quot;, $opt_s, &quot; to: \n&quot;;
+    for (keys(%{$s{array}})) {
+        print &quot;$_ is: &quot;, join(&quot;, &quot;, @{$state{array}-&gt;{$_}-&gt;{r}}), 
+            &quot; with distance: &quot;, $state{array}-&gt;{$_}-&gt;{d}, &quot;\n&quot;;
+    }       
+}
+
+# eat command line argument
+
+getopts('s:');
+defined(my $start = $opt_s) or die &quot;Usage: $0 -s start_node matrices_file&quot;;
+
+while (&lt;&gt;) { next if /^\s*$/;s/\s//g;s/~/Infinity/g;push @m, [split(/,\s*/, $_)] }
+
+{
+my ($cnt, $cnt1);
+%state = (  node  =&gt; undef,
+            track =&gt; undef,
+            array =&gt; {map {$cnt++ =&gt; $_ } 
+                      map { {s =&gt; 0, d =&gt; $_, r =&gt; [$start, $cnt1++]} } 
+                      @{$m[$start]}} 
+         );
+}
+
+my $loop = 0;
+
+while (not $FINISH) {
+    my ($cnt, $cnt1);
+
+# select the unselected
+    my @min = grep {/\d/}
+           map {!$state{array}-&gt;{$_}-&gt;{s} ? $_ : undef} 
+           sort { 
+                my $aa = $state{array}-&gt;{$a}-&gt;{d};
+                my $bb = $state{array}-&gt;{$b}-&gt;{d};
+                $aa &lt;=&gt; $bb; 
+                } 
+           keys(%{$state{array}});
+
+# set node, track and s 
+    @state{'node','track'} = ($min[0], $state{array}-&gt;{$min[0]}-&gt;{r});
+    $state{array}-&gt;{$min[0]}-&gt;{s} = 1;
+
+# prepare the state for the next loop
+    for (@min) {
+        if ( (my $nd = sum(@{$state{track}}, $_)) &lt; 
+            $state{array}-&gt;{$_}-&gt;{d}) {
+            $state{array}-&gt;{$_}-&gt;{d} = $nd;
+            $state{array}-&gt;{$_}-&gt;{r} = [@{$state{track}}, $_];
+        }
+    }
+    $FINISH = 1 if (++$loop &gt;= @{$m[0]} ); 
+}
+output(%state);
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>38100</node_id>
+  <author_user>34794</author_user>
+  <title>Shortest Path</title>
+  <createtime>2000-10-24 13:28:06</createtime>
+  <nodeupdated>2005-07-21 01:21:22</nodeupdated>
+</node>

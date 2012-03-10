@@ -1,0 +1,448 @@
+<node>
+  <doctext>&lt;p&gt;Many Web sites and applications involve forms. Form validation and error notification is part of good form's etiquette, security, and best practices. There are well-documented security issues with client-side validation via Javascript, so I have always made the trip to the server to validate in Perl. However, I've never liked the perceived latency and obvious screen refresh. Yes, I was able to provide the user with accurate error messages, but as a coder it meant keeping track of lots of things in the callbacks to do polite things like refreshing the HTML fields on the return trip (thank you [cpan://HTML::FillInForm|HTML::FillInForm]).&lt;/p&gt;
+
+&lt;p&gt;Enter jQuery (or Moo Tools or Prototype). Some good folks at MIT brought us these great libraries that have taken the Javascript out of the HTML coding (no more &lt;code&gt;&lt;a href=&quot;#&quot; onclick=&quot;dosomething()&quot;&gt;Click&lt;/a&gt;&lt;/code&gt; and legitimized this powerful client-side language. Now sites can have slick new features and effects with little code and without Flash. But we can also have much nicer validation and error handling, and without the delays associated with the screen refresh.&lt;/p&gt; 
+
+&lt;p&gt;Below I would like to show how I have learned to use jQuery, some Perl plugins, and JSON to still play it safe with server-side validation, no &lt;code&gt;eval&lt;/code&gt; javascript, but to achieve the crisper response expected by today's Web users. I hope that it will be a help to those Web developers who are diehard Perl users, but want to try libraries like jQuery.&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;Try it: &lt;/b&gt;&lt;a href=&quot;http://sandbox.highsitetest.com/entrees&quot;&gt;Demo&lt;/a&gt; &lt;/p&gt;
+
+&lt;p&gt;&lt;i&gt;See the original [id://842126|Meditation]&lt;/i&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;i&gt;Note: my example will show a typical LAMP setup with CGI::Application, and few of it's plugins.&lt;/i&gt;&lt;/p&gt;
+
+&lt;p&gt;&lt;b&gt;List of Assets&lt;/b&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;[cpan://CGI::Application|CGI::Application]&lt;/li&gt;
+&lt;li&gt;[cpan://CGI::Application::Plugin::DBH|CGI::Application::Plugin::DBH]&lt;/li&gt;
+&lt;li&gt;[cpan://CGI::Application::Plugin::JSON|CGI::Application::Plugin::JSON]&lt;/li&gt;
+&lt;li&gt;[cpan://Email::Valid|Email::Valid]&lt;/li&gt;
+&lt;li&gt;[http://jquery.com/|jquery-1.4.2.min.js]&lt;/li&gt;
+&lt;li&gt;[http://jquery.malsup.com/form/|jquery.form.js]&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;&lt;b&gt;Flow of &quot;Application:&quot;&lt;/b&gt;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;ol&gt;
+&lt;li&gt;User fills out form, but when they click their choice of &quot;Ethnicity&quot; radio button, jQuery fires off a request:
+&lt;code&gt;&lt;script type=&quot;text/javascript&quot;&gt;
+   $(function(){
+      $(&quot;.ethnicity&quot;).click(function(){
+
+        $.getJSON('menu.cgi',
+            { rm:'g', ethnicity:$(this).val() },
+         ....
+&lt;/code&gt;
+&lt;li&gt;A request is then sent to the server's Perl module that queries the database for related entrees, which are returned as a JSON object, 
+&lt;code&gt;
+my $stmt = qq~SELECT id, entrees FROM menu WHERE ethnicity = ?~;
+	            
+my $entrees = $self-&gt;dbh-&gt;selectall_arrayref($stmt, {Slice =&gt; {}}, $self-&gt;query-&gt;param('ethnicity'));
+	
+return $self-&gt;json_body( $entrees); #using CGI::App::Plugin::JSON
+&lt;/code&gt;
+&lt;/li&gt;
+&lt;li&gt;The returned result is parsed, and a set of options is built for the Entree select tag:
+&lt;code&gt;
+function(result){ 
+// returns: [{&quot;entrees&quot;:&quot;Lasagna&quot;,&quot;id&quot;:&quot;1&quot;},{&quot;entrees&quot;:&quot;Spaghetti&quot;,&quot;id&quot;:&quot;2&quot;},{&quot;entrees&quot;:&quot;Pizza&quot;,&quot;id&quot;:&quot;3&quot;}]
+// build options under select
+   var options = '&lt;option value=&quot;&quot;&gt;Select one...&lt;/option&gt;';
+   for ( i = 0; i &lt; result.length; i++ ) {
+     options = options+ '&lt;option value=&quot;'+result[i].id+'&quot;&gt;'+result[+i].entrees+'&lt;/option&gt;';
+   }
+   $('#entree').html(options);
+
+&lt;/code&gt;
+&lt;/li&gt;
+&lt;li&gt;The form is submitted and jQuery handles the submit
+&lt;code&gt;$('#meals').submit(function() {&lt;/code&gt;
+&lt;/li&gt;
+&lt;li&gt;jQuery posts the form data to the server by firing a instance of the Perl script:
+&lt;code&gt;            
+$('#menu').submit(function() {
+         
+   $.ajax({                
+      type: &quot;POST&quot;,
+      url: $(this).attr('action'),
+      datatype: &quot;json&quot;,
+      data: $(this).serialize(), //function of jquery.form.js 
+      success: function(result){
+      //pass JSON object, form name, name of success div
+      //  to external .js library used by all forms 
+         parse_results(result,'menu','msgs'); 
+      } 
+   });
+   return false;
+});
+&lt;/code&gt;
+&lt;/li&gt;
+&lt;li&gt;The data is validated by calling the &lt;code&gt;save_form&lt;/code&gt; runmode in the Perl script:
+&lt;code&gt;
+sub save_form {
+   my $self = shift;
+   
+   $self-&gt;validate_form();                           
+   if ( $self-&gt;param('error_list')) {
+      my $result = [{ 'messages' =&gt; $self-&gt;param('error_list') }];
+      return $self-&gt;json_body( $result );
+   }
+&lt;/code&gt;
+&lt;ul&gt;
+&lt;li&gt;if there are errors, the error messages are returned as a JSON object and displayed in the label tag above the offending form element:
+&lt;code&gt;
+$.ajax({                
+   type: &quot;POST&quot;,
+   url: $(this).attr('action'),
+   datatype: &quot;json&quot;,
+   data: $(this).serialize(),  
+   success: function(result){
+   //pass JSON object, form name, name of success div
+   //  to external .js library used by all forms 
+      parse_results(result,'menu','msgs'); 
+   } 
+});
+
+...
+
+function parse_results(result,form, msgdiv) {
+   var success = '';
+   var msgArray = result[0].messages;
+   $.each(msgArray, function(i,o) {
+      for (var p in o) {
+         var val = o[p]; 
+         if (p == 'success') {
+            success += '&lt;p class=&quot;success&quot;&gt;' + val + '&lt;/p&gt;';
+         } else {
+           $($(&quot;label[for='&quot;+p+&quot;']&quot;)).addClass('error').append(' '+val);
+         }
+      }
+   });
+
+&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;if there are no errors, the form data is recorded, a &quot;success&quot; message created and returned as a JSON object:
+&lt;code&gt;
+$self-&gt;record();
+   
+$self-&gt;param('success_list' =&gt; [{'success' =&gt; 'Record added'}]);
+  
+my $result = [{ 'messages' =&gt; $self-&gt;param('success_list') }];
+return $self-&gt;json_body( $result);  
+&lt;/code&gt;
+where it is displayed in a once hidden div:
+&lt;code&gt;
+   if (success) {            
+      $('#'+form).resetForm();//jquery.form.js feature
+      $('#'+form).hide(&quot;fast&quot;); //hide the form if you want
+      $('#'+msgdiv).css('display','block'); //display the success
+      $('#'+msgdiv).append(success); //  div and message
+   }
+&lt;/code&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;/ol&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;Full HTML:&lt;/b&gt;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;code&gt;
+&lt;!--include common header for all pages --&gt;
+&lt;tmpl_include header.tmpl&gt;
+
+&lt;h2&gt;Meal Choice&lt;/h2&gt;
+	
+&lt;!-- later, for success messages --&gt;
+&lt;div id=&quot;msgs&quot;&gt; &lt;/div&gt;
+
+&lt;div class=&quot;form&quot;&gt;
+
+   &lt;form id=&quot;menu&quot; action=&quot;menu.cgi&quot; method=&quot;post&quot;&gt;
+      &lt;input type=&quot;hidden&quot; name=&quot;rm&quot; value=&quot;s&quot; /&gt;
+      &lt;p class=&quot;wrap&quot;&gt;
+         &lt;label for=&quot;name&quot; class=&quot;blabel&quot;&gt;Name&lt;/label&gt;
+         &lt;input type=&quot;text&quot; name=&quot;name&quot; id=&quot;name&quot; value=&quot;&quot; /&gt; 
+      &lt;p class=&quot;wrap&quot;&gt;
+         &lt;label for=&quot;ethnicity&quot; class=&quot;blabel&quot;&gt;Ethnicity&lt;/label&gt;
+         &lt;input type=&quot;radio&quot; name=&quot;ethnicity&quot; class=&quot;ethnicity&quot; value=&quot;italian&quot; /&gt; Italian
+         &lt;input type=&quot;radio&quot; name=&quot;ethnicity&quot; class=&quot;ethnicity&quot; value=&quot;chinese&quot; /&gt; Chinese
+      &lt;/p&gt;		
+      &lt;p class=&quot;wrap&quot;&gt;
+         &lt;label for=&quot;entree&quot; class=&quot;blabel&quot;&gt;Entree&lt;/label&gt;
+         &lt;select name=&quot;entree&quot; id=&quot;entree&quot;&gt; 
+         &lt;/select&gt;
+      &lt;/p&gt;
+      &lt;p class=&quot;wrap&quot;&gt;
+         &lt;label for=&quot;email&quot; class=&quot;blabel&quot;&gt;Email address&lt;/label&gt;
+         &lt;input type=&quot;text&quot; name=&quot;email&quot; id=&quot;email&quot; value=&quot;&quot; /&gt;
+      &lt;/p&gt;
+      &lt;p class=&quot;wrap&quot;&gt;
+         &lt;input type=&quot;submit&quot; name=&quot;submitBtn&quot; value=&quot;Submit&quot; /&gt; 
+      &lt;/p&gt;
+	&lt;/form&gt;
+	
+&lt;/div&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;jQuery in HTML:&lt;/b&gt;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;script type=&quot;text/javascript&quot; language=&quot;javascript&quot;&gt; 
+   $(function() {   
+   
+      $(&quot;.ethnicity&quot;).click(function(){
+      
+        // jQuery 1.4 introduced getJSON to simplify the call
+        // $.getJSON(instancescript, key:values, process_result)
+        $.getJSON('menu.cgi',
+            { rm:'g', ethnicity:$(this).val() },
+            function(result){ 
+               // returns: [{&quot;entrees&quot;:&quot;Lasagna&quot;,&quot;id&quot;:&quot;1&quot;},{&quot;entrees&quot;:&quot;Spaghetti&quot;,&quot;id&quot;:&quot;2&quot;},{&quot;entrees&quot;:&quot;Pizza&quot;,&quot;id&quot;:&quot;3&quot;}]
+               // build options under select
+               var options = '&lt;option value=&quot;&quot;&gt;Select one...&lt;/option&gt;';
+               for ( i = 0; i &lt; result.length; i++ ) {
+                  options = options+ '&lt;option value=&quot;'+result[i].id+'&quot;&gt;'+result[+i].entrees+'&lt;/option&gt;';
+               }
+               $('#entree').html(options);
+            }
+         );         
+
+      });
+
+      $('#menu').submit(function() {
+         //removes error messages so they don't double up
+        //   on a resubmit still with errors
+         normalize_labels(this,'000'); 
+         
+         $.ajax({                
+            type: &quot;POST&quot;,
+            url: $(this).attr('action'),
+            datatype: &quot;json&quot;,
+            data: $(this).serialize(),  
+            success: function(result){
+              //pass JSON object, form name, name of success div
+              //  to external .js library used by all forms 
+               parse_results(result,'menu','msgs'); 
+            } 
+         });
+         return false;
+      });
+   });
+   &lt;/script&gt; 
+&lt;/script&gt; 
+&lt;!--pull in a standard footer for all pages --&gt;
+&lt;tmpl_include footer.tmpl&gt;
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;External Javascript&lt;/b&gt; (forms.js)&lt;/p&gt;
+&lt;readmore&gt;
+&lt;code&gt;
+   //called in HTML &lt;head&gt; with:
+   //&lt;script type=&quot;text/javascript&quot; src=&quot;forms.js&quot;&gt;&lt;/script&gt; 
+   function normalize_labels(element,color) {   
+      $('label').each(function(){   
+         //there might be a better way but these next 5 lines
+         //  get the original text for the label from the &quot;for&quot;
+         //  attribute, makes it presentable, and then
+         //  places it back in the form
+         var lab = $(this).attr('for');
+         lab = lab.slice(0,1).toUpperCase() + lab.slice(1);
+         lab = lab.replace(/_/g, &quot; &quot;);
+         $(this).css({'color':'#'+color}); 
+         $(this).text(lab);
+      });
+   }
+
+   function parse_results(result,form, msgdiv) {
+      var success = '';
+      var msgArray = result[0].messages;
+      $.each(msgArray, function(i,o) {
+         for (var p in o) {
+            var val = o[p]; //p is the key (id) in this case, and 
+                            //  val is the message
+            if (p == 'success') {
+               //build html for a success message
+               success += '&lt;p class=&quot;success&quot;&gt;' + val + '&lt;/p&gt;';
+            } else {
+               //display errors where labels were
+               $($(&quot;label[for='&quot;+p+&quot;']&quot;)).addClass('error').append(' '+val);
+            }
+         }
+      });//each
+      if (success) {            
+         $('#'+form).resetForm();//jquery.form.js feature
+         $('#'+form).hide(&quot;fast&quot;); //hide the form if you want
+         $('#'+msgdiv).css('display','block'); //display the success
+         $('#'+msgdiv).append(success); //  div and message
+      }
+   }
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;Perl to handle in-place population&lt;/b&gt;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;code&gt;
+#--- Get entrees on the fly
+sub get_entrees {
+   my $self = shift;
+
+	my $stmt = qq~SELECT id, entrees FROM menu WHERE ethnicity = ?~;
+	            
+	my $entrees = $self-&gt;dbh-&gt;selectall_arrayref($stmt, {Slice =&gt; {}}, $self-&gt;query-&gt;param('ethnicity'));
+	
+   return $self-&gt;json_body( $entrees);
+}
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;Perl to process form:&lt;/b&gt;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;code&gt;
+use CGI::Application::Plugin::DBH (qw/dbh_config dbh/);
+use CGI::Application::Plugin::JSON ':all';
+
+
+#--- Save
+sub save_form {
+   my $self = shift;
+   
+   $self-&gt;validate_form();                           
+   if ( $self-&gt;param('error_list')) {
+      my $result = [{ 'messages' =&gt; $self-&gt;param('error_list') }];
+      return $self-&gt;json_body( $result );
+   }
+ 
+   $self-&gt;record();
+  
+   my $result = [{ 'messages' =&gt; $self-&gt;param('success_list') }];
+   return $self-&gt;json_body( $result);                         
+}                        
+
+#--- Validate  
+
+sub validate_form {
+   my $self = shift;
+   my (%sql, $error, @error_list);
+	
+   ($sql{'name'}, $error) = $self-&gt;val_input(1, 32, $self-&gt;query-&gt;param('name') );
+      if ( $error-&gt; { msg } ) { push @error_list, { &quot;name&quot; =&gt; $error-&gt;{ msg } }; }	
+   ($sql{'ethnicity'}, $error) = $self-&gt;val_input( 1, 16, $self-&gt;query-&gt;param('ethnicity') );
+      if ( $error-&gt; { msg } ) { push @error_list, { &quot;ethnicity&quot; =&gt; $error-&gt;{ msg } }; }
+   ($sql{'entree'}, $error) = $self-&gt;val_selected ($self-&gt;query-&gt;param('entree') );
+      if ( $error-&gt; { msg } ) { push @error_list, { &quot;entree&quot; =&gt; $error-&gt;{ msg } }; }
+   ($sql{'email'}, $error) = $self-&gt;val_email( 1, $self-&gt;query-&gt;param('email') );
+      if ( $error-&gt; { msg } ) { push @error_list, { &quot;email&quot; =&gt; $error-&gt;{ msg } }; }
+
+   if (@error_list) { $self-&gt;param('error_list' =&gt; \@error_list) }
+   $self-&gt;param('sql'   =&gt; \%sql);
+}
+
+
+#--- Record 
+sub record {
+   my $self = shift;
+   my %sql = %{ $self-&gt;param('sql') };
+   my @cols = map $self-&gt;dbh-&gt;quote_identifier($_), keys %sql;
+
+   my $stmt = 'INSERT INTO entrees (created_on,' . join(',', @cols) . ') 
+   VALUES (NOW(),' . join(',', ('?') x @cols) . ')';
+   $self-&gt;dbh-&gt;do( $stmt, undef, values %sql); 								
+   $self-&gt;param('success_list' =&gt; [{'success' =&gt; 'Record added'}]);
+}
+&lt;/code&gt;
+
+&lt;p&gt;&lt;b&gt;External Validation.pm&lt;/b&gt;&lt;/p&gt;
+&lt;code&gt;
+use Email::Valid;
+
+sub val_input {
+   my $self = shift;
+   my ($mand, $len, $value) = @_;
+   if (!$value &amp;&amp; $mand) {
+      return (undef, { msg =&gt; 'cannot be blank' });
+   } elsif ($len &amp;&amp; (length($value) &gt; $len) ) {
+      return (undef, { msg =&gt; 'is limited to '.$len.' characters' });
+   } elsif ($value &amp;&amp; $value !~ /^([\w \.\,\-\(\)\?\:\;\&quot;\!\'\/\n\r]*)$/) {
+      return (undef, { msg =&gt; 'can only use letters, numbers, spaces and -.,&amp;:\'' });
+   } else {
+      my $tf = new HTML::TagFilter;
+      return ($tf-&gt;filter($1));
+   }
+}
+
+sub val_email { 
+   my $self = shift;
+   my ($mand, $value) = @_;
+   if ( !Email::Valid-&gt;address($value) &amp;&amp; $mand ) { 
+      return ( undef, { msg =&gt; 'address does not appear to be valid or is blank' }	);
+   } elsif ( !Email::Valid-&gt;address($value) &amp;&amp; $value ) {
+      return ( undef, { msg =&gt; 'address does not appear to be valid or is blank' }	);
+   } else {
+      return $value;
+   }
+}
+
+sub val_selected {
+   my $self = shift;
+   my ($value) = @_;
+   if (!$value) {
+     return (undef, { msg =&gt; 'must be selected' });
+   } else {
+     return $value;
+   }
+}
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;&lt;b&gt;External CSS&lt;/b&gt; (just for the curious)&lt;/p&gt;
+&lt;readmore&gt;
+&lt;code&gt;
+.form {
+   float: left;
+   width: 100%;
+   margin: 10px 0 40px 0px;
+}
+label {
+   display: block;
+}
+input:focus, textarea:focus {
+   background: #F5F5DC;
+}
+p.wrap  {
+   font: 11px/15px verdana, sans-serif;
+   margin: 6px 0 0 0;
+   width: 100%;
+   clear:both;
+}	
+input, textarea,.label, .blabel {
+   font: 11px/15px verdana, sans-serif;
+}
+input[type=&quot;text&quot;] { width: 240px; margin-top: 0 }
+input[type=&quot;radio&quot;] {margin: 5px 2px 0 0 } 
+input[id=submitBtn] {margin: 10px  0 0 } 
+
+.label, .blabel {
+   line-height: 18px;
+   padding-right: 7px;
+   margin: 0;
+}
+.blabel {
+   font-weight: bold;
+}
+#msgs { 
+      display: none; 
+      margin: 0 0 0 20px;
+}
+p.success {
+   margin: 20px 0 0 20px;
+   padding: 0 0 0 20px;
+   font: bold 12px verdana, sans-serif;
+   color: green;
+   background: url(/images/success.png) no-repeat 5px;
+}
+&lt;/code&gt;
+&lt;/readmore&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>842754</node_id>
+  <author_user>273627</author_user>
+  <title>Using Perl, jQuery, and JSON for Web development</title>
+  <createtime>2010-06-02 08:56:08</createtime>
+  <nodeupdated>2010-06-02 08:56:08</nodeupdated>
+</node>

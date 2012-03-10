@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="115590" title="parse refer log" created="2001-09-29 06:31:41" updated="2005-07-21 01:28:25">
+<type id="121">
+perlcraft</type>
+<author id="91846">
+mandog</author>
+<data>
+<field name="doctext">
+Nothing special, just some Friday night excitment, a script to take a apache referer log and print some information about the search engines and terms that people are using to reach your website. 
+
+I'd be curious about better ways to do this &amp; existing scripts that do this better....
+
+#!/usr/local/bin/perl -w
+
+use strict;
+
+#ref.txt comes from:
+# 'ls /var/log/apache/referr.*.gz | xargs zcat &gt;&gt; ~/ref.txt'
+# 'cat /var/log/apache/referer.log &gt;&gt; ~/ref.txt'
+
+open FH,"./ref.txt" || die "$!";
+my @lines=&lt;FH&gt;;
+close (FH);
+
+# none of these are search engines
+my $ignore_hosts=
+    qr(\Qlctc.org\E|\Qgradetheprof.net\E|\Q10.0.0\E|perlmonks);
+#   qr((\Qlctc.org\E)|(\Qgradetheprof.net\E)|(\Q10.0.0\E)|(perlmonks));
+
+
+my $garbage=
+  qr(%..|.=);
+
+my %hosts;
+my $search_phrase;
+my %search_phrases;
+my %search_words;
+my @words;
+my $word;
+
+foreach (@lines){
+	# if there is a query string
+	# and it isn't from our CGI
+	if ((m/\?/) &amp;&amp; (m/\+/) 	&amp;&amp; ($_!~m/$ignore_hosts/) ){
+		m/
+			(http:..) 
+			([a-z.]*)	#hostname
+			(.*\?)	 	#bit before query string
+	 		(.*)		# search string
+			(-\&gt;.*)		# page refered to
+		/xi;
+
+
+		$hosts{$2}++;
+
+		$search_phrase=$4;
+		$search_phrase=~s/$garbage//g;
+		$search_phrase=~s/&amp;.*$//;
+		$search_phrase=~s/\+/ /g;
+		$search_phrase=lc($search_phrase);
+
+		$search_phrases{$search_phrase}++;
+
+		@words=split(/ /,$search_phrase);
+		foreach $word (@words){
+			$search_words{$word}++;
+		}		
+		
+	}
+}
+
+foreach (sort (keys %hosts)){
+	print "$hosts{$_} searches from $_\n";
+}
+
+
+
+print "\n search words:\n";
+  foreach my $key (sort { $search_words{$b} &lt;=&gt; $search_words{$a} } keys %search_words) {
+      print  "$search_words{$key} $key\n";
+  }
+
+print "\n search phrases:\n";
+  foreach my $key (sort { $search_phrases{$b} &lt;=&gt; $search_phrases{$a} } keys %search_phrases) {
+      print  "$search_phrases{$key} $key\n";
+  }</field>
+</data>
+</node>

@@ -1,0 +1,102 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+# Written by Paris Sinclair, aka Aighearach, march 2000
+# freed to the public domain
+
+use strict;
+use CGI qw( :standard :html );
+
+# You will need to change these to set up your page
+use constant UPLOAD_DIR =&gt; '/home/paris/public_html/files/';
+use constant RELATIVE_DIR =&gt; 'files/';
+use constant TITLE =&gt; &quot;Lauren's Internet Media Center&quot;;
+# nothing more to edit
+
+my ( $uploaded_file, $url );
+
+print header(),
+    start_html(), 
+    center(),
+    h1( TITLE );
+
+# is this the index?
+if ( param() ) {
+    # no, so are we uploading or deleteing?
+    if ( my $file = param('delete') ) {
+	# deleting. You may want to add an or print STDERR &quot;can't delete $file\n&quot;;
+	# to this I left that out because I don't want the errors in the apache logs - that's
+	# for the mission critical programs, so I just print the error to the page
+	unlink( RELATIVE_DIR.$file ) || print &quot;error unlinking $file&quot;;
+    } elsif ( my $uploaded_file = param('uploaded_file') ) {
+	# uploading. make it something cool
+	my $full_name = UPLOAD_DIR . $uploaded_file;
+	open ( OUT, &quot;&gt;$full_name&quot;) || print &quot;error writing $full_name&quot;;
+	my $buffer;
+	while ( read( $uploaded_file, $buffer, 1024 ) ) {
+	    print OUT $buffer;
+	}
+	#Delete('uploaded_file');
+    }
+}
+print 
+    table( {-border=&gt;0,-align=&gt;&quot;center&quot;},
+	   file_list() ),
+    table( {-border=&gt;0,-align=&gt;&quot;center&quot;},
+	   Tr(
+	      [
+	       td( upload_form() )
+	       ]
+	      )
+	   );
+
+### returns upload form
+sub upload_form {
+    return start_multipart_form( -action=&gt;url() ) .
+	&quot;upload:&quot; .
+	    filefield(
+		      -name=&gt;'uploaded_file',
+		      -default=&gt;'',
+		      -size=&gt;50,
+		      -maxlength=&gt;100
+		      )
+		.
+		    submit(
+			   -name=&gt;'upload',
+			   -value=&gt;'upload'
+			   )
+			. end_multipart_form();
+}
+
+### returns table rows, so make sure you're in a table
+sub file_list {
+    my $file;
+    my $dir = UPLOAD_DIR;
+    my $output;
+    # it may be better to open the dir by hand, but in the context
+    # it was written for, the performance difference is irrelevant
+    foreach $file ( `ls $dir` ) {
+	chomp($file);
+	my $full_file = $dir . $file;
+	my $size = (stat(&quot;$full_file&quot;))[7];
+	$output .= Tr(
+		      td( 
+			  [
+			   a( {-href=&gt;RELATIVE_DIR.$file},$file ),
+			   # this part could use some work. In particular,
+			   # it should label large files in megs.
+			   int($size/1024) . 'K',
+			   a( {-href=&gt;url().&quot;?delete=$file&quot;}, &quot;delete&quot; )
+			   ]
+			  )
+		      );
+    };
+    return $output;
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>8982</node_id>
+  <author_user>8329</author_user>
+  <title>Internet Media Sharing Page</title>
+  <createtime>2000-04-25 15:22:46</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

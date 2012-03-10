@@ -1,0 +1,312 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>397471</node_id>
+  <author_user>357600</author_user>
+  <title>exec_sql_query</title>
+  <createtime>2004-10-07 18:52:15</createtime>
+  <code>my ($opts)=@_;
+
+unless ($opts-&gt;{no_query}) {
+    $opts-&gt;{$_}||=$query-&gt;param($_)
+       for qw( sql exec copytopad ascode );
+}
+
+
+my $is_xml = $opts-&gt;{is_xml} || $q-&gt;param('displaytype') eq 'xml';
+
+my($xml,@data,%xmlstyle);
+if ($is_xml) {
+  $xmlstyle{clean}=1;
+  return &quot;&lt;error&gt;Error creating fling object&lt;/error&gt;&quot;
+     unless htmlcode('new_xml_fling','',\($xml,@data,%xmlstyle));
+  $xml-&gt;start('sqlqueryresult') if $is_xml;
+}
+
+local *_error=sub {
+  my ($type,$msg,$data)=@_;
+  if ($is_xml) {
+    $xml-&gt;start('error',type=&gt;$type);
+    $xml-&gt;element('error_message',$msg);
+    $xml-&gt;element('data',$data) if $data;
+    $xml-&gt;end('error');
+  } else {
+    my $line=0;
+    $data||=&quot;&quot;;
+    $data=~s/^/sprintf &quot;% 2d: &quot;,++$line/mge;
+    push @data, &quot;&lt;p&gt;&lt;strong&gt;Error: $type&lt;/strong&gt;&quot;.
+           htmlcode('wrapcode','',&quot;\n$msg\n$data&quot;).
+           &quot;&lt;hr /&gt;&quot;
+  }
+};
+
+my $execstr = $opts-&gt;{sql};
+my $doexec  = $opts-&gt;{exec};
+my $ascode  = $opts-&gt;{ascode};
+
+
+unless ($is_xml || $opts-&gt;{no_form}) {
+    push @data, join &quot;\n&quot;,
+        htmlcode('openform'),
+        &quot;SQL Query:&lt;br /&gt;&quot;,
+        $query-&gt;textarea( &quot;sql&quot;, $execstr, 8, 60 ),
+        &quot;&lt;br /&gt;&quot;,
+        $query-&gt;submit('exec', 'Execute'),
+        $query-&gt;checkbox(-name=&gt;'fulldoctext',
+                         -checked=&gt;0,
+                         -value=&gt;'1',
+                         -label=&gt;'Show all field content?'),
+
+        &quot;&lt;br /&gt;&quot;,
+        $query-&gt;checkbox(-name=&gt;'ascode',
+                         -checked=&gt;0,
+                         -value=&gt;'1',
+                         -label=&gt;'Output as code'),
+        &quot;&lt;br /&gt;&quot;,
+        $query-&gt;checkbox(-name=&gt;'copytopad',
+                         -checked=&gt;0,
+                         -value=&gt;'1',
+                         -label=&gt;'Copy to your private scratchpad on success?'),
+        $query-&gt;end_form(),
+    ;
+} elsif (!$is_xml) {
+   push @data, &quot;&lt;h4&gt;SQL being executed:&lt;/h4&gt;&quot;
+           . htmlcode('wrapcode','',$execstr);
+}
+
+push @data,&quot;&lt;hr /&gt;&quot; unless $is_xml;
+my $pretable=$#data;
+
+my $error; # anything that means we cant make an sqlquery node from it.
+my $has_recs=0;
+
+my $dbh=$DB-&gt;getDatabaseHandle();
+local $dbh-&gt;{PrintError}=0;
+local $dbh-&gt;{RaiseError}=1;
+
+while ($doexec and $execstr)
+{
+  $doexec=0; #prevent infinity!
+  my @table;
+  my $cursor;
+  my $start_time = time();
+  {
+    local $SIG{__DIE__} = sub {};
+    local *Everything::HTML::htmlErrorGods=sub {''};
+    $cursor=eval { $dbh-&gt;prepare($execstr) };
+  }
+  if ($@) {
+     $error++;
+     _error(&quot;Prepare&quot;,&quot;$@&quot;,$execstr);
+     last;
+  }
+  $cursor-&gt;{RaiseError} = 0;
+  my $count;
+  {
+    local $SIG{__DIE__} = sub {};
+    local *Everything::HTML::htmlErrorGods=sub {''};
+    $count=eval { $cursor-&gt;execute() };
+  }
+
+  if ($@) {
+     $error++;
+     _error(&quot;Execute&quot;,&quot;$@&quot;,$execstr);
+     last;
+  }
+  if(  ! $count  )
+  {
+    $error++;
+    my $errstr=$DBI::errstr;
+    _error(&quot;Execute&quot;,&quot;\n$errstr\n&quot;,$execstr);
+    last;
+
+
+  } elsif(  ! $cursor-&gt;{NUM_OF_FIELDS}  ) # not a select statement
+  {
+    $error++;
+    if ($is_xml) {
+      $xml-&gt;element(rows_affected=&gt;$count);
+    } elsif (!$ascode) {
+      push @data,&quot;&lt;b&gt;$count&lt;/b&gt; rows affected.\n&quot;;
+    }
+  } else
+  {
+    if ($is_xml) {
+      $xml-&gt;element(rows_affected=&gt;$count);
+    } elsif (!$ascode) {
+
+      push @data, qq[($count rows)\n&lt;br /&gt;]
+                . qq[&lt;table border=&quot;1&quot; cellpadding=&quot;2&quot; cellspacing=&quot;2&quot;&gt;];
+    }
+
+    my @hdr=@{$cursor-&gt;{NAME}};
+    if (!$is_xml || $is_xml &amp;&amp; $xmlstyle{array}) {
+      if ($ascode) {
+        push @data, &quot;&lt;code&gt;\n&quot;;
+      } elsif (!$is_xml) {
+        push @data, &quot; &lt;tr&gt;\n&quot;;
+      } else {
+        $xml-&gt;start('fields');
+      }
+      if ($ascode) {
+         push @data,join(&quot;\t&quot;,@hdr),&quot;\n&quot;;
+      } else {
+        foreach (  0..$#hdr  )
+        {
+          my $v=$hdr[$_];
+          if ($is_xml) {
+            $xml-&gt;element('field',
+                          (defined $v ? () : ('undef'=&gt;1)),
+                          (defined $v ? $v : ())
+                         );
+          } else {
+            if(  ! defined $v  ) {
+              $v= &quot;&quot;;
+            } elsif(  &quot;&quot; eq $v  ) {
+              $v= &quot;&amp;nbsp;&quot;;
+            } else {
+              $v= $q-&gt;escapeHTML($v);
+            }
+            push @data, qq[  &lt;td align=&quot;center&quot; bgcolor=&quot;#CC99CC&quot;&gt;]
+                      . qq[&lt;font color=&quot;#000000&quot;&gt;$v&lt;/font&gt;&lt;/td&gt;\n];
+          }
+        } 
+        unless ($is_xml) {
+          push @data, &quot;&lt;/tr&gt;\n&quot;;
+        } else {
+          $xml-&gt;end('fields');
+        }
+      }
+    } elsif ($is_xml) {
+      my %dupe;
+      @hdr=map { 
+        if ( $dupe{$_} ) {
+          my $counter = 1;
+          $counter++ while $dupe{ $_ . &quot;_$counter&quot; };
+          $_ . &quot;_$counter&quot;;
+        } else {
+          $_
+        }
+      } @hdr;
+    }
+    while(my @row = $cursor-&gt;fetchrow_array)
+    {
+
+      $has_recs++;
+
+      
+      if ($is_xml) {
+        $xml-&gt;start('record');        
+      } elsif ($ascode) {
+        push @data,join(&quot;\t&quot;,@row).&quot;\n&quot;;  
+        next;
+      } else {
+        push @data, &quot; &lt;tr&gt;\n&quot;;        
+      }
+      foreach my $idx ( 0..$#row )
+      {
+        my $k=$hdr[$idx];
+        my $v=$row[$idx];
+        unless ($is_xml) {
+          if(  ! defined $v  ) {
+            $v= &quot;&quot;;
+          } elsif(  &quot;&quot; eq $v  ) {
+            $v= &quot;&amp;nbsp;&quot;;
+          } elsif ($k =~/passwd/i) {
+            $v= &quot;&lt;i&gt;restricted&lt;/i&gt;&quot;;
+          } elsif(  $k =~ /_/  &amp;&amp;  $v !~ /\D/  ) {
+            my $n= getNodeById($v,&quot;light&quot;);
+            $v = linkNode($v,$v);
+            if(  $n  ) {
+              my $t= $q-&gt;escapeHTML( $n-&gt;{title} );
+              $v =~ s/href=/title=&quot;$t&quot; href=/i;
+            }
+          } else {
+            my $maxlen= $VARS-&gt;{sqlmaxlen} || 1024;
+            if(  $maxlen &lt; length($v)  and  ! $q-&gt;param('fulldoctext')  ) {
+              $v= $q-&gt;escapeHTML( substr($v,0,$maxlen) )
+                . &quot; &lt;b&gt;(Only $maxlen of &quot; . length($v) . &quot; bytes)&lt;/b&gt;&quot;;
+            } else {
+
+              $v= $q-&gt;escapeHTML($v);
+            }
+            $v =~ s#  # &amp;nbsp;#g;
+            $v =~ s#\n#&lt;br /&gt;\n#g;
+          }
+          push @data, &quot;  &lt;td&gt;$v&lt;/td&gt;\n&quot;;
+        } elsif ($xmlstyle{array}) {
+          $xml-&gt;element('v',
+                      (defined $v ? () : ('undef'=&gt;1)),
+                      (defined $v ? $v : ())
+                     );
+        } else {
+          $xml-&gt;element($k,
+                      (defined $v ? () : ('undef'=&gt;1)),
+                      (defined $v ? $v : ())
+                     );
+        } 
+      }
+      unless ($is_xml) {
+        push @data, &quot;&lt;/tr&gt;\n&quot;;
+      } else {
+        $xml-&gt;end('record');
+      }
+      #if (!$is_xml and $has_recs&gt;5000 and !$q-&gt;param('no_limit')) {
+      #  push @data,qq[&lt;tr&gt;&lt;td colspan=&quot;].scalar(@{$cursor-&gt;{NAME}})
+      #            .qq[&quot;&gt;&lt;b&gt;Terminated fetch at 1000 records.&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;];
+      #  last
+
+      #}
+    }
+    $cursor-&gt;finish();
+    if (!$is_xml &amp;&amp; !$ascode) {
+      push @data, &quot;&lt;/table&gt;\n&quot;;
+    }
+    if(!$has_recs &amp;&amp; !$ascode)
+    {
+      push @data, &quot;&lt;b&gt;Zero rows returned.&lt;/b&gt;\n&quot;;
+    } elsif ($ascode) {
+      push @data,&quot;&lt;/code&gt;\n&quot;;
+    }
+  }
+  my $elapsed = time() - $start_time;
+  push @data, &quot;&lt;br /&gt;Elapsed time $elapsed s.&quot;
+     if !$is_xml &amp;&amp; !$ascode;
+ 
+  unless ($is_xml or $error or $opts-&gt;{no_form}) {
+    if ( $opts-&gt;{copytopad} &amp;&amp; 
+         ( my $pad_id = htmlcode( 'scratchpad_link','',
+             getId($USER),'',{},1,1 ) ) )
+    {
+       my $str= join(&quot;&quot;,&quot;&lt;hr /&gt;&quot;,htmlcode('wrapcode','',$execstr),&quot;\n&quot;,
+                @data[$pretable+1 .. $#data]);
+       my $pad= getNodeById($pad_id);
+       
+       $pad-&gt;{privatetext} .= $str.&quot;&lt;!--SQLQUERY--&gt;&quot;
+          unless  $pad-&gt;{privatetext}=~ s/(&lt;!--SQLQUERY--&gt;)/$str\n$1/i;
+       updateNode( $pad, $USER ) &amp;&amp;
+          push @data,&quot;&lt;p&gt;Pad updated.&lt;/p&gt;&quot;;
+    }
+    $data[$pretable].=join &quot;\n&quot;,
+        'Query successful. If you wish to create a node to execute this',
+        'query enter the name for the query and hit the &quot;Create&quot; button.',
+        '&lt;/br&gt;',
+        &quot;Query Name:\n&quot;,
+        htmlcode('openform'),
+        $q-&gt;hidden( -name=&gt;&quot;op&quot;,      -force=&gt;1, -value=&gt; &quot;new&quot;, -force=&gt;1 ),
+        $q-&gt;hidden( -name=&gt;&quot;type&quot;,    -force=&gt;1, -value=&gt; &quot;sqlquery&quot;,  ),
+        $q-&gt;hidden( -name=&gt;&quot;sqlquery_doctext&quot;, -force=&gt;1,
+                    -value=&gt; &quot;&lt;p&gt;&lt;!-- Your description goes here--&gt;&lt;/p&gt;&quot; ),
+        $q-&gt;hidden( -name=&gt;&quot;sqlquery_code&quot;, -force=&gt;1, -value=&gt; $execstr ),
+        $q-&gt;hidden( -name=&gt;&quot;displaytype&quot;, -force=&gt;1, -value=&gt; 'edit' ),
+        $q-&gt;textfield( -name=&gt;'node', -force=&gt;1, -default=&gt;'', -maxlength=&gt;200 ),
+        $q-&gt;submit(&quot;Create&quot;),
+        $q-&gt;end_form(),
+        '&lt;hr /&gt;'
+  }
+}
+if ($is_xml) {
+  $xml-&gt;done;
+}
+return join &quot;&quot;,@data;</code>
+  <nodeupdated>2005-08-13 05:07:14</nodeupdated>
+</node>

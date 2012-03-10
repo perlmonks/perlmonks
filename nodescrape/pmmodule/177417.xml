@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="177417" title="Everything/Diff.pm" created="2002-06-26 12:01:54" updated="2005-08-13 05:26:16">
+<type id="118397">
+pmmodule</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="filetext">
+package Everything::Diff;
+#use strict;
+use Everything;
+use Algorithm::Diff qw(diff traverse_sequences);
+use Storable qw(freeze thaw);
+use Digest::MD5 qw(md5_base64);
+
+
+
+sub BEGIN
+{
+	use Exporter ();
+	use vars       qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+        $VERSION= "1.00302";
+	@ISA=qw(Exporter);
+	@EXPORT=qw(
+	    getDiff
+	    getFrozenDiff
+	    getChecksum
+	    showDiff
+	    applyChange
+	);
+}
+
+sub textToRef{
+   my($text)=@_;
+   # [ $text =~ /(\s+|\w+|[^\s\w]+)/g ];
+   [ split /(?&lt;=\n)/, $text ];
+}
+
+sub refToText{
+   my($ref)=@_;
+   join('',@$ref);
+}
+
+sub getChecksum{
+   my ($text)=@_;
+   md5_base64($text);
+}
+
+sub getFrozenDiff{
+    freeze getDiff(@_);
+}
+
+
+sub stringHash{ 
+   my $str=shift;
+   return $str=~/^\s*$/ ? " " : $str;
+}
+
+
+sub getDiff{
+   my ($source,$destination)=@_;
+   my $src=textToRef($source);
+   my $dest=textToRef($destination);
+   my $diff=diff($src,$dest,\&amp;stringHash);
+   $diff;
+}
+
+
+sub stateshow{
+  my ($state,$prevstate,$string,$escape)=@_;
+  my %close= (
+    "deleted"=&gt;"&lt;/font&gt;&lt;/s&gt;",
+    "new"    =&gt;"&lt;/font&gt;",
+  );
+  my %open= (
+    "deleted"=&gt;qq[&lt;s&gt;&lt;font color="red" class="deleted"&gt;],
+    "new"    =&gt;qq[&lt;font color="#00ff00" class="inserted"&gt;],
+  );
+  my $str;
+  if($escape){
+     $string=~s/&amp;/&amp;amp;/g;
+     $string=~s/&lt;/&amp;lt;/g;
+     $string=~s/&gt;/&amp;gt;/g;
+  }
+  if($state ne $$prevstate){
+    $str.=$close{$$prevstate}.$open{$state};
+  }
+  $str.=$string; 
+  $$prevstate=$state;
+  $str;
+}
+
+
+sub recordchunk
+{
+  my( $state, $sv, $text )= @_;
+  if(  ! $sv  ) {
+    $$sv= { deleted=&gt;"", new=&gt;"", ""=&gt;"", prev=&gt;"" };
+  }
+  my $out= '';
+  if(   "" eq $text # Ending flush request
+    or       "" ne $state
+         &amp;&amp;  3 &lt; length($$sv-&gt;{""})  &amp;&amp;  $$sv-&gt;{""} =~ /\S/
+  ) { # Flush what we've collected so far:
+    for my $type (  qw( deleted new ), ""  ) {
+      $out .= stateshow( $type, \$$sv-&gt;{prev}, $$sv-&gt;{$type}, 1 )
+        if  "" ne $$sv-&gt;{$type};
+      $$sv-&gt;{$type}= '';
+    }
+  }
+  if(  "" ne $state  &amp;&amp;  "" ne $$sv-&gt;{""}  ) {
+    $$sv-&gt;{deleted} .= $$sv-&gt;{""};
+    $$sv-&gt;{new} .= $$sv-&gt;{""};
+    $$sv-&gt;{""}= "";
+  }
+  $$sv-&gt;{$state} .= $text;
+  return $out;
+}
+
+
+sub showDiff
+{
+   my( $source, $dest )= @_;
+   my $old= textToRef($source);
+   my $new= textToRef($dest);
+   my $context;
+   my $out= '';
+   traverse_sequences( $old, $new, {
+      MATCH =&gt; sub {
+         $out .= recordchunk( "", \$context, $old-&gt;[shift] ) },
+      DISCARD_A =&gt; sub {
+         $out .= recordchunk( "deleted", \$context, $old-&gt;[shift] ) },
+      DISCARD_B =&gt; sub {
+         $out .= recordchunk( "new", \$context, $new-&gt;[shift,shift] ) },
+   } );
+   $out .= recordchunk( "", \$context, "" );
+
+   return $out;
+}
+
+
+sub handleActions{
+   my($ref,$action,$offset)=@_;
+   if($action-&gt;[0] eq "+"){
+      splice(@$ref, $action-&gt;[1], 0, $action-&gt;[2]);
+      --$$offset;
+   } elsif($action-&gt;[0] eq "-"){
+      splice(@$ref, $action-&gt;[1]-$$offset,1);
+      ++$$offset
+   }
+}
+
+sub processDiffArray{
+   my($item,$ref,$offset)=@_;
+   my @actions;
+   foreach my $el(@$item){
+      if(ref ($el) eq "ARRAY"){
+         processDiffArray($el,$ref,$offset);
+      } else {
+         push @actions,$el;
+      }
+   }
+   if(@actions){
+      handleActions($ref,\@actions,$offset);
+   }
+}
+
+
+sub applyChange{
+   my($text,$diff)=@_;
+   my $ref=textToRef($text);
+   #patch($diff,$ref); 
+   my $offset=0;
+   if(ref ($diff) eq "ARRAY"){
+       processDiffArray($diff,$ref,\$offset);
+   }
+   refToText($ref);
+}
+
+1;
+</field>
+<field name="filerequired">
+1</field>
+<field name="filereaderror">
+</field>
+</data>
+</node>

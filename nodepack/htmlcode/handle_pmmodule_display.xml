@@ -1,0 +1,38 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>384155</node_id>
+  <author_user>357600</author_user>
+  <title>handle_pmmodule_display</title>
+  <createtime>2004-08-18 20:05:24</createtime>
+  <code>my ($ret_list)= @_; # only used when displaytype=xml
+# When displaytype = xml then $ret_list is pushed into
+# with the fields to be returned via the XML view.
+# and the return is an error text that was generated
+# Thus in xml mode returns true on error
+# When in non xml mode it returns text as normal.
+
+my $title= $NODE-&gt;{title};
+my %out;
+my $filetext= htmlcode( 'readPmModule','', $title, \%out );
+my $file= $out{path};
+my $error= $out{error};
+my $required= $out{required};
+if(  $q-&gt;param('displaytype') ne 'xml'  ) {
+    my $text= $error;
+    $text .= &quot;&lt;p&gt;Had to [require] this module.&lt;/p&gt;\n&quot;
+        if  $required;
+    $text .= htmlcode( 'wrapcode','', $filetext  );
+    $text .= &quot;$/&lt;hr /&gt;&lt;form&gt;$/&quot;
+        . $q-&gt;textarea( &quot;contents&quot;, $filetext, 20, 70 )
+        . &quot;&lt;/form&gt;$/&quot;;
+    return $text;
+}
+push @$ret_list,
+    [filetext=&gt;$filetext],
+    [filerequired=&gt;$required],
+    [filereaderror=&gt;$error],
+    ( isGod($USER) ? [filename=&gt;$file] : () );
+return $error;
+</code>
+  <nodeupdated>2004-11-19 11:30:30</nodeupdated>
+</node>

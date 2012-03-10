@@ -1,0 +1,56 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>384773</node_id>
+  <author_user>357600</author_user>
+  <title>new_xml_fling</title>
+  <createtime>2004-08-21 06:42:46</createtime>
+  <code>my ($xml,$data,$stylehash,$add_header,$list)=@_;
+# creates an XML object, and handles the xmlstyle parameter, 
+# or $VARS for default behaviour.
+# Meant to be a central place to handle xmlstyle use as follows:
+# (quoted as such for easier C&amp;P ;-)
+my $sample=q[
+
+   return &quot;&lt;error&gt;Error creatng fling object&lt;/error&gt;&quot;
+     unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),$add_header);
+
+];
+# $xml  =&gt; ref to scalar to hold xml object
+# $data =&gt; ref to array to hold xml data
+# $stylehash =&gt; optional ref to hash to hold style settings (style=&gt;1)
+# $list =&gt; optional ref to array to hold style settings
+return unless $data &amp;&amp; $xml;
+$list||=[];
+
+@$list=$q-&gt;param(&quot;xmlstyle&quot;);
+@$list=($VARS-&gt;{xmlstyle})
+  unless @$list;
+@$list=map { split /[,:]/,$_ } @$list;
+my $allowed=getVars(getNode('allowed xml styles','setting'));
+$allowed-&gt;{lc($_)} and $stylehash-&gt;{lc($_)}++ 
+  for @$list;
+
+@$list=sort keys %$stylehash;
+
+if (($stylehash-&gt;{rss} ||
+     $stylehash-&gt;{stream} || 
+     $stylehash-&gt;{flat}) 
+    &amp;&amp; !$stylehash-&gt;{clean}) 
+{
+  $stylehash-&gt;{clean}++;
+  push @$list,'clean';
+}
+
+my ($nl_all,$nl_data);
+
+$nl_all  = $stylehash-&gt;{stream} ? &quot;&quot; : &quot;\n&quot;;
+$nl_data = $stylehash-&gt;{clean}  ? &quot;&quot; : &quot;\n&quot;;
+require XML::Fling;
+push @$data, scalar getHttpHeader( 'text/xml' ) 
+  if $add_header;
+$$xml = XML::Fling-&gt;new( $data, &quot;&lt;&quot;, &quot;&gt;$nl_all&quot;, &quot;&lt;&quot;, &quot;&gt;$nl_data&quot;, &quot;&lt;&quot;, &quot;&gt;$nl_all&quot; );
+
+return !!$$xml
+</code>
+  <nodeupdated>2005-08-13 03:35:52</nodeupdated>
+</node>

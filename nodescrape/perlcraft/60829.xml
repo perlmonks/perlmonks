@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="60829" title="treemap" created="2001-02-26 06:11:20" updated="2005-07-21 16:59:05">
+<type id="121">
+perlcraft</type>
+<author id="17251">
+MeowChow</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+#
+# treemap BLOCK HASHREF
+# treemap BLOCK ARRAYREF
+#
+#   Works like map, for arbitrary nested data structures. Data are
+#   are modified in-place (unlike map). Returns the original reference.
+#   Hash keys are not modified.
+#
+#   UPDATE: now handles scalar references, and trimmed an unnecessary line
+#   as suggested by dkubb (thanks!)
+#
+#   Handles cyclical references just fine, thank you.
+#
+sub treemap (&amp;$) { &amp;_treemap }
+sub _treemap {
+  my ($code, $node, $refs) = @_;
+  if (not my $type = ref $node) {
+    local $_ = $node;
+    $node = &amp;$code();
+  }
+  elsif (not exists $refs-&gt;{$node}) {
+    undef $refs-&gt;{$node};   # sneaky, eh?
+    if ($type eq 'HASH') {
+      $node-&gt;{$_} = _treemap($code, $node-&gt;{$_}, $refs) for keys %$node;
+    }
+    elsif ($type eq 'ARRAY') {
+      $_ = _treemap($code, $_, $refs) for @$node;
+    }
+    elsif ($type eq 'SCALAR') {
+      $node = \_treemap($code, $$node, $refs);
+    }
+  }
+  $node;
+}
+
+####################### EXAMPLE #############################
+
+$data = {
+          'nums' =&gt; [
+                      'one',
+                      'two',
+                      'three',
+                      'four',
+                      [
+                        'five',
+                        'six',
+                        [
+                          'seven',
+                          'eight',
+                        ]]],
+          'two' =&gt; '2',
+          'doh'  =&gt; \'blah blah',
+          'more' =&gt; {
+                      'a' =&gt; 'vala',
+                      'b' =&gt; 'valb',
+                      'c' =&gt; 'valc',
+                      'd' =&gt; 'vald'
+                    }
+        };
+
+use Data::Dumper;
+print Dumper treemap { "-=\U$_=-" } $data;
+print Dumper treemap { s/\W/./g; $_ } $data;
+print Dumper treemap { reverse lc } $data;</field>
+</data>
+</node>

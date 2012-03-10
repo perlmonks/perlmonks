@@ -1,0 +1,65 @@
+<node>
+  <doctext>[%
+   use Time::Local qw( timelocal );
+   my $date = $q-&gt;param('hitdate');
+   my $dow;
+   {
+      my( $cc, $year, $mon, $day )= $date =~ /(\d\d)/g;
+      if(  $day  ) {
+         $date= &quot;$cc$year-$mon-$day&quot;;
+         my $when= timelocal( 0, 0, 0, $day, $mon-1, $cc*100+$year-1900 );
+         $dow= ( localtime($when) )[6];
+      } else {
+         ( $year, $mon, $day, $dow )=
+            ( localtime( time() - 60*60*24 ) )[5,4,3,6];
+         $date= sprintf &quot;%d-%02d-%02d&quot;, 1900+$year, 1+$mon, $day;
+      }
+   }
+   $q-&gt;param( hitdate =&gt; $date );
+   return join ' ',
+      htmlcode('openform'),
+      $q-&gt;textfield( 'hitdate' ),
+      htmlcode('closeform'),
+      qq[&lt;p&gt;&lt;h3&gt;Most popular nodes for],
+      (qw( Sun Mon Tues Wednes Thurs Fri Satur ))[$dow] . 'day,',
+      qq[$date:&lt;/h3&gt;&lt;/p&gt;\n];
+%]
+
+&lt;table&gt;
+[%
+   my $date = $q-&gt;param('hitdate');
+   my $minhits = $q-&gt;param('minhits') || 100;
+   my $curs= $DB-&gt;sqlSelectMany(
+      &quot;hits,node_id&quot;,
+      &quot;traffic_stats&quot;,
+      join( ' ',
+        &quot;day =&quot;, $DB-&gt;quote($date),
+        &quot;and&quot;, $DB-&gt;quote($minhits), &quot;&lt; hits&quot;,
+        &quot;and hour = 0&quot;,
+      ),
+      &quot;order by hits desc limit 100&quot;,
+   );
+   my @recs;
+   my $rec;
+   while(  $rec= $curs-&gt;fetchrow_hashref()  ) {
+      push @recs, $rec;
+   }
+   my $html= '';
+   my $n;
+   for my $rec (  @recs  ) {
+      my $hlt = (++$n &amp; 1) ? ' class=&quot;highlight&quot;' : '';
+      $html .= sprintf
+         qq[  &lt;tr$hlt&gt;&lt;td align=&quot;right&quot;&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;\n],
+         $rec-&gt;{hits}, linkNode($rec-&gt;{node_id})
+   }
+   return $html;
+%]
+&lt;/table&gt;
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>276421</node_id>
+  <author_user>485628</author_user>
+  <title>Yesterday's most-visited nodes</title>
+  <createtime>2003-07-21 15:40:14</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

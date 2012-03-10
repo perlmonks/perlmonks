@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="175839" title="unreap" created="2002-06-19 16:31:47" updated="2005-07-24 09:11:15">
+<type id="3545">
+opcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+use Data::Dumper;
+
+return unless isGod($USER);
+
+my $nid = $query-&gt;param('node_id');
+
+Everything::printLog("$USER-&gt;{title} unreaps $nid");
+
+my $corpse = $DB-&gt;sqlSelectHashref('*', 'reapednode', "node_id = $nid");
+
+unless ( $corpse ) {
+  Everything::printLog("Couldn't find entry for $nid in reapednode");
+  return;
+}
+
+my $node = do {
+  my $VAR1;
+  eval($corpse-&gt;{data});
+};
+
+$node = { %$corpse, %$node };
+
+delete $node-&gt;{data};
+
+updateNode($node, $USER);
+
+htmlcode( 'msgsitemaintainer', '', getId($USER), "Unreaping [id://$nid]." );
+
+$DB-&gt;sqlDelete(
+  'reapednode',
+  "node_id = $nid"
+);</field>
+</data>
+</node>

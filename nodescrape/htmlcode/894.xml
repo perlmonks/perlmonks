@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="894" title="displayvars" created="1999-11-02 20:58:59" updated="2005-06-25 08:26:31">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $field, $old_vars, $node, $safe )= @_;
+$field ||= "vars";
+$node  ||= $NODE;
+return "&lt;p&gt;&lt;i&gt;The node's settings are blank&lt;/i&gt;&lt;/p&gt;$/"
+    if  ! $node-&gt;{$field};
+
+my $settings= getVars( $node, $field );
+
+if(  $safe  ) {
+    $settings-&gt;{$_}= '&lt;hidden&gt;'
+        for  grep /(passwd|password|pwd|pass)/, keys %$settings;
+}
+
+my( $keyclr, $valclr, $grey )= ( '#CCCCFF', '#DEDEFF', '#DEDEDE' );
+
+my @all= do {
+    my %seen;
+    grep !$seen{$_}++,
+        keys %{ $settings || {} },
+        keys %{ $old_vars || {} };
+};
+return "&lt;p&gt;&lt;i&gt;The node's settings are empty&lt;/i&gt;&lt;/p&gt;$/"
+    if  0 == @all;
+@all= @all[
+    map { unpack "N", substr($_,-4) }
+    sort
+    map {
+        my $s= $all[$_];
+        $s =~ s/(\d+)/length($1).$1/ge;
+        $s . pack "N", $_;
+    } 0 .. $#all
+];
+
+my $delstyle= $VARS-&gt;{diff_deleted_style} ||= "color: red";
+my $insstyle= $VARS-&gt;{diff_inserted_style} ||= "color: blue";
+
+my $matched  = 'diff_match';
+my $inserted = 'diff_inserted';
+my $deleted  = 'diff_deleted';
+
+my $make_row= sub {
+    my( $sign, $key, $hash, $rowspan, $noescape )= @_;
+    $rowspan ||= 0;
+    my $value= $hash-&gt;{$_};
+    if(  ! $noescape  ) {
+        $value= $q-&gt;escapeHTML( $value );
+        $value =~ s#\n#&lt;br /&gt;$/#g;
+        $value =~ s#  # &amp;nbsp;#g;
+    }
+    my @bgcolor= ( class =&gt; 'settings_key', bgcolor =&gt;
+        !defined($sign) || $sign =~ /[-+!]/
+            ? $keyclr : $grey );
+    my @valcolor= ( class =&gt; 'settings_val', bgcolor =&gt;
+        !defined($sign) || $sign =~ /[-+!]/
+            ? $valclr : $grey );
+    my @color=
+        !defined $sign
+            ? ( color =&gt; '#000' ) :
+        $sign eq '+'
+            ? ( style =&gt; $insstyle, class =&gt; $inserted ) :
+        $sign eq '-'
+            ? ( style =&gt; $delstyle, class =&gt; $deleted )
+            : ( color =&gt; '#000', class =&gt; $matched );
+    return $q-&gt;Tr( { class =&gt; 'settings_row' },
+        !defined $sign ? () :
+            $q-&gt;td(
+                { @bgcolor },
+                $q-&gt;font( { @color }, $sign )
+            ),
+        $rowspan &lt; 0 ? () :
+            $q-&gt;td(
+                {   @bgcolor,
+                    rowspan =&gt; $rowspan+1,
+                },
+                $q-&gt;font(
+                    { color =&gt; '#000' },
+                    join '',
+                        $sign ? "&lt;b&gt;" : '',
+                        $q-&gt;escapeHTML($key),
+                        $sign ? "&lt;/b&gt;" : '',
+                ),
+            ),
+        $q-&gt;td(
+            { @valcolor },
+            $q-&gt;font( { @color }, $value ),
+        )
+    )
+};
+
+my $inline= $q-&gt;param( 'inline_diff' );
+if(  defined $inline  ) {
+    $VARS-&gt;{vars_inline_diff}= $inline;
+} else {
+    $inline= $VARS-&gt;{vars_inline_diff};
+}
+
+my $links= "";
+if(  $old_vars  ) {
+    my @extra;
+    for(  $q-&gt;param("diff_against")  ) {
+        push @extra, diff_against =&gt; $_
+            if  $_;
+    }
+    if(  $inline  ) {
+        $links= "&lt;b&gt;Inline Diff Mode&lt;/b&gt; switch to "
+          . linkNode(
+                $node,
+                'Line Diff Mode',
+                { inline_diff =&gt; 0, @extra },
+            );
+    } else {
+        $links= "&lt;b&gt;Line Diff Mode&lt;/b&gt; switch to "
+          . linkNode(
+                $node,
+                'Inline Diff Mode',
+                { inline_diff =&gt; 1, @extra },
+            );
+    }
+    $links= "&lt;small&gt;$links&lt;/small&gt;";
+}
+
+return $q-&gt;table(
+    { class =&gt; 'settings', width =&gt; '100%', cellpadding =&gt; 1 },
+    ! $old_vars ? () :
+        '&lt;colgroup span="1" width="10" align="center"&gt;',
+    '&lt;colgroup span="1"&gt;',
+    '&lt;colgroup span="1"&gt;',
+    '&lt;thead&gt;',
+    $q-&gt;Tr( { class =&gt; 'settings_header_row' },
+        $old_vars ? $q-&gt;th( '&amp;nbsp;' ) : (),
+        $q-&gt;th( 'Setting' ),
+        $q-&gt;th( 'Value' ),
+    ),
+    '&lt;/thead&gt;',
+    '&lt;tbody&gt;',
+    map( {
+        my $mode=
+            ! $old_vars
+                ? undef :
+            ! exists($old_vars-&gt;{$_})
+                ? '+' :
+            ! exists($settings-&gt;{$_})
+                ? '-' :
+            $settings-&gt;{$_} eq $old_vars-&gt;{$_}
+                ? ''
+                : '!';
+        if(  $mode ne '!'  ) {
+            $make_row-&gt;(
+                $mode,
+                $_,
+                $mode eq '-'
+                    ? $old_vars : $settings,
+            );
+        } elsif(  ! $inline  ) {
+            (   $make_row-&gt;('-',$_,$old_vars,1),
+                $make_row-&gt;('+',$_,$settings,-1) );
+        } else {
+            my $d= htmlcode( 'diff_strings','',
+                $old_vars-&gt;{$_},
+                $settings-&gt;{$_},
+                {   diff_mode =&gt; 'token',
+                    inline_html =&gt; 1,
+                    no_pre =&gt; 0,
+                    use_query =&gt; 0,
+                },
+            );
+            $make_row-&gt;(
+                '!', $_, { $_ =&gt; $d }, 0, 1 );
+        }
+    } @all ),
+    '&lt;/tbody&gt;',
+    ! $old_vars ? () :
+        "&lt;tfoot&gt;&lt;tr&gt;&lt;td align='right' colspan='3'&gt;"
+      . "$links&lt;/td&gt;&lt;/tr&gt;&lt;/tfoot&gt;",
+);
+</field>
+</data>
+</node>

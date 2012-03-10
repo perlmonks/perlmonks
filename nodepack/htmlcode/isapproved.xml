@@ -1,0 +1,77 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>177581</node_id>
+  <author_user>929</author_user>
+  <title>isapproved</title>
+  <createtime>2002-06-26 19:05:26</createtime>
+  <code>my( $nodeid, $svUser, $svWhen, $svRec )= @_;
+
+## Temporary code:
+my $SETTING;
+my $newTable= do {
+    $SETTING= getVars( getNode('approval nodelet settings','setting') );
+    $SETTING-&gt;{newtable} || 'approved';
+};
+
+# Temporary fugly code, in case NewTable is not actually 'approves'
+
+if($newTable eq 'approved')
+{
+   my $nid = getId($NODE);
+   my $type = $NODE-&gt;{type}{title};
+   my %types = map { $_ =&gt; 1 } split /,/, $SETTING-&gt;{types}; 
+
+   return 'unok' unless $types{$type} 
+     or grep $_ eq $type, 
+       qw/modulereview bookreview 
+          note sourcecode snippet 
+          perltutorial perlnews
+         /;
+                  
+   my $ok = 0;
+   $ok = $DB-&gt;sqlSelect(
+      '*',
+      'links',
+      &quot;from_node = $SETTING-&gt;{$type.'_node'}&quot;
+      . &quot; and to_node = $nid&quot;
+      . &quot; and linktype = $SETTING-&gt;{$type.'_linktype'}&quot;,
+      &quot;limit 1&quot;
+    ) if($types{$type});
+   
+    my $fp = 0;
+    $fp = $DB-&gt;sqlSelect(
+      '*',
+      'links',
+      &quot;from_node = $SETTING-&gt;{'front_page'}&quot;
+      . &quot; and to_node = $nid&quot;
+      . &quot; and linktype = $SETTING-&gt;{'frontpage_linktype'}&quot;,
+      &quot;limit 1&quot;
+    ) if $types{$type};
+
+    my $status = $fp ? 'fp' : $ok ? 'ok' : 'unok';
+
+    return $status;
+}
+
+my( $status, $user, $when )= $DB-&gt;sqlSelect(
+   &quot;status,user_approved,whenapproved&quot;,
+   $newTable, &quot;approved_id = $nodeid&quot;
+);
+$$svUser = $user   if  $svUser;
+$$svWhen = $when   if  $svWhen;
+undef $$svRec      if  $svRec;
+return 'unok'   if  ! $status;
+
+if(  $svRec  &amp;&amp;  'fp' eq $status  ) {
+    my $sth= $DB-&gt;sqlSelectMany(
+       &quot;*&quot;, &quot;approvalhistory&quot;,
+       &quot;approves_id = $nodeid and 'fp' != action&quot;,
+       &quot;order by whenapproves desc limit 1&quot;,
+    );
+    my $rec= $sth-&gt;fetchrow_hashref();
+    $$svRec= $rec   if  $rec  &amp;&amp;  'ok' eq $rec-&gt;{action};
+}
+
+return $status;</code>
+  <nodeupdated>2005-06-27 09:52:32</nodeupdated>
+</node>

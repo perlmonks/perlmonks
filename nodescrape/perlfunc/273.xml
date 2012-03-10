@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="273" title="perlfunc:ioctl" created="1999-08-24 18:42:46" updated="2005-08-14 12:29:33">
+<type id="119">
+perlfunc</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+ioctl - system-dependent device control system call
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+ioctl 
+&lt;FONT SIZE=-1&gt;FILEHANDLE,FUNCTION,SCALAR&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="description">
+
+&lt;P&gt;
+Implements the 
+&lt;CODE&gt;ioctl(2)&lt;/CODE&gt; function. You'll
+probably have to say
+
+&lt;P&gt;
+&lt;PRE&gt;    require &amp;quot;ioctl.ph&amp;quot;; # probably in /usr/local/lib/perl/ioctl.ph
+&lt;/PRE&gt;
+&lt;P&gt;
+first to get the correct function definitions. If &lt;EM&gt;ioctl.ph&lt;/EM&gt; doesn't exist or doesn't have the correct definitions you'll have to roll your own, based on your 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; header files such as
+ &lt;EM&gt;&amp;lt;sys/ioctl.h&amp;gt;&lt;/EM&gt;. (There is a Perl script called &lt;STRONG&gt;h2ph&lt;/STRONG&gt; that comes with the Perl kit that may help you in this, but it's nontrivial.) 
+&lt;FONT SIZE=-1&gt;SCALAR&lt;/FONT&gt; will be read and/or written depending on the FUNCTION--a pointer to the string value of 
+&lt;FONT SIZE=-1&gt;SCALAR&lt;/FONT&gt; will be passed as the third argument of the actual
+ [perlfunc:ioctl|ioctl()] call. (If 
+&lt;FONT SIZE=-1&gt;SCALAR&lt;/FONT&gt; has no string value but does have a numeric value, that value will be passed rather than a pointer to the string value. To guarantee this to be 
+&lt;FONT SIZE=-1&gt;TRUE,&lt;/FONT&gt; add a
+ &lt;CODE&gt;0&lt;/CODE&gt; to the scalar before using it.) The [perlfunc:pack|pack()] and [perlfunc:unpack|unpack()]
+functions are useful for manipulating the values of structures used by
+[perlfunc:ioctl|ioctl()]. The following example sets the erase character to 
+&lt;FONT SIZE=-1&gt;DEL.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    require 'ioctl.ph';
+    $getp = &amp;amp;TIOCGETP;
+    die &amp;quot;NO TIOCGETP&amp;quot; if $@ || !$getp;
+    $sgttyb_t = &amp;quot;ccccs&amp;quot;;                # 4 chars and a short
+    if (ioctl(STDIN,$getp,$sgttyb)) {
+        @ary = unpack($sgttyb_t,$sgttyb);
+        $ary&amp;#091;2&amp;#093; = 127;
+        $sgttyb = pack($sgttyb_t,@ary);
+        ioctl(STDIN,&amp;amp;TIOCSETP,$sgttyb)
+            || die &amp;quot;Can't ioctl: $!&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The return value of [perlfunc:ioctl|ioctl()] (and [perlfunc:fcntl|fcntl()]) is as follows:
+
+&lt;P&gt;
+&lt;PRE&gt;        if OS returns:          then Perl returns:
+            -1                    undefined value
+             0                  string &amp;quot;0 but true&amp;quot;
+        anything else               that number
+&lt;/PRE&gt;
+&lt;P&gt;
+Thus Perl returns 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; on success and 
+&lt;FONT SIZE=-1&gt;FALSE&lt;/FONT&gt; on failure, yet you can still easily determine the actual value returned by the operating system:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($retval = ioctl(...)) || ($retval = -1);
+    printf &amp;quot;System returned %d\n&amp;quot;, $retval;
+&lt;/PRE&gt;
+&lt;P&gt;
+The special string ``&lt;CODE&gt;0&lt;/CODE&gt; but true'' is excempt from &lt;STRONG&gt;-w&lt;/STRONG&gt; complaints about improper numeric conversions.
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

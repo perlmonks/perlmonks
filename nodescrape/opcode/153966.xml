@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="153966" title="privatemsg" created="2000-03-09 19:57:10" updated="2005-07-31 11:25:04">
+<type id="3545">
+opcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+# This code doesn't appear to be used by anything.
+
+return if getId($USER) == $HTMLVARS{guest_user};
+
+if ( my $BU = getVars( getNode('borged users','setting') ) ) {
+  return if $BU-&gt;{getId($USER)} &gt; time();
+}
+
+my $for = $query-&gt;param('for');
+my $msg = $query-&gt;param('msg');
+my $uid = getId($USER);
+
+if ( my $usr = getNode($for, 'user') ) {
+  my $ignores = getVars($usr)-&gt;{ignoredusers};
+  $ignores =~ s/\|//g;
+  $ignores =~ s/,$//;
+  
+  my @ignores = split /,/, $ignores;
+
+  if ( grep $uid eq $_, @ignores ) {
+    $query-&gt;param('error' =&gt; "You're being ignored by $usr-&gt;{title}.");
+    return;
+  }
+  
+  $DB-&gt;sqlInsert(
+    'message',
+    {
+      msgtext     =&gt; $msg,
+      author_user =&gt; $uid,
+      for_user    =&gt; getId($usr)
+    }
+  );
+} elsif ( my $grp = getNode($for, 'usergroup') ) {
+  if ( not Everything::isApproved($USER, $grp) ) {
+    $query-&gt;param('error' =&gt; 'Not a member of group');
+    return;
+  }
+
+  $msg = sprintf '[%s] announcement -- %s', $grp-&gt;{title}, $msg;
+
+  my @members = @{ $DB-&gt;selectNodegroupFlat($grp) };
+
+  foreach my $member (@members) {
+    $DB-&gt;sqlInsert(
+      'message',
+      {
+        msgtext     =&gt; $msg,
+        author_user =&gt; $uid,
+        for_user    =&gt; getId($member)
+      }
+    );
+  }
+} else {
+  $query-&gt;param('error' =&gt; 'No such user/group');
+  return;
+}
+
+
+#
+# Private message operations
+#
+
+foreach my $id ( $query-&gt;param('delete') ) {
+  next if $id =~ /\D/;
+
+  $DB-&gt;sqlDelete(
+    'message',
+    "message_id = $id AND for_user = $uid" 
+  );
+}
+
+foreach my $id ( $query-&gt;param('archive') ) {
+  next if $id =~ /\D/;
+
+  $DB-&gt;sqlUpdate(
+    'message',
+    {
+      archive =&gt; 1,
+      tstamp  =&gt; $DB-&gt;sqlSelect('tstamp', 'message', "message_id = $id")
+    },
+    "message_id = $id AND for_user = $uid"
+  );
+}
+
+foreach my $id ( $query-&gt;param('unarchive') ) {
+  next if $id =~ /\D/;
+
+  $DB-&gt;sqlUpdate(
+    'message',
+    {
+      archive =&gt; 0,
+      -tstamp  =&gt; 'tstamp',
+    },
+    "message_id = $id AND for_user = $uid"
+  );
+}
+</field>
+</data>
+</node>

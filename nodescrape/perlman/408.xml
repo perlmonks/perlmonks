@@ -1,0 +1,1288 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="408" title="perlman:perlsub" created="1999-08-25 02:49:21" updated="2005-08-15 10:21:20">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME="NAME"&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlsub - Perl subroutines
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SYNOPSIS"&gt;SYNOPSIS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+To declare subroutines:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub NAME;             # A &amp;quot;forward&amp;quot; declaration.
+    sub NAME(PROTO);      #  ditto, but with prototypes
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub NAME BLOCK        # A declaration and a definition.
+    sub NAME(PROTO) BLOCK #  ditto, but with prototypes
+&lt;/PRE&gt;
+&lt;P&gt;
+To define an anonymous subroutine at runtime:
+
+&lt;P&gt;
+&lt;PRE&gt;    $subref = sub BLOCK;            # no proto
+    $subref = sub (PROTO) BLOCK;    # with proto
+&lt;/PRE&gt;
+&lt;P&gt;
+To import subroutines:
+
+&lt;P&gt;
+&lt;PRE&gt;    use PACKAGE qw(NAME1 NAME2 NAME3);
+&lt;/PRE&gt;
+&lt;P&gt;
+To call subroutines:
+
+&lt;P&gt;
+&lt;PRE&gt;    NAME(LIST);    # &amp;amp; is optional with parentheses.
+    NAME LIST;     # Parentheses optional if predeclared/imported.
+    &amp;amp;NAME;         # Makes current @_ visible to called subroutine.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DESCRIPTION"&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Like many languages, Perl provides for user-defined subroutines. These may
+be located anywhere in the main program, loaded in from other files via the [perlfunc:do|do], [perlfunc:require|require], or [perlfunc:use|use] keywords, or even generated on the fly using [perlfunc:eval|eval] or anonymous subroutines (closures). You can even call a function indirectly using a variable containing its name or a 
+&lt;FONT SIZE=-1&gt;CODE&lt;/FONT&gt; reference to it.
+
+&lt;P&gt;
+The Perl model for function call and return values is simple: all functions
+are passed as parameters one single flat list of scalars, and all functions
+likewise return to their caller one single flat list of scalars. Any arrays
+or hashes in these call and return lists will collapse, losing their
+identities--but you may always use pass-by-reference instead to avoid this.
+Both call and return lists may contain as many or as few scalar elements as
+you'd like. (Often a function without an explicit return statement is
+called a subroutine, but there's really no difference from the language's
+perspective.)
+
+&lt;P&gt;
+Any arguments passed to the routine come in as the array &lt;CODE&gt;@_&lt;/CODE&gt;. Thus if you called a function with two arguments, those would be stored
+in &lt;CODE&gt;$_&amp;#091;0&amp;#093;&lt;/CODE&gt;
+and &lt;CODE&gt;$_&amp;#091;1&amp;#093;&lt;/CODE&gt;. The array &lt;CODE&gt;@_&lt;/CODE&gt; is a local array, but its elements are aliases for the actual scalar
+parameters. In particular, if an element
+&lt;CODE&gt;$_&amp;#091;0&amp;#093;&lt;/CODE&gt; is updated, the corresponding argument is updated (or an error occurs if it
+is not updatable). If an argument is an array or hash element which did not
+exist when the function was called, that element is created only when (and
+if) it is modified or if a reference to it is taken. (Some earlier versions
+of Perl created the element whether or not it was assigned to.) Note that
+assigning to the whole array &lt;CODE&gt;@_&lt;/CODE&gt; removes the aliasing, and does not update any arguments.
+
+&lt;P&gt;
+The return value of the subroutine is the value of the last expression
+evaluated. Alternatively, a [perlfunc:return|return] statement may be used to exit the subroutine, optionally specifying the
+returned value, which will be evaluated in the appropriate context (list,
+scalar, or void) depending on the context of the subroutine call. If you
+specify no return value, the subroutine will return an empty list in a list
+context, an undefined value in a scalar context, or nothing in a void
+context. If you return one or more arrays and/or hashes, these will be
+flattened together into one large indistinguishable list.
+
+&lt;P&gt;
+Perl does not have named formal parameters, but in practice all you do is
+assign to a [perlfunc:my|my()] list of these. Any variables you use in the function that aren't declared
+private are global variables. For the gory details on creating private
+variables, see
+&lt;A HREF="#Private_Variables_via_my_"&gt;Private Variables via my()&lt;/A&gt; and &lt;A HREF="#Temporary_Values_via_local_"&gt;Temporary Values via local()&lt;/A&gt;. To create protected environments for a set of functions in a separate
+package (and probably a separate file), see &lt;A HREF="perlmod.html#Packages"&gt;Packages&lt;/A&gt;.
+
+&lt;P&gt;
+Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub max {
+        my $max = shift(@_);
+        foreach $foo (@_) {
+            $max = $foo if $max &amp;lt; $foo;
+        }
+        return $max;
+    }
+    $bestday = max($mon,$tue,$wed,$thu,$fri);
+&lt;/PRE&gt;
+&lt;P&gt;
+Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    # get a line, combining continuation lines
+    #  that start with whitespace
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub get_line {
+        $thisline = $lookahead;  # GLOBAL VARIABLES!!
+        LINE: while (defined($lookahead = &amp;lt;STDIN&amp;gt;)) {
+            if ($lookahead =~ /^&amp;#091; \t&amp;#093;/) {
+                $thisline .= $lookahead;
+            }
+            else {
+                last LINE;
+            }
+        }
+        $thisline;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $lookahead = &amp;lt;STDIN&amp;gt;;       # get first line
+    while ($_ = get_line()) {
+        ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Use array assignment to a local list to name your formal arguments:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub maybeset {
+        my($key, $value) = @_;
+        $Foo{$key} = $value unless $Foo{$key};
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+This also has the effect of turning call-by-reference into call-by-value,
+because the assignment copies the values. Otherwise a function is free to
+do in-place modifications of &lt;CODE&gt;@_&lt;/CODE&gt; and change its caller's values.
+
+&lt;P&gt;
+&lt;PRE&gt;    upcase_in($v1, $v2);  # this changes $v1 and $v2
+    sub upcase_in {
+        for (@_) { tr/a-z/A-Z/ }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+You aren't allowed to modify constants in this way, of course. If an
+argument were actually literal and you tried to change it, you'd take a
+(presumably fatal) exception. For example, this won't work:
+
+&lt;P&gt;
+&lt;PRE&gt;    upcase_in(&amp;quot;frederick&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+It would be much safer if the &lt;CODE&gt;upcase_in()&lt;/CODE&gt; function were written to return a copy of its parameters instead of
+changing them in place:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($v3, $v4) = upcase($v1, $v2);  # this doesn't
+    sub upcase {
+        return unless defined wantarray;  # void context, do nothing
+        my @parms = @_;
+        for (@parms) { tr/a-z/A-Z/ }
+        return wantarray ? @parms : $parms&amp;#091;0&amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice how this (unprototyped) function doesn't care whether it was passed
+real scalars or arrays. Perl will see everything as one big long flat &lt;CODE&gt;@_&lt;/CODE&gt;
+parameter list. This is one of the ways where Perl's simple
+argument-passing style shines. The &lt;CODE&gt;upcase()&lt;/CODE&gt; function would work perfectly well without changing the &lt;CODE&gt;upcase()&lt;/CODE&gt; definition even if we fed it things like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    @newlist   = upcase(@list1, @list2);
+    @newlist   = upcase( split /:/, $var );
+&lt;/PRE&gt;
+&lt;P&gt;
+Do not, however, be tempted to do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    (@a, @b)   = upcase(@list1, @list2);
+&lt;/PRE&gt;
+&lt;P&gt;
+Because like its flat incoming parameter list, the return list is also
+flat. So all you have managed to do here is stored everything in &lt;CODE&gt;@a&lt;/CODE&gt; and made &lt;CODE&gt;@b&lt;/CODE&gt; an empty list. See &lt;A HREF="#Pass_by_Reference"&gt;Pass by Reference&lt;/A&gt; for alternatives.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; subroutine may be called using the ``&lt;CODE&gt;&amp;amp;&lt;/CODE&gt;'' prefix. The ``&lt;CODE&gt;&amp;amp;&lt;/CODE&gt;'' is optional in modern Perls, and so are the parentheses if the
+subroutine has been predeclared. (Note, however, that the ``&lt;CODE&gt;&amp;amp;&lt;/CODE&gt;'' is &lt;EM&gt;NOT&lt;/EM&gt; optional when you're just naming the subroutine, such as when it's used as
+an argument to [perlfunc:defined|defined()] or [perlfunc:undef|undef()]. Nor is it optional when you want to do an indirect subroutine call with a
+subroutine name or reference using the &lt;CODE&gt;&amp;amp;$subref()&lt;/CODE&gt; or &lt;CODE&gt;&amp;amp;{$subref}()&lt;/CODE&gt; constructs. See [perlman:perlref|the perlref manpage]
+for more on that.)
+
+&lt;P&gt;
+Subroutines may be called recursively. If a subroutine is called using the
+``&lt;CODE&gt;&amp;amp;&lt;/CODE&gt;'' form, the argument list is optional, and if omitted, no &lt;CODE&gt;@_&lt;/CODE&gt; array is set up for the subroutine: the &lt;CODE&gt;@_&lt;/CODE&gt; array at the time of the call is visible to subroutine instead. This is an
+efficiency mechanism that new users may wish to avoid.
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;amp;foo(1,2,3);        # pass three arguments
+    foo(1,2,3);         # the same
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    foo();              # pass a null list
+    &amp;amp;foo();             # the same
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    &amp;amp;foo;               # foo() get current args, like foo(@_) !!
+    foo;                # like foo() IFF sub foo predeclared, else &amp;quot;foo&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+Not only does the ``&lt;CODE&gt;&amp;amp;&lt;/CODE&gt;'' form make the argument list optional, but it also disables any prototype
+checking on the arguments you do provide. This is partly for historical
+reasons, and partly for having a convenient way to cheat if you know what
+you're doing. See the section on Prototypes below.
+
+&lt;P&gt;
+Function whose names are in all upper case are reserved to the Perl core, just as are modules whose names are in all lower case. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; function in all capitals is a loosely-held convention meaning it will be called indirectly by the run-time system itself. Functions that do special, pre-defined things are
+ &lt;CODE&gt;BEGIN&lt;/CODE&gt;, &lt;CODE&gt;END&lt;/CODE&gt;, &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt;, and &lt;CODE&gt;DESTROY&lt;/CODE&gt;--plus all the functions mentioned in [perlman:perltie|the perltie manpage]. The 5.005 release adds &lt;CODE&gt;INIT&lt;/CODE&gt;
+to this list.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Private_Variables_via_C_my_"&gt;Private Variables via [perlfunc:my|my()]&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Synopsis:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $foo;            # declare $foo lexically local
+    my (@wid, %get);    # declare list of variables local
+    my $foo = &amp;quot;flurp&amp;quot;;  # declare $foo lexical, and init it
+    my @oof = @bar;     # declare @oof lexical, and init it
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; ``[perlfunc:my|my]'' declares the listed variables to be confined (lexically) to the
+enclosing block, conditional (&lt;CODE&gt;if/unless/elsif/else&lt;/CODE&gt;), loop (&lt;CODE&gt;for/foreach/while/until/continue&lt;/CODE&gt;), subroutine, [perlfunc:eval|eval], or
+&lt;CODE&gt;do/require/use&lt;/CODE&gt;'d file. If more than one value is listed, the list must be placed in
+parentheses. All listed elements must be legal lvalues. Only alphanumeric
+identifiers may be lexically scoped--magical builtins like &lt;CODE&gt;$/&lt;/CODE&gt; must currently be [perlfunc:local|local]ize with ``[perlfunc:local|local]'' instead.
+
+&lt;P&gt;
+Unlike dynamic variables created by the ``[perlfunc:local|local]'' operator, lexical variables declared with ``[perlfunc:my|my]'' are totally hidden from the outside world, including any called
+subroutines (even if it's the same subroutine called from itself or
+elsewhere--every call gets its own copy).
+
+&lt;P&gt;
+This doesn't mean that a [perlfunc:my|my()] variable declared in a statically
+&lt;EM&gt;enclosing&lt;/EM&gt; lexical scope would be invisible. Only the dynamic scopes are cut off. For
+example, the &lt;CODE&gt;bumpx()&lt;/CODE&gt; function below has access to the lexical &lt;CODE&gt;$x&lt;/CODE&gt; variable because both the my and the sub occurred at the same scope,
+presumably the file scope.
+
+&lt;P&gt;
+&lt;PRE&gt;    my $x = 10;
+    sub bumpx { $x++ } 
+&lt;/PRE&gt;
+&lt;P&gt;
+(An [perlfunc:eval|eval()], however, can see the lexical variables of the scope it is being evaluated
+in so long as the names aren't hidden by declarations within the [perlfunc:eval|eval()] itself. See [perlman:perlref|the perlref manpage].)
+
+&lt;P&gt;
+The parameter list to [perlfunc:my|my()] may be assigned to if desired, which allows you to initialize your
+variables. (If no initializer is given for a particular variable, it is
+created with the undefined value.) Commonly this is used to name the
+parameters to a subroutine. Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    $arg = &amp;quot;fred&amp;quot;;        # &amp;quot;global&amp;quot; variable
+    $n = cube_root(27);
+    print &amp;quot;$arg thinks the root is $n\n&amp;quot;;
+ fred thinks the root is 3
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub cube_root {
+        my $arg = shift;  # name doesn't matter
+        $arg **= 1/3;
+        return $arg;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The ``[perlfunc:my|my]'' is simply a modifier on something you might assign to. So when you do
+assign to the variables in its argument list, the ``[perlfunc:my|my]'' doesn't change whether those variables are viewed as a scalar or an
+array. So
+
+&lt;P&gt;
+&lt;PRE&gt;    my ($foo) = &amp;lt;STDIN&amp;gt;;                # WRONG?
+    my @FOO = &amp;lt;STDIN&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+both supply a list context to the right-hand side, while
+
+&lt;P&gt;
+&lt;PRE&gt;    my $foo = &amp;lt;STDIN&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+supplies a scalar context. But the following declares only one variable:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $foo, $bar = 1;                  # WRONG
+&lt;/PRE&gt;
+&lt;P&gt;
+That has the same effect as
+
+&lt;P&gt;
+&lt;PRE&gt;    my $foo;
+    $bar = 1;
+&lt;/PRE&gt;
+&lt;P&gt;
+The declared variable is not introduced (is not visible) until after the
+current statement. Thus,
+
+&lt;P&gt;
+&lt;PRE&gt;    my $x = $x;
+&lt;/PRE&gt;
+&lt;P&gt;
+can be used to initialize the new &lt;CODE&gt;$x&lt;/CODE&gt; with the value of the old &lt;CODE&gt;$x&lt;/CODE&gt;, and the expression
+
+&lt;P&gt;
+&lt;PRE&gt;    my $x = 123 and $x == 123
+&lt;/PRE&gt;
+&lt;P&gt;
+is false unless the old &lt;CODE&gt;$x&lt;/CODE&gt; happened to have the value &lt;CODE&gt;123&lt;/CODE&gt;.
+
+&lt;P&gt;
+Lexical scopes of control structures are not bounded precisely by the
+braces that delimit their controlled blocks; control expressions are part
+of the scope, too. Thus in the loop
+
+&lt;P&gt;
+&lt;PRE&gt;    while (defined(my $line = &amp;lt;&amp;gt;)) {
+        $line = lc $line;
+    } continue {
+        print $line;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+the scope of &lt;CODE&gt;$line&lt;/CODE&gt; extends from its declaration throughout the rest of the loop construct
+(including the [perlfunc:continue|continue] clause), but not beyond it. Similarly, in the conditional
+
+&lt;P&gt;
+&lt;PRE&gt;    if ((my $answer = &amp;lt;STDIN&amp;gt;) =~ /^yes$/i) {
+        user_agrees();
+    } elsif ($answer =~ /^no$/i) {
+        user_disagrees();
+    } else {
+        chomp $answer;
+        die &amp;quot;'$answer' is neither 'yes' nor 'no'&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+the scope of &lt;CODE&gt;$answer&lt;/CODE&gt; extends from its declaration throughout the rest of the conditional
+(including &lt;CODE&gt;elsif&lt;/CODE&gt; and &lt;CODE&gt;else&lt;/CODE&gt; clauses, if any), but not beyond it.
+
+&lt;P&gt;
+(None of the foregoing applies to &lt;CODE&gt;if/unless&lt;/CODE&gt; or &lt;CODE&gt;while/until&lt;/CODE&gt;
+modifiers appended to simple statements. Such modifiers are not control
+structures and have no effect on scoping.)
+
+&lt;P&gt;
+The &lt;CODE&gt;foreach&lt;/CODE&gt; loop defaults to scoping its index variable dynamically (in the manner of [perlfunc:local|local]; see below). However, if the index variable is prefixed with the keyword
+``[perlfunc:my|my]'', then it is lexically scoped instead. Thus in the loop
+
+&lt;P&gt;
+&lt;PRE&gt;    for my $i (1, 2, 3) {
+        some_function();
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+the scope of &lt;CODE&gt;$i&lt;/CODE&gt; extends to the end of the loop, but not beyond it, and so the value of &lt;CODE&gt;$i&lt;/CODE&gt; is unavailable in &lt;CODE&gt;some_function()&lt;/CODE&gt;.
+
+&lt;P&gt;
+Some users may wish to encourage the use of lexically scoped variables. As
+an aid to catching implicit references to package variables, if you say
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict 'vars';
+&lt;/PRE&gt;
+&lt;P&gt;
+then any variable reference from there to the end of the enclosing block must either refer to a lexical variable, or must be fully qualified with the package name. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; compilation error results otherwise. An inner block may countermand this with
+ "&lt;CODE&gt;no&amp;nbsp;strict&amp;nbsp;'vars'&lt;/CODE&gt;".
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; [perlfunc:my|my()] has both a compile-time and a run-time effect. At compile time, the
+compiler takes notice of it; the principle usefulness of this is to quiet "&lt;CODE&gt;use&amp;nbsp;strict&amp;nbsp;'vars'&lt;/CODE&gt;". The actual initialization is delayed until run time, so it gets executed
+appropriately; every time through a loop, for example.
+
+&lt;P&gt;
+Variables declared with ``[perlfunc:my|my]'' are not part of any package and are therefore never fully qualified with
+the package name. In particular, you're not allowed to try to make a
+package variable (or other global) lexical:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $pack::var;      # ERROR!  Illegal syntax
+    my $_;              # also illegal (currently)
+&lt;/PRE&gt;
+&lt;P&gt;
+In fact, a dynamic variable (also known as package or global variables) are
+still accessible using the fully qualified &lt;CODE&gt;::&lt;/CODE&gt; notation even while a lexical of the same name is also visible:
+
+&lt;P&gt;
+&lt;PRE&gt;    package main;
+    local $x = 10;
+    my    $x = 20;
+    print &amp;quot;$x and $::x\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+That will print out &lt;CODE&gt;20&lt;/CODE&gt; and &lt;CODE&gt;10&lt;/CODE&gt;.
+
+&lt;P&gt;
+You may declare ``[perlfunc:my|my]'' variables at the outermost scope of a file to hide any such identifiers
+totally from the outside world. This is similar to C's static variables at
+the file level. To do this with a subroutine requires the use of a closure
+(anonymous function with lexical access). If a block (such as an [perlfunc:eval|eval()], function, or [perlfunc:package|package]) wants to create a private subroutine that cannot be called from outside
+that block, it can declare a lexical variable containing an anonymous sub
+reference:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $secret_version = '1.001-beta';
+    my $secret_sub = sub { print $secret_version };
+    &amp;amp;$secret_sub();
+&lt;/PRE&gt;
+&lt;P&gt;
+As long as the reference is never returned by any function within the
+module, no outside module can see the subroutine, because its name is not
+in any package's symbol table. Remember that it's not &lt;EM&gt;REALLY&lt;/EM&gt; called
+&lt;CODE&gt;$some_pack::secret_version&lt;/CODE&gt; or anything; it's just &lt;CODE&gt;$secret_version&lt;/CODE&gt;, unqualified and unqualifiable.
+
+&lt;P&gt;
+This does not work with object methods, however; all object methods have to
+be in the symbol table of some package to be found.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Peristent_Private_Variables"&gt;Peristent Private Variables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Just because a lexical variable is lexically (also called statically)
+scoped to its enclosing block, [perlfunc:eval|eval], or [perlfunc:do|do] 
+&lt;FONT SIZE=-1&gt;FILE,&lt;/FONT&gt; this doesn't mean that within a function it works like a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; static. It normally works more like a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; auto, but with implicit garbage collection.
+  
+
+&lt;P&gt;
+Unlike local variables in 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;C++,&lt;/FONT&gt; Perl's lexical variables don't necessarily get recycled just because their scope has exited. If something more permanent is still aware of the lexical, it will stick around. So long as something else references a lexical, that lexical won't be freed--which is as it should be. You wouldn't want memory being free until you were done using it, or kept around once you were done. Automatic garbage collection takes care of this for you.
+
+&lt;P&gt;
+This means that you can pass back or save away references to lexical variables, whereas to return a pointer to a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; auto is a grave error. It also gives us a way to simulate C's function statics. Here's a mechanism for giving a function private variables with both lexical scoping and a static lifetime. If you do want to create something like C's static variables, just enclose the whole function in an extra block, and put the static variable outside the function but in the block.
+
+&lt;P&gt;
+&lt;PRE&gt;    {
+        my $secret_val = 0;
+        sub gimme_another {
+            return ++$secret_val;
+        }
+    }
+    # $secret_val now becomes unreachable by the outside
+    # world, but retains its value between calls to gimme_another
+&lt;/PRE&gt;
+&lt;P&gt;
+If this function is being sourced in from a separate file via [perlfunc:require|require] or [perlfunc:use|use], then this is probably just fine. If it's all in the main program, you'll
+need to arrange for the [perlfunc:my|my()]
+to be executed early, either by putting the whole block above your main
+program, or more likely, placing merely a &lt;CODE&gt;BEGIN&lt;/CODE&gt;
+sub around it to make sure it gets executed before your program starts to
+run:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub BEGIN {
+        my $secret_val = 0;
+        sub gimme_another {
+            return ++$secret_val;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+See &lt;A HREF="perlmod.html#Package_Constructors_and_Destruc"&gt;Package Constructors and Destructors&lt;/A&gt; about the &lt;CODE&gt;BEGIN&lt;/CODE&gt; function.
+
+&lt;P&gt;
+If declared at the outermost scope, the file scope, then lexicals work
+someone like C's file statics. They are available to all functions in that
+same file declared below them, but are inaccessible from outside of the
+file. This is sometimes used in modules to create private variables for the
+whole module.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Temporary_Values_via_local_"&gt;Temporary Values via local()&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;STRONG&gt;NOTE&lt;/STRONG&gt;: In general, you should be using ``[perlfunc:my|my]'' instead of ``[perlfunc:local|local]'', because it's faster and safer. Exceptions to this include the global
+punctuation variables, filehandles and formats, and direct manipulation of
+the Perl symbol table itself. Format variables often use ``[perlfunc:local|local]'' though, as do other variables whose current value must be visible to
+called subroutines.
+
+&lt;P&gt;
+Synopsis:
+
+&lt;P&gt;
+&lt;PRE&gt;    local $foo;                 # declare $foo dynamically local
+    local (@wid, %get);         # declare list of variables local
+    local $foo = &amp;quot;flurp&amp;quot;;       # declare $foo dynamic, and init it
+    local @oof = @bar;          # declare @oof dynamic, and init it
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    local *FH;                  # localize $FH, @FH, %FH, &amp;amp;FH  ...
+    local *merlyn = *randal;    # now $merlyn is really $randal, plus
+                                #     @merlyn is really @randal, etc
+    local *merlyn = 'randal';   # SAME THING: promote 'randal' to *randal
+    local *merlyn = \$randal;   # just alias $merlyn, not @merlyn etc
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; [perlfunc:local|local()] modifies its listed variables to be ``local'' to the enclosing block, [perlfunc:eval|eval], or &lt;CODE&gt;do FILE&lt;/CODE&gt;--and to &lt;EM&gt;any subroutine called from within that block&lt;/EM&gt;. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; [perlfunc:local|local()] just gives temporary values to global (meaning package) variables. It does &lt;STRONG&gt;not&lt;/STRONG&gt; create a local variable. This is known as dynamic scoping. Lexical scoping
+is done with ``[perlfunc:my|my]'', which works more like C's auto declarations.
+
+&lt;P&gt;
+If more than one variable is given to [perlfunc:local|local()], they must be placed in parentheses. All listed elements must be legal
+lvalues. This operator works by saving the current values of those
+variables in its argument list on a hidden stack and restoring them upon
+exiting the block, subroutine, or eval. This means that called subroutines
+can also reference the local variable, but not the global one. The argument
+list may be assigned to if desired, which allows you to initialize your
+local variables. (If no initializer is given for a particular variable, it
+is created with an undefined value.) Commonly this is used to name the
+parameters to a subroutine. Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    for $i ( 0 .. 9 ) {
+        $digits{$i} = $i;
+    }
+    # assume this function uses global %digits hash
+    parse_num();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # now temporarily add to %digits hash
+    if ($base12) {
+        # (NOTE: not claiming this is efficient!)
+        local %digits  = (%digits, 't' =&amp;gt; 10, 'e' =&amp;gt; 11);
+        parse_num();  # parse_num gets this new %digits!
+    }
+    # old %digits restored here
+&lt;/PRE&gt;
+&lt;P&gt;
+Because [perlfunc:local|local()] is a run-time command, it gets executed every time through a loop. In
+releases of Perl previous to 5.0, this used more stack storage each time
+until the loop was exited. Perl now reclaims the space each time through,
+but it's still more efficient to declare your variables outside the loop.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; [perlfunc:local|local] is simply a modifier on an lvalue expression. When you assign to a [perlfunc:local|local]ized variable, the [perlfunc:local|local] doesn't change whether its list is viewed as a scalar or an array. So
+
+&lt;P&gt;
+&lt;PRE&gt;    local($foo) = &amp;lt;STDIN&amp;gt;;
+    local @FOO = &amp;lt;STDIN&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+both supply a list context to the right-hand side, while
+
+&lt;P&gt;
+&lt;PRE&gt;    local $foo = &amp;lt;STDIN&amp;gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+supplies a scalar context.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; note about [perlfunc:local|local()] and composite types is in order. Something like [perlfunc:local|local(%foo)] works by temporarily placing a brand new hash in the symbol table. The old
+hash is left alone, but is hidden ``behind'' the new one.
+
+&lt;P&gt;
+This means the old variable is completely invisible via the symbol table
+(i.e. the hash entry in the &lt;CODE&gt;*foo&lt;/CODE&gt; typeglob) for the duration of the dynamic scope within which the [perlfunc:local|local()] was seen. This has the effect of allowing one to temporarily occlude any
+magic on composite types. For instance, this will briefly alter a tied hash
+to some other implementation:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %ahash, 'APackage';
+    &amp;#091;...&amp;#093;
+    {
+       local %ahash;
+       tie %ahash, 'BPackage';
+       &amp;#091;..called code will see %ahash tied to 'BPackage'..&amp;#093;
+       {
+          local %ahash;
+          &amp;#091;..%ahash is a normal (untied) hash here..&amp;#093;
+       }
+    }
+    &amp;#091;..%ahash back to its initial tied self again..&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+As another example, a custom implementation of &lt;CODE&gt;%ENV&lt;/CODE&gt; might look like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    {
+        local %ENV;
+        tie %ENV, 'MyOwnEnv';
+        &amp;#091;..do your own fancy %ENV manipulation here..&amp;#093;
+    }
+    &amp;#091;..normal %ENV behavior here..&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+It's also worth taking a moment to explain what happens when you
+[perlfunc:local|local]ize a member of a composite type (i.e. an array or hash element). In this
+case, the element is [perlfunc:local|local]ized &lt;EM&gt;by name&lt;/EM&gt;. This means that when the scope of the [perlfunc:local|local()] ends, the saved value will be restored to the hash element whose key was
+named in the [perlfunc:local|local()], or the array element whose index was named in the [perlfunc:local|local()]. If that element was deleted while the [perlfunc:local|local()] was in effect (e.g. by a
+[perlfunc:delete|delete()] from a hash or a [perlfunc:shift|shift()] of an array), it will spring back into existence, possibly extending an
+array and filling in the skipped elements with [perlfunc:undef|undef]. For instance, if you say
+
+&lt;P&gt;
+&lt;PRE&gt;    %hash = ( 'This' =&amp;gt; 'is', 'a' =&amp;gt; 'test' );
+    @ary  = ( 0..5 );
+    {
+         local($ary&amp;#091;5&amp;#093;) = 6;
+         local($hash{'a'}) = 'drill';
+         while (my $e = pop(@ary)) {
+             print &amp;quot;$e . . .\n&amp;quot;;
+             last unless $e &amp;gt; 3;
+         }
+         if (@ary) {
+             $hash{'only a'} = 'test';
+             delete $hash{'a'};
+         }
+    }
+    print join(' ', map { &amp;quot;$_ $hash{$_}&amp;quot; } sort keys %hash),&amp;quot;.\n&amp;quot;;
+    print &amp;quot;The array has &amp;quot;,scalar(@ary),&amp;quot; elements: &amp;quot;,
+          join(', ', map { defined $_ ? $_ : 'undef' } @ary),&amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Perl will print
+
+&lt;P&gt;
+&lt;PRE&gt;    6 . . .
+    4 . . .
+    3 . . .
+    This is a test only a test.
+    The array has 6 elements: 0, 1, 2, undef, undef, 5
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Passing_Symbol_Table_Entries_ty"&gt;Passing Symbol Table Entries (typeglobs)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&amp;#091;Note: The mechanism described in this section was originally the only way
+to simulate pass-by-reference in older versions of Perl. While it still
+works fine in modern versions, the new reference mechanism is generally
+easier to work with. See below.&amp;#093;
+
+&lt;P&gt;
+Sometimes you don't want to pass the value of an array to a subroutine but
+rather the name of it, so that the subroutine can modify the global copy of
+it rather than working with a local copy. In perl you can refer to all
+objects of a particular name by prefixing the name with a star: &lt;CODE&gt;*foo&lt;/CODE&gt;. This is often known as a ``typeglob'', because the star on the front can
+be thought of as a wildcard match for all the funny prefix characters on
+variables and subroutines and such.
+
+&lt;P&gt;
+When evaluated, the typeglob produces a scalar value that represents all
+the objects of that name, including any filehandle, format, or subroutine.
+When assigned to, it causes the name mentioned to refer to whatever ``&lt;CODE&gt;*&lt;/CODE&gt;'' value was assigned to it. Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub doubleary {
+        local(*someary) = @_;
+        foreach $elem (@someary) {
+            $elem *= 2;
+        }
+    }
+    doubleary(*foo);
+    doubleary(*bar);
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that scalars are already passed by reference, so you can modify scalar
+arguments without using this mechanism by referring explicitly to &lt;CODE&gt;$_&amp;#091;0&amp;#093;&lt;/CODE&gt; etc. You can modify all the elements of an array by passing all the
+elements as scalars, but you have to use the &lt;CODE&gt;*&lt;/CODE&gt; mechanism (or the equivalent reference mechanism) to [perlfunc:push|push], [perlfunc:pop|pop], or change the size of an array. It will certainly be faster to pass the
+typeglob (or reference).
+
+&lt;P&gt;
+Even if you don't want to modify an array, this mechanism is useful for passing multiple arrays in a single 
+&lt;FONT SIZE=-1&gt;LIST,&lt;/FONT&gt; because normally the 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; mechanism will merge all the array values so that you can't extract out the individual arrays. For more on typeglobs, see
+
+&lt;A HREF="perldata.html#Typeglobs_and_Filehandles"&gt;Typeglobs and Filehandles&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="When_to_Still_Use_local_"&gt;When to Still Use local()&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Despite the existence of [perlfunc:my|my()], there are still three places where the
+[perlfunc:local|local()] operator still shines. In fact, in these three places, you
+&lt;EM&gt;must&lt;/EM&gt; use [perlfunc:local|local] instead of [perlfunc:my|my].
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_You_need_to_give_a_global_variab"&gt;You need to give a global variable a temporary value, especially $_.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+The global variables, like &lt;CODE&gt;@ARGV&lt;/CODE&gt; or the punctuation variables, must be 
+[perlfunc:local|local]ized with [perlfunc:local|local()]. This block reads in &lt;EM&gt;/etc/motd&lt;/EM&gt;, and splits it up into chunks separated by lines of equal signs, which are
+placed in &lt;CODE&gt;@Fields&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    {
+        local @ARGV = (&amp;quot;/etc/motd&amp;quot;);
+        local $/ = undef;
+        local $_ = &amp;lt;&amp;gt;;  
+        @Fields = split /^\s*=+\s*$/;
+    } 
+&lt;/PRE&gt;
+&lt;P&gt;
+It particular, it's important to [perlfunc:local|local]ize &lt;CODE&gt;$_&lt;/CODE&gt; in any routine that assigns to it. Look out for implicit assignments in &lt;CODE&gt;while&lt;/CODE&gt; conditionals.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_You_need_to_create_a_local_file_"&gt;You need to create a local file or directory handle or a local function.&lt;/A&gt;&lt;/STRONG&gt;
+
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; function that needs a filehandle of its own must use [perlfunc:local|local()] uses
+[perlfunc:local|local()] on complete typeglob. This can be used to create new symbol table entries:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub ioqueue {
+        local  (*READER, *WRITER);    # not my!
+        pipe    (READER,  WRITER);    or die &amp;quot;pipe: $!&amp;quot;;
+        return (*READER, *WRITER);
+    }
+    ($head, $tail) = ioqueue();
+&lt;/PRE&gt;
+&lt;P&gt;
+See the Symbol module for a way to create anonymous symbol table entries.
+
+&lt;P&gt;
+Because assignment of a reference to a typeglob creates an alias, this can
+be used to create what is effectively a local function, or at least, a
+local alias.
+
+&lt;P&gt;
+&lt;PRE&gt;    {
+        local *grow = \&amp;amp;shrink; # only until this block exists
+        grow();                 # really calls shrink()
+        move();                 # if move() grow()s, it shrink()s too
+    }
+    grow();                     # get the real grow() again
+&lt;/PRE&gt;
+&lt;P&gt;
+See &lt;A HREF="perlref.html#Function_Templates"&gt;Function Templates&lt;/A&gt; for more about manipulating functions by name in this way.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME="item_You_want_to_temporarily_change_j"&gt;You want to temporarily change just one element of an array or hash.&lt;/A&gt;&lt;/STRONG&gt;
+
+You can [perlfunc:local|local]ize just one element of an aggregate. Usually this is done on dynamics:
+
+&lt;P&gt;
+&lt;PRE&gt;    {
+        local $SIG{INT} = 'IGNORE';
+        funct();                            # uninterruptible
+    } 
+    # interruptibility automatically restored here
+&lt;/PRE&gt;
+&lt;P&gt;
+But it also works on lexically declared aggregates. Prior to 5.005, this
+operation could on occasion misbehave.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Pass_by_Reference"&gt;Pass by Reference&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you want to pass more than one array or hash into a function--or return
+them from it--and have them maintain their integrity, then you're going to
+have to use an explicit pass-by-reference. Before you do that, you need to
+understand references as detailed in [perlman:perlref|the perlref manpage]. This section may not make much sense to you otherwise.
+
+&lt;P&gt;
+Here are a few simple examples. First, let's pass in several arrays to a
+function and have it [perlfunc:pop|pop] all of then, return a new list of all their former last elements:
+
+&lt;P&gt;
+&lt;PRE&gt;    @tailings = popmany ( \@a, \@b, \@c, \@d );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub popmany {
+        my $aref;
+        my @retlist = ();
+        foreach $aref ( @_ ) {
+            push @retlist, pop @$aref;
+        }
+        return @retlist;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's how you might write a function that returns a list of keys occurring
+in all the hashes passed to it:
+
+&lt;P&gt;
+&lt;PRE&gt;    @common = inter( \%foo, \%bar, \%joe );
+    sub inter {
+        my ($k, $href, %seen); # locals
+        foreach $href (@_) {
+            while ( $k = each %$href ) {
+                $seen{$k}++;
+            }
+        }
+        return grep { $seen{$_} == @_ } keys %seen;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+So far, we're using just the normal list return mechanism. What happens if
+you want to pass or return a hash? Well, if you're using only one of them,
+or you don't mind them concatenating, then the normal calling convention is
+ok, although a little expensive.
+
+&lt;P&gt;
+Where people get into trouble is here:
+
+&lt;P&gt;
+&lt;PRE&gt;    (@a, @b) = func(@c, @d);
+or
+    (%a, %b) = func(%c, %d);
+&lt;/PRE&gt;
+&lt;P&gt;
+That syntax simply won't work. It sets just &lt;CODE&gt;@a&lt;/CODE&gt; or &lt;CODE&gt;%a&lt;/CODE&gt; and clears the &lt;CODE&gt;@b&lt;/CODE&gt; or
+&lt;CODE&gt;%b&lt;/CODE&gt;. Plus the function didn't get passed into two separate arrays or hashes:
+it got one long list in &lt;CODE&gt;@_&lt;/CODE&gt;, as always.
+
+&lt;P&gt;
+If you can arrange for everyone to deal with this through references, it's
+cleaner code, although not so nice to look at. Here's a function that takes
+two array references as arguments, returning the two array elements in
+order of how many elements they have in them:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($aref, $bref) = func(\@c, \@d);
+    print &amp;quot;@$aref has more than @$bref\n&amp;quot;;
+    sub func {
+        my ($cref, $dref) = @_;
+        if (@$cref &amp;gt; @$dref) {
+            return ($cref, $dref);
+        } else {
+            return ($dref, $cref);
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+It turns out that you can actually do this also:
+
+&lt;P&gt;
+&lt;PRE&gt;    (*a, *b) = func(\@c, \@d);
+    print &amp;quot;@a has more than @b\n&amp;quot;;
+    sub func {
+        local (*c, *d) = @_;
+        if (@c &amp;gt; @d) {
+            return (\@c, \@d);
+        } else {
+            return (\@d, \@c);
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Here we're using the typeglobs to do symbol table aliasing. It's a tad
+subtle, though, and also won't work if you're using [perlfunc:my|my()]
+variables, because only globals (well, and [perlfunc:local|local()]s) are in the symbol table.
+
+&lt;P&gt;
+If you're passing around filehandles, you could usually just use the bare
+typeglob, like &lt;CODE&gt;*STDOUT&lt;/CODE&gt;, but typeglobs references would be better because they'll still work
+properly under &lt;CODE&gt;use&amp;nbsp;strict&amp;nbsp;'refs'&lt;/CODE&gt;. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    splutter(\*STDOUT);
+    sub splutter {
+        my $fh = shift;
+        print $fh &amp;quot;her um well a hmmm\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $rec = get_rec(\*STDIN);
+    sub get_rec {
+        my $fh = shift;
+        return scalar &amp;lt;$fh&amp;gt;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Another way to do this is using &lt;CODE&gt;*HANDLE{IO}&lt;/CODE&gt;, see [perlman:perlref|the perlref manpage] for usage and caveats.
+
+&lt;P&gt;
+If you're planning on generating new filehandles, you could do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub openit {
+        my $name = shift;
+        local *FH;
+        return open (FH, $path) ? *FH : undef;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Although that will actually produce a small memory leak. See the bottom of [perlfunc:open|open()] for a somewhat cleaner way using the &lt;CODE&gt;IO::Handle&lt;/CODE&gt;
+package.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Prototypes"&gt;Prototypes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+As of the 5.002 release of perl, if you declare
+
+&lt;P&gt;
+&lt;PRE&gt;    sub mypush (\@@)
+&lt;/PRE&gt;
+&lt;P&gt;
+then &lt;CODE&gt;mypush()&lt;/CODE&gt; takes arguments exactly like [perlfunc:push|push()] does. The declaration of the function to be called must be visible at
+compile time. The prototype affects only the interpretation of new-style
+calls to the function, where new-style is defined as not using the &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; character. In other words, if you call it like a builtin function, then it
+behaves like a builtin function. If you call it like an old-fashioned
+subroutine, then it behaves like an old-fashioned subroutine. It naturally
+falls out from this rule that prototypes have no influence on subroutine
+references like &lt;CODE&gt;\&amp;amp;foo&lt;/CODE&gt; or on indirect subroutine calls like &lt;CODE&gt;&amp;amp;{$subref}&lt;/CODE&gt;.
+
+&lt;P&gt;
+Method calls are not influenced by prototypes either, because the function
+to be called is indeterminate at compile time, because it depends on
+inheritance.
+
+&lt;P&gt;
+Because the intent is primarily to let you define subroutines that work
+like builtin commands, here are the prototypes for some other functions
+that parse almost exactly like the corresponding builtins.
+
+&lt;P&gt;
+&lt;PRE&gt;    Declared as                 Called as
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub mylink ($$)          mylink $old, $new
+    sub myvec ($$$)          myvec $var, $offset, 1
+    sub myindex ($$;$)       myindex &amp;amp;getstring, &amp;quot;substr&amp;quot;
+    sub mysyswrite ($$$;$)   mysyswrite $buf, 0, length($buf) - $off, $off
+    sub myreverse (@)        myreverse $a, $b, $c
+    sub myjoin ($@)          myjoin &amp;quot;:&amp;quot;, $a, $b, $c
+    sub mypop (\@)           mypop @array
+    sub mysplice (\@$$@)     mysplice @array, @array, 0, @pushme
+    sub mykeys (\%)          mykeys %{$hashref}
+    sub myopen (*;$)         myopen HANDLE, $name
+    sub mypipe (**)          mypipe READHANDLE, WRITEHANDLE
+    sub mygrep (&amp;amp;@)          mygrep { /foo/ } $a, $b, $c
+    sub myrand ($)           myrand 42
+    sub mytime ()            mytime
+&lt;/PRE&gt;
+&lt;P&gt;
+Any backslashed prototype character represents an actual argument that
+absolutely must start with that character. The value passed to the
+subroutine (as part of &lt;CODE&gt;@_&lt;/CODE&gt;) will be a reference to the actual argument given in the subroutine call,
+obtained by applying
+&lt;CODE&gt;\&lt;/CODE&gt; to that argument.
+
+&lt;P&gt;
+Unbackslashed prototype characters have special meanings. Any unbackslashed &lt;CODE&gt;@&lt;/CODE&gt; or &lt;CODE&gt;%&lt;/CODE&gt; eats all the rest of the arguments, and forces list context. An argument
+represented by &lt;CODE&gt;$&lt;/CODE&gt; forces scalar context. An
+&lt;CODE&gt;&amp;amp;&lt;/CODE&gt; requires an anonymous subroutine, which, if passed as the first argument,
+does not require the ``[perlfunc:sub|sub]'' keyword or a subsequent comma. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt;
+&lt;CODE&gt;*&lt;/CODE&gt; does whatever it has to do to turn the argument into a reference to a
+symbol table entry.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; semicolon separates mandatory arguments from
+optional arguments. (It is redundant before &lt;CODE&gt;@&lt;/CODE&gt; or &lt;CODE&gt;%&lt;/CODE&gt;.)
+
+&lt;P&gt;
+Note how the last three examples above are treated specially by the parser.
+&lt;CODE&gt;mygrep()&lt;/CODE&gt; is parsed as a true list operator, &lt;CODE&gt;myrand()&lt;/CODE&gt; is parsed as a true unary operator with unary precedence the same as [perlfunc:rand|rand()], and
+&lt;CODE&gt;mytime()&lt;/CODE&gt; is truly without arguments, just like [perlfunc:time|time()]. That is, if you say
+
+&lt;P&gt;
+&lt;PRE&gt;    mytime +2;
+&lt;/PRE&gt;
+&lt;P&gt;
+you'll get &lt;CODE&gt;mytime() + 2&lt;/CODE&gt;, not &lt;CODE&gt;mytime(2)&lt;/CODE&gt;, which is how it would be parsed without the prototype.
+
+&lt;P&gt;
+The interesting thing about &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; is that you can generate new syntax with it:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub try (&amp;amp;@) {
+        my($try,$catch) = @_;
+        eval { &amp;amp;$try };
+        if ($@) {
+            local $_ = $@;
+            &amp;amp;$catch;
+        }
+    }
+    sub catch (&amp;amp;) { $_&amp;#091;0&amp;#093; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    try {
+        die &amp;quot;phooey&amp;quot;;
+    } catch {
+        /phooey/ and print &amp;quot;unphooey\n&amp;quot;;
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+That prints &lt;CODE&gt;&amp;quot;unphooey&amp;quot;&lt;/CODE&gt;. (Yes, there are still unresolved issues having to do with the visibility
+of &lt;CODE&gt;@_&lt;/CODE&gt;. I'm ignoring that question for the moment. (But note that if we make &lt;CODE&gt;@_&lt;/CODE&gt; lexically scoped, those anonymous subroutines can act like closures...
+(Gee, is this sounding a little Lispish? (Never mind.))))
+
+&lt;P&gt;
+And here's a reimplementation of [perlfunc:grep|grep]:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub mygrep (&amp;amp;@) {
+        my $code = shift;
+        my @result;
+        foreach $_ (@_) {
+            push(@result, $_) if &amp;amp;$code;
+        }
+        @result;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Some folks would prefer full alphanumeric prototypes. Alphanumerics have
+been intentionally left out of prototypes for the express purpose of
+someday in the future adding named, formal parameters. The current
+mechanism's main goal is to let module writers provide better diagnostics
+for module users. Larry feels the notation quite understandable to Perl
+programmers, and that it will not intrude greatly upon the meat of the
+module, nor make it harder to read. The line noise is visually encapsulated
+into a small pill that's easy to swallow.
+
+&lt;P&gt;
+It's probably best to prototype new functions, not retrofit prototyping
+into older ones. That's because you must be especially careful about silent
+impositions of differing list versus scalar contexts. For example, if you
+decide that a function should take just one parameter, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub func ($) {
+        my $n = shift;
+        print &amp;quot;you gave me $n\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+and someone has been calling it with an array or expression returning a
+list:
+
+&lt;P&gt;
+&lt;PRE&gt;    func(@foo);
+    func( split /:/ );
+&lt;/PRE&gt;
+&lt;P&gt;
+Then you've just supplied an automatic [perlfunc:scalar|scalar()] in front of their argument, which can be more than a bit surprising. The
+old &lt;CODE&gt;@foo&lt;/CODE&gt;
+which used to hold one thing doesn't get passed in. Instead, the &lt;CODE&gt;func()&lt;/CODE&gt; now gets passed in &lt;CODE&gt;1&lt;/CODE&gt;, that is, the number of elements in &lt;CODE&gt;@foo&lt;/CODE&gt;. And the [perlfunc:split|split()] gets called in a scalar context and starts scribbling on your &lt;CODE&gt;@_&lt;/CODE&gt; parameter list.
+
+&lt;P&gt;
+This is all very powerful, of course, and should be used only in moderation
+to make the world a better place.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Constant_Functions"&gt;Constant Functions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Functions with a prototype of &lt;CODE&gt;()&lt;/CODE&gt; are potential candidates for inlining. If the result after optimization and
+constant folding is either a constant or a lexically-scoped scalar which
+has no other references, then it will be used in place of function calls
+made without &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; or [perlfunc:do|do]. Calls made using &lt;CODE&gt;&amp;amp;&lt;/CODE&gt; or [perlfunc:do|do] are never inlined. (See &lt;EM&gt;constant.pm&lt;/EM&gt; for an easy way to declare most constants.)
+
+&lt;P&gt;
+The following functions would all be inlined:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub pi ()           { 3.14159 }             # Not exact, but close.
+    sub PI ()           { 4 * atan2 1, 1 }      # As good as it gets,
+                                                # and it's inlined, too!
+    sub ST_DEV ()       { 0 }
+    sub ST_INO ()       { 1 }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub FLAG_FOO ()     { 1 &amp;lt;&amp;lt; 8 }
+    sub FLAG_BAR ()     { 1 &amp;lt;&amp;lt; 9 }
+    sub FLAG_MASK ()    { FLAG_FOO | FLAG_BAR }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub OPT_BAZ ()      { not (0x1B58 &amp;amp; FLAG_MASK) }
+    sub BAZ_VAL () {
+        if (OPT_BAZ) {
+            return 23;
+        }
+        else {
+            return 42;
+        }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub N () { int(BAZ_VAL) / 3 }
+    BEGIN {
+        my $prod = 1;
+        for (1..N) { $prod *= $_ }
+        sub N_FACTORIAL () { $prod }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you redefine a subroutine that was eligible for inlining, you'll get a
+mandatory warning. (You can use this warning to tell whether or not a
+particular subroutine is considered constant.) The warning is considered
+severe enough not to be optional because previously compiled invocations of
+the function will still be using the old value of the function. If you need
+to be able to redefine the subroutine you need to ensure that it isn't
+inlined, either by dropping the &lt;CODE&gt;()&lt;/CODE&gt; prototype (which changes the calling semantics, so beware) or by thwarting
+the inlining mechanism in some other way, such as
+
+&lt;P&gt;
+&lt;PRE&gt;    sub not_inlined () {
+        23 if $&amp;#093;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Overriding_Builtin_Functions"&gt;Overriding Builtin Functions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Many builtin functions may be overridden, though this should be tried only
+occasionally and for good reason. Typically this might be done by a package
+attempting to emulate missing builtin functionality on a non-Unix system.
+
+&lt;P&gt;
+Overriding may be done only by importing the name from a module--ordinary
+predeclaration isn't good enough. However, the
+&lt;CODE&gt;subs&lt;/CODE&gt; pragma (compiler directive) lets you, in effect, predeclare subs via the
+import syntax, and these names may then override the builtin ones:
+
+&lt;P&gt;
+&lt;PRE&gt;    use subs 'chdir', 'chroot', 'chmod', 'chown';
+    chdir $somewhere;
+    sub chdir { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+To unambiguously refer to the builtin form, one may precede the builtin
+name with the special package qualifier &lt;CODE&gt;CORE::&lt;/CODE&gt;. For example, saying &lt;CODE&gt;CORE::open()&lt;/CODE&gt; will always refer to the builtin [perlfunc:open|open()], even if the current package has imported some other subroutine called
+&lt;A HREF="perlfunc/open.html#item__open"&gt;&amp;amp;open()&lt;/A&gt; from elsewhere.
+
+&lt;P&gt;
+Library modules should not in general export builtin names like ``[perlfunc:open|open]'' or ``[perlfunc:chdir|chdir]'' as part of their default &lt;CODE&gt;@EXPORT&lt;/CODE&gt; list, because these may sneak into someone else's namespace and change the
+semantics unexpectedly. Instead, if the module adds the name to the &lt;CODE&gt;@EXPORT_OK&lt;/CODE&gt; list, then it's possible for a user to import the name explicitly, but not
+implicitly. That is, they could say
+
+&lt;P&gt;
+&lt;PRE&gt;    use Module 'open';
+&lt;/PRE&gt;
+&lt;P&gt;
+and it would import the [perlfunc:open|open] override, but if they said
+
+&lt;P&gt;
+&lt;PRE&gt;    use Module;
+&lt;/PRE&gt;
+&lt;P&gt;
+they would get the default imports without the overrides.
+
+&lt;P&gt;
+The foregoing mechanism for overriding builtins is restricted, quite
+deliberately, to the package that requests the import. There is a second
+method that is sometimes applicable when you wish to override a builtin
+everywhere, without regard to namespace boundaries. This is achieved by
+importing a sub into the special namespace &lt;CODE&gt;CORE::GLOBAL::&lt;/CODE&gt;. Here is an example that quite brazenly replaces the [perlfunc:glob|glob] operator with something that understands regular expressions.
+
+&lt;P&gt;
+&lt;PRE&gt;    package REGlob;
+    require Exporter;
+    @ISA = 'Exporter';
+    @EXPORT_OK = 'glob';
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub import {
+        my $pkg = shift;
+        return unless @_;
+        my $sym = shift;
+        my $where = ($sym =~ s/^GLOBAL_// ? 'CORE::GLOBAL' : caller(0));
+        $pkg-&amp;gt;export($where, $sym, @_);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub glob {
+        my $pat = shift;
+        my @got;
+        local(*D);
+        if (opendir D, '.') { @got = grep /$pat/, readdir D; closedir D; }
+        @got;
+    }
+    1;
+&lt;/PRE&gt;
+&lt;P&gt;
+And here's how it could be (ab)used:
+
+&lt;P&gt;
+&lt;PRE&gt;    #use REGlob 'GLOBAL_glob';      # override glob() in ALL namespaces
+    package Foo;
+    use REGlob 'glob';              # override glob() in Foo:: only
+    print for &amp;lt;^&amp;#091;a-z_&amp;#093;+\.pm\$&amp;gt;;     # show all pragmatic modules
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that the initial comment shows a contrived, even dangerous example. By
+overriding [perlfunc:glob|glob] globally, you would be forcing the new (and subversive) behavior for the [perlfunc:glob|glob] operator for &lt;STRONG&gt;every&lt;/STRONG&gt; namespace, without the complete cognizance or cooperation of the modules
+that own those namespaces. Naturally, this should be done with extreme
+caution--if it must be done at all.
+
+&lt;P&gt;
+The &lt;CODE&gt;REGlob&lt;/CODE&gt; example above does not implement all the support needed to cleanly override
+perl's [perlfunc:glob|glob] operator. The builtin [perlfunc:glob|glob] has different behaviors depending on whether it appears in a scalar or list
+context, but our &lt;CODE&gt;REGlob&lt;/CODE&gt; doesn't. Indeed, many perl builtins have such context sensitive behaviors,
+and these must be adequately supported by a properly written override. For
+a fully functional example of overriding
+[perlfunc:glob|glob], study the implementation of &lt;CODE&gt;File::DosGlob&lt;/CODE&gt; in the standard library.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Autoloading"&gt;Autoloading&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you call a subroutine that is undefined, you would ordinarily get an
+immediate fatal error complaining that the subroutine doesn't exist.
+(Likewise for subroutines being used as methods, when the method doesn't
+exist in any base class of the class package.) If, however, there is an &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; subroutine defined in the package or packages that were searched for the
+original subroutine, then that
+&lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; subroutine is called with the arguments that would have been passed to the
+original subroutine. The fully qualified name of the original subroutine
+magically appears in the &lt;CODE&gt;$AUTOLOAD&lt;/CODE&gt; variable in the same package as the &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; routine. The name is not passed as an ordinary argument because, er, well,
+just because, that's why...
+
+&lt;P&gt;
+Most &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; routines will load in a definition for the subroutine in question using
+eval, and then execute that subroutine using a special form of ``goto''
+that erases the stack frame of the &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; routine without a trace. (See the standard &lt;CODE&gt;AutoLoader&lt;/CODE&gt; module, for example.) But an &lt;CODE&gt;AUTOLOAD&lt;/CODE&gt; routine can also just emulate the routine and never define it. For example,
+let's pretend that a function that wasn't defined should just call [perlfunc:system|system()] with those arguments. All you'd do is this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub AUTOLOAD {
+        my $program = $AUTOLOAD;
+        $program =~ s/.*:://;
+        system($program, @_);
+    }
+    date();
+    who('am', 'i');
+    ls('-l');
+&lt;/PRE&gt;
+&lt;P&gt;
+In fact, if you predeclare the functions you want to call that way, you
+don't even need the parentheses:
+
+&lt;P&gt;
+&lt;PRE&gt;    use subs qw(date who ls);
+    date;
+    who &amp;quot;am&amp;quot;, &amp;quot;i&amp;quot;;
+    ls -l;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; more complete example of this is the standard Shell
+module, which can treat undefined subroutine calls as calls to Unix
+programs.
+
+&lt;P&gt;
+Mechanisms are available for modules writers to help split the modules up
+into autoloadable files. See the standard AutoLoader module described in &lt;U&gt;the AutoLoader manpage&lt;/U&gt;&lt;!--../lib/AutoLoader.html--&gt; and in &lt;U&gt;the AutoSplit manpage&lt;/U&gt;&lt;!--../lib/AutoSplit.html--&gt;, the standard SelfLoader modules in &lt;U&gt;the SelfLoader manpage&lt;/U&gt;&lt;!--../lib/SelfLoader.html--&gt;, and the document on adding 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; functions to perl code in [perlman:perlxs|the perlxs manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+See [perlman:perlref|the perlref manpage] for more about references and closures. See [perlman:perlxs|the perlxs manpage] if you'd like to learn about calling 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; subroutines from perl. See [perlman:perlmod|the perlmod manpage]
+to learn about bundling up your functions in separate files.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

@@ -1,0 +1,75 @@
+<node>
+  <doctext>#!/usr/bin/perl -W
+
+# Copyright Jacob Filipp, 2003
+# This program is provided as is, you are free to use
+# it in any way as long as the copyright notice is
+# in the code
+ 
+# Yes dear monks, Quick-And-Dirty-Operating-System (DOS)
+# is still used. Here is a tiny shell wrapper in Perl,
+# to implement all the wonderful features that DOS lacks
+# ,like command aliasing. Although this tiny script is
+# meagre compared to your mathematical-script prowess
+# it is very flexible and someone might actually like
+# to use it ( from sheer curiosity, of course ).
+
+# The only fancy trick it has is the ability to launch
+# your browser when a URL is typed ( the first case in
+# the dispatch table. Interactive progs are run in a
+# separate window.
+
+use Strict;     # just for you monks, I never use it
+
+$SIG{ CHLD } = sub{ wait() };
+
+$browser_path  = 'C:\Program Files\Internet Explorer\iexplore';
+$prompt   = sub{ 'Sh-wrap&gt;' };	# can be a routine...
+@kids = ();			# forked processes
+
+# dispatch table with regexes, used to execute commands
+# based on a shell command passed to it as an argument
+
+%dispatch = (
+
+'^(http://)?\S+\.(\w){3}.*$'        =&gt;sub{
+	my $kpid = fork();
+	if( $kpid == 0 ){ exec(&quot;\&quot;$browser_path\&quot; $_[0]&quot;) and exit}
+	else { push( @kids, $kpid ); sleep 1 }
+# sleep needed to make sure that child acts first
+	},
+
+'^cd\s'		=&gt; sub
+	{ $_[0] =~ s!^cd\s!!; chdir($_[0]) },
+
+'^(exit|quit)$'	=&gt; sub{ kill( 9, @kids); exit },
+
+'^(ftp|telnet|edit|debug).*'	=&gt; sub { `start $_[0]` }
+# interactive progs in new window
+# will barf when running ftpd, telnetter, editors, debuggame etc...
+);
+
+WH: while(1)
+{
+
+print $prompt-&gt;();
+my $line = &lt;&gt;;
+chomp $line;
+
+foreach $regex ( keys %dispatch )
+ {
+   if( $line =~ m!$regex! )
+   { $dispatch{ $regex }-&gt;($line); next WH }
+   # permit only one match
+ }
+
+print `$line`;
+
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>296606</node_id>
+  <author_user>288770</author_user>
+  <title>DOS Wrapper</title>
+  <createtime>2003-10-04 20:24:42</createtime>
+  <nodeupdated>2005-08-11 10:08:30</nodeupdated>
+</node>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="23278" title="Level Stats Nodelet" created="2000-07-19 19:01:15" updated="1331222337">
+<type id="9">
+nodelet</type>
+<author id="929">
+developers</author>
+<data>
+<field name="nlcode">
+[%
+my $N=getNode('Level experience','setting');
+  my $V=getVars($N);
+  $$V{0}=-10000000000;
+  $$V{11}=10000000000;
+  my %numAtLevel;
+  my %avgAtLevel;
+  my %minAtLevel;
+  my %maxAtLevel;
+  my %avgCreateTime;
+  my %avgInactive; 
+
+  my $csr=$DB-&gt;getDatabaseHandle-&gt;prepare_cached("select count(user_id), avg(experience), max(experience), min(experience),
+       from_unixtime(round(avg(unix_timestamp(createtime)),0))as avgcreatetime,
+       sec_to_time(unix_timestamp(now())-avg(unix_timestamp(lasttime))) as inactive 
+       from user,node where node_id=user_id and experience between ? and ? 
+       and lasttime!=\"0000-00-00 00:00:00\"
+");
+  my $str;
+  $str.="&lt;CENTER&gt;Stats for users who have logged in at least once&lt;/CENTER&gt;";
+  $str.="&lt;TABLE border=1&gt;";
+  $str.="&lt;TR&gt;&lt;TD&gt;Level&lt;/TD&gt;&lt;TD&gt;Number of users&lt;/TD&gt;&lt;TD&gt;Avg XP&lt;/TD&gt;&lt;TD&gt;Min XP&lt;/TD&gt;&lt;TD&gt;Max XP&lt;/TD&gt;&lt;TD&gt;Avg Createtime&lt;/TD&gt;&lt;TD&gt;Avg Last Pageload&lt;BR&gt;(HH:MM:SS)&lt;/TD&gt;&lt;/TR&gt;\n";
+  for(my $i=1; $i&lt;11; $i++){
+     $csr-&gt;execute($$V{$i},$$V{$i+1}-1);
+     my $B=$csr-&gt;fetchrow_hashref;
+     $numAtLevel{$i}=$$B{'count(user_id)'};
+     $avgAtLevel{$i}=int $$B{'avg(experience)'};
+     $minAtLevel{$i}=$$B{'min(experience)'};
+     $maxAtLevel{$i}=$$B{'max(experience)'};
+     $avgCreateTime{$i}=$$B{'avgcreatetime'};
+     $avgInactive{$i}=$$B{'inactive'};
+     $csr-&gt;finish;  
+     $str.="&lt;TR&gt;";
+     $str.="&lt;TD&gt;Level $i&lt;/TD&gt;";
+     $str.="&lt;TD&gt;$numAtLevel{$i}&lt;/TD&gt;";
+     $str.="&lt;TD&gt;$avgAtLevel{$i}&lt;/TD&gt;";
+     $str.="&lt;TD&gt;$minAtLevel{$i}&lt;/TD&gt;";
+     $str.="&lt;TD&gt;$maxAtLevel{$i}&lt;/TD&gt;";
+     $str.="&lt;TD&gt;$avgCreateTime{$i}&lt;/TD&gt;";
+     $str.="&lt;TD&gt;$avgInactive{$i}&lt;/TD&gt;";
+     $str.="&lt;/TR&gt;\n";
+  }
+  $str.="&lt;/TABLE&gt;";
+  $str.="&lt;CENTER&gt;This page is updated hourly&lt;/CENTER&gt;";
+ 
+%]
+</field>
+<field name="parent_container">
+0</field>
+</data>
+</node>

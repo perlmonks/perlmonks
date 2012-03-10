@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="895" title="editvars" created="1999-11-02 20:58:59" updated="2005-05-07 01:33:05">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $field )= @_;
+$field ||= "vars";
+
+my $SETTINGS= getVars( $NODE, $field );
+
+my $html= "";
+my @params= $q-&gt;param();
+my $wasSet= 0;
+
+foreach(  @params  ) {
+    next   if  ! /^setsetting_(.*)$/;
+    my $key= $1;
+    $SETTINGS-&gt;{$key}= $q-&gt;param($_);
+    $wasSet++;
+    if(     $q-&gt;param("node name$key")
+        &amp;&amp;  $q-&gt;param("node type$key")
+        &amp;&amp;  "" eq $q-&gt;param($_)
+    ) {
+        my $N= getNode(
+            $q-&gt;param("node name$key"),
+            $q-&gt;param("node type$key") );
+        $SETTINGS-&gt;{$key}= getId($N)
+            if  $N;
+    }
+}
+foreach(  @params  ) {
+    if(  /^delsetting_(.*)$/  ) {
+        delete $SETTINGS-&gt;{$1};
+        $wasSet++;
+    }
+}
+
+if(  $q-&gt;param("newsetting") =~ /\S/  ) {
+    my $key= $q-&gt;param("newsetting");
+    $key =~ s/\s+/ /g;
+    $key =~ s/^ | $//g;
+    $SETTINGS-&gt;{$key}= $q-&gt;param("newval");
+    $wasSet++;
+    if(     $q-&gt;param("node namenew")
+        &amp;&amp;  $q-&gt;param("node typenew")
+        &amp;&amp;  "" eq $q-&gt;param("newval")
+    ) {
+        my $N= getNode(
+            $q-&gt;param("node namenew"),
+            $q-&gt;param("node typenew") );
+        $SETTINGS-&gt;{$key}= getId($N)   if  $N;
+    }
+}
+
+setVars( $NODE, $SETTINGS, $field )
+    if  $wasSet;;
+
+my @types= map $_-&gt;{title}, $DB-&gt;getAllTypes();
+my( $keysize, $valsize )= ( 15, 50 );
+$valsize += 20   if  ! $q-&gt;param('auto');
+my( $keyclr, $valclr, $setclr )= ( "#CCCCFF", "#DEDEFF", "#ABABFF" );
+
+$html .= join '',
+    qq(&lt;p align="center"&gt;),
+    $q-&gt;checkbox(
+        -name =&gt; 'show_auto_boxes',
+        -label =&gt; 'Show Auto',
+        -value =&gt; 'on',
+        -checked =&gt; 0 ),
+    qq(&lt;/p&gt;\n),
+    qq(&lt;table width="100%" cellpadding="1" cellspacing="0"&gt;\n),
+    qq( &lt;tr&gt;&lt;th&gt;Remove&lt;/th&gt;&lt;th&gt;Setting&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;\n);
+$html .= "&lt;th&gt;Auto Set Value&lt;/th&gt;"
+    if  $q-&gt;param('show_auto_boxes');
+$html .= qq(&lt;/tr&gt;\n);
+foreach(
+    map { $_-&gt;[1] }
+    sort {
+            $a-&gt;[0] &lt;=&gt; $b-&gt;[0]
+        ||  lc($a-&gt;[1]) cmp lc($b-&gt;[1])
+        ||  $a-&gt;[1] cmp $b-&gt;[1]
+    }
+    map [ /^\d+$/ ? 0+$_ : 999999999 , $_ ],
+    keys %$SETTINGS
+) {
+    my $rows= $SETTINGS-&gt;{$_} =~ tr/\n/\n/;
+    $rows= 2   if  $rows &lt; 2;
+    $rows= 7   if  7 &lt; $rows;
+    $html .= join '',
+        qq( &lt;tr&gt;&lt;td&gt;&lt;input type="checkbox" name="delsetting_$_"&gt;&lt;/td&gt;\n),
+        qq(  &lt;td bgcolor="$keyclr"&gt;&lt;font color="#000000"&gt;&lt;b&gt;$_&lt;/b&gt;&lt;/font&gt;&lt;/td&gt;\n),
+        qq(  &lt;td bgcolor="$valclr"&gt;),
+        $q-&gt;textarea(
+            -name =&gt; "setsetting_$_",
+            -value =&gt; $SETTINGS-&gt;{$_},
+            -cols =&gt; $valsize,
+            -rows =&gt; $rows ),
+        "&lt;/td&gt;\n";
+    my( $titevar, $tipevar );
+    if(  $SETTINGS-&gt;{$_} =~ /\D/ ) {
+        $titevar= $tipevar= "";
+    } else {
+        my $N= getNodeById( $SETTINGS-&gt;{$_} );
+        if(  $N  ) {
+            $titevar= $N-&gt;{title};
+            $tipevar= $N-&gt;{type}{title};
+        }
+    }
+    $q-&gt;param( "node name$_", $titevar );
+    if(  $q-&gt;param('show_auto_boxes')  ) {
+        $html .= qq(  &lt;td bgcolor="$setclr"&gt;&lt;font size="0"&gt;);
+        if(  $_ =~ /^(.+?)_(.+)$/  ) {
+            $html .= join '',
+                "Node Title:",
+                $q-&gt;textfield(
+                    "node name$_",
+                    $titevar ),
+                "&lt;br /&gt;Nodetype: ",
+                $q-&gt;popup_menu(
+                    "node type$_",
+                    \@types,
+                    $tipevar );
+        }
+        $html .= "&lt;/td&gt;\n";
+    }
+    $html .= "&lt;/tr&gt;\n";
+}
+
+$html .= join '',
+    qq( &lt;tr&gt;&lt;td&gt;&lt;/td&gt;\n),
+    qq(  &lt;td bgcolor="$keyclr"&gt;),
+    qq(&lt;input type="text" name="newsetting" size="$keysize"&gt;&lt;/td&gt;\n),
+    qq(  &lt;td bgcolor="$valclr"&gt;),
+    $q-&gt;textarea(
+        -name =&gt; "newval",
+        -cols =&gt; $valsize,
+        -rows =&gt; 5 ),
+    qq(&lt;/td&gt;\n);
+if(  $q-&gt;param('show_auto_boxes')  ) {
+    $html .= join '',
+        qq(  &lt;td bgcolor="$setclr"&gt;),
+        qq(&lt;font size="0" color="#000000"&gt;Node Title:),
+        $q-&gt;textfield("node namenew"),
+        "&lt;br /&gt;Nodetype: ",
+        $q-&gt;popup_menu(
+            "node typenew", \@types, "" ),
+        qq(&lt;/td&gt;\n);
+}
+
+$html .= qq(&lt;/tr&gt;&lt;/table&gt;&lt;div align="right"&gt;\n);
+if(  $VARS-&gt;{hintson}  ) {
+    $html .= htmlcode(
+        'hintlaunch','',
+        'Using the setting edit page',
+        'short',
+        '#000000' );
+}
+
+return $html;
+</field>
+</data>
+</node>

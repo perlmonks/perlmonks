@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="380424" title="Troubleshooting Perl CGI scripts" created="2004-08-05 20:49:41" updated="2005-08-15 09:39:50">
+<type id="956">
+perltutorial</type>
+<author id="366986">
+brian_d_foy</author>
+<data>
+<field name="doctext">
+&lt;p&gt;
+This resource is intended as a general framework for working through
+problems with CGI scripts.  It is not a complete guide to every
+problem that you may encounter, nor a tutorial on bug squashing.  It
+is just the culmination of my experience debugging CGI scripts for ten
+years.  This page seems to have had many different homes, and I seem
+to forget it exists, so I'm adding it to the Monastery's canon. You
+can send any comments or suggestions to me at &lt;a
+href="mailto:bdfoy@cpan.org"&gt;cbdfoy@cpan.org&lt;/a&gt;. You may also
+want to see the &lt;a href="http://www.perl.org/CGI_MetaFAQ.html"&gt;CGI
+Meta FAQ&lt;/a&gt; for a list of references.
+&lt;/p&gt;
+
+&lt;readmore&gt;
+
+&lt;hr&gt;
+
+&lt;dl&gt;
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Are you using Perl's built in features to help you find problems?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;If you have not turned on warnings with the -w switch and are not using
+strict, you should be.  These things help you find problems.  You may need
+a bit of time to get used to them, but they save you many hours of time.
+You need them to go through this troubleshooting procedure.  &lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you output a valid CGI header first?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;The server is expecting the first output from a CGI
+script to be the CGI header.  Typically that might be as
+simple as &lt;code&gt;print "Content-type: text/plain\n\n";&lt;/code&gt;
+or with CGI.pm and its derivatives, &lt;code&gt;print
+header()&lt;/code&gt;.  Some servers are sensitive to error output
+(on STDERR) showing up before standard output (on STDOUT).&lt;/dd&gt;  
+
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;What did the error log say?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Servers keep error logs (or they should, at least). 
+Error output from the server and from your script should
+show up there.  Find the error log and see what it says.
+There isn't a standard place for log files.  Look in the 
+server configuration for their location, or ask the server
+
+admin.  You can also use tools such as &lt;code&gt;CGI::Carp&lt;/code&gt;
+to keep your own log files.  &lt;/dd&gt;
+
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;What are the scripts permissions?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;If you see errors like &amp;quot;Permission denied&amp;quot; or &amp;quot;Method not
+implemented&amp;quot;, it probably means that your script is not
+readable and executable by the web server user.  On flavors
+of Unix, changing the mode to 755 is recommended:
+&lt;code&gt;chmod 755 filename&lt;/code&gt;. &lt;font
+color="#FF0000"&gt;Never set a mode to 777!&lt;/font&gt;&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Are you using &lt;code&gt;use strict&lt;/code&gt;?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Remember that Perl automatically creates variables when
+you first use them.  This is a feature, but sometimes can
+cause bugs if you mistype a variable name.  The pragma
+&lt;code&gt;use strict&lt;/code&gt; will help you find those sorts of
+errors.  It's annoying until you get used to it, but your
+programming will improve significantly after awhile and
+you will be free to make different mistakes.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Does the script compile?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;You can check for compilation errors by using the -c
+switch.  Concentrate on the first errors reported.  Rinse,
+repeat. If you are getting really strange errors, check to
+ensure that your script has the right line endings.  If you
+FTP in binary mode, checkout from CVS, or something else that
+does not handle line end translation, the web server may see
+your script as one big line.  Transfer Perl scripts in ASCII
+mode.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Does the script give you warnings?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;You can check for warnings by using the -w switch which
+I recommend you use during all development.  Warnings are
+fully explained in the perldiag man page, or by using the
+pragma &lt;code&gt;use diagnostics;&lt;/code&gt;.  If you make your
+script &amp;quot;-w clean&amp;quot; you will have less trouble with
+it in the future.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Is the script complaining about insecure dependencies?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;If your script complains about insecure dependencies, you 
+are probably using the -T switch to turn on taint mode, which is
+a good thing since it keeps you have passing unchecked data to the shell. If
+it is complaining it is doing its job to help us write more secure scripts. Any
+data originating from outside of the program (i.e. the environment)
+is considered tainted.  Environment variables such as PATH and LD_LIBRARY_PATH
+are particularly troublesome.  You have to set these to a safe value
+or unset them completely, as I recommend.  You should be using absolute
+paths anyway.  If taint checking complains about something else,
+make sure that you have untainted the data.  See the perlsec
+man page for details.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;What happens when you run it from the command line?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Does the script output what you expect when run from the
+command line?  Is the header output first, followed by a
+blank line?  Remember that &lt;code&gt;STDERR&lt;/code&gt; may be merged with &lt;code&gt;STDOUT&lt;/code&gt;
+if you are on a terminal (e.g. an interactive session), and
+due to buffering may show up in a jumbled order.  Turn on
+Perl's autoflush feature by setting &lt;code&gt;$|&lt;/code&gt; to a
+true value. Typically you might see &lt;code&gt;$|++;&lt;/code&gt; in
+CGI programs.  Once set, every print and write will
+immediately go to the output rather than being buffered.
+You have to set this for each filehandle.  Use &lt;code&gt;select&lt;/code&gt; to
+change the default filehandle, like so:
+
+&lt;blockquote&gt;&lt;code&gt;
+$|++;                            #sets $| for STDOUT
+$old_handle = select( STDERR );  #change to STDERR
+$|++;                            #sets $| for STDERR
+select( $old_handle );           #change back to STDOUT
+&lt;/code&gt;&lt;/blockquote&gt;
+
+Either way, the first thing output should be the CGI header
+followed by a blank line.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;What happens when you run it from the command line with a CGI-like environment?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;The web server environment is usually a lot more limited
+than your command line environment, and has extra
+information about the request.  If your script runs fine
+from the command line, you might try simulating a web server
+environment.  If the problem appears, you have an
+environment problem.
+
+	&lt;p&gt;Unset or remove these variables&lt;/p&gt;
+	&lt;ul&gt;
+	&lt;li&gt;PATH
+	&lt;li&gt;LD_LIBRARY_PATH
+	&lt;li&gt;all ORACLE_* variables
+	&lt;/ul&gt;
+	
+	&lt;p&gt;Set these variables&lt;/p&gt;
+	&lt;ul&gt;
+	&lt;li&gt;REQUEST_METHOD (set to GET, HEAD, or POST as appropriate)
+	&lt;li&gt;SERVER_PORT (set to 80, usually)
+	&lt;li&gt;REMOTE_USER (if you are doing protected access stuff)
+	&lt;/ul&gt;
+
+Recent versions of CGI.pm ( &gt; 2.75 ) require the -debug flag to 
+get the old (useful) behavior, so you might have to add it to
+your CGI.pm imports.
+
+&lt;code&gt;
+	use CGI qw(-debug)
+&lt;/code&gt;
+&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Are you using &lt;code&gt;die()&lt;/code&gt; or &lt;code&gt;warn()&lt;/code&gt;?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Those functions print to &lt;code&gt;STDERR&lt;/code&gt; unless you have redefined 
+them.  They don't output a CGI header, either.  You can get
+the same functionality with packages such as &lt;code&gt;CGI::Carp&lt;/code&gt;.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;What happens after you clear the browser cache?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;If you think your script is doing the right thing, and
+when you perform the request manually you get the right
+output, the browser might be the culprit.  Clear the cache
+and set the cache size to zero while testing.  Remember that
+some browsers are really stupid and won't actually reload
+new content even though you tell it to do so.  This is
+especially prevalent in cases where the URL path is the
+same, but the content changes (e.g. dynamic images).&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Is the script where you think it is?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;The file system path to a script is not necessarily
+directly related to the URL path to the script.  Make sure
+you have the right directory, even if you have to write a
+short test script to test this.  Furthermore, are you sure
+that you are modifying the correct file?  If you don't see
+any effect with your changes, you might be modifying a
+different file, or uploading a file to the wrong place. 
+(This is, by the way, my most frequent cause of such trouble
+;)&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Are you using &lt;code&gt;CGI.pm&lt;/code&gt;, or a derivative of it?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;If your problem is related to parsing the CGI input and you
+aren't using a widely tested module like &lt;code&gt;CGI.pm&lt;/code&gt;, &lt;code&gt;CGI::Request&lt;/code&gt;, or
+&lt;code&gt;CGI::Lite&lt;/code&gt;, use the module and get on with life.  &lt;code&gt;CGI.pm&lt;/code&gt; has a 
+&lt;code&gt;cgi-lib.pl&lt;/code&gt; compatibility mode which can help you solve input
+problems due to older CGI parser implementations.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you use absolute paths?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;If you are running external commands with
+&lt;code&gt;system()&lt;/code&gt;, back ticks, or other IPC facilities,
+you should use an absolute path to the external program. 
+Not only do you know exactly what you are running, but you
+avoid some security problems as well.  If you are opening
+files for either reading or writing, use an absolute path. 
+The CGI script may have a different idea about the current
+directory than you do.  Alternatively, you can do an
+explicit &lt;code&gt;chdir()&lt;/code&gt; to put you in the right place.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you check your return values?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Most Perl functions will tell you if they worked or not
+and will set &lt;code&gt;$!&lt;/code&gt; on failure.  Did you check the
+return value and examine &lt;code&gt;$!&lt;/code&gt; for error messages? Did you check
+&lt;code&gt;$@&lt;/code&gt; if you were using &lt;code&gt;eval&lt;/code&gt;?&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Which version of Perl are you using?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;The latest stable version of Perl is 5.8.3.  Are you using an older
+version?  Different versions of Perl may have different ideas of warnings.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Which web server are you using?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Different servers may act differently in the same
+situation.  The same server product may act differently with
+different configurations. Include as much of this
+information as you can in any request for help.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you check the server documentation?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Serious CGI programmers should know as much about the
+server as possible - including not only the server features
+and behavior, but also the local configuration. The
+documentation for your server might not be available to you
+if you are using a commercial product.  Otherwise, the
+documentation should be on your server.  If it isn't, look
+for it on the web.  Consult the &lt;a
+href="http://www.perl.org/CGI_MetaFAQ.html"&gt;CGI
+Meta FAQ&lt;/a&gt; for a list of references.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you search the archives of comp.infosystems.www.authoring.cgi?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;It's likely that someone has had your problem before,
+and that someone (possibly me) has answered it in this
+newsgroup. &lt;a href="http://groups.google.com"&gt;Archives are available from Google&lt;/a&gt;&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Can you reproduce the problem with a short test script?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;In large systems, it may be difficult to track down a bug
+since so many things are happening.  Try to reproduce the problem
+behavior with the shortest possible script.  Knowing the problem
+is most of the fix.  This may be certainly time-consuming, but you
+haven't found the problem yet and you're running out of options. :)&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you decide to go see a movie?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Seriously.  Sometimes we can get so wrapped up in the problem that we
+develop &amp;quot;perceptual narrowing&amp;quot; (tunnel vision).  Taking a break,
+getting a cup of coffee, or blasting some bad guys in Quake might give you
+the fresh perspective that you need to re-approach the problem.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Have you vocalized the problem?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Seriously again.  Sometimes explaining the problem aloud
+leads us to our own answers.  Talk to the penguin (plush toy) because
+your co-workers aren't listening.  If you are interested in this
+as a serious debugging tool (and I do recommend it if you haven't 
+found the problem by now), you might also like to read &lt;a
+href="http://www.amazon.com/exec/obidos/ASIN/0932633420/perlmongers01"&gt;The Psychology
+of Computer Programming&lt;/a&gt;.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+&lt;!-- ########################## --&gt;
+&lt;dt&gt;&lt;b&gt;Did you post an informative and well-developed question to comp.infosystems.www.authoring.cgi?&lt;/b&gt;&lt;/dt&gt;
+&lt;dd&gt;Once you have gone through all of these steps, you
+should have all of the information to ask a question that
+can elicit a good answer.  Post in as much detail as
+possible, and include the smallest bit of code that
+reproduces the problem.&lt;/dd&gt;
+&lt;br /&gt;&lt;br /&gt;
+
+
+
+&lt;/dl&gt;
+
+&lt;/readmore&gt;
+
+&lt;!-- Node text goes above. Div tags should contain sig only --&gt;
+&lt;div class="pmsig"&gt;&lt;div class="pmsig-366986"&gt;
+-- &lt;br /&gt;
+brian d foy &lt;bdfoy@cpan.org&gt;
+&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;&lt;font size=-2&gt;Edited by [davido]: Fixed HTML and formatting to eliminate horizontal scrolling in IE.&lt;/font&gt;&lt;/p&gt;</field>
+</data>
+</node>

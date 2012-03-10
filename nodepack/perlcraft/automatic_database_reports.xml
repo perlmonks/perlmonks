@@ -1,0 +1,76 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+#
+# When we work with databases, aren't there a few queries
+# we keep typing every day, over and over, to find out how
+# the database is going along? Well, since I'm too Lazy to
+# keep typing the same stuff, I wrote a tiny program to 
+# take a number of queries and report its results 
+# automatically.
+#
+# All there's to be done to add new queries is to fill in 
+# the structures on the top of the program, and adjust to
+# your favorite RDBMS. Hopefully everything is self-
+# explanatory.
+#
+&lt;READMORE&gt;
+use DBI;
+use DBD::Pg;
+use CGI qw(:standard);
+
+use strict;
+use integer;
+
+print header ();
+
+my @qlist = (
+	{
+		query =&gt; 'SELECT count(*) FROM item',
+		desc =&gt; 'Number of items',
+		labels =&gt; [ 'Number' ],
+	},
+	{
+		query =&gt; 'SELECT a, b, c FROM mytable',
+		desc =&gt; 'stuff from mytable',
+		labels =&gt; [ 'A', 'B', 'C' ],
+	},
+);
+
+my $dbh = DBI-&gt;connect (&quot;dbi:Pg:dbname=beta&quot;, 'cbraga', '', { AutoCommit =&gt; 1, RaiseError =&gt; 1 } ) || die &quot;error connecting to db&quot;;
+
+foreach my $query (@qlist) {
+	print &quot;&lt;h1&gt; $query-&gt;{desc} &lt;/h1&gt;\n&quot;;
+
+	my $sth = $dbh-&gt;prepare ($query-&gt;{query});
+	$sth-&gt;execute ();
+
+	unless ($sth-&gt;rows) {
+		print &quot;No results. &lt;p&gt;\n&quot;;
+		next;
+	}
+
+	print &quot;&lt;table border&gt; &lt;tr&gt;\n&quot;;
+	my $line = $query-&gt;{labels};
+	foreach my $label (@$line) {
+		print &quot;&lt;td&gt; &lt;b&gt; $label &lt;/b&gt;\n&quot;;
+	}
+
+	while (my $row = $sth-&gt;fetchrow_arrayref) {
+		print &quot;&lt;tr&gt;&quot;;
+		foreach my $col (@$row) {
+			print &quot;&lt;td&gt; $col\n&quot;;
+		}
+	}
+
+	print &quot;&lt;/table&gt;\n&quot;;
+}
+
+$dbh-&gt;disconnect ();</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>32557</node_id>
+  <author_user>18673</author_user>
+  <title>Automatic database reports</title>
+  <createtime>2000-09-14 20:26:09</createtime>
+  <nodeupdated>2005-07-21 01:19:39</nodeupdated>
+</node>

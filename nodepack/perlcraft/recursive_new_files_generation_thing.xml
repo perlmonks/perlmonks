@@ -1,0 +1,155 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+#
+# This peice of code recursivly searches directories
+# untill it hits the end of its tree for files that
+# have been modified in the last 10 days. In this case
+# Im only searching for mp3 files....but that can easily
+# be hacked out.
+#
+# It then symlinks the final directory of the tree from where
+# the file that was modified lately into your $ndir. It then
+# creates another text file that specifies exactly what files
+# were updated lately in that directory that was symlinked. Hrm
+# I think thats it...
+#
+# This was done so I could move my rips out of incoming/ 
+# as soon as they were put in there, and still know what
+# I had uploaded in the past few days. ( Previously I kept 
+# them in the incoming/ directory till I Made sure they were
+# all ok rips.
+#
+# Mark Thomas &lt;mark@cidera.com&gt;
+
+use strict;
+
+# This is the directory you want to begin your recursive search
+my $mdir        = &quot;/home/ackers&quot;;
+
+# Where the symlinks and files will be created.
+my $ndir        = &quot;/home/ackers/new&quot;;
+
+# These are directories you want excluded from the search.  
+my @dont        = (&quot;$mdir/pub&quot;,&quot;$mdir/software&quot;,&quot;$mdir/stuff&quot;,
+                   &quot;$mdir/.ssh&quot;,&quot;$mdir/.BitchX&quot;,&quot;$mdir/.ncftp&quot;,$ndir);
+
+my($subdirz,@subdirs,$all,$wank,$orig,@moded_files,$m_files,$mdirs,$mfiles,%data,$newfd);
+
+
+# We first unlink all the current files in $ndir
+opendir (NEW, &quot;$ndir&quot;) or die &quot;$! $ndir dont exist!!!\n&quot;;
+foreach $newfd (readdir(NEW))
+{
+
+        next if $newfd =~ /^\./; # We dont want &quot;.&quot;'s and &quot;..&quot;'s
+        my $fullnewfd = &quot;$ndir/$newfd&quot;;
+        unlink ($fullnewfd) or die &quot;cant unlink $newfd!\n&quot;;
+
+}
+                   
+
+readdirz($mdir);
+
+foreach $subdirz (@subdirs)
+{
+
+        readdirz($subdirz);  
+ 
+}
+        
+# we now have all our directories and sub's
+# in an array. Now to stat each file in those
+# dirs.
+foreach $all (@subdirs)
+{
+                        
+        opendir (SUBDIR, $all);
+                                
+        foreach $wank (readdir(SUBDIR)) {
+                $orig = $wank;
+                $wank = &quot;$all/$wank&quot;;
+ 
+                if (-f $wank)
+                {
+                        next if $wank !~ /\.mp3/; # Next if the file isnt an mp3.
+                        my ($dev,$ino,$mode,$nlink,$uid,$gid,
+                            $rdev,$size,$atime,$mtime,$ctime,
+                            $blksize,$blocks) = stat $wank;
+                        my $curr = time;
+                        my $diff = $curr - $mtime;
+                        
+                        if ($diff &lt;= 864000)
+                        {       
+                                push(@moded_files, $wank);
+                        }
+                }
+        } closedir(SUBDIR);
+                
+}
+
+# We now have a listing of modified or created
+# files within the last 10 days.
+foreach $m_files (@moded_files)
+{
+                        
+        # match everything up to last &quot;/&quot; then match
+        # everything after that and push our matches
+        # into a hash of lists.
+        $m_files =~ s/^(.*)\/(.*?\.*)$//g;
+        push @{$data{$1}},$2;
+ 
+}               
+foreach $mdirs ( keys %data )
+{                       
+
+        my $mdirs2 = $mdirs;
+        $mdirs2 =~ s/$mdir//g;     #- Pure athstetics, get rid of the $mdir
+        $mdirs2 =~ s/\// \\ /g;    #- turn /'s into \'s so we can symlink
+                                   #  and keep good organazation.
+        my $sym = &quot;$ndir/$mdirs2&quot;; #- need to make the mdir2 a full path for
+                                   #  the acctuall symlink.
+        symlink $mdirs, $sym;      #- the symlink :)
+        open(LISTING, &quot;&gt;$sym.updated.txt&quot;);
+        foreach $mfiles (@{$data{$mdirs}})
+        {
+                print LISTING &quot;\t$mfiles\n&quot;;
+        }
+        close(LISTING);
+}            
+sub readdirz
+{
+        
+        my($dir_to_read) = @_;
+        my($dirz,$excluded_dir);
+        opendir (DIR, &quot;$dir_to_read&quot;) or print &quot;DOH $! $dir_to_read\n&quot;;
+        foreach $dirz (readdir(DIR))
+        {
+                $dirz = &quot;$dir_to_read/$dirz&quot; ;
+                next if $dirz =~ /\./;
+                # This is the part that makes it exclude directories
+                # were not allowed to access defined in the @dont array
+                # at the top.
+                foreach $excluded_dir (@dont)
+                {
+                        if ($dirz =~ /$excluded_dir/)
+                        {
+                                $dirz = &quot;&quot;;
+                        }
+                }
+                next if $dirz eq &quot;&quot;;
+                if (-d $dirz)
+                {
+                        push (@subdirs, $dirz);
+                }
+                
+        } closedir(DIR);
+                
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>20778</node_id>
+  <author_user>17542</author_user>
+  <title>Recursive New Files Generation Thing</title>
+  <createtime>2000-07-02 01:41:22</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

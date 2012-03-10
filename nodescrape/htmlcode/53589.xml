@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="53589" title="reapnode" created="2001-01-22 20:17:07" updated="2005-08-14 14:35:03">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my ($node_id)=@_;
+my $N=getNodeById($node_id);
+return unless $N;
+my $str;
+
+#check if $node has been considered
+Everything::printLog("reapingnode");
+my $CN=$DB-&gt;sqlSelectHashref("*","considernodes","considernodes_id=$$N{node_id}");
+Everything::printLog("reapnode $$N{node_id}");
+return unless (isGod($USER) or ($$CN{del}&gt;=5 and $$CN{keep}&lt;=2));
+$str.="got this far";
+#decrement writeups
+my $AUTHOR=getNodeById($$N{author_user});
+my $AUTHVARS=getVars $AUTHOR;
+$$AUTHVARS{numwriteups}--;
+setVars $AUTHOR, $AUTHVARS;
+my $NR=$HTMLVARS{NodeReaperID};
+#/msg owner unless Anonymous Monk
+if(getId($AUTHOR)!=$HTMLVARS{default_user}){
+   my $message="I've reaped your node [id://".getId($N)."].";
+   $message.=" Reason: $$CN{description} " if $$CN{description};
+   $DB-&gt;sqlInsert(
+      "message",
+      { 
+         msgtext =&gt; $message,
+         for_user =&gt; getId($AUTHOR),
+         author_user =&gt; $NR,
+      }
+   );
+}
+
+
+#move to reaped table
+my $RN;
+use Data::Dumper;
+for(qw/del keep edit/){
+   $$RN{$_}=$$CN{$_}||0;
+}
+for(qw/createtime author_user reputation type_nodetype node_id/){
+   $$RN{$_}=$$N{$_};
+}
+$$RN{data}=Dumper($N);
+$$RN{reason}=$$CN{description}||"Admin.";
+$DB-&gt;sqlInsert("reapednode",$RN);
+
+#replace doctext/ clear out other text
+require POSIX;
+my $localtime=POSIX::strftime('%Y-%m-%d %H-%M-%S',localtime(time));
+$$N{doctext} = "This node was taken out by the [NodeReaper] on [localtime://$localtime]";
+$$N{doctext}.="&lt;BR&gt;Reason:  $$CN{description}" if $$CN{description};
+$$N{doctext}.=
+  "&lt;p&gt;You may view [href://?node=Visit%20Reaped%20Nodes&amp;nodenum=$N-&gt;{node_id}|".
+  "the original node and the consideration vote tally].&lt;/p&gt;";
+
+if ($$N{type}{title} eq "snippet") {
+   # snippets have no doctext
+   $$N{snippetdesc} = delete $$N{doctext};
+   # clear code also
+   $$N{snippetcode} = "";
+}
+
+# review-only stuff
+for my $field (qw/itemdescription usercomment identifier/) {
+   $N-&gt;{$field} = "" if exists $N-&gt;{$field};
+}
+
+$$N{author_user}=$NR;
+$$N{title}="Reaped: $$N{title}";
+updateNode($N,-1);
+#remove all approved linktypes
+$DB-&gt;sqlDelete("links","to_node=".getId($N)." and linktype!=0");
+
+#remove node from consideration
+$DB-&gt;sqlDelete("considernodes","considernodes_id=".getId($N));
+$str;</field>
+</data>
+</node>

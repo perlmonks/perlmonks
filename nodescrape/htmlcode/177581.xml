@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="177581" title="isapproved" created="2002-06-26 19:05:26" updated="2005-06-27 09:52:32">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $nodeid, $svUser, $svWhen, $svRec )= @_;
+
+## Temporary code:
+my $SETTING;
+my $newTable= do {
+    $SETTING= getVars( getNode('approval nodelet settings','setting') );
+    $SETTING-&gt;{newtable} || 'approved';
+};
+
+# Temporary fugly code, in case NewTable is not actually 'approves'
+
+if($newTable eq 'approved')
+{
+   my $nid = getId($NODE);
+   my $type = $NODE-&gt;{type}{title};
+   my %types = map { $_ =&gt; 1 } split /,/, $SETTING-&gt;{types}; 
+
+   return 'unok' unless $types{$type} 
+     or grep $_ eq $type, 
+       qw/modulereview bookreview 
+          note sourcecode snippet 
+          perltutorial perlnews
+         /;
+                  
+   my $ok = 0;
+   $ok = $DB-&gt;sqlSelect(
+      '*',
+      'links',
+      "from_node = $SETTING-&gt;{$type.'_node'}"
+      . " and to_node = $nid"
+      . " and linktype = $SETTING-&gt;{$type.'_linktype'}",
+      "limit 1"
+    ) if($types{$type});
+   
+    my $fp = 0;
+    $fp = $DB-&gt;sqlSelect(
+      '*',
+      'links',
+      "from_node = $SETTING-&gt;{'front_page'}"
+      . " and to_node = $nid"
+      . " and linktype = $SETTING-&gt;{'frontpage_linktype'}",
+      "limit 1"
+    ) if $types{$type};
+
+    my $status = $fp ? 'fp' : $ok ? 'ok' : 'unok';
+
+    return $status;
+}
+
+my( $status, $user, $when )= $DB-&gt;sqlSelect(
+   "status,user_approved,whenapproved",
+   $newTable, "approved_id = $nodeid"
+);
+$$svUser = $user   if  $svUser;
+$$svWhen = $when   if  $svWhen;
+undef $$svRec      if  $svRec;
+return 'unok'   if  ! $status;
+
+if(  $svRec  &amp;&amp;  'fp' eq $status  ) {
+    my $sth= $DB-&gt;sqlSelectMany(
+       "*", "approvalhistory",
+       "approves_id = $nodeid and 'fp' != action",
+       "order by whenapproves desc limit 1",
+    );
+    my $rec= $sth-&gt;fetchrow_hashref();
+    $$svRec= $rec   if  $rec  &amp;&amp;  'ok' eq $rec-&gt;{action};
+}
+
+return $status;</field>
+</data>
+</node>

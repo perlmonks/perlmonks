@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="162032" title="mkperlrpm" created="2002-04-25 12:53:26" updated="2005-07-19 14:08:11">
+<type id="121">
+perlcraft</type>
+<author id="126229">
+Matts</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+# Make an RPM from a perl module, straight from CPAN.
+
+use strict;
+
+use CPAN 1.54;
+use Data::Dumper qw(Dumper); $Data::Dumper::Indent=1;
+use Fatal qw(open close chdir opendir closedir);
+use File::Copy qw(copy);
+use Cwd qw(cwd);
+use Getopt::Std;
+use vars qw(*SPEC $opt_h $opt_n $opt_r $opt_i $opt_g $opt_c $VERSION);
+require blib;
+
+$VERSION = '1.00';
+
+BEGIN {
+    unless ($&lt; == $( &amp;&amp; $&lt; == 0) {
+        die "Must be running as root!";
+    }
+}
+
+unless (caller) {
+    getopts(join('',
+        'n:', # Name of rpm
+        'r:', # Revision
+        'i:', # Ignore list
+        'g:', # Group
+        'c:', # Copyright
+        'h', # Help
+        )
+    );
+
+    exit(main(@ARGV));
+}
+
+sub main {
+    my @ARGS = @_;
+
+    return usage() if $opt_h;
+    return usage() unless (@ARGS || -e 'Makefile.PL');
+
+    if (!@ARGS) {
+        print "About to build local module, not a CPAN module. OK? [Y/n] ";
+        my $ret = &lt;STDIN&gt;;
+        if ($ret !~ /^y/i) {
+            print "OK, exiting\n";
+            return 1;
+        }
+    }
+
+    my $perl_version = `rpm -q perl`;
+    $perl_version =~ s/^\D*([\d\.]+).*$/$1/s;
+    warn("got perl version: $perl_version\n");
+
+    my $cpan_file = @ARGS ? get_cpan_file(shift(@ARGS)) : 'STAR/Module';
+
+    # Get and set build dir
+    my $distro = $CPAN::META-&gt;instance('CPAN::Distribution', $cpan_file);
+    $distro-&gt;{writemakefile} = 1;
+    # warn("got distro:", Dumper($distro));
+    if (my $dir = $distro-&gt;dir) {
+        warn("Changing dir from ", cwd, " to $dir\n");
+        chdir($dir);
+    }
+    else {
+        $distro-&gt;{build_dir} = '.';
+    }
+
+    xsystem("$^X Makefile.PL");
+
+    # Build pre-requisites list
+    my $prereq = $distro-&gt;prereq_pm;
+    my $prereq_str = "perl = $perl_version";
+    foreach my $mod (keys %$prereq) {
+        next if $opt_i =~ /\Q$mod\E/;
+        $mod =~ s/::/-/g;
+        next if $opt_i =~ /\Q$mod\E/;
+        $prereq_str .= ", perl-$mod";
+        if ($prereq-&gt;{$mod}) {
+            $prereq_str .= " &gt;= $prereq-&gt;{$mod}";
+        }
+    }
+    warn("Generated prereq string: $prereq_str\n");
+
+    # Find distname and version from the Makefile
+    my $distname = `grep 'DISTNAME =' Makefile | cut -f3 -d' ' | head -1`;
+    chomp($distname);
+    my $version = `grep 'VERSION =' Makefile | cut -f3 -d' ' | head -1`;
+    chomp($version);
+    die "No version number!" unless $version;
+
+    (my $modname = $distname) =~ s/-/::/g;
+
+    warn("Building spec file for $modname $version\n");
+
+    $opt_n ||= "perl-$distname";
+    my $copyright = '';
+    if ($opt_c) {
+        $copyright = "Copyright: $opt_c\n";
+    }
+    $opt_r ||= '1';
+    $opt_g ||= 'Perl';
+
+    open(SPEC, "&gt;${distname}.spec");
+    print SPEC &lt;&lt;"EOT";
+Name: $opt_n
+Version: $version
+Release: $opt_r
+$copyright
+License: Artistic (probably)
+Group: $opt_g
+Source: $distname-\%{version}.tar.gz
+BuildRoot: /tmp/\%{name}-buildroot
+Summary: perl module $modname
+Requires: $prereq_str
+
+%description
+perl module $modname
+
+%prep
+%setup -n ${distname}-${version}
+
+%build
+$^X Makefile.PL
+make
+make test
+
+%install
+rm -rf \$RPM_BUILD_ROOT
+make PREFIX=\$RPM_BUILD_ROOT/usr INSTALLMAN3DIR=\$RPM_BUILD_ROOT/usr/man/man3 install
+find \$RPM_BUILD_ROOT -name perllocal.pod | xargs rm -f
+
+%clean
+rm -rf \$RPM_BUILD_ROOT
+
+%files
+/usr/
+
+%changelog
+
+EOT
+
+    close SPEC;
+
+    xsystem("rm -f *.tar.gz");
+    xsystem("make dist");
+    copy("${distname}-${version}.tar.gz", "/usr/src/redhat/SOURCES/");
+    xsystem("rpm -bb ${distname}.spec");
+    return 0;
+}
+
+sub usage {
+    print &lt;&lt;EOT;
+This is mkperlrpm version $VERSION. This is free software.
+
+Usage: mkperlrpm [options] [Module-Name]
+    Options:
+
+        -n name         Name of rpm. Default: perl-[Module-Name]
+        -r revision     Revision of the module (not version). Default: 1.
+        -g group        Group to put module in. Default: Perl
+        -c copyright    Copyright to use. Default: none
+        -i ignore list  The ignore list is a list of perl modules to ignore
+                        in the dependencies list. See the man page for details.
+
+EOT
+    return 1;
+}
+
+sub get_cpan_file {
+    my $modulename = shift;
+    warn("Downloading $modulename from CPAN...\n");
+    my $obj = CPAN::Shell-&gt;expandany($modulename);
+    $obj-&gt;get();
+    my $cpan_file = $obj-&gt;cpan_file;
+    warn("Downloaded\n");
+    return $cpan_file;
+}
+
+##########################################################################################
+
+sub xsystem {
+    my $retval = system(@_);
+    my $exit_val = $? &gt;&gt; 8;
+    my $signal_num = $? &amp; 127;
+    my $dumped_core = $? &amp; 128;
+    if ($dumped_core) {
+        die "$_[0] failed: dumped core\n";
+    }
+    if ($signal_num) {
+        die "$_[0] failed: exited with signal $signal_num\n";
+    }
+    if ($exit_val) {
+        die "$_[0] failed: exited with code: $exit_val\n";
+    }
+    return;
+}
+
+1;
+</field>
+</data>
+</node>

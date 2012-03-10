@@ -1,0 +1,93 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+=head1 by_number
+
+This demonstrates the use of a custom sorting routine &quot;by_number&quot;
+which is designed to sort strings with embedded numbers in the same
+way that a human might expect, ie taking account of the magnitude of
+the number rather than the lexicographical ordering of it.
+
+This is especially good for sorting IP addresses - ie
+
+         Input         Alpha     by_number
+      10.0.0.2      10.0.0.1      10.0.0.1
+      10.0.0.1     10.0.0.10      10.0.0.2
+     10.10.1.1      10.0.0.2     10.0.0.10
+     10.1.10.1     10.0.1.10     10.0.1.10
+      10.2.1.2      10.0.2.2      10.0.2.2
+      10.0.2.2     10.1.10.1     10.1.10.1
+     10.0.1.10     10.10.1.1      10.2.1.2
+     10.0.0.10      10.2.1.2     10.10.1.1
+
+Try the program for a longer example.
+
+=cut
+
+use strict;
+
+my @list = map { $_-&gt;[0] } sort { $a-&gt;[1] &lt;=&gt; $b-&gt;[1] } map { [$_, rand] } qw {
+   1 2 3 4 10 11 12 20 21 22 100 1000 a00 a10 a29 abc1 abc1a abc11b
+   abc111a2 abc1b12 10.0.0.1 10.0.0.2 10.0.0.10 10.0.1.10 10.0.2.2
+   10.1.10.1 10.2.1.2 10.10.1.1
+};
+
+my $result = [
+  [ &quot;Input&quot;, @list ],
+  [ &quot;Alpha&quot;, sort @list ],
+  [ &quot;by_number&quot;, sort by_number @list ],
+];
+
+for my $i (0..$#{$result-&gt;[0]})
+{
+    for my $j (0..$#$result)
+    {
+        printf &quot;%14s&quot;, $result-&gt;[$j][$i];
+    }
+    print &quot;\n&quot;;
+}
+
+# Embedded numeric sorter sorts IP addresses &amp; xyz123
+
+sub by_number
+{
+    my @a = split /(\d+)/, $a;
+    my @b = split /(\d+)/, $b;
+    while (@a &amp;&amp; @b)
+    {
+        my ($aa, $bb) = (shift(@a), shift(@b));
+        my $res = ($aa =~ /^\d/ &amp;&amp; $bb =~ /^\d/) ?
+            $aa &lt;=&gt; $bb :
+            $aa cmp $bb ;
+        return $res if $res;
+    }
+    return @a &lt;=&gt; @b;
+}
+
+=head2 PS
+
+I originally wrote the above split()s as
+
+   my @a = split /(?&lt;!\d)(?=\d)|(?&lt;=\d)(?!\d)/, $a;
+
+Which is is much more exciting being a replacement for \b but for
+non-number/number boundaries.  It is the only time I've ever used
+all 4 assertions in 1 regexp.  However putting brackets in the split
+is much easier!
+
+=head2 PPS
+
+There are of course lots of modules on CPAN which do this sort of
+thing - very similar is Sort::Naturally or Sort::Versions or for the
+mother of all sorts Sort::ArbBiLex.  In production you might like to
+use one of those - this is merely provided for your entertainment ;-)
+
+=cut
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>112388</node_id>
+  <author_user>19340</author_user>
+  <title>Sorting by_number</title>
+  <createtime>2001-09-14 09:27:10</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

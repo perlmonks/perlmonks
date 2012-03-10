@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="272924" title="Anti-Spam Mail Address Encoding (with encrypted IP-Address)" created="2003-07-10 05:30:18" updated="2005-07-30 04:05:21">
+<type id="121">
+perlcraft</type>
+<author id="64922">
+projekt21</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+# spamtrap_encode/spamtrap_decode
+# zeitform Internet Dienste (c) 2003
+# alex@zeitform.de - Version 0.1
+#
+# encrypt timestamp and ip address for random mail-addresses
+#
+# spamtrap_encode creates a blowfish encrypted hex string
+# based on a given ip address and timestamp to construct
+# dynamic mail addresses for online publishing
+#
+# If you publish your email address on your web site, you will
+# be spammed. To minimize this, you can use methods to
+# trick address harvesters:
+# 
+#   * "user at domain dot com"
+#   * "user-nospam@domain.com"
+#   * HTML encoded mailto
+#   * JavaScript generated mailto
+#   * other methods
+#
+# The method proposed by this encoder creates mail addresses
+# that include a timestamp and the ip address of the remote
+# host (i.e. of the harvester). This enables you to reveal
+# the harvester's ip adress for received spam. 
+#
+# usage:
+#
+# my $ip   = $ENV{REMOTE_ADDR};   # e.g. "146.140.8.123"
+# my $time = time;                # unix timestamp
+# my $key  = "0123456789ABCDEF";  # key for Blowfish
+#
+# to generate the spamtrap string:
+#
+# my $string = spamtrap_encode($ip, $time, $key);  # e.g. 78c1ed6da0322b3a
+#
+# to decode:
+#
+# ($ip, $time) = spamtrap_decode($string, $key);   # returns ip address and timestamp
+#
+# Example:
+#
+# If you have an E-Mail address "joe@domain.com" and use qmail
+# extensions to have addresses like "joe-anything@domain.com"
+# you could publish your E-Mail address on websites with:
+#
+# print '&lt;a href="mailto:joe-' . spamtrap_encode($ip, $time, $key) . '@domain.com"&gt;Joe&lt;/a&gt;';
+#
+# which prints:
+#
+#  &lt;a href="mailto:joe-78c1ed6da0322b3a@domain.com"&gt;Joe&lt;/a&gt;
+#
+# A perfect trap for address harvesters!
+#
+# Many thanks to Daniel A. Rehbein (http://daniel.rehbein.net/)
+# for the idea to this code.
+#
+#### some dumy input
+#
+#  $ip   = quad-dooted ip address
+#  $time = unix timestamp
+#  $key  = your secret key
+
+my $ip   = "146.140.8.123";
+my $time = time;
+my $key  = "0123456789ABCDEF";
+
+#### end dummy input
+
+my $string = spamtrap_encode($ip, $time, $key);
+
+print "time:   $time\n";
+print "ip:     $ip\n";
+print "cipher: $string\n";
+
+($ip, $time) = spamtrap_decode($string, $key);
+
+print "time:   $time\n";
+print "ip:     $ip\n";
+
+exit;
+
+### sub land
+
+sub spamtrap_encode
+  {
+    my ($ip, $time, $key) = @_;
+    return unless $key;
+    return unless $time &gt; 0;
+    return unless $ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/o;
+    my $inkey = pack("H16", $key);
+    my $plaintext = join("", map { chr } split (/\./, $ip)) . pack("L", $time);
+    use Crypt::Blowfish;
+    my $cipher = new Crypt::Blowfish $inkey;
+    my $string = unpack("H*", $cipher-&gt;encrypt($plaintext));
+    return $string;
+  }
+
+sub spamtrap_decode
+  {
+    my ($string, $key) = @_;
+    return unless $key;
+    return unless $string =~ /[0-9a-f]{16}/o;
+    my $inkey = pack("H16", $key);
+    use Crypt::Blowfish;
+    my $cipher = new Crypt::Blowfish $inkey;
+    my $plaintext = $cipher-&gt;decrypt(pack("H*", $string));
+    my $time = unpack("L", substr($plaintext, 4, 4));
+    my $ip = join(".", map { ord } split //, substr($plaintext, 0, 4));
+    return wantarray ? ($ip, $time) : "$ip $time";
+  }
+
+###-fin</field>
+</data>
+</node>

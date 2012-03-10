@@ -1,0 +1,121 @@
+<node>
+  <doctext># WavePlayBack.pl (c) 2002 C. Church
+# This program is distributed under the same terms
+# as perl its self.
+#----------------------------------------
+
+use strict;
+use warnings;
+
+use Win32::Sound;
+use Audio::Wav;
+
+use Tk;
+use Tk::Toplevel;
+use Tk::Frame;
+use Tk::Label;
+use Tk::Button;
+
+my $wave_file = shift;
+
+if(!defined($wave_file)) {
+  die(&quot;Usage: $0 &lt;wave file to play&gt;\n&quot;);
+  }
+
+     # our main body
+     
+my $main_window = Tk::MainWindow-&gt;new( -title =&gt; 'PlayBack Controls');
+
+my $is_paused = 0;
+
+my $lbl = $main_window-&gt;Label(-text =&gt; &quot;Please Wait While $wave_file is Read...&quot;)-&gt;pack(-side =&gt; 'top');
+
+$main_window-&gt;update();
+
+my $datRef = read_file($wave_file);
+
+$lbl-&gt;destroy();
+$main_window-&gt;update();
+
+play_back($datRef,$main_window);
+
+MainLoop();
+
+exit(0);
+
+     # subroutines
+     
+sub read_file {
+
+ my $file = shift;
+ 
+ my $wav = Audio::Wav-&gt;new();
+ my $readF = $wav-&gt;read($file);
+ 
+ die(&quot;Unable to read $file\n&quot;) if(!defined($readF));
+ 
+ my($tmpf,$data);
+ 
+ $data .= $tmpf while(defined($tmpf = $readF-&gt;read_raw(4096)));
+ 
+ my $hash = $readF-&gt;details();
+ my %tmpH = ();
+ 
+ $tmpH{'data'} = $data;
+ $tmpH{'srate'} = $hash-&gt;{'sample_rate'};
+ $tmpH{'bits'} = $hash-&gt;{'bits_sample'};
+ $tmpH{'channels'} = $hash-&gt;{'channels'};
+ 
+ return(\%tmpH);
+}
+ 
+sub play_back {
+
+ my $hRef = shift;
+ my $mw = shift;
+
+ my $object;
+
+ my $dat = $hRef-&gt;{'data'};
+ my $srate = $hRef-&gt;{'srate'};
+ my $bits = $hRef-&gt;{'bits'};
+ my $chan = $hRef-&gt;{'channels'};
+ 
+ if(!defined($dat) || !defined($srate) || !defined($bits) || !defined($chan)) {
+     die(&quot;ERROR: [play_back] Not enough data to playback.\n&quot;);
+     }
+     
+ eval { $object = new Win32::Sound::WaveOut($srate,$bits,$chan); };
+
+ if($@) {
+    die(&quot;WARNING: WaveOut Returned: $@\n&quot;);
+    }
+
+
+     $is_paused = 0;
+
+     my $frame1 = $mw-&gt;Frame()-&gt;pack(-side =&gt; 'top');
+     my $frame2 = $mw-&gt;Frame()-&gt;pack(-side =&gt; 'top');
+     my $frame3 = $mw-&gt;Frame()-&gt;pack(-side =&gt; 'top');
+
+     $frame1-&gt;Label(-text =&gt; &quot;Playback Controls&quot;)-&gt;pack();
+
+     $frame2-&gt;Button(-text =&gt; &quot;Play&quot;, -command =&gt; sub { if($is_paused == 0) { $object-&gt;Load($dat); $object-&gt;Write(); } else { $object-&gt;Restart(); $is_paused = 1; } })-&gt;pack(-side =&gt; &quot;left&quot;);
+
+     $frame2-&gt;Button(-text =&gt; &quot;Pause&quot;, -command =&gt; sub { $object-&gt;Pause(); $is_paused = 1; })-&gt;pack(-side =&gt; &quot;left&quot;);
+
+     $frame2-&gt;Button(-text =&gt; &quot;Stop&quot;, -command =&gt; sub { $object-&gt;Reset(); } )-&gt;pack(-side =&gt; 'left');
+
+     $frame2-&gt;Button(-text =&gt; &quot;Rew&quot;, -command =&gt; sub { $object-&gt;Reset(); })-&gt;pack(-side =&gt; 'left');
+
+     $frame3-&gt;Button(-text =&gt; &quot;Close&quot;, -command =&gt; sub { $object-&gt;Reset(); $object-&gt;Unload(); $object-&gt;CloseDevice(); exit(0); })-&gt;pack(-side =&gt; 'top');
+
+ return(1);
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>176077</node_id>
+  <author_user>161004</author_user>
+  <title>Wave Playback Program Using Win32::Sound and Tk</title>
+  <createtime>2002-06-20 12:24:34</createtime>
+  <nodeupdated>2005-08-11 04:10:50</nodeupdated>
+</node>

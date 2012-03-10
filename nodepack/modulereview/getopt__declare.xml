@@ -1,0 +1,168 @@
+<node>
+  <doctext>&lt;p&gt;&lt;b&gt;Getopt::Declare&lt;/b&gt; A quickie overview.&lt;/p&gt;
+
+&lt;p&gt;
+[Getopt::Declare] is a module for parsing command line options -- and
+like many of Damian Conway's modules, this one has obviously been
+eating its wheaties with large doses of steroids (and it arrives with
+circa 1,500 lines of documentation to prove it). In short, this is not
+your mother's command line parser.
+&lt;/p&gt;
+
+&lt;p&gt; Not satisfied with giving us yet another command line parser,
+Damian has given us a declarative language to specify not only
+command line options, but descriptions, parameter types, and actions
+as well. But don't let the size of the docs intimidate you, it is
+surprisingly simple to use.&lt;/p&gt;
+
+&lt;p&gt; The basic mechanics of using the module are as follows:&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+use Getopt::Declare;
+my $spec = &lt;&lt;'SPEC';
+    # put your specification here
+SPEC
+
+my $ops = Getopt::Declare-&gt;new($spec);
+
+# rest of your program
+&lt;/code&gt;
+
+&lt;p&gt; Obviously, it is the specification we are really interested in.
+So let's look a very trivial greplike script using the module: &lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+use Getopt::Declare;
+use vars qw/$not $re/;
+$::VERSION = 0.01;
+
+my $spec = &lt;&lt;'EOS';
+
+    -p &lt;pattern&gt;	pattern [required]
+                        { $re = $pattern }
+
+    -f &lt;INFILE&gt;...	input filename(s)  [required]
+                        { defer{process(@INFILE)} }
+
+    -not		print out non-matches
+                        { $not = 1 }
+EOS
+
+my $opts = Getopt::Declare-&gt;new($spec);
+
+sub process {
+    @ARGV = @_;
+    while(&lt;&gt;){
+        if($::not){
+            print unless /$::re/;
+        } else {
+            print if /$::re/;
+        }
+    }
+}
+__END__
+
+&lt;/code&gt;
+
+&lt;p&gt; An option declaration is comprised of a few components: the option
+specification itself (followed by one or more tabs); the option
+description (with optional directives); and an optional action block
+to be executed if the option is found. Let's break out the -f option
+above and look at each component:&lt;/p&gt;
+
+&lt;code&gt;
+    -f &lt;INFILE&gt;...
+    # So we specify an option that looks like '-f' which takes one or
+    # more arguments (that's the ... part) that will be stored in the
+    # variable @INFILE for the action block
+    
+    input filename(s) [required]
+    # This is the description of the option followed by the
+    # [required] directive which means this option must be present on
+    # the command line
+    
+    { defer{process(@INFILE)} }
+    # This is the action block. The defer() function is from
+    # Getopt::Declare and takes a code block which will not be
+    # executed until all the command line options have been parsed.
+    # Here we merely provide our own function and pass it the files
+    # from the -f option as arguments.
+&lt;/code&gt;
+
+&lt;p&gt; The option variable is available as a lexical variable within the
+action block, and you may set or access any globals that are available
+at the time of parsing. In our example above we set the global
+&lt;code&gt;$re&lt;/code&gt; and &lt;code&gt;$not&lt;/code&gt; variables in the action blocks
+so we can access those later rather than accessing those options via
+the &lt;code&gt;$opts&lt;/code&gt; object. We deferred our file processing action
+because we want to ensure all options have been parsed (and all
+globals set) before we start grepping our files.
+&lt;/p&gt;
+
+&lt;p&gt; You can also restrict parameter types when specifying parameter
+variables using a few predefined parameter types: &lt;/p&gt;
+
+&lt;code&gt;
+    -p &lt;var:s&gt; # accept strings
+    -n &lt;var:n&gt; # accept any real number
+    -i &lt;var:i&gt; # accept only integers
+&lt;/code&gt;
+
+&lt;p&gt;And, because this is Perl, you can also specify your own regex to
+limit the types of things a parameter should accept or define new
+types:&lt;/p&gt;
+
+&lt;code&gt;
+    -hw &lt;hw:/\d+x\d+$/&gt;		HeightxWidth coordinates
+#or
+    [pvtype: coord /\d+x\d+$]
+    -hw &lt;hw:coord&gt;		HeightxWidth coordinates
+&lt;/code&gt;
+
+&lt;p&gt;
+This module also gives us a &lt;code&gt;-help&lt;/code&gt; option for free, and
+a &lt;code&gt;-v&lt;/code&gt; option (if you've defined a &lt;code&gt;$VERSION&lt;/code&gt;
+variable). Here's what we get with those:
+&lt;/p&gt;
+&lt;code&gt;
+$ perl dopt.pl -v
+
+        dopt.pl: version 0.01  (Fri Feb  2 09:30:34 2001)
+
+$ perl dopt.pl -help
+
+Usage: dopt.pl [options]  -p &lt;pattern&gt;  -f &lt;INFILE&gt;... 
+       dopt.pl -help
+       dopt.pl -version
+
+Options:
+
+        -p &lt;pattern&gt;            pattern 
+
+        -f &lt;INFILE&gt;...          input filename(s)  
+
+        -not                    print out non-matches
+&lt;/code&gt;
+
+
+&lt;p&gt; And, with 1,500 lines of documentation I've clearly only
+scratched the surface in this little overview. Go ahead and grab it,
+read the docs, and play around (and, if you're feeling brave, read the
+code too).
+&lt;/p&gt;
+
+</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>49266</author_user>
+  <createtime>2001-02-02 17:25:19</createtime>
+  <itemdescription>Declarative command line argument parser</itemdescription>
+  <identifier></identifier>
+  <node_id>56048</node_id>
+  <usercomment></usercomment>
+  <title>Getopt::Declare</title>
+  <nodeupdated>2005-08-13 10:16:03</nodeupdated>
+</node>

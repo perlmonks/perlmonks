@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="249803" title="A Practical Guide to Compiling C based Modules under ActiveState using Microsoft C++" created="2003-04-11 00:43:16" updated="2005-08-15 13:31:40">
+<type id="956">
+perltutorial</type>
+<author id="80749">
+tachyon</author>
+<data>
+<field name="doctext">
+&lt;p&gt;If you are like me and work mainly on Win32 and use ActiveState Perl you have probably been frustrated more than once when you could not get a ppd (with a compiled binary of Some::CModule). You probably tried running nmake and got a bunch of errors. Maybe you got cygwin or MinGW so you could get your hands on gcc. Then you were frustrated because it still won't work.....
+
+&lt;p&gt;If so then this tutorial is for you. It shows you how to get Perl modules with C code compiling under ActiveState using Microsoft C++
+
+&lt;p&gt;Get a copy of Microsoft Visual C++ .NET. You can get all the bits you need from Microsoft for free as described at [Free MSVC tools + Activestate to compile CPAN Modules]. The reason you need this is that ActiveState uses it to build Perl and if you want to build Perl C modules for ActiveState Perl you have to emulate their build environment. An alternative is to compile Perl from scratch yourself using cygwin/MinGW and gcc. But if you do that you will lose ppm functionality and you don't need this guide.
+
+&lt;p&gt;You actually only need a few bits which are detailed below.
+&lt;code&gt;
+ Directory of C:\cl
+
+05/01/2002  10:33a             917,504 c1.dll
+05/01/2002  09:48a             774,144 c2.dll
+05/01/2002  09:48a              81,920 cl.exe
+05/01/2002  07:54a                 262 cl.exe.config
+26/03/2004  10:17a      &lt;DIR&gt;          include
+26/03/2004  10:18a      &lt;DIR&gt;          lib
+05/01/2002  09:49a             643,072 link.exe
+05/01/2002  07:54a                 262 link.exe.config
+05/01/2002  09:25a              73,728 msobj10.dll
+05/01/2002  09:22a             233,472 mspdb70.dll
+05/01/2002  10:37a             344,064 msvcr70.dll
+16/09/1994  06:00a               5,056 nmake.err
+16/09/1994  06:00a              65,536 nmake.exe
+              11 File(s)      3,151,004 bytes
+               5 Dir(s)     938,143,744 bytes free
+&lt;/code&gt;
+&lt;p&gt;You basically need cl.exe which is the MS C/C++ compiler, link.exe which is the linker, and nmake.exe (M$ version of make) and their associated DLLs. You also need a whole bunch of header .h files and library .lib files. As you can see from above you can just package these up out of the VCC distro (it zips to just under 20MB) and beats a 2GB install just to get a compiler. But I digress.
+
+&lt;p&gt;I assume you already have nmake installed but it comes with the M$ C++ distro or is available for free online. See [A Guide to Installing Modules] for details.
+
+&lt;p&gt;I'll Assume you already have a copy of ActiveState Perl 5.6. Set aside about 2 hours to install the 2000MB of Visual Studio C++ .NET! (Now you see why it is worth packaging just the raw tools?). If you are downloading the free tools you will be downloading about 200MB, but the install is shorter. Once this is done you need follow these steps.
+&lt;p&gt;First add these to your path so that cl.exe (the MS command line C/C++ compiler) will actually work work of the command line. By default it won't because the install forgets to set the required paths! There is a utility called vcvars32.bat in the same dir as CL.EXE that calls vsvars.bat in the Microsoft Visual Studio .NET\Common7\Tools dir that will set these for you automatically as noted by [PodMaster]. Don't bother looking for the docs on this, cause they ain't there AFAIK. You are just expected to divine this fact. Favorite M$ comment goes here.
+&lt;p&gt;Right click My Computer|Properties|Advanced|Environment Variables. Now edit the path statement and add (assuming you did a default location install):
+&lt;code&gt;
+C:\Program Files\Microsoft Visual Studio .NET\Vc7\bin;
+C;\Program Files\Common Files\Microsoft Shared\VSA\7.0\VsaEnv;
+&lt;/code&gt;
+&lt;p&gt;You also need to add the LIB and INCLUDE environment variables.
+&lt;code&gt;
+INCLUDE C:\Program Files\Microsoft Visual Studio .NET\FrameworkSDK\include\
+LIB C:\Program Files\Microsoft Visual Studio .NET\FrameworkSDK\Lib\
+&lt;/code&gt;
+&lt;p&gt;[PodMaster] knows far more than me and points out that there is  a little batch script called VSVARS32.BAT that lives in 
+&lt;code&gt;C:\Program Files\Microsoft Visual Studio .NET\Common7\Tools\vsvars32.bat&lt;/code&gt; with VC7. Run that and it will set up your environment vars for you (path + env vars)
+&lt;p&gt;OK away to get out of My Computer. Get a command prompt. Start|Run|cmd and try out the cl command. You should get the usage message. If not check your paths and try again. Note you need to close the cmd window as it will not take the new path until it is reopened.
+&lt;p&gt;Now you may or may not need to do the following. By rights you probably should not, however we are trying to emulate the exact build environment used at Active State and I have on at least one occasion found this step fixed a compilation error. Copy all files from these locations into Perl\lib\CORE
+&lt;code&gt;
+C:\Program Files\Microsoft Visual Studio .NET\Vc7\include\*.*
+C:\Program Files\Microsoft Visual Studio .NET\Vc7\PlatformSDK\Include\*.*
+C:\Program Files\Microsoft Visual Studio .NET\Vc7\lib\*.*
+C:\Program Files\Microsoft Visual Studio .NET\Vc7\PlatformSDK\lib\*.*
+&lt;/code&gt;
+&lt;p&gt;There will be some overwrite prompts. No to all is probably a safe bet. Now just:
+&lt;code&gt;
+$ perl Makefile.PL
+$ nmake
+$ nmake test
+$ nmake install
+&lt;/code&gt;
+&lt;p&gt;And you should be able to build the majority of C based modules on Win32. Note that you &lt;b&gt;will not be able to build them all&lt;/b&gt; because some are system specific and as a result just don't run on Win32. You will also get compiler issues related to the fact that most of them will have been tested using gcc and C compilers a notorious for being picky about their code. Anyway a lot will JUST WORK. If you are feeling generous read up on PPM and package them in a repository for everyone to use like some monks do.
+&lt;p&gt;cheers
+&lt;p&gt;tachyon</field>
+</data>
+</node>

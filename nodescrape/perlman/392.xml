@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="392" title="perlman:perlmod" created="1999-08-25 02:32:26" updated="2005-08-15 02:06:23">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME="NAME"&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlmod - Perl modules (packages and symbol tables)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DESCRIPTION"&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Packages"&gt;Packages&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl provides a mechanism for alternative namespaces to protect packages
+from stomping on each other's variables. In fact, there's really no such
+thing as a global variable in Perl (although some identifiers default to
+the main package instead of the current one). The package statement
+declares the compilation unit as being in the given namespace. The scope of
+the package declaration is from the declaration itself through the end of
+the enclosing block,
+[perlfunc:eval|eval], [perlfunc:sub|sub], or end of file, whichever comes first (the same scope as the 
+&lt;CODE&gt;my()&lt;/CODE&gt; and 
+&lt;CODE&gt;local()&lt;/CODE&gt; operators). All further unqualified dynamic identifiers will be in this namespace. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; package statement only affects dynamic variables--including those you've used 
+&lt;CODE&gt;local()&lt;/CODE&gt; on--but
+
+&lt;EM&gt;not&lt;/EM&gt; lexical variables created with 
+&lt;CODE&gt;my().&lt;/CODE&gt; Typically it would be the
+first declaration in a file to be included by the [perlfunc:require|require] or
+[perlfunc:use|use] operator. You can switch into a package in more than one place; it merely
+influences which symbol table is used by the compiler for the rest of that
+block. You can refer to variables and filehandles in other packages by
+prefixing the identifier with the package name and a double colon: &lt;CODE&gt;$Package::Variable&lt;/CODE&gt;. If the package name is null, the &lt;CODE&gt;main&lt;/CODE&gt;
+package is assumed. That is, &lt;CODE&gt;$::sail&lt;/CODE&gt; is equivalent to &lt;CODE&gt;$main::sail&lt;/CODE&gt;.
+
+&lt;P&gt;
+The old package delimiter was a single quote, but double colon is now the
+preferred delimiter, in part because it's more readable to humans, and in
+part because it's more readable to &lt;STRONG&gt;emacs&lt;/STRONG&gt; macros. It also makes 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; programmers feel like they know what's going
+on--as opposed to using the single quote as separator, which was there to
+make Ada programmers feel like they knew what's going on. Because the
+old-fashioned syntax is still supported for backwards compatibility, if you
+try to use a string like
+&lt;CODE&gt;&amp;quot;This is $owner's house&amp;quot;&lt;/CODE&gt;, you'll be accessing &lt;CODE&gt;$owner::s&lt;/CODE&gt;; that is, the &lt;A
+HREF="perlop.html#item__s"&gt;$s&lt;/A&gt; variable in
+package &lt;CODE&gt;owner&lt;/CODE&gt;, which is probably not what you meant. Use braces to disambiguate, as in &lt;CODE&gt;&amp;quot;This is ${owner}'s house&amp;quot;&lt;/CODE&gt;.
+
+&lt;P&gt;
+Packages may be nested inside other packages: &lt;CODE&gt;$OUTER::INNER::var&lt;/CODE&gt;. This implies nothing about the order of name lookups, however. All
+symbols are either local to the current package, or must be fully qualified
+from the outer package name down. For instance, there is nowhere within
+package &lt;CODE&gt;OUTER&lt;/CODE&gt; that &lt;CODE&gt;$INNER::var&lt;/CODE&gt; refers to &lt;CODE&gt;$OUTER::INNER::var&lt;/CODE&gt;. It would treat package &lt;CODE&gt;INNER&lt;/CODE&gt; as a totally separate global package.
+
+&lt;P&gt;
+Only identifiers starting with letters (or underscore) are stored in a
+package's symbol table. All other symbols are kept in package &lt;CODE&gt;main&lt;/CODE&gt;, including all of the punctuation variables like $_. In addition, when unqualified, the identifiers 
+&lt;FONT SIZE=-1&gt;STDIN,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STDOUT,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;STDERR,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ARGV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ARGVOUT,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ENV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INC,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;SIG&lt;/FONT&gt; are forced to be in package
+ &lt;CODE&gt;main&lt;/CODE&gt;, even when used for other purposes than their builtin one. Note also that,
+if you have a package called [perlman:perlop], [perlman:perlop], or [perlman:perlop], then you can't use the qualified form of an identifier because it will be
+interpreted instead as a pattern match, a substitution, or a
+transliteration.
+
+&lt;P&gt;
+(Variables beginning with underscore used to be forced into package main,
+but we decided it was more useful for package writers to be able to use
+leading underscore to indicate private variables and method names.
+&lt;CODE&gt;$_&lt;/CODE&gt; is still global though.)
+
+&lt;P&gt;
+
+&lt;CODE&gt;Eval()ed&lt;/CODE&gt; strings are compiled in the package in which the 
+&lt;CODE&gt;eval()&lt;/CODE&gt; was compiled. (Assignments to
+ &lt;CODE&gt;$SIG{}&lt;/CODE&gt;, however, assume the signal handler specified is in the &lt;CODE&gt;main&lt;/CODE&gt; package. Qualify the signal handler name if you wish to have a signal
+handler in a package.) For an example, examine &lt;EM&gt;perldb.pl&lt;/EM&gt; in the Perl library. It initially switches to the &lt;CODE&gt;DB&lt;/CODE&gt; package so that the debugger doesn't interfere with variables in the script
+you are trying to debug. At various points, however, it temporarily
+switches back to the &lt;CODE&gt;main&lt;/CODE&gt; package to evaluate various expressions in the context of the &lt;CODE&gt;main&lt;/CODE&gt; package (or wherever you came from). See [perlman:perldebug|the perldebug manpage].
+
+&lt;P&gt;
+The special symbol &lt;CODE&gt;__PACKAGE__&lt;/CODE&gt; contains the current package, but cannot (easily) be used to construct
+variables.
+
+&lt;P&gt;
+See [perlman:perlsub|the perlsub manpage] for other scoping issues related to 
+&lt;CODE&gt;my()&lt;/CODE&gt; and 
+&lt;CODE&gt;local(),&lt;/CODE&gt; and
+ [perlman:perlref|the perlref manpage] regarding closures.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Symbol_Tables"&gt;Symbol Tables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The symbol table for a package happens to be stored in the hash of that
+name with two colons appended. The main symbol table's name is thus
+&lt;CODE&gt;%main::&lt;/CODE&gt;, or &lt;CODE&gt;%::&lt;/CODE&gt; for short. Likewise symbol table for the nested package mentioned earlier
+is named &lt;CODE&gt;%OUTER::INNER::&lt;/CODE&gt;.
+
+&lt;P&gt;
+The value in each entry of the hash is what you are referring to when you
+use the &lt;CODE&gt;*name&lt;/CODE&gt; typeglob notation. In fact, the following have the same effect, though the
+first is more efficient because it does the symbol table lookups at compile
+time:
+
+&lt;P&gt;
+&lt;PRE&gt;    local *main::foo    = *main::bar;
+    local $main::{foo}  = $main::{bar};
+&lt;/PRE&gt;
+&lt;P&gt;
+You can use this to print out all the variables in a package, for instance.
+The standard &lt;EM&gt;dumpvar.pl&lt;/EM&gt; library and the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; module Devel::Symdump make use of this.
+
+&lt;P&gt;
+Assignment to a typeglob performs an aliasing operation, i.e.,
+
+&lt;P&gt;
+&lt;PRE&gt;    *dick = *richard;
+&lt;/PRE&gt;
+&lt;P&gt;
+causes variables, subroutines, formats, and file and directory handles
+accessible via the identifier &lt;CODE&gt;richard&lt;/CODE&gt; also to be accessible via the identifier &lt;CODE&gt;dick&lt;/CODE&gt;. If you want to alias only a particular variable or subroutine, you can
+assign a reference instead:
+
+&lt;P&gt;
+&lt;PRE&gt;    *dick = \$richard;
+&lt;/PRE&gt;
+&lt;P&gt;
+Which makes &lt;CODE&gt;$richard&lt;/CODE&gt; and &lt;CODE&gt;$dick&lt;/CODE&gt; the same variable,
+but leaves &lt;CODE&gt;@richard&lt;/CODE&gt; and &lt;CODE&gt;@dick&lt;/CODE&gt; as separate arrays.
+Tricky, eh?
+
+&lt;P&gt;
+This mechanism may be used to pass and return cheap references into or from
+subroutines if you won't want to copy the whole thing. It only works when
+assigning to dynamic variables, not lexicals.
+
+&lt;P&gt;
+&lt;PRE&gt;    %some_hash = ();                    # can't be my()
+    *some_hash = fn( \%another_hash );
+    sub fn {
+        local *hashsym = shift;
+        # now use %hashsym normally, and you
+        # will affect the caller's %another_hash
+        my %nhash = (); # do what you want
+        return \%nhash;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+On return, the reference will overwrite the hash slot in the symbol table
+specified by the &lt;CODE&gt;*some_hash&lt;/CODE&gt; typeglob. This is a somewhat
+tricky way of passing around references cheaply when you won't want to have
+to remember to dereference variables explicitly.
+
+&lt;P&gt;
+Another use of symbol tables is for making ``constant'' scalars.
+
+&lt;P&gt;
+&lt;PRE&gt;    *PI = \3.14159265358979;
+&lt;/PRE&gt;
+&lt;P&gt;
+Now you cannot alter 
+&lt;FONT SIZE=-1&gt;$PI,&lt;/FONT&gt; which is probably a good thing all in all. This isn't the same as a constant subroutine, which is subject to optimization at compile-time. This isn't. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; constant subroutine is one prototyped to take no arguments and to return a constant expression. See
+ [perlman:perlsub|the perlsub manpage] for details on these. The &lt;CODE&gt;use constant&lt;/CODE&gt; pragma is a convenient shorthand for these.
+
+&lt;P&gt;
+You can say &lt;CODE&gt;*foo{PACKAGE}&lt;/CODE&gt; and &lt;CODE&gt;*foo{NAME}&lt;/CODE&gt; to find out what name and package the &lt;CODE&gt;*foo&lt;/CODE&gt; symbol table entry
+comes from. This may be useful in a subroutine that gets passed typeglobs
+as arguments:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub identify_typeglob {
+        my $glob = shift;
+        print 'You gave me ', *{$glob}{PACKAGE}, '::', *{$glob}{NAME}, &amp;quot;\n&amp;quot;;
+    }
+    identify_typeglob *foo;
+    identify_typeglob *bar::baz;
+&lt;/PRE&gt;
+&lt;P&gt;
+This prints
+
+&lt;P&gt;
+&lt;PRE&gt;    You gave me main::foo
+    You gave me bar::baz
+&lt;/PRE&gt;
+&lt;P&gt;
+The *foo{THING} notation can also be used to obtain references to the
+individual elements of *foo, see [perlman:perlref|the perlref manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Package_Constructors_and_Destruc"&gt;Package Constructors and Destructors&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are two special subroutine definitions that function as package
+constructors and destructors. These are the &lt;CODE&gt;BEGIN&lt;/CODE&gt; and &lt;CODE&gt;END&lt;/CODE&gt;
+routines. The [perlfunc:sub|sub] is optional for these routines.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; &lt;CODE&gt;BEGIN&lt;/CODE&gt; subroutine is executed as soon as possible, that is, the moment it is
+completely defined, even before the rest of the containing file is parsed.
+You may have multiple &lt;CODE&gt;BEGIN&lt;/CODE&gt; blocks within a file--they will execute in order of definition. Because a &lt;CODE&gt;BEGIN&lt;/CODE&gt; block executes immediately, it can pull in definitions of subroutines and
+such from other files in time to be visible to the rest of the file. Once a &lt;CODE&gt;BEGIN&lt;/CODE&gt;
+has run, it is immediately undefined and any code it used is returned to
+Perl's memory pool. This means you can't ever explicitly call a &lt;CODE&gt;BEGIN&lt;/CODE&gt;.
+
+&lt;P&gt;
+An &lt;CODE&gt;END&lt;/CODE&gt; subroutine is executed as late as possible, that is, when the interpreter is being exited, even if it is exiting as a result of a 
+&lt;CODE&gt;die()&lt;/CODE&gt; function. (But not if it's polymorphing into another program via
+ [perlfunc:exec|exec], or being blown out of the water by a signal--you have to trap that
+yourself (if you can).) You may have multiple &lt;CODE&gt;END&lt;/CODE&gt; blocks within a file--they will execute in reverse order of definition; that is: last in, first out 
+&lt;FONT SIZE=-1&gt;(LIFO).&lt;/FONT&gt;
+
+&lt;P&gt;
+Inside an &lt;CODE&gt;END&lt;/CODE&gt; subroutine, &lt;CODE&gt;$?&lt;/CODE&gt; contains the value that the script is going to pass to [perlfunc:exit|exit()]. You can modify &lt;CODE&gt;$?&lt;/CODE&gt; to change the exit value of the script. Beware of changing &lt;CODE&gt;$?&lt;/CODE&gt; by accident (e.g. by running something via [perlfunc:system|system]).
+
+&lt;P&gt;
+Note that when you use the &lt;STRONG&gt;-n&lt;/STRONG&gt; and &lt;STRONG&gt;-p&lt;/STRONG&gt; switches to Perl, &lt;CODE&gt;BEGIN&lt;/CODE&gt; and
+&lt;CODE&gt;END&lt;/CODE&gt; work just as they do in &lt;STRONG&gt;awk&lt;/STRONG&gt;, as a degenerate case. As currently implemented (and subject to change,
+since its inconvenient at best), both &lt;CODE&gt;BEGIN&lt;/CODE&gt;  &lt;EM&gt;and&lt;/EM&gt;  &lt;CODE&gt;END&lt;/CODE&gt; blocks are run when you use the &lt;STRONG&gt;-c&lt;/STRONG&gt; switch for a compile-only syntax check, although your main code is not.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Perl_Classes"&gt;Perl Classes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There is no special class syntax in Perl, but a package may function as a
+class if it provides subroutines to act as methods. Such a package may also
+derive some of its methods from another class (package) by listing the
+other package name in its global &lt;CODE&gt;@ISA&lt;/CODE&gt; array (which must be a
+package global, not a lexical).
+
+&lt;P&gt;
+For more on this, see [perlman:perltoot|the perltoot manpage] and [perlman:perlobj|the perlobj manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Perl_Modules"&gt;Perl Modules&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; module is just a package that is defined in a
+library file of the same name, and is designed to be reusable. It may do
+this by providing a mechanism for exporting some of its symbols into the
+symbol table of any package using it. Or it may function as a class
+definition and make its semantics available implicitly through method calls
+on the class and its objects, without explicit exportation of any symbols.
+Or it can do a little of both.
+
+&lt;P&gt;
+For example, to start a normal module called Some::Module, create a file
+called Some/Module.pm and start with this template:
+
+&lt;P&gt;
+&lt;PRE&gt;    package Some::Module;  # assumes Some/Module.pm
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    BEGIN {
+        use Exporter   ();
+        use vars       qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # set the version for version checking
+        $VERSION     = 1.00;
+        # if using RCS/CVS, this may be preferred
+        $VERSION = do { my @r = (q$Revision: 2.21 $ =~ /\d+/g); sprintf &amp;quot;%d.&amp;quot;.&amp;quot;%02d&amp;quot; x $#r, @r };
+        # must be all one line, for MakeMaker
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        @ISA         = qw(Exporter);
+        @EXPORT      = qw(&amp;amp;func1 &amp;amp;func2 &amp;amp;func4);
+        %EXPORT_TAGS = ( );     # eg: TAG =&amp;gt; &amp;#091; qw!name1 name2! &amp;#093;,
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # your exported package globals go here,
+        # as well as any optionally exported functions
+        @EXPORT_OK   = qw($Var1 %Hashit &amp;amp;func3);
+    }
+    use vars      @EXPORT_OK;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # non-exported package globals go here
+    use vars      qw(@more $stuff);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # initalize package globals, first exported ones
+    $Var1   = '';
+    %Hashit = ();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # then the others (which are still accessible as $Some::Module::stuff)
+    $stuff  = '';
+    @more   = ();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # all file-scoped lexicals must be created before
+    # the functions below that use them.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # file-private lexicals go here
+    my $priv_var    = '';
+    my %secret_hash = ();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # here's a file-private function as a closure,
+    # callable as &amp;amp;$priv_func;  it cannot be prototyped.
+    my $priv_func = sub {
+        # stuff goes here.
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # make all your functions, whether exported or not;
+    # remember to put something interesting in the {} stubs
+    sub func1      {}    # no prototype
+    sub func2()    {}    # proto'd void
+    sub func3($$)  {}    # proto'd to 2 scalars
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # this one isn't exported, but could be called!
+    sub func4(\%)  {}    # proto'd to 1 hash ref
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    END { }       # module clean-up code here (global destructor)
+&lt;/PRE&gt;
+&lt;P&gt;
+Then go on to declare and use your variables in functions without any
+qualifications. See &lt;U&gt;the Exporter manpage&lt;/U&gt;&lt;!--../lib/Exporter.html--&gt; and the [perlman:perlmodlib|the perlmodlib manpage] for details on mechanics and style issues in module creation.
+
+&lt;P&gt;
+Perl modules are included into your program by saying
+
+&lt;P&gt;
+&lt;PRE&gt;    use Module;
+&lt;/PRE&gt;
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    use Module LIST;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is exactly equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    BEGIN { require Module; import Module; }
+&lt;/PRE&gt;
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    BEGIN { require Module; import Module LIST; }
+&lt;/PRE&gt;
+&lt;P&gt;
+As a special case
+
+&lt;P&gt;
+&lt;PRE&gt;    use Module ();
+&lt;/PRE&gt;
+&lt;P&gt;
+is exactly equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;    BEGIN { require Module; }
+&lt;/PRE&gt;
+&lt;P&gt;
+All Perl module files have the extension &lt;EM&gt;.pm&lt;/EM&gt;.  [perlfunc:use|use] assumes this so that you don't have to spell out ``&lt;EM&gt;Module.pm&lt;/EM&gt;'' in quotes. This also helps to differentiate new modules from old &lt;EM&gt;.pl&lt;/EM&gt; and &lt;EM&gt;.ph&lt;/EM&gt; files. Module names are also capitalized unless they're functioning as
+pragmas, ``Pragmas'' are in effect compiler directives, and are sometimes
+called ``pragmatic modules'' (or even ``pragmata'' if you're a classicist).
+
+&lt;P&gt;
+The two statements:
+
+&lt;P&gt;
+&lt;PRE&gt;    require SomeModule;
+    require &amp;quot;SomeModule.pm&amp;quot;;            
+&lt;/PRE&gt;
+&lt;P&gt;
+differ from each other in two ways. In the first case, any double colons in
+the module name, such as &lt;CODE&gt;Some::Module&lt;/CODE&gt;, are translated into your system's directory separator, usually ``/''. The
+second case does not, and would have to be specified literally. The other
+difference is that seeing the first [perlfunc:require|require] clues in the compiler that uses of indirect object notation involving
+``SomeModule'', as in &lt;CODE&gt;$ob = purge SomeModule&lt;/CODE&gt;, are method calls, not function calls. (Yes, this really can make a
+difference.)
+
+&lt;P&gt;
+Because the [perlfunc:use|use] statement implies a &lt;CODE&gt;BEGIN&lt;/CODE&gt; block, the importation of semantics happens at the moment the [perlfunc:use|use] statement is compiled, before the rest of the file is compiled. This is how
+it is able to function as a pragma mechanism, and also how modules are able
+to declare subroutines that are then visible as list operators for the rest
+of the current file. This will not work if you use [perlfunc:require|require]
+instead of [perlfunc:use|use]. With require you can get into this problem:
+
+&lt;P&gt;
+&lt;PRE&gt;    require Cwd;                # make Cwd:: accessible
+    $here = Cwd::getcwd();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use Cwd;                    # import names from Cwd::
+    $here = getcwd();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    require Cwd;                # make Cwd:: accessible
+    $here = getcwd();           # oops! no main::getcwd()
+&lt;/PRE&gt;
+&lt;P&gt;
+In general, &lt;CODE&gt;use Module ()&lt;/CODE&gt; is recommended over &lt;CODE&gt;require Module&lt;/CODE&gt;, because it determines module availability at compile time, not in the
+middle of your program's execution. An exception would be if two modules
+each tried to [perlfunc:use|use] each other, and each also called a function from that other module. In that
+case, it's easy to use [perlfunc:require|require]s instead.
+
+&lt;P&gt;
+Perl packages may be nested inside other package names, so we can have
+package names containing &lt;CODE&gt;::&lt;/CODE&gt;. But if we used that package name directly as a filename it would makes
+for unwieldy or impossible filenames on some systems. Therefore, if a
+module's name is, say,
+&lt;CODE&gt;Text::Soundex&lt;/CODE&gt;, then its definition is actually found in the library file &lt;EM&gt;Text/Soundex.pm&lt;/EM&gt;.
+
+&lt;P&gt;
+Perl modules always have a &lt;EM&gt;.pm&lt;/EM&gt; file, but there may also be dynamically linked executables or autoloaded
+subroutine definitions associated with the module. If so, these will be
+entirely transparent to the user of the module. It is the responsibility of
+the &lt;EM&gt;.pm&lt;/EM&gt; file to load (or arrange to autoload) any additional functionality. The 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; module happens to do both dynamic loading and
+autoloading, but the user can say just &lt;CODE&gt;use POSIX&lt;/CODE&gt; to get it all.
+
+&lt;P&gt;
+For more information on writing extension modules, see [perlman:perlxstut|the perlxstut manpage]
+and [perlman:perlguts|the perlguts manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+See [perlman:perlmodlib|the perlmodlib manpage] for general style issues related to building Perl modules and classes as well as descriptions of the standard library and 
+&lt;FONT SIZE=-1&gt;CPAN,&lt;/FONT&gt;
+ &lt;U&gt;the Exporter manpage&lt;/U&gt;&lt;!--../lib/Exporter.html--&gt; for how Perl's standard import/export mechanism works,
+[perlman:perltoot|the perltoot manpage] for an in-depth tutorial on creating classes, [perlman:perlobj|the perlobj manpage]
+for a hard-core reference document on objects, and [perlman:perlsub|the perlsub manpage] for an explanation of functions and scoping.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

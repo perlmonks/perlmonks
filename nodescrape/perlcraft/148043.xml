@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="148043" title="ydecode - A better, faster yEnc decoder." created="2002-02-27 16:15:47" updated="2005-08-13 14:23:49">
+<type id="121">
+perlcraft</type>
+<author id="85131">
+perldoc</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+##############################################################################
+##    -*-perl-*-
+##
+## ydecode - A better, faster yEnc decoder.
+##
+## REVISION HISTORY
+##
+## 1.0 2002/02/27 Initial release.
+## 1.1 2002/03/02 Fixed miscellaneous translation bugs.
+## 1.2 2002/03/12 Code around utf8 badness by working at the byte level.
+## 1.3 2002/11/05 Precompute mapping for a slight speedup (robobunny).
+##############################################################################
+
+package Convert::yEnc;
+
+use strict;
+use String::CRC32;
+use Exporter;
+use vars qw(@ISA @EXPORT_OK);
+@ISA = qw(Exporter);
+@EXPORT_OK = qw(decode);
+
+sub decode($)
+{
+    my $fh = shift;
+
+    my $size;
+    my $name;
+    my $part;
+    my $offset;
+    my $pSize;
+    my $decoded;
+    my @ymap = map { ($_-42+256)%256 } (0..255);
+
+    my $decoding = 0;
+    binmode($fh);
+    while(&lt;$fh&gt;) {
+        chomp;
+        if (!$decoding) {
+            if (/^=ybegin/) {
+                if (/ size=(\d+)/) {
+                    $size = $1;
+                } 
+                else {
+                    die "size field in ybegin is mandatory.\n";
+                }
+
+                if (/ part=(\d+)/) {
+                    $part = $1;
+                } 
+                else {
+                    undef $part;
+                }
+
+                if (/ name=(.*)$/) {
+                    $name = $1;
+                    $name =~ s/\s+$//g;
+                    print "Found attachment $name of size $size.\n";
+                } 
+                else {
+                    die "name field in ybegin is mandatory.\n";
+                }
+
+                if (defined $part) {
+                    my $line = &lt;$fh&gt;;
+                    chomp $line;
+                    $line =~ s/\s+$//g;
+                    if ($line =~ /^=ypart/) {
+                        if ($line =~ / begin=(\d+)/) {
+                            $offset = $1 - 1;
+                        } 
+                        else {
+                            print "Part $part has no begin field - ignoring.\n";
+                            undef $part;
+                        }
+                        if ($line =~ / end=(\d+)/) {
+                            $pSize = $1 - $offset;
+                        } 
+                        else {
+                            print "Part $part has no end field - ignoring.\n";
+                            undef $part;
+                        }
+                        print "File $name is multipart.\n" if ($part == 1);
+                        print "Processing part $part.\n";
+                    } 
+                    else {
+                        print "ybegin with part= field not followed"
+                            ." by ypart=.  Treating as a single part.\n";
+                        undef $part;
+                    }
+                }
+                
+                undef $decoded;    
+                $decoding = 1 if (defined $size);
+            }
+        } 
+        else {
+            if (/^=yend/) {
+                $decoding = 0;
+
+                my $endSize;
+                if (/size=(\d+)/) {
+                    $endSize = $1;
+                } 
+                else {
+                    print "Size is mandatory in yend, ignoring encoded stuff.\n";
+                    next;
+                }
+
+                my $crc;
+                if (defined $part) {
+                    if (/ pcrc32=([0-9a-f]+)/i) {
+                        $crc = $1;
+                    }
+                } 
+                else {
+                    if (/ crc32=([0-9a-f]+)/i) {
+                        $crc = $1;
+                    }
+                }
+
+                if (defined $crc) {
+                    my $realCRC = crc32($decoded);
+                    if (hex($crc) != $realCRC) {
+                        print "CRCs mismatch.  Expected ", $crc;
+                        print " got ", sprintf("%x", $realCRC), ".\n";
+                        next;
+                    }
+                }
+
+                my $decodedSize = length($decoded);
+                if (defined $part) {    
+                    if ($decodedSize != $pSize) {
+                        die "Size mismatch.  Expected $pSize, got $decodedSize.\n";
+                    }
+
+                    print "Writing part $part to $name...";
+                    if ($part == 1) {
+                        open(FH,"&gt; $name") or die "Can't write to file $name\n";
+                    } 
+                    else {
+                        open(FH,"+&lt; $name") or die "Can't append to $name\n";
+                    }
+                    binmode(FH);
+                    seek(FH, $offset, 0);
+                    print FH $decoded;
+                    close(FH);
+                    print "done.\n";
+                } 
+                else {
+                    if ($endSize != $size) {
+                        die "begin/end size mismatch.  Expected $size, got $endSize.\n";
+                    }
+                    if ($decodedSize != $endSize) {
+                        die "Size mismatch.  Expected $endSize, got $decodedSize.\n";
+                    }
+
+                    print "Writing $name...";
+                    open(FH, "&gt; $name") or die "Can't write to file $name\n";
+                    binmode(FH);
+                    print FH $decoded;
+                    close(FH);
+                    print "done.\n";
+                }
+            } 
+            else {
+                my $line = $_;
+
+                # Remove extraneous trailing 0x0d's, if possible.
+                $line =~ s/\x0d$//;
+
+                # Work with bytes, to protect against utf8 hardship.
+                my @bytes = unpack("C*", $line);
+                my @uline;
+                foreach (my $i=0; $i&lt;scalar(@bytes); $i++) {
+                    if ($bytes[$i] == ord('=')) {
+                        $i++;
+                        $bytes[$i] -= 64;
+                    }
+                    push @uline, $ymap[$bytes[$i]];
+                }
+                $decoded .= pack("C*", @uline);
+            }
+        }
+    }
+}
+
+1;
+
+package main;
+
+use strict;
+use Getopt::Std;
+
+my %opt;
+
+my $error = !getopts('w', \%opt);
+if ($error) {
+    print &lt;&lt; "EOU";
+
+Usage: ydecode [-w] &lt; file
+
+   where
+        -w        Print out warranty information
+
+EOU
+}
+elsif ($opt{'w'}) {
+print &lt;&lt; "EOW";
+------------------------------------------------------------------------------
+BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
+OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED
+OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.  THE ENTIRE RISK AS
+TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.  SHOULD THE
+PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING,
+REPAIR OR CORRECTION.
+
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+REDISTRIBUTE THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
+INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
+OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED
+TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
+YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
+PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGES.
+EOW
+}
+else {
+  Convert::yEnc::decode(\*STDIN);
+}
+
+__END__
+=pod
+
+=head1 NAME
+
+ydecode - A better, faster yEnc decoder.
+
+=head1 SYNOPSIS
+
+   ydecode [-w] &lt; file
+        -w        Print out warranty information
+
+=head1 DESCRIPTION
+
+C&lt;ydecode&gt; decodes yEnc data from the standard input and
+writes out the embedded file(s) to the current working directory.
+
+=head1 EXAMPLES
+
+   ydecode &lt; file
+
+   cat 00000005.ntx | ydecode
+
+
+=head1 INSTALLATION
+
+You will need the following module(s), if you don't already have them:
+
+String::CRC32
+
+Getopt::Std
+
+=head1 AUTHOR
+
+Gerard Lanois &lt;gerard@lanois.com&gt;
+
+Courtesy of Gerard's Perl Page, http://home.san.rr.com/lanois/perl/
+
+=head1 CREDITS
+
+This is based on yencdecoder.pl, yenc format decoder - v1.0 - 20020224
+by Hellstorm a.k.a. Jaume Bacardit Peñarroya) - &lt;helly@he11storm.net&gt;
+
+=head1 LICENSE
+ 
+ydecode - Copyright (C) 2002  Gerard Lanois &lt;gerard@lanois.com&gt;
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+=cut
+
+</field>
+</data>
+</node>

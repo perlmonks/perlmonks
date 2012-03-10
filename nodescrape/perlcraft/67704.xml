@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="67704" title="A Little review for a little DBI and CGI?" created="2001-03-28 00:19:21" updated="2005-07-27 23:24:36">
+<type id="121">
+perlcraft</type>
+<author id="6211">
+coolmichael</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+#
+# This is my first useful piece of code, and I would like
+# comments from people in the know, and anyone else.
+# Specifically, what have I don't wrong, what have I done
+# well? Is there a better way to do it, without using a
+# database? 
+# 
+# I know about some problems, like I should probably be 
+# using html::template, rather than having the first and 
+# second half of the pages sitting in different files
+# Also, it doesn't find all the results. I'll post 
+# some sample data below, for you to look at.
+# Thank you in advance.
+# Once all the changes have been made, should I update
+# this post to show the improvements you've suggested?
+# This was my first go with CGI, databases, and SQL.
+# I will be grateful for any suggestions.
+
+####
+#Data Sample
+#Here are the first three lines of the CSV file
+#"H0001-12","0810827085",$40.00,"FUNCTIONAL SINGING VOICE",,"MUSI"
+#"H0001-13","0921513097",$5.00,"DIGNITY OF DUST - FREIBERG",,"ENGL"
+#"H0001-14","0919626726",$5.00,"HDOGRAM","PK PAGE","ENGL"
+
+#!/usr/bin/perl -w
+
+use strict;
+use DBI;
+use CGI;
+
+$|++;
+
+my @names;
+my $connectstr;
+my $dbh;
+my $sql;
+my $sth;
+my $count=0;
+my $q;
+my $search;
+my $criteria;
+
+$connectstr="DBI:CSV:f_dir=/home/httpd/data;" .
+                        "csv_eol=\n;" .
+                        "csv_sep_char=,;" .
+                        "csv_quote_char=\"";
+@names=qw(Consign ISBN Price Title Author Subject);
+
+$q=CGI-&gt;new;
+print $q-&gt;header(-expires=&gt;"-1d");
+
+open HTML, "startpage" or die "opening startpage: $!\n";
+print while(&lt;HTML&gt;);
+close HTML or warn "closing startpage: $!\n";
+
+$search=$1 if ($q-&gt;param('search') =~ /^(Title|Author|ISBN|Subject)$/);
+die "from bad input!\n" unless ($search);
+
+$criteria=$1 if($q-&gt;param('criteria') =~ /(\w*)/);
+die "from bad input!\n" unless ($criteria);
+$criteria =~ tr/a-z/A-Z/;
+
+print $q-&gt;p("Searching for $search matching $criteria");
+
+$dbh=DBI-&gt;connect($connectstr)
+	or die "opening connection: $DBI::errstr; stopped\n";
+$dbh-&gt;{'csv_tables'}-&gt;{'onshelf'} = {'col_names' =&gt; [@names]}; 
+
+$sql="SELECT * FROM onshelf WHERE $search like ?";
+
+$sth=$dbh-&gt;prepare($sql)
+	or die "preparing $sql: $DBI::errstr stopped\n"; 
+
+$count=$sth-&gt;execute("%$criteria%")
+	or die "executing $sql: $DBI::errstr stopped\n";
+
+$sth-&gt;bind_columns(\my ($consign, $isbn, $price, $title, $author, $subject));
+
+print $q-&gt;p("Found $count results");
+
+print $q-&gt;start_table({-border=&gt;"1"});
+while($sth-&gt;fetch())
+{
+        print $q-&gt;start_Tr(),
+              $q-&gt;td({-width=&gt;'90', -valign=&gt;"top"}, $consign),
+              $q-&gt;td({-width=&gt;'100', -valign=&gt;"top"}, $isbn),
+              $q-&gt;td({-width=&gt;'180', -valign=&gt;"top"}, $title),
+              $q-&gt;td({-width=&gt;'150', -valign=&gt;"top"}, $author),
+              $q-&gt;td({-width=&gt;'50', -valign=&gt;"top"}, $subject),
+              $q-&gt;td({-width=&gt;'60', -align=&gt;"right", -valign=&gt;"top"},$price),
+              $q-&gt;end_Tr();
+}
+print $q-&gt;end_table();
+
+$dbh-&gt;disconnect();
+
+open HTML, "endpage" or die "opening end page: $!\n";
+print while(&lt;HTML&gt;);
+close HTML or warn "closing HTML: $!\n";
+
+
+#
+#Updated March 27, as per tye's suggestions. Thanks Tye.
+#Updated March 27th, again, as per dkubb's suggestions.
+#
+</field>
+</data>
+</node>

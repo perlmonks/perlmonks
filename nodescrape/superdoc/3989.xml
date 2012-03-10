@@ -1,0 +1,750 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3989" title="Super Search" created="2000-02-24 17:18:24" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<keywords>
+<keyword rating="">
+test</keyword>
+<keyword rating="">
+find</keyword>
+<keyword rating="">
+Search</keyword>
+<keyword rating="">
+Super</keyword>
+</keywords>
+<field name="doctext">
+[%
+    use Everything::Experience;
+    my @errors;
+
+    my @types= q(
+        Wi  perlquestion            SoPW        Seekers of Perl Wisdom
+        D   monkdiscuss             PMD         PM Discussions
+        Ob  obfuscated              Obfu        Obfuscation
+        CU  CUFP                    CUFP        Cool Uses For Perl
+        CC  sourcecode              Code        Code Catacombs
+        CQ  categorized_question    CatQ        Categorized Questions
+        CA  categorized_answer      CatA        Categorized Answers
+        IS  pmdevtopic              InScpt      Inner Scriptorium
+        OT  offtopicroot            OT          Off-topic root nodes
+        --
+        Tu  perltutorial            Tut         Tutorial
+        U   user                    User
+        Po  poem                    Poem
+        Cr  perlcraft               Craft
+        Sn  snippet                 Snippet
+        N   perlnews                News
+        Q   quest                   Quest
+        Pol poll                    Poll
+        --
+        M   perlmeditation          Med         Meditations
+        SP  scratchpad              SPad        Scratch Pad
+        MR  modulereview            ModRev      Module Review
+        BR  bookreview              BkRev       Book Review
+        pPd perlman                 perlman     Perl Manpage
+        pFn perlfunc                perlfunc    Perl Function
+        pFq perlfaq_nodetype        perlfaq     Perl FAQ
+        Hlp sitefaqlet              Help        Monk Help
+
+    ) =~ /(\S.*\S)/g;
+    #     Seekers of Perl Wisdom    Tutorial    Meditations
+    #     PM Discussions            User        Scratch Pad
+    #     Obfuscation               Poem        Module Review
+    #     Cool Uses For Perl        Craft       Book Review
+    #     Code Catacombs            Snippet     Perl Manpage
+    #     Categorized Questions     News        Perl Function
+    #     Categorized Answers       Quest       Perl FAQ
+    #     Inner Scriptorium         Poll        Monk Help
+    #     Off-topic root nodes      [Wiki]      (Patch replies)
+    #     (Any)
+
+    my( %abbr, %desc, %typeId, %link, %linktext, @typeRows );
+    {
+        my( $row, $idx )= (0,0);
+        @types= map {
+            if(  "--" eq $_  ) {
+                $row= 0;
+                (); # Skip this one
+            } else {
+                my( $abbr, $type, $linktext, $desc )= split " ", $_, 4;
+                $type =~ tr/_/ /;
+                my $id= getId( getType($type) );
+                $typeId{$type}= $id;
+                $abbr{$type}= $abbr;
+                $desc{$type}= $desc || $linktext;
+                $link{ $id }= linkNode( $id, $linktext );
+                $linktext{$id}= $linktext;
+                push @{ $typeRows[$row++] }, $idx++;
+                $type;  # Store this in @types
+            }
+        } @types;
+    }
+
+    if(  ! $q-&gt;can("delete_param")  ) {
+        *CGI::delete_param= sub {
+            my( $self, $param )= @_;
+            @{$self-&gt;{'.parameters'}}=
+                grep $_ ne $param, @{$self-&gt;{'.parameters'}};
+            delete $self-&gt;{$param};
+        };
+    }
+
+    my %typeTable= qw(
+        snippet         snippet
+        bookreview      review
+        modulereview    review
+        sourcecode      sourcecode
+        poll            polls
+    );
+    my %fieldOfTable= (
+        snippet =&gt; [qw( snippetdesc snippetcode )],
+        review =&gt; [qw( itemdescription usercomment doctext )],
+        sourcecode =&gt; [qw( codedescription doctext )],
+        polls =&gt; ['choices'],
+    );
+
+    # Make &amp;Wi check the box like &amp;Wi= does
+    # And make &amp;Wi=0 uncheck a box:
+    for my $abbr (  values %abbr  ) {
+        my @vals= $q-&gt;param( $abbr );
+        if(  @vals  &amp;&amp;  "0" ne $vals[-1]  ) {
+            $q-&gt;param( $abbr, "1" );
+        } else {
+            $q-&gt;delete_param( $abbr );
+        }
+    }
+    for my $p (  qw( xa xpa xr xs )  ) {
+        my @vals= $q-&gt;param( $p );
+        $q-&gt;delete_param( $p )
+            if  @vals  &amp;&amp;  "0" eq $vals[-1];
+    }
+
+    # Build URL that would repeat this search
+    my $url= do {
+        my %p= map { $_ =&gt; ( '', $q-&gt;param($_) )[-1] } $q-&gt;param();
+        delete @p{qw/ node_id nx go n0 BIR HIR BER HER as_user /}; # keep HIR/HER?
+        for my $p (  qw( BIS HIS BES HES )  ) {
+            delete $p{$p}   if  " " eq $p{$p};
+        }
+        for my $p (  keys %p  ) {
+            delete $p{$p}   if  '' eq $p{$p};
+        }
+        delete $p{re}   if  "S" eq $p{re};
+        delete $p{BH}   if  $p{BH};
+        delete $p{nf}   if  $p{nf};
+        # Use short form for section checkboxes:
+        my $sect= '';
+        for my $abbr (  values %abbr  ) {
+            $sect .= ";$abbr"
+                if  delete $p{$abbr};
+        }
+        join '',
+            "?node_id=$NODE-&gt;{node_id}",
+            join( ';', '',
+                map "$_=" . $q-&gt;escape($p{$_}),
+                grep exists $p{$_}, $q-&gt;param() ),
+            $sect;
+    };
+
+    my @sects;
+    my $sects= do {
+        my $negSects= ( $q-&gt;param("xs") )[-1] ? 1 : 0;
+        my %checked;
+        @checked{keys %abbr}= map {
+            ( ()= $q-&gt;param($abbr{$_}) ) ? 1 : 0;
+        } keys %abbr;
+        @sects= grep $negSects != $checked{$_}, keys %abbr;
+        @sects= @types   if  ! @sects;
+        join ", ", map $typeId{$_}, @sects;
+    };
+
+    my @criteria;
+
+    my $umsg= '&lt;br /&gt;';
+    my $pmsg= '&lt;br /&gt;replies to nodes ';
+    foreach my $tuple (
+        ['a','xa','n',\$umsg],
+        ['pa','xpa','parent',\$pmsg]
+    ) {
+        my ($txtparam,$xparam,$talias,$msgref)=@$tuple;
+
+        my @users= grep length, $q-&gt;param($txtparam);  #[
+        if(  1 == @users  &amp;&amp;  $users[0] =~ m#^(\s*\[[^\]]+\])+\s*$#  ) {   #[
+            @users= $users[0] =~ m#\[([^\]]+)\]#g;
+        }
+        for my $user (  @users  ) {
+            my $type = "user";
+            my $reason = "does not exist";
+            my $U;
+            if(  $user !~ m#^id://(\d+)$#  ) {
+                $U = getNode( $user, "user" ) || getNode( $user, "usergroup" );
+            } else {
+                ( $type, $user ) = ( "node ID", $1 );
+                $U = getNodeById( $user )   if  $user;
+                if(  $U  &amp;&amp;  $U-&gt;{type}{title} !~ /^user/ ) {
+                    undef $U;
+                    $reason = "is not a user";
+                }
+            }
+            if(  $U  ) {
+                $user= getId($U);
+            } else {
+                push @errors, qq[\u$type "]
+                    . $q-&gt;escapeHTML($user) . qq[" $reason.];
+                $user= 0;
+            }
+        }
+        @users= grep $_, @users;
+        my $negAuthor= ( $q-&gt;param($xparam) )[-1] ? 1 : 0;
+        $negAuthor= $negAuthor ? " NOT" : "";
+        if(  @users  ) {
+            push @criteria, "$talias.author_user$negAuthor IN ( "
+                . join( ", ", @users ) . " )";
+            $$msgref .= qq[written by ]
+                  . ( $negAuthor ? "anyone but " : "any of " )
+                  . join ", ", map linkNode($_), @users;
+        } else {
+            $$msgref="";
+        }
+    }
+
+    my $replies= ( $q-&gt;param("re") )[-1];
+    $q-&gt;param( "re", $replies );
+    my $xRoots= 0 + grep '0' ne $_, $q-&gt;param("xr");
+    my $note= getId( getType("note") );
+
+    push @criteria, do {
+        if(  "N" eq $replies  ) {           # No replies:
+            push @errors,
+                "No root nodes and no replies means no search."
+                if  $xRoots;
+            $xRoots
+                ? "n.node_id = 0"
+                : "n.type_nodetype IN ( $sects )";
+        } elsif(  "A" eq $replies           # All replies (same as
+              ||  @sects == @types  ) {     #  re.s from all sects):
+            $xRoots
+                ? "n.type_nodetype = $note"
+                : "n.type_nodetype IN ( $note, $sects )";
+        } else {                            # Replies from selected sections:
+            $q-&gt;param( "re", undef );
+            my $c= "( n.type_nodetype = $note"
+                . " AND root.type_nodetype IN ( $sects ) )";
+            $xRoots
+                ? $c
+                : "( n.type_nodetype IN ( $sects ) OR $c )";
+        }
+    };
+
+    # ( Head Body ) + ( Includes Excludes ) + ( Terms Separator Regex=0|1 )
+    my $bir= ( $q-&gt;param("BIR") )[-1] ? 1 : 0;  # @bodyHas are regexes
+    my $ber= ( $q-&gt;param("BER") )[-1] ? 1 : 0;  # @bodyLacks are regexes
+    my $hir= ( $q-&gt;param("HIR") )[-1] ? 1 : 0;  # @headHas are regexes
+    my $her= ( $q-&gt;param("HER") )[-1] ? 1 : 0;  # @headLacks are regexes
+    my $isGod= isGod($USER);
+    if(  !$isGod  and  ( $bir || $ber )  ) {
+        push @errors, "Unfortunately, regexes use too much"
+            . " server CPU time, so their use is reserved for [gods]."
+    }
+
+    my $getTerms= sub {
+        my( $textParam, $sepParam )= @_;
+        my $str= $q-&gt;param( $textParam );
+        my $sep= $q-&gt;param( $sepParam );
+        $sep =~ s/^\s*//;
+        $sep =~ s/\s*$//;
+        $sep= " "   if  ! length $sep;
+        $q-&gt;param( $sepParam, $sep );
+        my @terms= grep length, split /\Q$sep/, $str;
+        $q-&gt;param( $textParam, join $sep, @terms );
+        return @terms;
+    };
+    my @headHas=   $getTerms-&gt;( "HIT", "HIS" );
+    my @headLacks= $getTerms-&gt;( "HET", "HES" );
+    my @bodyHas=   $getTerms-&gt;( "BIT", "BIS" );
+    my @bodyLacks= $getTerms-&gt;( "BET", "BES" );
+
+    my( @tables, @fields );
+    push @tables, 'note',
+        "left join node as root on root.node_id=root_node";
+    if(  $pmsg  ) {
+        push @tables,
+          "left join node as parent on parent.node_id=parent_node";
+    }
+    if(  @bodyHas  ||  @bodyLacks  ) {
+        my( %tables, %fields );
+        push @sects, 'note'
+            unless  'N' eq $replies;
+        for my $type (  @sects  ) {
+            if(  $typeTable{$type}  ) {
+                ++$tables{ $typeTable{$type} };
+                ++$fields{$_}
+                    for  @{  $fieldOfTable{ $typeTable{$type} }  };
+            } else {
+                ++$tables{document};
+                ++$fields{doctext};
+            }
+        }
+        push @tables, keys %tables;
+        push @fields, keys %fields;
+    }
+
+    my $tables= "node as n";
+    for my $table (  @tables  ) {
+        if(  $table =~ / /  ) {
+            $tables .= "\n$table";
+        } else {
+            $tables .= "\nleft join $table on ${table}_id=n.node_id";
+        }
+    }
+
+    my $termMatch= sub {
+        my( $not, $regex, $avFields, @terms )= @_;
+        if(  ! @terms  ) {
+            ; # Nothing.
+        } elsif(  $regex  ) {
+            for my $term (  @terms  ) {
+                my $safe= htmlcode('saferegex','',$term);
+                if(  $safe =~ s#^\\9##  ) {
+                    push @errors, $safe;
+                    last;
+                }
+                $safe =~ s#([\\'])#\\$1#g;
+                push @criteria, "( " . join( " OR ", map {
+                    "$_ RLIKE '$safe'";
+                } @$avFields ) . " )";
+                $criteria[-1]= "NOT COALESCE( $criteria[-1], 0=1 )"
+                    if  $not;
+            }
+        } else {
+            push @criteria, map {
+                my $quoted= $_;
+                $quoted =~ s#\\#\\\\#g;     # MySQL quirk
+                $quoted =~ s#([\\'%_])#\\$1#g;
+                ( $not ? "NOT COALESCE( " : "" )
+                .  "( " . join( " OR ", map {
+                    "$_ LIKE '%$quoted%'";
+                } @$avFields ) . " )"
+                . ( $not ? ", 0=1 )" : "" )
+            } @terms;
+        }
+    };
+    $termMatch-&gt;( "",    $hir, ["n.title"], @headHas );
+    $termMatch-&gt;( "NOT", $her, ["n.title"], @headLacks );
+    $termMatch-&gt;( "NOT", $ber, \@fields,    @bodyLacks );
+    if(  ( $q-&gt;param("BH") )[-1]  ) {
+        push @fields, 'n.title';
+    }
+    $termMatch-&gt;( "",    $bir, \@fields,    @bodyHas );
+
+    my $oldFirst= ! ( $q-&gt;param("nf") )[-1];
+    my $dir= $oldFirst ? +1 : -1;
+    my $lastNode= $DB-&gt;sqlSelect( "max(node_id)", "node" );
+
+    my $n0= 0;
+    if(  $q-&gt;param("nx")  ) {                           # Continue search:
+        $n0= ( $q-&gt;param("n0") )[-1]
+            or  push @errors, qq[Strange, you asked me to continue]
+                    . qq[ but I don't know where to continue from.];
+    } elsif(  ( $q-&gt;param("yr") )[-1]  ) {      # Search from date:
+        my( $yr, $mo, $dy )= map { ( $q-&gt;param($_) )[-1] } qw( yr mo dy );
+        $mo ||= 1;
+        $dy ||= 1;
+        my $date= join "-", map sprintf("%02d",$_), $yr, $mo, $dy;
+        $n0= $DB-&gt;sqlSelect(
+            "node_id",
+            "node",
+            "createtime &gt;= '$date'",
+            "order by createtime limit 1"
+        );
+    } elsif(  $q-&gt;param("go")  ) {              # New search:
+        $n0= $oldFirst ? 1 : $lastNode;
+    }
+
+    my $doSearch=  $n0  &amp;&amp;  ! @errors  ||  0;
+
+    push @criteria, "n.node_id BETWEEN !TBD!";
+
+    my $html= '';
+    my $limit= 50;
+    if(     $doSearch
+        &amp;&amp;  "POST" ne uc $q-&gt;request_method()
+        &amp;&amp;  $USER-&gt;{user_id} != ( $q-&gt;param("as_user") )[-1]
+        &amp;&amp;  $USER-&gt;{title}   ne ( $q-&gt;param("as_user") )[-1]
+    ) {
+        $html .= join '',
+            qq[&lt;p&gt;You must specify as_user=$USER-&gt;{user_id}],
+            qq[ in the URL to have the search start immediately\n],
+            qq[ when the link is followed (or send the request],
+            qq[ by POSTing from a form instead).\n  Simply press],
+            qq[ the Search button below, now.&lt;/p&gt;\n];
+        $doSearch= 0;
+    }
+    if(  ! $doSearch  ) {
+        $html .= qq[&lt;p align="right"&gt;&lt;a href="/?node_id=590032"&gt;]
+          . qq[Help for this page&lt;/a&gt;&lt;/p&gt;];
+        $html .= qq[&lt;p&gt;You can also try using]
+          . qq[ &lt;a href="http://www.google.com/advanced_search]
+          . qq[?hl=en&amp;as_sitesearch=www.perlmonks.org"&gt;Google's]
+          . qq[ advanced search&lt;/a&gt; against PerlMonks.&lt;/p&gt;\n];
+        if(  $isGod  ) {
+            $html .= qq[&lt;p&gt;]
+              . qq[Please use regex searches sparingly.  A regex search uses]
+              . qq[ much more CPU time on the database server.]
+              . qq[&lt;/p&gt;];
+        }
+    } else {
+        Everything::printLog( "node=$NODE-&gt;{node_id}($NODE-&gt;{node_title})"
+            . " ip=$ENV{REMOTE_ADDR} user=$USER-&gt;{title}"
+            . " q=" . $q-&gt;query_string() );
+        require Time::HiRes;
+        my @matches;
+        my $start= $n0;
+        my $startTime= Time::HiRes::time();
+        while(  1  ) {
+
+            my( $min, $max );
+            if(  $oldFirst  ) {
+                ( $min, $max )= ( $n0, $n0+10000 );
+                $max= 1000 * int( $max/1000 + 0.5 );
+                $max= $lastNode   if  $lastNode &lt; $max;
+            } else {
+                ( $min, $max )= ( $n0-10000, $n0 );
+                $min= 1000 * int( $min/1000 + 0.5 );
+                $min= 1   if  $min &lt; 1;
+            }
+            $criteria[-1]= "n.node_id BETWEEN $min AND $max";
+
+            my $explainTime= Time::HiRes::time();
+            my $sql= qq[
+                SELECT n.node_id, n.title, n.type_nodetype,
+                       n.author_user, n.createtime, root.type_nodetype
+                FROM   $tables
+                WHERE  ] . join( " AND ", @criteria ) . qq[
+                ORDER BY n.node_id ] . ( $oldFirst ? "" : "DESC" ) . qq[
+                LIMIT ] . ( $limit - @matches );
+            my $explain= $DB-&gt;getDatabaseHandle()-&gt;prepare(
+                "EXPLAIN $sql" );
+            $explain-&gt;execute();
+            my $rec= $explain-&gt;fetchrow_hashref();
+            $explain-&gt;finish();
+            my $key_used= $rec-&gt;{key};
+            my $key_rows= $rec-&gt;{rows};
+            my $comment= $rec-&gt;{Comment};
+
+            if(  $start == $n0  ) {
+                $html .= "\n&lt;!--\n$sql\n";
+                $html .= $/ . $q-&gt;table(
+                    map {
+                        my $val= delete $rec-&gt;{$_};
+                        ( my $head= $_ ) =~ s/.*_//;
+                        defined $val
+                            ? $q-&gt;Tr( $q-&gt;td($head), $q-&gt;td($val) )
+                            : ();
+                    } qw( table type rows possible_keys key
+                          key_len Extra ), keys %$rec
+                ) . "\n--&gt;\n";
+            }
+
+            $explainTime= Time::HiRes::time() - $explainTime;
+            if(  3 &lt; $explainTime  ) {
+                push @errors, ( $start==$n0 ? "Q" : "Remainder of q" )
+                  . qq[uery was not run;  Server is too busy ]
+                  . sprintf
+                      qq[("explain" took %.2f seconds)], $explainTime;
+                last;
+            }
+
+#            if(  15000 &lt; $key_rows  ) {
+            if ( 25000 &lt; $key_rows ) {
+                push @errors, ( $start==$n0 ? "Q" : "Remainder of q" )
+                  . "uery would not run quickly"
+                  . ( $comment ? " ($comment)" : "" ) . ".";
+                last;
+            }
+
+            my $cursor= $DB-&gt;sqlSelectMany(
+                "n.node_id as node_id, n.title as title,
+                 n.type_nodetype as type_nodetype,
+                 n.author_user as author_user, n.createtime as createtime,
+                 root.node_id as root_node_id,
+                 root.type_nodetype as root_nodetype",
+                $tables,
+                join( " AND ", @criteria ),
+                "ORDER BY n.node_id " . ( $oldFirst ? "" : "DESC" )
+                . " LIMIT " . ( $limit - @matches ),
+            );
+            my $results = $cursor-&gt;fetchall_arrayref({});
+            push @matches, @$results;
+            $cursor-&gt;finish();
+
+            if(  $limit &lt;= @matches  ) {
+                $n0= $dir + $matches[-1]{node_id};
+                last;
+            }
+            $n0= $dir + ( $oldFirst ? $max : $min );
+            last   if  $n0 &lt; 1  ||  $lastNode &lt; $n0;
+            my $runTime= Time::HiRes::time() - $startTime;
+            if(  10 &lt; $runTime  ) {
+                push @errors, ( $start==$n0 ? "Q" : "Remainder of q" )
+                    . qq[uery was not run ] . sprintf
+                      qq[(used %.2f seconds so far)], $runTime;
+                last;
+            }
+        }
+        if(  $n0 == $start  ) {
+            $doSearch= 2;       # "Retry"
+        }
+        if(  $n0 &lt; 1  ||  $lastNode &lt; $n0  ) {
+            $doSearch= -1;      # Search finished.
+        }
+
+        my $startDate= ( split " ", $DB-&gt;sqlSelect(
+            "createtime","node","node_id=$start") )[0];
+        my $endDate= ( split " ", $DB-&gt;sqlSelect(
+            "createtime","node","node_id=".($n0-$dir)) )[0];
+        my $matches= @matches;
+
+        $html .= qq[&lt;p&gt;&lt;hr /&gt;&lt;div class="ss-result-summary"&gt;
+            &lt;b&gt;Found $matches node] . ( 1==$matches ? "" : "s" ) .qq[&lt;/b&gt;]
+          #. ( 0 &lt; $doSearch ? " (so far)" : "" )
+          . qq[ roughly between $startDate and $endDate]
+          . qq[ (searched ] . sprintf( "%.2f",
+              100*( abs($n0-$start)+1 ) / $lastNode
+            ) . qq[% of DB).&lt;/div&gt;&lt;br /&gt;\n&lt;div class="ss-criteria-summary"&gt;\n];
+
+        if(  @bodyHas  ||  @bodyLacks  ||  @headHas  ||  @headLacks  ) {
+            $html .= qq[&lt;br /&gt;where ] . join qq[&lt;br /&gt;and ],
+                map {
+                    my( $desc, $regex, $plur, @terms )= @$_;
+                    if(  ! @terms  ) {
+                        ();
+                    } else {
+                        if(  $regex  ) {
+                            $desc =~ s/ contain / match /;
+                            $desc =~ s/ contains / matches /;
+                        }
+                        $desc .= $plur    if  1 &lt; @terms;
+                        $desc . join( ", ", map {
+                            qq["&lt;tt&gt;] . $q-&gt;escapeHTML($_) . qq[&lt;/tt&gt;"]
+                        } @terms )
+                    }
+                } ["any text contains ",$bir,"all of ",@bodyHas],
+                  ["no text contains ",$ber,"any of ",@bodyLacks],
+                  ["title contains ",$hir,"all of ",@headHas],
+                  ["title doesn't contain ",$her,"any of ",@headLacks],
+        }
+
+
+        $html .= $umsg; # user message
+        $html .= $pmsg; # parent message
+
+        $html .= qq[&lt;/div&gt;&lt;/p&gt;\n];
+
+        $html .= qq[&lt;p&gt;&lt;table width="100%" class="ss-result-table"&gt;];
+        for my $rec (  @matches  ) {
+            my( $date )= split " ", $rec-&gt;{createtime};
+            $html .= $/." "x4 . $q-&gt;Tr(
+                $q-&gt;td( $date ), $/." "x8,
+                $q-&gt;td( linkNode($rec-&gt;{author_user}) ), $/." "x8,
+                $q-&gt;td( linkNode($rec) ),
+                $/." "x8, $q-&gt;td(
+                    $note == $rec-&gt;{type_nodetype}
+                        ? "Re:" . linkNode($rec-&gt;{root_node_id}, $linktext{ $rec-&gt;{root_nodetype} })
+                        : $link{ $rec-&gt;{type_nodetype} }
+                ),
+            );
+        }
+        $html .= qq[&lt;/table&gt;&lt;/p&gt;\n];
+    }
+
+    $q-&gt;param( "n0", $n0 );
+    $html .= $/ . htmlcode('openform')
+        . $q-&gt;hidden("n0") . $/;
+
+    if(  $doSearch  ) {
+        $html .= qq[\n&lt;p class="ss-search-continue"&gt;];
+        if(  -1 == $doSearch  ) {
+            $html .= qq[Finished searching database.\n];
+        } else {
+            my( $min, $max )= $oldFirst ? ( $n0, $lastNode ) : ( 1, $n0 );
+            my $pct= sprintf "%.2f%%", 100*($max-$min+1)/$lastNode;
+            if(  1 == $doSearch  ) {
+                $html .= qq[Press ]
+                  . $q-&gt;submit( "nx", "Next &gt;" )
+                  . qq[ to &lt;b&gt;continue&lt;/b&gt; searching remaining $pct of DB.];
+            } else {
+                $pct= " remaining $pct of DB";
+                $pct= ""   if  1 == $min  &amp;&amp;  $max == $lastNode;
+                $html .= qq[Press ]
+                  . $q-&gt;submit( "nx", "Retry" )
+                  . qq[ to &lt;b&gt;retry&lt;/b&gt; searching$pct.];
+            }
+            $html .= qq[&lt;br /&gt;\n]
+                . qq[Please be patient after submitting your search.\n];
+        }
+        $html .= qq[&lt;/p&gt;\n&lt;p class="ss-preload-link"&gt;Link to preload this search: ]
+            . qq[&lt;a href="$url"&gt;&amp;#91;href://$url&amp;#93;&lt;/a&gt;&lt;/p&gt;]
+            . "&lt;hr /&gt;\n";
+    }
+
+    $html .= qq[&lt;p&gt;] . linkNode( $NODE, "Reset search form" ) . qq[&lt;/p&gt;\n];
+
+    $html .= qq[&lt;p&gt;
+        Match &lt;b&gt;text&lt;/b&gt; containing ]
+      . $q-&gt;textfield( "BIT", "", 60 )
+      . qq[&lt;br /&gt;(separate ]
+      . ( !$isGod
+            ? "strings"
+            : $q-&gt;radio_group( "BIR", [ "0", "1" ], "0", 0,
+                { 0=&gt;"strings -or- regexes", 1=&gt;"" } )
+        ) . qq[ with ]
+      . $q-&gt;textfield( "BIS", " ", 2 )
+      . qq[ -- default is spaces)&lt;br /&gt;]
+      . $q-&gt;radio_group( "BH", [ "0", "1" ], "1", 0,
+            { 0=&gt;"Don't match -or-", 1=&gt;"Also match" },
+        ) . qq[ &lt;b&gt;titles&lt;/b&gt; against above.&lt;/p&gt;];
+
+    $html .= $/ . "&lt;p&gt;"
+      . ( 0&lt;$doSearch ? qq[New ] : "" )
+      . $q-&gt;submit( "go", "Search" )
+      . qq[ Please be patient after submitting your search.\n&lt;/p&gt;];
+
+    $html .= qq[&lt;p&gt;
+        Match &lt;b&gt;titles&lt;/b&gt; containing ]
+      . $q-&gt;textfield( "HIT", "", 60 )
+      . qq[&lt;br /&gt;(separate ]
+      . ( !$isGod
+            ? "strings"
+            : $q-&gt;radio_group( "HIR", [ "0", "1" ], "0", 0,
+                { 0=&gt;"strings -or- regexes", 1=&gt;"" } )
+        ) . qq[ with ]
+      . $q-&gt;textfield( "HIS", " ", 2 )
+      . qq[ -- default is spaces)&lt;/p&gt;];
+
+    $html .= qq[&lt;p&gt;
+        ] . $q-&gt;radio_group(
+            "xa", [ "0", "1" ], "0", 0, { 0=&gt;"Match -or-", 1=&gt;"Exclude" },
+        ) . qq[ &lt;b&gt;authors&lt;/b&gt; ] . $q-&gt;textfield( "a", "", 20 ) . qq[&lt;br /&gt;
+        (use "&amp;#91;one&amp;#93; &amp;#91;two&amp;#93;" to list multiple authors)&lt;br /&gt;
+        (Searching by author doesn't work for Categorized Questions and
+        Answers yet.)&lt;/p&gt;];
+
+    $html .= qq[&lt;p&gt;
+        Search ] . $q-&gt;radio_group(
+            -name=&gt;"nf", -values=&gt;[ "1", "0" ], -default=&gt;"1",
+            -labels=&gt;{ 1=&gt;"Newest first -or-", 0=&gt;"Oldest first" },
+        ) . qq[,&lt;br /&gt;starting at ];
+    $html .= do {
+        my $yr= 1900 + (localtime)[5];
+        my @yr= ( "", 2000..$yr );
+        my %yr;  @yr{@yr}= ( "Year", map {
+            my $k= ('','A'..'Z')[$_];
+            $k &amp;&amp;= "$k) ";
+            "$k$yr[$_]"
+        } 1..$#yr );
+        $q-&gt;popup_menu( "yr", \@yr, "", \%yr );
+    };
+    $html .= " - " . do {
+        my @mo= ( "", '01'..'12' );
+        my %mo;  @mo{@mo}= ( "Month", map {
+            $_ . " " .
+            (qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ))[$_-1];
+        } 1..12 );
+        $q-&gt;popup_menu( "mo", \@mo, "", \%mo );
+    };
+    $html .= " - " . do {
+        my @dy= ( "", '01'..'31' );
+        my %dy;  @dy{@dy}= ( "Day", '01'..'31' );
+        $q-&gt;popup_menu( "dy", \@dy, "", \%dy );
+    };
+    $html .= qq[.&lt;/p&gt;];
+
+    # $html .= qq[&lt;!-- &lt;p&gt; Show {10|20|50} matches per page.&lt;/p&gt; --&gt;];
+
+    $html .= qq[&lt;p&gt;
+        Search ] . $q-&gt;radio_group(
+            "xs", [0,1], 0, 0, {0=&gt;"only -or-",1=&gt;"all but"},
+        ) . qq[&lt;br /&gt;the following &lt;b&gt;sections&lt;/b&gt;:];
+    $html .= qq[&lt;ul&gt;] . $q-&gt;table(
+        map(
+            "\n    "
+            . $q-&gt;Tr(
+                map "\n        " . $q-&gt;td(
+                    $q-&gt;checkbox(
+                        -name =&gt; $abbr{$types[$_]},
+                        -value =&gt; "1",
+                        -label =&gt; $desc{$types[$_]},
+                        )
+                ), @$_
+            ), @typeRows,
+        ), $/
+    ) . qq[&lt;/ul&gt;\n];
+
+    $html .= qq[&lt;p&gt;
+        &lt;i&gt;Skip&lt;/i&gt; &lt;b&gt;text&lt;/b&gt; containing ]
+      . $q-&gt;textfield( "BET", "", 60 )
+      . qq[&lt;br /&gt;(separate ]
+      . ( !$isGod
+            ? "strings"
+            : $q-&gt;radio_group( "BER", [ "0", "1" ], "0", 0,
+                { 0=&gt;"strings -or- regexes", 1=&gt;"" } )
+        ) . qq[ with ]
+      . $q-&gt;textfield( "BES", " ", 2 )
+      . qq[ -- default is spaces)&lt;br /&gt;
+        (Does not exclude based on titles)&lt;/p&gt;];
+
+    $html .= qq[&lt;p&gt;
+        &lt;i&gt;Skip&lt;/i&gt; &lt;b&gt;titles&lt;/b&gt; containing ]
+      . $q-&gt;textfield( "HET", "", 60 )
+      . qq[&lt;br /&gt;(separate ]
+      . ( !$isGod
+            ? "strings"
+            : $q-&gt;radio_group( "HER", [ "0", "1" ], "0", 0,
+                { 0=&gt;"strings -or- regexes", 1=&gt;"" } )
+        ) . qq[ with ]
+      . $q-&gt;textfield( "HES", " ", 2 )
+      . qq[ -- default is spaces)&lt;/p&gt;];
+
+    $html .= qq[&lt;/p&gt;&lt;p&gt;\n] . $q-&gt;radio_group(
+        "xr", ["0","1"], "0", 1, {
+            0 =&gt; "Include &lt;b&gt;root&lt;/b&gt; nodes from selected sections",
+            1 =&gt; "Don't include &lt;b&gt;root&lt;/b&gt; nodes",
+        },
+    );
+
+    $html .= qq[&lt;/p&gt;&lt;p&gt;\n] . $q-&gt;radio_group(
+        "re", [qw( A S N )], "S", 1, {
+            A =&gt; "Include &lt;b&gt;replies&lt;/b&gt; from &lt;i&gt;any&lt;/i&gt; section",
+            S =&gt; "Include &lt;b&gt;replies&lt;/b&gt; from &lt;i&gt;selected&lt;/i&gt; sections",
+            N =&gt; "&lt;i&gt;Don't&lt;/i&gt; include &lt;b&gt;replies&lt;/b&gt;",
+        },
+    );
+    $html .= join $/, '&lt;p&gt;',
+        $q-&gt;radio_group(
+            "xpa", [ "0", "1" ], "0", 0, { 0=&gt;"Match -or-", 1=&gt;"Exclude" },
+        ),
+        qq[&lt;b&gt;parent node's author&lt;/b&gt;],
+        $q-&gt;textfield( "pa", "", 20 ),
+        '&lt;br /&gt;',
+        '(use "&amp;#91;one&amp;#93; &amp;#91;two&amp;#93;" to list multiple authors)&lt;br /&gt;',
+        "(This doesn't work for Categorized Questions and Answers yet.)&lt;/p&gt;";
+
+    $html .= $/ . "&lt;p&gt;"
+      . ( 0&lt;$doSearch ? qq[New ] : "" )
+      . $q-&gt;submit( "go", "Search" )
+      . qq[ Please be patient after submitting your search.\n&lt;/p&gt;];
+
+    $html .= qq[&lt;/form&gt;\n];
+
+    $html .= qq[\n&lt;!-- CGI::VERSION=$CGI::VERSION --&gt;\n];
+
+    $_ .= "&lt;br /&gt;\n"   for  @errors;
+    return "&lt;b&gt;" . join( "", @errors ) . "&lt;/b&gt;$html";
+%]
+</field>
+</data>
+</node>

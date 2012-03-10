@@ -1,0 +1,45 @@
+<node>
+  <type_nodetype>3545</type_nodetype>
+  <node_id>46722</node_id>
+  <author_user>929</author_user>
+  <title>sopwify</title>
+  <createtime>2000-12-14 21:01:09</createtime>
+  <code>my ($NODE) = $query-&gt;param('node_id');
+getRef $NODE;
+Everything::printLog('sopwify 1');
+Everything::printLog(&quot;sopwify user $$USER{title}&quot;);
+
+return 
+  unless $DB-&gt;isApproved($USER, getNode('QandAEditors', 'usergroup'));
+
+Everything::printLog('sopwify 2');
+
+if ( $$NODE{type}{title} eq &quot;categorized question&quot; ) {
+   Everything::printLog('sopwify 3');
+   $$NODE{author_user} = $$NODE{original_author};
+   updateNode($NODE, -1);
+
+   my $section = $$NODE{parent_node};
+   htmlcode('changetype', &quot;$$NODE{node_id},perlquestion&quot;);
+
+   my (@NODES) = getNodeWhere({parent_node=&gt;getId($NODE)}, &quot;categorized answer&quot;);
+   foreach my $ND (@NODES){
+      $$ND{author_user} = $$ND{original_author};
+      $$ND{root_node} = $$NODE{node_id};
+      $$ND{title} =~ s/^Answer:/Re:/;
+      updateNode($ND, -1);
+      htmlcode('changetype', &quot;$$ND{node_id},note&quot;);
+   }
+   removeFromNodegroup($section, $NODE, $USER);
+}
+elsif ( $$NODE{type}{title} eq &quot;categorized answer&quot; ) {
+   $$NODE{author_user} = $$NODE{original_author};
+   $$NODE{root_node} = $$NODE{node_id};
+   $$NODE{title} =~ s/^Answer:\s*//;
+   updateNode($NODE, -1);
+   htmlcode('changetype', &quot;$$NODE{node_id},perlquestion&quot;);
+   htmlcode('update_root_in_tree', '', $NODE);
+}
+</code>
+  <nodeupdated>2004-02-20 08:26:26</nodeupdated>
+</node>

@@ -1,0 +1,292 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>452</node_id>
+  <author_user>114</author_user>
+  <title>shownote</title>
+  <createtime>1999-08-30 17:48:29</createtime>
+  <code>use Everything::Experience;
+$HTMLVARS{level_titles} ||= getVars( getNode('level titles','setting') );
+if(     $ENV{HTTP_HOST} =~ /^css/
+    ||  $q-&gt;param('use_css_mode')
+    ||  $VARS-&gt;{use_css_mode}
+) {
+    return htmlcode('list replies');
+}
+if(     'print' eq $q-&gt;param('displaytype')
+    &amp;&amp;  ! $q-&gt;param('replies')
+) {
+    return ''
+}
+
+#format last viewed NN for MySQL for newest node comparison
+my $mysqltime;
+if(  $VARS-&gt;{lastviewednewestnodes}  ) {
+    my( $sec, $min, $hour, $mday, $mon, $year )=
+       localtime( $VARS-&gt;{lastviewednewestnodes} );
+    $mysqltime= sprintf(
+        &quot;%04d-%02d-%02d %02d:%02d:%02d&quot;,
+        1900 + $year, 1 + $mon, $mday, $hour, $min, $sec );
+}
+
+my $hexToRGB= sub {
+   my( $hex )= @_;
+   $hex =~ s/#//g;
+   $hex= sprintf &quot;%06x&quot;, hex($hex);
+   return map hex $_, $hex =~ /../g;
+};
+my $settings= getVars(
+   getNode( 'shownote settings', getType('setting') ) );
+
+my( $startcolor, $endcolor, $textbgcolor ) = @{$THEME}{
+    qw/ shownoteStartcolor shownoteEndcolor shownoteTextbgcolor /
+};
+
+my $orderby= $VARS-&gt;{notesortorder}
+   ||  $settings-&gt;{orderby}
+   ||  &quot;createtime&quot;;
+$startcolor  ||= $settings-&gt;{startcolor};
+$endcolor    ||= $settings-&gt;{endcolor};
+$textbgcolor ||= $settings-&gt;{textbgcolor};
+$textbgcolor ||= &quot;#ffffff&quot;;
+my @startcolor= $hexToRGB-&gt;( $startcolor );
+my @endcolor=   $hexToRGB-&gt;( $endcolor );
+my $textthresh= $q-&gt;param(&quot;notetextthreshold&quot;)
+   || $VARS-&gt;{notetextthreshold} || $settings-&gt;{textthresh};
+my $notedepth=  $q-&gt;param(&quot;notedepth&quot;)
+   || $VARS-&gt;{notedepth} || $settings-&gt;{notedepth};
+
+my $msgAuthorLink= sub {
+    my( $node, $ti )= @_;
+    return( '', '' )
+        if  $HTMLVARS{guest_user} == getId($USER)
+        ||  $HTMLVARS{guest_user} == $node-&gt;{author_user};
+    my $author= getNodeById( $node-&gt;{author_user}, 'light' )-&gt;{title};
+    return(
+        linkNode(
+            762476,
+            $ti,
+            {   sendto =&gt; $author,
+                replytotext =&gt; &quot;Re [id://$node-&gt;{node_id}]&quot;,
+            },
+            {   trusted =&gt; 'yes' },
+        ),
+        $author,
+    );
+};
+
+my $renderNote; $renderNote = sub{
+    my ($NOTE, $depth, $textdepth) = @_;
+    local $HTMLVARS{embed_node}= $NOTE;
+    local $AUTHOR= getNodeById( $NOTE-&gt;{author_user} );
+    my @color= @startcolor;
+
+    my $class= &quot;&quot;;
+    if(     $mysqltime
+        &amp;&amp;  $mysqltime lt $NOTE-&gt;{createtime}
+    ) {
+        $class= &quot;class='reply-new'&quot;;
+    }
+
+    my $str = '';
+
+    my $title = '';
+    if ( $NOTE-&gt;{author_user} != $HTMLVARS{guest_user} ) {
+        my $AUTHOR = $NOTE-&gt;{author_user};
+        getRef($AUTHOR);
+
+        if (    exists $AUTHOR-&gt;{experience}
+            &amp;&amp;  0 &lt;= $AUTHOR-&gt;{experience}
+        ) {
+            $title = $HTMLVARS{level_titles}{getLevel($AUTHOR)};
+            $title = $q-&gt;span(
+                { class =&gt; 'attribution-title' },
+                &quot; ($title)&quot;,
+                )
+                  if $title;
+          }
+    }
+
+    $str .= join( '',
+        &quot;&lt;tr class='reply' bgcolor='#&quot;,
+        sprintf( &quot;%02x%02x%02x&quot;, @color ),
+        &quot;'&gt;&lt;td $class colspan='2'&gt;&quot;,
+        &quot;&lt;a name='$NOTE-&gt;{node_id}'&gt;&lt;/a&gt;&quot;,
+        &quot;&lt;ul class='indent'&gt;&quot; x $depth,
+        linkNode($NOTE),
+        ! $VARS-&gt;{show_id_on_note} ? '' :
+            $q-&gt;span(
+               { class =&gt; 'attribution' },
+               &quot; [id://$NOTE-&gt;{node_id}]&quot;,
+            ),
+        &quot;&lt;br /&gt;&quot;,
+        $q-&gt;span(
+            { class =&gt; 'attribution' },
+            join '',
+                &quot; by &quot;,
+                linkNode( $NOTE-&gt;{author_user} ) . $title,
+                &quot; on &quot;,
+                htmlcode( 'parseTimeInString','', $NOTE-&gt;{createtime} ),
+            ),
+        &quot;&lt;/ul&gt;&quot; x $depth,
+        &quot;&lt;/td&gt;&lt;/tr&gt;\n&quot;,
+    );
+
+    if ($depth &lt;$textdepth) {
+
+        $class= length $class
+            ? &quot;reply-new-body&quot;
+            : &quot;reply-body&quot;;
+        $str .= join '',
+            &quot;&lt;tr class='reply-body pmnote-$NOTE-&gt;{author_user}'&quot;,
+            &quot; bgcolor='$textbgcolor'&gt;&lt;td class='$class'&gt;&quot;;
+        $str .= htmlcode( 'voteit','', getId($NOTE) )
+            if  $settings-&gt;{votingon};
+        $str .= &quot;&lt;ul class='indent'&gt;&quot; x ( 1 + $depth );
+        $str .= htmlcode( &quot;parseLinksInString&quot;,'', 1, getId($NOTE) );
+        $str .= &quot;&lt;/ul&gt;&quot; x ( 1 + $depth );
+
+        $str .= join( '',
+            &quot;&lt;/td&gt;&lt;td class='$class adjunct-links' align='left' valign='bottom'&gt;&quot;,
+            genLink(
+                &quot;&amp;#91;reply&amp;#93;&quot;,
+                {   node_id     =&gt; 3333, # Comment On
+                    parent      =&gt; getId($NOTE),
+                },
+            ),
+        );
+
+         my( $msg_link )= $msgAuthorLink-&gt;(
+             $NOTE,
+             '[/msg]'
+         );
+         $str .= '&lt;br /&gt;' . $msg_link
+             if  $msg_link;
+
+         my @links;
+         htmlcode(
+             'downloadcode','',
+              $NOTE,
+              '[d/l]',
+              '[select]',
+              \@links,
+         );
+         foreach(  @links  ) {
+             $str .= '&lt;br /&gt;' . $_
+                 if  $_;
+         }
+         $str .= &quot;&lt;/td&gt;&lt;/tr&gt;\n&quot;;
+    }
+    $str
+};
+
+my $renderNodeTree; $renderNodeTree = sub{
+    my ($nodes, $depth, $nodedepth, $textdepth) = @_;
+
+    if(  $nodedepth &lt; $depth  ) {
+        return join '',
+            &quot;&lt;tr bgcolor='$endcolor'&gt;&lt;td colspan='2'&gt;&quot;,
+            &quot;&lt;ul class='indent'&gt;&quot; x $depth,
+            &quot;&lt;i&gt;Some notes below your &quot;,
+            &quot;&lt;a href='?node_id=1072'&gt;chosen depth&lt;/a&gt; &quot;,
+            &quot;have not been shown here&lt;/i&gt;&quot;,
+            &quot;&lt;/ul&gt;&quot; x $depth,
+            &quot;&lt;/td&gt;&lt;/tr&gt;&quot;;
+    };
+
+    # convert to bulk fetch, later
+    my @nodes = map { getNodeById( $_-&gt;{id} ) } @$nodes;
+
+    my @res;
+
+    for my $idx (0.. $#$nodes) {
+        my $NOTE= $nodes[ $idx ];
+        my $children= $nodes-&gt;[ $idx ]-&gt;{children};
+
+        my $str= $renderNote-&gt;($NOTE, $depth, $textdepth);
+        if (@$children) {
+            $str .= join '', $renderNodeTree-&gt;( $children, $depth+1, $nodedepth, $textdepth );
+        };
+
+        push @res, $str
+    }
+    @res
+};
+
+my %links= (
+    comment_on =&gt;
+        genLink(
+            '&lt;u&gt;Comment on&lt;/u&gt;',
+            {   node_id =&gt; &quot;3333&quot;,
+                parent  =&gt; getId($NODE),
+            },
+        ),
+);
+@links{qw/ dl_code sel_code /}= do {
+    my @links;
+    htmlcode(
+        'downloadcode','',
+        '',
+        '&lt;u&gt;Download&lt;/u&gt;',
+        '&lt;u&gt;Select&lt;/u&gt;',
+        \@links
+    );
+    @links;
+};
+
+my $foot= '';
+$foot .= qq[$links{sel_code} or ]
+    if  $links{sel_code};
+$foot .= qq[$links{dl_code} Code]
+    if  $links{dl_code};
+
+my( $msg_link, $author )=
+    $msgAuthorLink-&gt;(
+        $NODE,
+        '&lt;u&gt;Send private /msg&lt;/u&gt;',
+    );
+if(  $msg_link  ) {
+    $foot .= q[ &amp;nbsp; &amp;#8212; &amp;nbsp; ]
+        if  $foot;
+    $msg_link .= qq[ to $author];
+    $foot .= $msg_link;
+}
+$foot = '&lt;br /&gt;' . $foot
+    if  $foot;
+
+my $rs = getVars( getNode('reply settings', 'setting') );
+my %replytypes = %$rs;
+   @replytypes{ split /,/, delete $replytypes{replyTypes} } = ();
+
+$foot = join &quot;\n&quot;,
+   ( exists $replytypes{ $NODE-&gt;{type}{title} } ? $links{comment_on} : () ),
+   $q-&gt;escapeHTML( $NODE-&gt;{title} ),
+   $foot;
+
+if ($notedepth &lt;= $textthresh) {
+    $notedepth = $textthresh
+};
+
+my $data = htmlcode('getNodeTree', '', $NODE-&gt;{node_id}, 0, $notedepth+2, $orderby);
+
+return
+  $VARS-&gt;{threads_as_div}
+  ? join( &quot;\n&quot;,
+      qq(&lt;div class=&quot;comment-on&quot;&gt;),
+      $foot,
+      '&lt;/div&gt;',
+      htmlcode('list replies')
+    )
+  : join( '',
+      qq(&lt;div class=&quot;notes&quot;&gt;),
+      qq(&lt;center&gt;&lt;table width=&quot;100%&quot; ),
+      qq( cellpadding=&quot;1&quot; cellspacing=&quot;1&quot; border=&quot;0&quot; id=&quot;replies_table&quot;&gt;),
+      qq(&lt;tr&gt;&lt;th colspan=&quot;2&quot; class=&quot;comment-on&quot;&gt;\n),
+      $foot,
+      &quot;&lt;/th&gt;&lt;/tr&gt;\n&quot;,
+      $renderNodeTree-&gt;( $data-&gt;[0]-&gt;{children}, 0, $notedepth, $textthresh),
+      &quot;&lt;/table&gt;&lt;/center&gt;\n&quot;,
+      '&lt;/div&gt;',
+    )
+</code>
+  <nodeupdated>2005-06-12 06:50:18</nodeupdated>
+</node>

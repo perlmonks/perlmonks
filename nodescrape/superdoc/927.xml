@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="927" title="bugbase stats" created="1999-11-02 22:05:42" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+&lt;h3&gt;Bugbase Statistics&lt;/h3&gt;
+
+[%
+return "&lt;b&gt;broken code&lt;/b&gt;";
+my $cursor = Everything::sqlSelectMany("*", "bug");
+my %assigned;
+my %subsystem;
+my %priority;
+my %severity;
+my %status;
+my $totalbugs = 0;
+my $BUG;
+my $key;
+my @order;
+my @keys;
+
+while($BUG = $cursor-&gt;fetchrow_hashref)
+{
+  $assigned{$$BUG{assignedto_user}} = 0
+    if(not defined $assigned{$$BUG{assignedto_user}});
+  $subsystem{$$BUG{subsystem}} = 0
+    if(not defined $subsystem{$$BUG{subsystem}});
+  $priority{$$BUG{priority}} = 0
+    if(not defined $priority{$$BUG{priority}});
+  $severity{$$BUG{severity}} = 0
+    if(not defined $severity{$$BUG{severity}});
+  $status{$$BUG{status}} = 0
+    if(not defined $status{$$BUG{status}});
+
+  $assigned{$$BUG{assignedto_user}}++;
+  $subsystem{$$BUG{subsystem}}++;
+  $priority{$$BUG{priority}}++;
+  $severity{$$BUG{severity}}++;
+  $status{$$BUG{status}}++;
+  $totalbugs++;
+}
+
+# Ok, we now have our statistics.  Print them out
+my $str = "&lt;p&gt;&lt;b&gt;Total bugs:&lt;/b&gt; $totalbugs&lt;/p&gt;";
+
+# Assigned bugs
+$str .= "Bugs Assigned:&lt;table border=1&gt;\n";
+$str .= " &lt;tr&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;Developer&lt;/td&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;Bugs Assigned&lt;/td&gt;\n";
+$str .= " &lt;/tr&gt;\n";
+
+undef @keys; # clear the array
+foreach $key (keys %assigned)
+{
+  push @keys, $key;
+}
+
+#order it most bugs to least
+@order = sort { $assigned{$b} cmp $assigned{$a}; } @keys;
+
+foreach $key (@order)
+{
+  $str .= " &lt;tr&gt;\n  &lt;td&gt;";
+  $str .= ($key != 0 ? linkNode($key) : "nobody");
+  $str .= "&lt;/td&gt;\n  &lt;td&gt;";
+  $str .= $assigned{$key};
+  $str .= "&lt;/td&gt;\n &lt;/tr&gt;\n";
+}
+
+$str .= "&lt;/table&gt;\n";
+
+# Subsystems
+$str .= "&lt;p&gt;Subsystems:\n&lt;table border=1&gt;\n";
+$str .= " &lt;tr&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;Subsystems&lt;/td&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;# of Bugs&lt;/td&gt;\n";
+$str .= " &lt;/tr&gt;\n";
+
+undef @keys;
+foreach $key (keys %subsystem)
+{
+  push @keys, $key;
+}
+
+@order = sort { $subsystem{$b} cmp $subsystem{$a}; } @keys;
+
+foreach $key (@order)
+{
+  $str .= " &lt;tr&gt;\n  &lt;td&gt;";
+  $str .= $key;
+  $str .= "&lt;/td&gt;\n  &lt;td&gt;";
+  $str .= $subsystem{$key};
+  $str .= "&lt;/td&gt;\n &lt;/tr&gt;\n";
+}
+
+$str .= "&lt;/table&gt;";
+
+# Priorities
+$str .= "&lt;p&gt;Priorities:\n&lt;table border=1&gt;\n";
+$str .= " &lt;tr&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;Priority&lt;/td&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;# of Bugs&lt;/td&gt;\n";
+$str .= " &lt;/tr&gt;\n";
+
+undef @keys;
+foreach $key (keys %priority)
+{
+  push @keys, $key;
+}
+
+@order = sort { $priority{$b} cmp $priority{$a}; } @keys;
+
+foreach $key (@order)
+{
+  $str .= " &lt;tr&gt;\n  &lt;td&gt;";
+  $str .= $key;
+  $str .= "&lt;/td&gt;\n  &lt;td&gt;";
+  $str .= $priority{$key};
+  $str .= "&lt;/td&gt;\n &lt;/tr&gt;\n";
+}
+
+$str .= "&lt;/table&gt;";
+
+# Severity
+$str .= "&lt;p&gt;Bug Severity:\n&lt;table border=1&gt;\n";
+$str .= " &lt;tr&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;Severity&lt;/td&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;# of Bugs&lt;/td&gt;\n";
+$str .= " &lt;/tr&gt;\n";
+
+undef @keys;
+foreach $key (keys %severity)
+{
+  push @keys, $key;
+}
+
+@order = sort { $severity{$b} cmp $severity{$a}; } @keys;
+
+foreach $key (@order)
+{
+  $str .= " &lt;tr&gt;\n  &lt;td&gt;";
+  $str .= $key;
+  $str .= "&lt;/td&gt;\n  &lt;td&gt;";
+  $str .= $severity{$key};
+  $str .= "&lt;/td&gt;\n &lt;/tr&gt;\n";
+}
+
+$str .= "&lt;/table&gt;";
+
+# Bug Status
+$str .= "&lt;p&gt;Bug Status:\n&lt;table border=1&gt;\n";
+$str .= " &lt;tr&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;Status&lt;/td&gt;\n";
+$str .= "  &lt;td bgcolor=\"#cccccc\"&gt;# of Bugs&lt;/td&gt;\n";
+$str .= " &lt;/tr&gt;\n";
+
+undef @keys;
+foreach $key (keys %status)
+{
+  push @keys, $key;
+}
+
+@order = sort { $status{$b} cmp $status{$a}; } @keys;
+
+foreach $key (@order)
+{
+  $str .= " &lt;tr&gt;\n  &lt;td&gt;";
+  $str .= $key;
+  $str .= "&lt;/td&gt;\n  &lt;td&gt;";
+  $str .= $status{$key};
+  $str .= "&lt;/td&gt;\n &lt;/tr&gt;\n";
+}
+
+$str .= "&lt;/table&gt;";
+%]</field>
+</data>
+</node>

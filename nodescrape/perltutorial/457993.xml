@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="457993" title="Understanding transformation sorts (ST, GRT), the details" created="2005-05-17 16:27:18" updated="2005-08-15 14:33:51">
+<type id="956">
+perltutorial</type>
+<author id="274556">
+5mi11er</author>
+<data>
+<keywords>
+<keyword rating="">
+Schwartzian</keyword>
+<keyword rating="">
+transform</keyword>
+<keyword rating="">
+sort</keyword>
+<keyword rating="">
+map</keyword>
+<keyword rating="">
+Orcish_Maneuver</keyword>
+<keyword rating="">
+Guttman-Rosler</keyword>
+</keywords>
+<field name="doctext">
+Let me start by saying that while I understood in theory what was happening in the Schwartzian and Guttman Rosler Transformations, I had a difficult time understanding the the details of how the magic "map sort map" incantations actually worked.&lt;p&gt;
+I had read the requisite articles scattered around the Monastery, especially [id://145659|Advanced Sorting - GRT - Guttman Rosler Transform] and [id://447633|Choosing the right sort (Or: WUDsamatter?)] and [id://287149|fast, flexible, stable sort]. From [id://22609|tye's] reputation, and his description in this last node, I'd figured he touched upon something brilliant, but I certainly didn't "get it".&lt;p&gt;
+I copied the snippet, filled in the XFORM function, and ran the code manually through the debugger printing what various parts of the sort transformation did, and finally "got it".&lt;p&gt;
+Now, I'm pretty intelligent, so I figured that if I hadn't gotten it after reading bunches of the "sort" technique articles around the catacombs, that it would probably help a number of others if I could explain the magic a bit so they might understand what was going on with these transformation techniques.&lt;p&gt;
+&lt;h3&gt;The basic theory&lt;/h3&gt;We take the data we want to sort some particular way, and figure out how to mangle that data such that a standard Perl ascii sort will do the job for us, then unmangle the data such that we get back our original information, except now in sorted order. If you understand this, and have inklings about how to transform the data, but don't understand the details about how it all gets put together, this node is intended specifically for you.&lt;p&gt;
+&lt;h3&gt;How this Transformation works&lt;/h3&gt;
+As is true for all transformations, it helps a great deal to first understand that everything within this construct: (directly from [id://287149|Tye's node] above)
+&lt;code&gt;
+my @sorted= @list[
+    map { unpack "N", substr($_,-4) }
+    sort
+    map { XFORM($list[$_]) . pack "N", $_ }
+    0..$#list
+];
+&lt;/code&gt; is layed out in reverse order from which the execution is done.  So, start at the end, you'll see the 0..$#list, which is just a list of all the indexes within the array @list.  The indexes are what we're iterating over, and $_ is set to each index in turn.&lt;p&gt;
+Next we have :&lt;code&gt;map { XFORM($list[$_]) . pack "N", $_ }&lt;/code&gt; which simply calls XFORM(), which is your transformation of the data into a sortable string, and then &lt;b&gt;appends&lt;/b&gt; to that string an &lt;b&gt;encoding&lt;/b&gt; of the index value packed (in an architecturally independant format) into 4 bytes. That's the &lt;code&gt;pack "N", $_ &lt;/code&gt; portion. The map statement just says to do that for every index.&lt;p&gt;
+
+The resulting array of transformed, stringified data with the index values packed and glued to the end of each string is then passed to the sort routine. Assuming your transformation works as it is supposed to, the correctly sorted array of transformed, stringified data is then passed to the first map statement. This map just grabs the last 4 bytes of each string, which must be our encoded index value from the original array, and decodes it back into a usable index value; and it does this for all the entries. To be completely clear, the transformed, stringified stuff is thrown away at this point; only the index values are left.&lt;p&gt;
+What we have at this point is an array of index values from the original array, but these index values are in the desired sorted order!  At this point we've simplified the original transformation into this: &lt;code&gt;my @sorted=@list[@array_of_sorted_indexes];&lt;/code&gt; Execute that and we finally get @sorted which has the original array's information, but in sorted order, and @list is unmodified.&lt;p&gt;
+If you're fuzzy about the @list&amp;#91;@array&amp;#93; notation, this is perfectly legal. Try this in a debugging session:&lt;br&gt;&lt;code&gt;print @{[a..z]}[0,4,8,14,20];&lt;/code&gt; and you'll get the list 'a,e,i,o,u' back.&lt;p&gt;
+
+If all that was still not clear enough and you need a concrete example with the sort magic broken out into individual statements, the following sorts dotted IP address information:
+&lt;readmore&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+sub XFORM {
+    # Extract the sort key from $_[0] and return it.
+    # This will often be written in-line
+    # rather than as a real subroutine.
+    return sprintf("%012.0f", ip2val($_[0]));
+}
+
+my ($addstr,$value,@addstrary,@addvalary,@sorted,$DEBUG);
+
+{ 
+    no warnings 'numeric';
+    if($ARGV[0] &gt; 0) {
+        $DEBUG = shift @ARGV;
+    } else {
+        $DEBUG = 0;
+    }
+}
+
+while (&lt;&gt;) {
+    s/(^\s+)//;        #remove indentation
+    s/\s+[\n\r]+//g;   #remove all eol spaces/tabs &amp; ctrl chars
+
+    if(/^$/) { next; } #ignore blank lines
+    if(/^#/) { next; } #ignore comments
+
+    ($addstr) = Extract_IP_Address($_);
+
+    if($addstr ne '') {
+        #Use this to check the XFORM routine
+        #printf "%15.15s   %s\n",$addstr,XFORM($addstr);
+        push @addstrary, $addstr;
+    }
+}
+
+if($DEBUG == 0) {
+    @sorted= @addstrary[
+         map { unpack "N", substr($_,-4) }
+         sort
+         map { XFORM($addstrary[$_]) . pack "N", $_ }
+         0..$#addstrary
+    ];
+
+} else {    #split up Tye's GRT sort above into separate pieces
+
+    my (@arytosort, @sorted_stuff, @index_info);
+    @arytosort = map { XFORM($addstrary[$_]) . pack "N", $_ } 0..$#addstrary;
+    @sorted_stuff = sort @arytosort;
+    @index_info = map { unpack "N", substr($_,-4) } @sorted_stuff;
+
+    @sorted = @addstrary[@index_info];
+}
+
+foreach my $str (@sorted) {
+    print "$str\n";
+}
+
+#---- Misc. IP address routines ----
+
+###########################################
+# convert 4 byte integer value to an IP address
+###########################################
+sub val2ip {
+    my ($a,$b,$c,$d)=unpack("CCCC",pack("N",$_[0]));
+    return "$a.$b.$c.$d";
+}
+
+###########################################
+# convert IP address to a 4 byte integer value
+###########################################
+sub ip2val {
+    if ( $_[0]=~ /([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)/o ){
+        return (unpack("N",pack("CCCC",$1,$2,$3,$4)) );
+    } else {
+        return 0;
+    }
+}
+
+#####################################################################
+# Find the first dotted ip address in any string, puts it in $1, 
+# and put the individual octets in $2, $3, $4 &amp; $5. Figure out the
+# long integer representation of that address, and Return everything
+# in a list.
+#
+# NOTE: it doesn't check to make sure each octet is between 0-254, 
+#   nor if the numbers between the dots are 1 to 3 characters in length.
+#
+# Example: given "the IP address of www.xxx.com is 206.24.105.142"
+# return the list ('206.24.105.142',206,24,105,142,3457706382)
+#####################################################################
+sub Extract_IP_Address {
+    if ( $_[0]=~ /(([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+))/o ){
+        return ($1,$2,$3,$4,$5, unpack("N",pack("CCCC",$2,$3,$4,$5)) );
+    } else {
+        return ();
+    }
+}
+&lt;/code&gt;
+It'll read from an input file or Standard In, and grab the first IP address on each line.  If you want to manually run through the split up sort steps within a debugger, the script's first argument should be any positive number.  Or just set $DEBUG yourself while in the debugger...
+&lt;/readmore&gt;&lt;p&gt;
+-Scott</field>
+</data>
+</node>

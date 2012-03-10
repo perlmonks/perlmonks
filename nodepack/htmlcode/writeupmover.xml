@@ -1,0 +1,60 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>28821</node_id>
+  <author_user>929</author_user>
+  <title>writeupmover</title>
+  <createtime>2000-08-21 15:55:55</createtime>
+  <code>my( $justCheck, $noMove )= @_;
+my( @allowedTypes, %allowedTypes );
+{
+   my @v= (
+      perlquestion =&gt; &quot;Seekers of Perl Wisdom&quot;,
+      perlmeditation =&gt; &quot;Meditations&quot;,
+      monkdiscuss =&gt; &quot;Perl Monks Discussion&quot;,
+      perlcraft =&gt; &quot;Perl Craft&quot;,
+      obfuscated =&gt; &quot;Obfuscated Code&quot;,
+      poem =&gt; &quot;Perl Poetry&quot;,
+      CUFP =&gt; &quot;Cool Uses For Perl&quot;,
+      perlnews =&gt; &quot;Perl News&quot;,
+      perltutorial =&gt; &quot;Tutorials (no rush)&quot;,
+      offtopicroot =&gt; &quot;Off topic (w/ caution)&quot;,
+   );
+   %allowedTypes= @v;
+   @allowedTypes = @v[ grep 1&amp;~$_, 0..$#v ];
+}
+
+return ''   unless $allowedTypes{ $NODE-&gt;{type}{title} };
+{
+   my $ED= getNode('editors','usergroup');
+   unless(  $ED  &amp;&amp;  Everything::isApproved($USER,$ED)  ) {
+      return ''
+         if  &quot;perltutorial&quot; eq $NODE-&gt;{type}{title}
+         &amp;&amp;  &quot;offtopicroot&quot; eq $NODE-&gt;{type}{title};
+      delete @allowedTypes{qw/ perltutorial offtopicroot /};
+      die &quot;allowedTypes out of sync in [writeupmover]\n&quot;
+         unless  &quot;offtopicroot&quot; eq pop @allowedTypes
+             &amp;&amp;  &quot;perltutorial&quot; eq pop @allowedTypes;
+   }
+}
+
+my $menu = $query-&gt;popup_menu(
+    'movetotype',
+    \@allowedTypes,
+    $NODE-&gt;{type}{title},
+    \%allowedTypes
+);
+
+return $menu if( $noMove );
+
+my $movetotype = $query-&gt;param('movetotype');
+if(  $movetotype ne $NODE-&gt;{type}{title}
+and  $allowedTypes{$movetotype}  ) {
+   return 1   if  $justCheck;
+   $NODE-&gt;{type_nodetype} = getId(getType($movetotype));
+   updateNode($NODE,-1);
+}
+return 0   if  $justCheck;
+return $menu;
+</code>
+  <nodeupdated>2005-06-06 11:19:20</nodeupdated>
+</node>

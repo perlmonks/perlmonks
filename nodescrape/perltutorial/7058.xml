@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="7058" title="File Locking" created="2000-04-06 18:33:11" updated="2005-08-15 11:46:56">
+<type id="956">
+perltutorial</type>
+<author id="6041">
+turnstep</author>
+<data>
+<field name="doctext">
+&lt;H1&gt;File Locking&lt;/H1&gt;
+
+&lt;H2&gt;Introduction&lt;/H2&gt;
+&lt;P&gt;This document will describe what file locking is, 
+when you should use it, and how it is done in perl. 
+To lock a file in perl, use the 
+&lt;STRONG&gt;flock&lt;/STRONG&gt; command (pronounced as a 
+flock of sheep, not "eff lock"). For the impatient, here 
+is a quick example:
+
+&lt;CODE&gt;
+open(MYFILE, "&gt;&gt;$myfile") || die;
+flock(MYFILE, 2) || die;
+print MYFILE "Cottleston Pie\n";
+close(MYFILE);
+&lt;/CODE&gt;
+
+(Okay, now that the impatient ones have left, 
+let us look at things in a bit more detail)&lt;/P&gt;
+
+&lt;H2&gt;What is file locking, and why should you use it?&lt;/H2&gt;
+
+&lt;P&gt;File locking is a way of ensuring the integrity of 
+files. It allows many people (actually, processes) to 
+share a file in a safe way, without stepping on 
+each other's toes. Sometimes, file locking is not 
+needed - if only one process is working on the file, then 
+there is no need to worry about anybody else changing 
+it. However, when a single file is trying to be changed 
+by two or more processes, conflicts can arise, and 
+some sort of file locking is needed.&lt;/P&gt;
+
+&lt;P&gt;For example, let us say that you wish to create a 
+simple text file (named "friends.txt") that has a list 
+of all your friends, one per line. Now let's supppose 
+you have written a very basic web page that allows your 
+friends to add their name to your file through a very 
+simple cgi script. Here is what you have come up with:
+
+&lt;CODE&gt;
+
+#!/usr/bin/perl
+print "Content-type: text/html\n\n";
+$myfile = "friends.txt";
+$newfriend = $ENV{'QUERY_INFO'};
+open(MYFILE, "$myfile") || die;
+while(&lt;MYFILE&gt;) {
+  if (m/^$newfriend$/) {
+    print "You are already on the list!\n";
+    exit;
+  }
+}
+close(MYFILE);
+push(@friends, $newfriend);
+open(MYFILE, "&gt;$myfile") || die;
+print MYFILE @friends;
+close(MYFILE);
+print "You are now in my list, $newfriend!\n"
+exit;
+
+&lt;/CODE&gt;
+&lt;/P&gt;
+
+&lt;P&gt;
+Not a very complicated script, but we do have a problem. 
+&lt;BR&gt;
+Check out this line:
+&lt;CODE&gt;
+  open(MYFILE, "&gt;$myfile") || die;
+&lt;/CODE&gt;
+&lt;P&gt;When perl opens the file for writing like this, 
+it "erases" the file first, by basically setting 
+the size to zero, in anticipation of you writing 
+something.&lt;/P&gt;
+
+&lt;P&gt;By way of example, let us say that your file contains 
+the following two names:
+&lt;UL&gt;
+ &lt;LI&gt;Clark
+ &lt;LI&gt;Bruce
+&lt;/UL&gt;
+
+&lt;P&gt;Now let us imagine that two of your friends, 
+Diana and Robin, are trying to add their names 
+to your list at the same time. Diana gets their 
+a split-second before Robin, so she is the first 
+to open the file. She opens the file, reads in the 
+two names already there (which are stored in the 
+@friends array), and then closes the file. She 
+adds her name to @friends, reopens the file 
+for writing, puts the three names from @friends into 
+the file, and closes it again. However, 
+&lt;STRONG&gt;after&lt;/STRONG&gt; she opens the file for writing, 
+but &lt;STRONG&gt;before&lt;/STRONG&gt; she writes anything to 
+the file, Robin comes along and tries to read in the 
+names. Since the file is empty at that exact moment, 
+he reads in no names, and @friends is empty. He closes 
+the file. Then he adds his name to the list, which now 
+contains &lt;STRONG&gt;only&lt;/STRONG&gt; his name, and reopens 
+the file for writing. He then puts into it the single name 
+from @friends, and closes the file again. At this 
+point the file contains only Robin's name: 
+Clark, Bruce, and Diana are lost forever.&lt;/P&gt;
+
+&lt;P&gt;Here is a timeline of what happens:&lt;/P&gt;
+&lt;OL&gt;
+ &lt;LI&gt;Diana opens the file, reads in two names, 
+     and closes the file.
+ &lt;LI&gt;Diana adds her name to the list.
+ &lt;LI&gt;Diana reopens the file for writing, setting the 
+     length to zero.
+ &lt;LI&gt;Robin reads the file right then, reads in NO names, 
+     and closes the file.
+ &lt;LI&gt;Diana writes three names to the file and closes it.
+ &lt;LI&gt;Robin adds his name to the (empty) list.
+ &lt;LI&gt;Robin reopens the file for writing, setting the 
+     length to zero.
+ &lt;LI&gt;Robin writes one name to the file and closes it.
+ &lt;LI&gt;The file now contains only one name.
+&lt;/OL&gt;
+
+&lt;P&gt;It may seem as though there is a very small chance 
+of this happening, but the point is that there is a 
+chance. Instead of this simple example, imagine a 
+giant file with hundreds of people reading and 
+writing to it at the same time. No matter the odds, 
+nobody wants to have their file messed up.&lt;/P&gt;
+
+&lt;H2&gt;All about flock&lt;/H2&gt;
+
+&lt;P&gt;Here (finally!) is where file locking comes in. 
+File locking is done at the system level, meaning 
+that the actual details of applying the lock itself 
+is not something you have to worry about.&lt;/P&gt;
+
+&lt;P&gt;File locking is done, in perl, with the 
+&lt;STRONG&gt;flock&lt;/STRONG&gt; command. The basic format for 
+flock is:
+&lt;CODE&gt;
+  flock FILEHANDLE, OPERATION
+&lt;/CODE&gt;
+
+&lt;P&gt;The OPERATION is actually a number, either 
+1, 2, 4, or 8. They are also commonly written 
+in another form, as LOCK_SH, LOCK_EX, LOCK_NB, 
+and LOCK_UN. Perl does not know what these mean, 
+so you can use the numbers, or do something like 
+this:
+&lt;CODE&gt;
+  sub LOCK_SH { 1 } ## shared lock
+  sub LOCK_EX { 2 } ## exclusive lock
+  sub LOCK_NB { 4 } ## non-blocking
+  sub LOCK_UN { 8 } ## unlock
+&lt;/CODE&gt;
+Each is described later, for now, 
+let's just fix up our example script to include 
+some file locking:
+
+&lt;CODE&gt;
+
+#!/usr/bin/perl
+print "Content-type: text/html\n\n";
+$myfile = "friends.txt";
+$newfriend = $ENV{'QUERY_INFO'};
+open(MYFILE, "$myfile") || die;
+flock(MYFILE, 1);
+while(&lt;MYFILE&gt;) {
+  if (m/^$newfriend$/) {
+    print "You are already on the list!\n";
+    exit;
+  }
+}
+close(MYFILE);
+push(@friends, $newfriend);
+open(MYFILE, "+&lt; $myfile") || die;
+flock(MYFILE, 2);
+seek(MYFILE, 0, 0); truncate(MYFILE, 0);
+print MYFILE @friends;
+close(MYFILE);
+print "You are in my list, $newfriend!\n"
+exit;
+
+&lt;/CODE&gt;
+
+&lt;P&gt;Notice that we have added two flock commands. 
+The first one adds a shared lock, 
+and the second one adds an exclusive lock. Looking 
+back, we see that the number "1" represents 
+"LOCK_SH", which stands for "lock, shared." Similarly, 
+the number "2" corresponds to "LOCK_EX", or 
+"lock, exclusive."&lt;/P&gt;
+
+&lt;P&gt;The difference between a shared lock and an exclusive 
+lock is an important one. A shared lock is usually 
+applied when you simply want to read the file, and it 
+is okay if others read the file while you do. An 
+exclusive lock is used when you want to make changes 
+to the file. Only one exclusive lock can be on a file, 
+so that only one process at a time can make changes. If 
+your file is a large manilla envelope full of papers, 
+then a shared lock slaps a little "Hey! I'm reading 
+this!" note on the front. An exclusive note slips a 
+note saying "Hey! I'm might make some changes to this, 
+so look but don't touch until I'm done!."&lt;/P&gt;
+
+&lt;P&gt;Unlocking a file is not necessary, as long as you 
+remember to close it. Closing the file automatically 
+unlocks it as well - that is why we do not need any 
+specific unlock commands in our example script.&lt;/P&gt;
+
+&lt;P&gt;Let's look at our example script again, at the first 
+flock line:
+&lt;CODE&gt;
+  flock(MYFILE, 1);
+&lt;/CODE&gt;
+&lt;/P&gt;
+
+&lt;P&gt;This does more than it first appears. Not only does 
+it set a lock, but it checks for other locks first. 
+In the case of a shared lock, it checks to see if 
+there is an exclusive lock on the file. If there is, 
+it waits until the exclusive lock is gone, and only 
+then will it add its shared lock. It does not care 
+if there are other shared locks on it. What this 
+basically does is to say "I want to read this file, 
+but only if I'm sure that nobody is in the middle 
+of making changes to it, and I want to let everyone 
+know that I am reading it."&lt;/P&gt;
+
+&lt;P&gt;Now look at the second flock command:
+&lt;CODE&gt;
+  flock(MYFILE, 2);
+&lt;/CODE&gt;
+&lt;/P&gt;
+
+&lt;P&gt;This one sets an exclusive lock, because we want 
+to make changes to the file. To set an exclusive lock, 
+you must have write access to the file (a shared 
+lock only needs read access). With an exclusive lock, 
+the rule is "there can be only one." The flock command 
+in this case will check to see whether there are *ANY* 
+other locks on the file, shared or exclusive, and 
+will wait until they are all removed. When they are, 
+it locks the file. What this basically says is "Hands 
+off! I might make some changes to this file, so nobody 
+mess with it until I am done"&lt;/P&gt;
+
+&lt;P&gt;So, in our example above with Diana and Robin, the 
+new script would clear up the problem. We also made 
+some other small changes. This line:
+&lt;CODE&gt;
+  open(MYFILE, "+&lt; $myfile") || die;
+&lt;/CODE&gt;
+
+tells us to open the file in read/write mode. In other 
+words, the file is NOT set to zero-lengh, because we 
+do not want to mess with the contents until 
+&lt;STRONG&gt;after&lt;/STRONG&gt; we have locked it. Once we have 
+locked it, we need two other commands:
+&lt;CODE&gt;
+  seek(MYFILE, 0, 0); truncate(MYFILE, 0);
+&lt;/CODE&gt;
+
+These bring us to the end of the file, and then sets 
+the length to zero. This is basically what happens 
+when we open a file in write only mode 
+(i.e. "&gt; $myfile") but we could not do that here 
+because we want to lock it before truncating it.&lt;/P&gt;
+
+&lt;P&gt;Here is another timeline, with file locking:&lt;/P&gt;
+&lt;OL&gt;
+ &lt;LI&gt;Diana opens the file, locks it (shared), reads in 
+     two names, and closes the file (which removes the lock).
+ &lt;LI&gt;Diana adds her name to the list.
+ &lt;LI&gt;Diana reopens the file for read/write, locks it 
+     (exclusive), and sets the length to zero.
+ &lt;LI&gt;Robin opens the file, tries to get a shared lock, 
+     but cannot, becase the file is locked. So he is 
+     blocked until Diana is done.
+ &lt;LI&gt;Diana writes three names to the file and closes it, 
+     which also removes her lock.
+ &lt;LI&gt;Robin sees that the lock is gone, locks it himself 
+     (shared), and reads in the three names.
+ &lt;LI&gt;Robin adds his name to the list.
+ &lt;LI&gt;Robin reopens the file for read/write, locks it 
+     (exclusive), and sets the length to zero.
+ &lt;LI&gt;Robin writes four names to the file and closes it, 
+     which also removes his lock.
+ &lt;LI&gt;The file now contains four names!
+&lt;/OL&gt;
+
+&lt;P&gt;The other two values, LOCK_NB and LOCK_UN are not used 
+as often. The LOCK_NB means "NON_BLOCKING" and tells the 
+system not to wait for other locks to come off the file, 
+but to return right away with an error if there is already 
+another lock on the file. The LOCK_UN means "unlock", 
+but, as mentioned above, is not usually needed as close 
+does the job for you.&lt;/P&gt;
+
+&lt;H2&gt;flock vs. lockf&lt;/H2&gt;
+&lt;P&gt;You may have also heard about lockf, flock's cousin. 
+lockf can do everything that flock can, and then some. 
+It can actually apply locks to *part* of a file, as 
+well as applying advisory and mandatory locks. Flock 
+only does advisory locks. In the manilla evelope 
+analogy from before, flock allowed you to post 
+notes on the folder, while lockf allows you to tag 
+individual pages inside the folder. The fcntl 
+command (which stands for "file control") is even more 
+powerful than lockf, and is used to control all 
+aspects of open files. Both of these are beyond the 
+scope of this document: for file locking, use flock.&lt;/P&gt;
+
+
+&lt;H2&gt;Other ways to lock files&lt;/H2&gt;
+&lt;P&gt;There are other ways to lock files besides 
+flock, lockf, and fcntl. Many operating systems have 
+their own ways of locking files, but most of this will 
+not concern the perl programmer. There are also ways to 
+do file locking in perl (such as creating and removing 
+a temporary file), but none are as good as flock.&lt;/P&gt;
+
+&lt;H2&gt;Precautions&lt;/H2&gt;
+&lt;P&gt;All of this assumes one thing - that everyone is 
+playing by the same set of rules. In other words, there 
+is nothing in locking a file with flock that prevents 
+another process from ignoring all your locks. Flock 
+provides an "advisory" locking method. This means 
+another process can come along and open the file at 
+will, ignoring any file locks. All the processes that 
+access the file must use flock for it to work correctly.&lt;/P&gt;
+
+&lt;P&gt;Also, beware of command line editing. In the example 
+above, let's say that "Lex" has added his name to your 
+friends.txt file. Well, you don't consider Lex to be 
+a friend, and you do not want his name in your file. 
+So, you telnet it, call up emacs, and edit the 
+friends.txt file directly. Watch out! What if Hank 
+tries to add his name in while you have the file loaded? 
+He could add his name, and then you would overwrite his 
+changes when you save the file. (emacs will actually warn 
+you when the contents of the disk have changed in this 
+case. Another reason to use it!) Here are some simple ways 
+to work around this problem, from best solution to worst:
+
+&lt;UL&gt;
+ &lt;LI&gt;Make your script able to do the things you want. For 
+     example, have a way for you to remove names through 
+     the web, using the same script (which uses flock).
+ &lt;LI&gt;Write a small script for command line editing that 
+     locks the file and then passes it off to an editor, 
+     or does the editing itself, then unlocks the file.
+ &lt;LI&gt;Use an intelligent editor that can lock and unlock 
+     files, or at least one that warns you when a file has 
+     changed since you opened it.
+ &lt;LI&gt;Disable the other programs (i.e. the cgi script) 
+     while you make the changes, then enable it again.
+ &lt;LI&gt;Make a copy of the file, edit it, save it, then 
+     make sure that nobody has changed the file while you 
+     were editing. If not, copy the new version over the 
+     old one. Not a very safe way, but better than 
+     blindly editing (because it is faster, there is 
+     less chance of a collision)
+&lt;/UL&gt;
+
+&lt;P&gt;Finally, file locking may not work across NFS or 
+other file sharing systems. Some systems (e.g. NT) may not even allow advisory 
+locking. Some systems do not have file locking at all (at 
+least as far as anything that perl can use). When in doubt, check your system documentation. 
+This is not an issue on most systems.&lt;/P&gt;
+
+</field>
+</data>
+</node>

@@ -1,0 +1,116 @@
+<node>
+  <doctext>[%
+    my @history;
+
+    my( @wheres, @bindvars );
+    if(  my $user = $q-&gt;param('editor_user')  ) {
+        push @wheres, 'AND editor_user = ?';
+        push @bindvars, $user;
+    }
+    my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare( join ' ',
+        'SELECT rowid, edithistory_id, editor_user, fieldname, edittime',
+        'FROM edithistory',
+        'WHERE starttext != endtext',
+        @wheres,
+        'ORDER BY rowid DESC LIMIT 100',
+    );
+
+    my $lastchecked= $VARS-&gt;{'rje_lastchecked'};
+    $sth-&gt;execute( @bindvars );
+    my $sdc = { sitefaqlet=&gt;1, sitedoclet=&gt;1, faqlist=&gt;1, alphafaqlet=&gt;1 };
+    my $tut = { tutstring=&gt;1, tutlist=&gt;1, perltutorial=&gt;1 };
+    my $all_but = 'all but' eq ( $q-&gt;param('filter') || 'all but' );
+    while (  my $edit = $sth-&gt;fetchrow_hashref()  ) {
+        my $type = ( getNodeById( $edit-&gt;{edithistory_id} ) or next )-&gt;{type}{title};
+        if(     $q-&gt;param('Wi')   &amp;&amp;  $type eq 'wiki'
+            ||  $q-&gt;param('SDC')  &amp;&amp;  $sdc-&gt;{$type}
+            ||  $q-&gt;param('Ped')  &amp;&amp;  $tut-&gt;{$type}
+        ) {
+            next
+                if $all_but;
+        } else {
+            next
+                if ! $all_but;
+        }
+        next
+            if  ! canReadNode( $USER, $edit-&gt;{edithistory_id} )
+            ||  (   $type eq 'wiki'
+                &amp;&amp;  ! htmlcode( 'hasWikiPermission','',
+                        'read',
+                        $edit-&gt;{edithistory_id},
+                    )
+                );
+        my @tr = map $q-&gt;td($_), (
+            linkNode( $edit-&gt;{edithistory_id} ),
+            linkNode(
+                $edit-&gt;{edithistory_id},
+                $edit-&gt;{rowid},
+                {
+                    displaytype =&gt; 'edithistory',
+                    rowid =&gt; $edit-&gt;{rowid},
+                },
+            ),
+            linkNode( $edit-&gt;{editor_user} ),
+            $type,
+            $edit-&gt;{fieldname},
+            htmlcode( 'parseTimeInString','',
+                $edit-&gt;{edittime}, '', '', 'short',
+            ),
+        );
+        unshift @tr, { class =&gt; 'highlight' }
+            if  $lastchecked
+            &amp;&amp;  $lastchecked lt $edit-&gt;{edittime};
+        push @history, \@tr;
+    }
+    $sth-&gt;finish();
+
+    # filtering form
+    my $form = join( &quot;\n&quot;,
+        htmlcode('openform'),
+        $q-&gt;p( $q-&gt;submit(-value=&gt;'Filter') ),
+        $q-&gt;radio_group(
+            -name=&gt;'filter',
+            -values=&gt;[ &quot;all but&quot;, &quot;only&quot; ],
+            -default=&gt;'all but',
+        ),
+        $q-&gt;hidden( -name=&gt;'node_id', -default=&gt;getId($NODE) ),
+        $q-&gt;blockquote(
+            $q-&gt;checkbox( -name=&gt;'Wi',  -value=&gt;'1', -label=&gt;'Wikis' ),
+            $q-&gt;checkbox( -name=&gt;'SDC', -value=&gt;'1', -label=&gt;'SDC nodes' ),
+            $q-&gt;checkbox( -name=&gt;'Ped', -value=&gt;'1', -label=&gt;'Tut nodes' ),
+        ),
+        '&lt;/form&gt;&lt;hr /&gt;',
+    );
+
+    return join( &quot;\n&quot;,
+        $form,
+        $q-&gt;p('No edits found (strange).'),
+    )
+        if ! @history;
+
+    $VARS-&gt;{'rje_lastchecked'}= $DB-&gt;sqlSelect( 'now()' );
+    return join( &quot;\n&quot;,
+        &quot;&lt;!-- rje_lastchecked($VARS-&gt;{'rje_lastchecked'}) --&gt;&quot;,
+        $form,
+        $q-&gt;p( join ' ',
+            'Last', 0+@history, 'edits, most recent first.',
+        ),
+        $q-&gt;table(
+            { width =&gt; '100%' },
+            $q-&gt;Tr(
+                map {
+                    $q-&gt;th( { align =&gt; 'left' }, $_ )
+                } qw( Node EditNum Janitor Type Field Time ),
+            ),
+            map { $q-&gt;Tr(@$_)  } @history,
+        ),
+    );
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>434853</node_id>
+  <author_user>225942</author_user>
+  <title>Recent janitorial edits</title>
+  <createtime>2005-02-26 22:30:12</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

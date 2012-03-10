@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1940" title="listanswers" created="2000-01-10 16:15:23" updated="2004-10-29 10:06:21">
+<type id="4">
+htmlcode</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="code">
+my $str;
+my @lt=getNodeWhere({title=&gt;"answer approved linktype"});
+my $lt_id=getId($lt[0]);
+my $numshown=0;
+     
+my $gods=canUpdateNode($USER,$NODE);
+my @flt=getNodeWhere({title=&gt;'frontpage linktype'});
+
+if($gods){
+   my(@params)=$query-&gt;param();   
+   my $nodeid=getId($NODE);
+
+      foreach(@params){
+         my $curid=$_;
+         if(/\d+/){
+            my $TEMP=getNodeById $curid;
+            my $parent=$$TEMP{parent_node};
+            my $self=getId($TEMP);
+            my(@operations)=$query-&gt;param($curid);
+            foreach(@operations){
+               if($_ eq "frontpage"){
+                   updateLinks($self,$parent,$lt_id);
+                }
+               if($_ eq "ok"){
+                   updateLinks($self,$parent,$lt_id);
+               }
+               if($_ eq "delete"){
+                  my $ref=selectNodeWhere({node_id=&gt;$self},"","");
+                  foreach(@$ref){
+                     nukeNode($_,$USER);
+                  }
+               }
+            }
+         }
+      }
+}
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare("SELECT * FROM links WHERE linktype=$lt_id"); 
+$csr-&gt;execute or return "SHIT";
+my $N;
+my %approved;
+while($N=$csr-&gt;fetchrow_hashref){
+   $approved{$$N{from_node}}{$$N{to_node}}=1;
+}
+my @unapproved;
+my $ref=selectNodeWhere({type_nodetype=&gt;getType('categorized answer')},"","");
+foreach my $CURNODE(@$ref){
+   my $N=selectNode $CURNODE;
+   unless($approved{$$N{parent_node}}{getId($CURNODE)}){
+      push @unapproved, $CURNODE;
+   }
+}
+$HTMLVARS{unapproved}=\@unapproved;
+    my $str="&lt;TABLE width=100%&gt;&lt;TR BGCOLOR=";
+    if($$THEME{titlebgcolor}){
+       $str.=$$THEME{titlebgcolor};
+    } else{
+       $str.="b64234";
+    }
+    my(@nl)=getNodeWhere({title=&gt;"moderate node"},getType('nodelet'));
+    my $nodelet;
+    foreach(@nl){
+       $nodelet=$_;
+    }
+    $str.="&gt;&lt;TD colspan=2&gt;&lt;font color=white size+=1&gt;&lt;B&gt;Approve Answers&lt;/B&gt;&lt;/font&gt;&lt;/TD&gt;&lt;/TR&gt;";
+    $str.=htmlcode('openform','',-method =&gt; 'get');
+    $str.=$query-&gt;hidden("displaytype","display");
+    $str.=$query-&gt;hidden("node_id",getId($NODE));
+    $str.="&lt;TR&gt;";
+    foreach(@{$HTMLVARS{unapproved}}){
+       $HTMLVARS{embed_node}=selectNode $_;
+       $str.=insertNodelet($nodelet) if($nodelet);
+    }
+    $str.="&lt;/TR&gt;&lt;/TABLE&gt;";
+    $str.=$query-&gt;submit("Submit");
+    $str.=$query-&gt;endform;
+    return $str;
+</field>
+</data>
+</node>

@@ -1,0 +1,73 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>512326</node_id>
+  <author_user>357600</author_user>
+  <title>split_html</title>
+  <createtime>2005-11-28 13:56:47</createtime>
+  <code>my ($text,$long,$short)=@_;
+   # this used to live in [{parselinksinchatter}]
+   return &quot;&quot; unless length $text;
+   $long ||= 18;
+   $short ||= int( $long/2 );
+   # Insert spaces to prevent the nodelets from getting too wide.
+   # We leave the loopholes of using a bunch of &quot;&amp;nonentity;&quot;s or
+   # &quot;&lt;!--&gt; --&gt;&quot; to intentionally make the nodelets wide (intended for
+   # /msg'ing to yourself) as the problem is more accidents than abuse.
+   # &quot;&amp;123&quot; and &quot;&amp;lt&quot; work in some browsers, but we might put spaces in
+   # the middle of them (if you don't like it, then remember the &quot;;&quot;).
+   my $len= 0;
+   $text =~ s[(\s+)|([^\s&lt;&amp;]+)|(&lt;[^&lt;&gt;]*&gt;)|(&amp;#?\w{1,10};)|(.)][
+      if(  $1  ) {
+         $len= 0;
+         $1;
+      } elsif(  length( $2 )  ) {
+         # $2 is the only case that can be &quot;0&quot; (ie. false)
+         my $res= $2;
+         my $tot= $len + length($res);
+         if(  $long &lt; $tot  ) {
+            my $max = $long - $len;
+            my $min = $max - $short;
+            $min = 0   if  $min &lt; 0;
+            $res =~ s[
+               (  \S{$min,$max}
+                  (?: (?&lt;!\W) (?![\w{(;,/]|&amp;\#91;)
+                    | (?&lt;![\w\$@%*])(?&lt;!&amp;amp;) (?!\W)
+                  )
+               |  \S{$max}
+               )(?=\S)
+            ][$1 ]x;
+            $res =~ s[
+               (  \S{$short,$long}
+                  (?: (?&lt;!\W) (?![\w{(;,/]|&amp;\#91;)
+                    | (?&lt;![\w\$@%*])(?&lt;!&amp;amp;) (?!\W)
+                  )
+               |  \S{$long}
+               )(?=(\S+))
+            ]{
+               length( $1 . $2 ) &gt; $long ? &quot;$1 &quot; : $1
+            }gex;
+            $res =~ /(\S*)$/;
+            $len= length( $1 );
+         } else {
+            $len= $tot;
+         }
+         $res;
+      } elsif(  $3  ) {
+         $3;
+      } else {
+         my $res= $4 || $5;
+         my $add= $5 ? 1 : int( length($4)/3 );
+         $len += $add;
+         if(  $long &lt; $len  ) {
+            $len= $add;
+            &quot; $res&quot;;
+         } else {
+            $res;
+         }
+      }
+   ]egis;
+
+   return $text;
+</code>
+  <nodeupdated>2005-11-28 08:56:47</nodeupdated>
+</node>

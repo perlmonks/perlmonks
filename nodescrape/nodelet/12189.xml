@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="12189" title="New Other Users" created="2000-05-17 17:49:49" updated="2005-08-11 11:46:23">
+<type id="9">
+nodelet</type>
+<author id="929">
+developers</author>
+<data>
+<field name="nlcode">
+Others [% return $_-&gt;[rand @$_] for [qw. lurking romping cavorting .] %] around the monastery:
+[%
+  # First element is rank, so (g) shows up before (p)
+
+  my %groups = (
+    114    =&gt; [ 10, 'g' ],   # Gods
+    56883  =&gt; [ 5,  '!' ],   # Power Users
+    59438  =&gt; [ 5,  'e' ],   # Editors
+    11732  =&gt; [ 1,  '?' ],   # QandAEditors
+    106850 =&gt; [ 0,  'p' ],   # pmdev
+    17342  =&gt; [ 0,  's' ]    # SiteDocClan
+  );
+
+  my $time = ( $VARS-&gt;{outime} ||= 3 * 60 ) &lt; 600 ?  $VARS-&gt;{outime} : 3 * 60;
+
+  my $limit = 100;
+
+  my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare("
+    SELECT   node_id,
+             title
+    FROM     user LEFT JOIN node ON user_id = node_id
+    WHERE    (UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(lasttime) &lt; $time)
+    ORDER BY experience DESC
+    LIMIT    $limit
+  ");
+
+  $sth-&gt;execute or return 'SHIT';
+
+  my $groups = $dbh-&gt;prepare('
+    SELECT nodegroup_id
+    FROM   nodegroup LEFT JOIN node ON nodegroup_id = node.node_id
+    WHERE  nodegroup.node_id = ?
+  ');
+
+  my @users;
+  while ( my $usr = $sth-&gt;fetchrow_hashref ) {
+    $groups-&gt;execute($usr-&gt;{node_id});
+    push @users,
+      [ $usr, sort { $groups{$b}[0] &lt;=&gt; $groups{$a}[0] }
+               grep { exists $groups{$_} } 
+                 map $_-&gt;[0], 
+                    @{ $groups-&gt;fetchall_arrayref || [] } ];
+  }
+
+  $sth-&gt;finish;
+
+  return '&lt;i&gt;no users logged in&lt;/i&gt;'
+    unless @users;
+
+  return '(' . @users . ')' . join '', map {
+    $query-&gt;div(
+      linkNode($_-&gt;[0]) . ' ' .
+      join '', 
+        map { sprintf '(%s)', linkNode($_, $groups{$_}[1]) } @$_[1..$#$_]
+    )
+  } @users
+%]</field>
+<field name="parent_container">
+20</field>
+</data>
+</node>

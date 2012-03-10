@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="363100" title="handle_nn_settings" created="2004-06-10 11:07:20" updated="2005-07-17 01:23:24">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ($opts)=@_;
+
+my $user=($opts-&gt;{user}||=$USER);
+my $vars=($USER-&gt;{user_id}==$user-&gt;{user_id}) ? $VARS : getVars($user);
+
+my $NS= getVars(getNode('Newest Nodes Setting','setting'));
+
+my %viewable;
+foreach my $group ( 'all', split /,/, $NS-&gt;{specialgroups} ) {
+   my $ok=$group eq 'all' ? 1 :
+          $group eq 'gods' ? isGod($user) :
+          Everything::isApproved($user,getNode( $group, 'usergroup' ) );
+   foreach my $type (split /,/, $NS-&gt;{"nodetypes_$group"}||'') {
+      $viewable{$type}||=$ok;
+   }
+}
+
+my @legal = grep { (my $key = $_) =~ s/ /_/g; $NS-&gt;{$key} &amp;&amp; $viewable{$_} }
+            split /,/, $NS-&gt;{nodetypes};
+my @types;
+
+if ($q-&gt;param('nn_show_nodetypes')
+    || $q-&gt;param('types')
+    || (!exists($vars-&gt;{nn_hide_nodetypes}) &amp;&amp; !$q-&gt;param('nn_hide_types'))
+   ) {
+    @types = grep { (my $key = $_) =~ s/ /_/g; $NS-&gt;{$key} &amp;&amp; $viewable{$_} }
+            split /,/, $opts-&gt;{nodetypes}
+                         || $q-&gt;param('nn_show_nodetypes')
+                         || $q-&gt;param('types')
+                         || $vars-&gt;{nn_show_nodetypes}
+                         || $NS-&gt;{nodetypes};
+    my %has=map { $_ =&gt; 1 } @types;
+    $opts-&gt;{hidden}=[grep !$has{$_},sort @legal];     
+    $opts-&gt;{hide}={ map { $_ =&gt; 1 } @{$opts-&gt;{hidden}} };
+} else {
+    my %hide=map { $_ =&gt; 1 } split /,/,$q-&gt;param('nn_hide_types')
+                                       ||$vars-&gt;{nn_hide_nodetypes};
+    $opts-&gt;{hidden}=[sort keys %hide];
+    $opts-&gt;{hide}=\%hide;
+    @types=grep !$hide{$_},@legal;
+}
+
+foreach my $type (@legal) {
+   (my $key = $type) =~ s/ /_/g;
+   $opts-&gt;{typedata}{$type}=[split /,/,$NS-&gt;{$key}];
+   $opts-&gt;{typedata}{$type}[1]||=$opts-&gt;{typedata}{$type}[0];
+   $opts-&gt;{descr}{$type}=$opts-&gt;{typedata}{$type}[0]
+}
+
+$opts-&gt;{types}=\@types;
+$opts-&gt;{typestr}=join ',',@types;
+
+$opts-&gt;{legal}=\@legal;
+$opts-&gt;{allowed}=\%viewable;
+$opts-&gt;{setting}=$NS;
+
+
+if ($opts-&gt;{set}) {
+    if ($opts-&gt;{set} ne 'hide') {
+        $vars-&gt;{nn_show_nodetypes}=$opts-&gt;{typestr}
+    } else {
+        $vars-&gt;{nn_hide_nodetypes}=join ",",@{$opts-&gt;{hidden}};
+        delete $vars-&gt;{nn_show_nodetypes};
+    }
+}
+
+return $opts-&gt;{typestr}
+
+</field>
+</data>
+</node>

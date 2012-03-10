@@ -1,0 +1,114 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>929</author_user>
+  <createtime>2002-06-25 11:33:26</createtime>
+  <node_id>177112</node_id>
+  <title>Node Status</title>
+  <nlcode>[%
+# ahoy hoy
+# this just be the approval nodelet stripped naked (mostly)
+# title: Node Status
+#   or
+#        Mini Approval Nodelet
+# In the code below, you'll see a few comments like
+# IsApproved?
+# these ought to be made into htmlcodes, and eventually, make it
+# into their own package, like Everything::Moderation::Approval
+#[%
+
+my $SETTING = getVars( getNode('approval nodelet settings','setting'));
+my $type = $NODE-&gt;{type}{title};
+
+my %types;
+{
+    my @types = split /,/, $SETTING-&gt;{types};
+    @types{@types} = (1) x @types;
+}
+
+return unless $types{$type}
+       or
+       grep(
+           $_ eq $type,
+           qw( modulereview bookreview note sourcecode
+               snippet perltutorial perlnews
+            )
+       );
+
+my $nid = getId($NODE);
+my $ok = 0;
+
+## IsApproved?
+$ok = $DB-&gt;sqlSelect(
+    '*',
+    'links',
+    &quot;from_node = $SETTING-&gt;{$type.'_node'}&quot;
+    . &quot; and to_node = $nid&quot;
+    . &quot; and linktype = $SETTING-&gt;{$type.'_linktype'}&quot;,
+    &quot;limit 1&quot;
+) if $types{$type};
+
+## IsFrontpaged?
+my $fp = 0;
+$fp = $DB-&gt;sqlSelect(
+    '*',
+    'links',
+    &quot;from_node = $SETTING-&gt;{'front_page'}&quot;
+    . &quot; and to_node = $nid&quot;
+    . &quot; and linktype = $SETTING-&gt;{'frontpage_linktype'}&quot;,
+    &quot;limit 1&quot;
+) if $types{$type};
+
+## Node Type ~ like %S for titles in [id://27|basichead]
+my $message = &quot;Node Type: $NODE-&gt;{type}{title} [id://$nid]&lt;br /&gt;&quot;;
+
+if( $ok || $fp ) {
+    my $okid = 0;
+## ApprovedBy?
+    $okid = $DB-&gt;sqlSelect(
+        'user_id',
+        'approved',
+        qq{node_id = $nid and action = &quot;ok&quot;},
+        &quot;order by tstamp desc limit 1&quot;
+    ) if $ok;
+
+    my $fpid = 0;
+## FrontpagedBy?
+    $fpid = $DB-&gt;sqlSelect(
+        'user_id',
+        'approved',
+        qq{node_id = $nid and action = &quot;fp&quot;},
+        &quot;order by tstamp desc limit 1&quot;
+    ) if $ok;
+
+## The Actual Status Messages
+    if( $ok and $okid ) {
+        $message .= sprintf 'Approved by %s&lt;br /&gt;', linkNode($okid);
+    } elsif ( !$fp  &amp;&amp;  !$fpid ) {
+        $message .= &quot;This node hasn't been approved yet&lt;br /&gt;&quot;;
+    }
+
+    if( $fp and $fpid ){
+        $message .= sprintf 'Front-paged by %s&lt;br /&gt;', linkNode($fpid);
+    }
+}
+
+## IsConsidered?
+my $considered = $DB-&gt;sqlSelect(
+    'description',
+    'considernodes',
+    &quot;considernodes_id = $nid&quot;
+);
+
+if( $considered) {
+    $considered = htmlcode('parselinksinchatter', '', $considered);
+    $message .= linkNode(28877, 'Considered') . ': ' . $considered . '&lt;hr /&gt;';
+}
+
+my $history = linkNode( $nid, &quot;node history&quot;, 
+                        { displaytype =&gt; 'edithistory' } );
+
+return  ($HTMLVARS{guest_user} == getId($USER) ? $history . '&lt;br /&gt;' : '') . $message . linkNode(17645, 'help');
+%]</nlcode>
+  <nodeupdated>1331254719</nodeupdated>
+</node>

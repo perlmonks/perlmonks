@@ -1,0 +1,123 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+use strict;
+
+# small script to merge two or more apache logfiles so that entries
+# appear in the right chronological order, optionally adding a describing
+# field to every entry in the resulting combined logfile.
+
+# useful for merging files to generate combined statistics for more than one
+# server/vhost/etc.
+
+# syntax logmerge.pl [-o outfile] [[-r|-i] -d desc1,...,descN] [infiles]
+
+# -o output   : file to write log to. Assume STDOUT if omitted.
+# -r          : Insert descriptions into request header (/a.html becomes 
+#               /description/a.html
+# -i          : insert descriptions as the first field of every log entry
+# -d descN    : one entry for each logfile describing it (i.e. sv1,sv2,etc.
+#               if there are more logfiles than entries, empty descriptions
+#               will be inserted for some logfiles (- for -i, nothing for -r)
+# -f file     : Read the list of logfiles to merge from file, use - for STDIN
+# logfiles    : two or more logfiles containing data in CLF or similar log
+#               formats (the first four fields need to look right, change 
+#               the regex in the code if that's not the case)
+
+# example : find -name &quot;access.log&quot; | ./logmerge -f -
+
+# If you have a _large_ number of logfiles (say, more than your system allows
+# a perl script to open), you might have to invoke the program several times 
+# in a tree-like structure.
+
+# 2001 by Eike Frost (mailto:Eike.Frost@gmx.de)
+
+use Getopt::Std;
+use IO::File;
+use IO::Handle;
+use Time::Local;
+
+getopts ('o:ri:d:f:');
+our ($opt_o,$opt_r,$opt_i,$opt_d,$opt_f);
+my (@filelist, @logfiles, @descs, $output, $finished, %timehash);
+
+# prepare list of logfiles
+if ($opt_f) {
+  my $filelist = new IO::File ($opt_f) or die ($opt_f.' '.$!);
+  @filelist = &lt;$filelist&gt;;
+  undef $filelist;
+} else {
+  @filelist = @ARGV;
+}
+(scalar @filelist eq 0) and die (&quot;no files to merge\n&quot;);
+
+# read descriptions
+$opt_d and (@descs = split &quot;,&quot;, $opt_d);
+
+# open logfiles
+@logfiles = map (new IO::File ($_) || die ($_ . ' ' . $!), @filelist);
+
+# open outputfile
+($opt_o and $output = new IO::File ($opt_o, &quot;w&quot;)) 
+ or ($output = new IO::File and $output-&gt;fdopen (fileno(STDOUT),&quot;w&quot;));
+
+# convert the timefield from the logfile to a unix timestamp for serializing
+sub converttounixtime ($) {
+  my $logtime = shift;
+  my %months = ('Jan'=&gt;1,'Feb'=&gt;2,'Mar'=&gt;3,'Apr'=&gt;4,'May'=&gt;5,'Jun'=&gt;6,
+                'Jul'=&gt;7,'Aug'=&gt;8,'Sep'=&gt;9,'Oct'=&gt;10,'Nov'=&gt;11,'Dec'=&gt;12);
+  my ($day,$month,$year,$hour,$minute,$second,$adjust) = unpack &quot;A2xA3xA4xA2xA2xA2xA*&quot;, $logtime;
+  my $timestamp = timegm ($second,$minute,$hour,$day,$months{$month},$year);
+  $timestamp += $adjust*.6*60;
+  return $timestamp;
+}
+
+# insert a logentry into the timehash
+sub insertfrom ($) {
+  my $number = shift;
+  my $lf = $logfiles[$number];
+  my $logline = &lt;$lf&gt; || return;
+  $logline =~ /[^ ]+ [^ ]+ [^ ]+ \[([^\]]+)\].*/;
+  my $timestamp = $1;
+  while (defined $timehash{$timestamp}) { $timestamp .= 'a'; }
+  $timehash{$timestamp} = [$logline, $number];
+}
+
+# write out a logentry to the outfile
+# inserting description as specified per -i, -r, and -d if possible
+sub writelog ($) {                   
+  my $key = shift;
+  my $towrite = $timehash{$key}[0]; 
+  if ($opt_r &amp;&amp; (defined $descs[$timehash{$key}[1]])) {
+    $towrite =~ s/([^&quot;]+&quot;[^ ]+ )(.*)/$1\/$descs[$timehash{$key}[1]]$2/g;
+  } elsif ($opt_i) {
+    if (defined $descs[$timehash{$key}[1]]) {
+      $towrite = $descs[$timehash{$key}[1]] . &quot; &quot; . $towrite; 
+    } else {
+      $towrite = &quot;- &quot; . $towrite; 
+   }
+  }
+  return print $output $towrite;;
+}
+
+# fill the initial timehash;
+for (my $counter=0; $counter &lt; scalar @logfiles; $counter++) { 
+  insertfrom ($counter);
+}
+
+# main loop, finishes when every logfile eof'ed
+$finished = scalar keys %timehash;
+while ($finished &gt; 0) {
+    my $oldest = (sort keys %timehash)[0];
+    writelog ($oldest) or die $!;
+    insertfrom ($timehash{$oldest}[1]);
+    delete $timehash{$oldest};
+    $finished = scalar keys %timehash;
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>108622</node_id>
+  <author_user>106842</author_user>
+  <title>merge apache logfiles chronologically</title>
+  <createtime>2001-08-28 22:11:23</createtime>
+  <nodeupdated>2005-07-28 20:19:18</nodeupdated>
+</node>

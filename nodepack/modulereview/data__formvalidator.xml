@@ -1,0 +1,99 @@
+<node>
+  <doctext>I spend a lot of time writing perl to process HTML forms. I soon
+realized that I was writing very similar code in each case. Some
+common tasks of form validation include:
+
+&lt;ul&gt;
+      &lt;Li&gt;&lt;B&gt;making sure required fields are populated&lt;/B&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;b&gt;trimming leading and trailing whitespace off of
+      input. &lt;/b&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;b&gt;handling fields that become required when another field
+      is filled in&lt;/b&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;B&gt;validating common input types&lt;/b&gt; -- answering such
+      questions as &quot;is this a valid email?&quot;, &quot;is this valid zipcode?&quot;,
+      &quot;is this valid telephone number?&quot;. &lt;/b&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;a href=&quot;http://search.cpan.org/dist/Data-FormValidator/&quot;&gt;Data::FormValidator&lt;/A&gt; helps with all these tasks and more. Outside of the functions
+it provides, I find declaring the the form validation profile through
+it's interface to be useful.  Here's the example from the documentation:
+
+&lt;PRE&gt;
+    {
+        customer_infos =&gt; {
+            optional     =&gt;
+                &amp;#091; qw( company fax country ) &amp;#093;,
+            required     =&gt;
+                &amp;#091; qw( fullname phone email address city state zipcode ) &amp;#093;,
+            constraints  =&gt;
+                {
+                    email       =&gt; &quot;email&quot;,
+                    fax         =&gt; &quot;american_phone&quot;,
+                    phone       =&gt; &quot;american_phone&quot;,
+                    zipcode     =&gt; '/^\s*\d{5}(?:&amp;#091;-&amp;#093;\d{4})?\s*$/',
+                    state       =&gt; &quot;state&quot;,
+                },
+            defaults =&gt; {
+                country =&gt; &quot;USA&quot;,
+            },
+        },
+        customer_billing_infos =&gt; {
+             optional       =&gt; &amp;#091; &quot;cc_no&quot; &amp;#093;,
+             dependencies   =&gt; {
+                &quot;cc_no&quot; =&gt; &amp;#091; qw( cc_type cc_exp ) &amp;#093;,
+             },
+             constraints =&gt; {
+                cc_no      =&gt; {  constraint  =&gt; &quot;cc_number&quot;,
+                                 params      =&gt; &amp;#091; qw( cc_no cc_type ) &amp;#093;,
+                                },
+                cc_type =&gt; &quot;cc_type&quot;,
+                cc_exp  =&gt; &quot;cc_exp&quot;,
+              }
+            filters       =&gt; &amp;#091; &quot;trim&quot; &amp;#093;,
+            field_filters =&gt; { cc_no =&gt; &quot;digit&quot; },
+        },
+    }
+&lt;/pre&gt;
+
+Any validation that you want to yourself you can add in, so you aren't
+limited to just the options that this module provides. Additionally,
+HTML::FormValidator doesn't force you to handle the form validations
+errors in any particular way. Instead it returns the results like
+this:
+&lt;pre&gt;
+    my( $valids, $missings, $invalids, $unknowns ) =
+        $validator-&gt;validate( \%fdat, &quot;customer_infos&quot; );
+&lt;/pre&gt;
+
+Here &lt;code&gt;$valids&lt;/code&gt; will be a hash ref, and the other values
+will be array refs. A nice side effect of this arrangement is that if
+you've named your form fields with the same names as some database
+columns, you can now pass your &lt;code&gt;$valids&lt;/code&gt; hash ref directly
+to a module like &lt;a
+href=&quot;http://www.perldoc.com/cpan/DBIx/Abstract.html&quot;&gt;DBIx::Abstract&lt;/A&gt;
+to insert the results into a database, auto-quoting the values along
+the way. 
+
+      &lt;h3&gt;Room for improvement&lt;/h3&gt;
+
+While I'm a fan of the module and find it very usable, it doesn't feel
+quite done yet. You can read and about [id://79976|my ideas to improve
+it].
+
+&lt;h3&gt;An example&lt;/h3&gt;
+
+I've also put together an &lt;a
+href=&quot;http://mark.stosberg.com/tech/perl/form-validation/&quot;&gt;example&lt;/a&gt; of using Data::FormValidator for you
+to review. It demonstrates how you can use Data::FormValidator along
+with some other modules to easily display form validation results on
+the same page as the form, with the former values already filled in.</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>20513</author_user>
+  <createtime>2001-05-13 14:12:34</createtime>
+  <itemdescription>Helps the process of validating HTML forms</itemdescription>
+  <identifier></identifier>
+  <node_id>80037</node_id>
+  <usercomment></usercomment>
+  <title>Data::FormValidator</title>
+  <nodeupdated>2005-08-10 13:53:27</nodeupdated>
+</node>

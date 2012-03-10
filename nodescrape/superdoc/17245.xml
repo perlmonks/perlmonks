@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="17245" title="Number of Monks by Level" created="2000-06-08 23:50:18" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+#!perl
+use strict;
+use warnings;
+my $exp= getVars( getNode('Level experience','setting') );
+
+my $img = $THEME-&gt;{pollImage};
+$img ||= "redbox.gif";
+
+my $CASE=join(" ",
+    "CASE","WHEN experience &lt; 0 THEN 0",
+    (
+        map { "WHEN experience &lt; $exp-&gt;{$_+1} THEN $_" }
+        ( 1 .. keys(%$exp) - 1 )
+    ),
+    "ELSE ".( 0 + keys %$exp ),
+    "END"
+);
+
+my @html;
+for my $tuple ( [
+      " who have logged in over the past 24 hours",
+      " and date_sub(now(),interval 1 day) &lt; lasttime"
+    ], ["",""]
+) {
+    my ($title,$and_inlastday)=@$tuple;
+    $title="&lt;br /&gt;$title" if $title;
+    push @html,
+       qq[&lt;center&gt;&lt;h3&gt;Breakdown by level of ]
+      .qq[Registered Monks$title&lt;/h3&gt;\n];
+
+    my $query_str= qq[
+        SELECT
+            $CASE as Level,
+            COUNT(user_id) as NumUsers,
+            ROUND(AVG(experience)) as AvgExp,
+            MAX(experience) as MaxExp,
+            MIN(experience) as MinExp
+        FROM user, node
+        where user_id=node_id
+        and user_id!=100000
+        and type_nodetype=15
+        $and_inlastday
+        GROUP BY Level
+        ORDER BY Level
+    ];
+    $query_str=~s/\s+/ /g; # make tye happy
+
+    my $level_ref= $DB-&gt;getDatabaseHandle
+                      -&gt;selectall_arrayref($query_str,{Slice=&gt;{}});
+    my $maxheight= 1;
+    my $maxlevel= 1;
+    my %level_hash;
+    my $Max=sub { $_[0]=$_[1] if $_[0] &lt; $_[1] };
+    foreach my $lvl (@$level_ref) {
+        $level_hash{$lvl-&gt;{Level}}=$lvl;
+        $Max-&gt;($maxlevel,$lvl-&gt;{Level});
+        $Max-&gt;($maxheight,$lvl-&gt;{NumUsers});
+    }
+    for(  $level_ref-&gt;[0]{MinExp},  ) {
+      $_= sprintf "%.1e", $_   if  $_ &lt; -10000;
+      s/[eE]\+?0*/e/;
+    }
+    push @html,qq[&lt;table&gt;&lt;tr&gt;&lt;td valign="bottom"&gt;&lt;small&gt;]
+          .  join("&lt;br /&gt;","Level:","Users:","MinXP:","AvgXP:","MaxXP:")
+          .  qq[&lt;/small&gt;&lt;/td&gt;];
+    for my $lvl (  @$level_ref  ) {
+        my $height= 1 + int( $lvl-&gt;{NumUsers} / $maxheight * 300 );
+        push @html, join ("&lt;br /&gt;",
+                 qq[&lt;td align="right" valign="bottom"&gt;&lt;small&gt;]
+              .  qq[&lt;img src="/images/$img" alt="box height $height"]
+              .  qq[ width="20" height="$height"&gt;],
+                 qq[#&amp;nbsp;$lvl-&gt;{Level}],
+                 $lvl-&gt;{NumUsers},
+                 $lvl-&gt;{MinExp},
+                 $lvl-&gt;{AvgExp},
+                 $lvl-&gt;{MaxExp}
+            ).qq[&lt;/small&gt;&lt;/td&gt;];
+    }
+    push @html, qq[&lt;/tr&gt;&lt;/table&gt;&lt;/center&gt;&lt;br /&gt;&lt;br /&gt;];
+}
+return join "\n",@html;
+</field>
+</data>
+</node>

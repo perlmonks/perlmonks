@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="392275" title="Calling .NET Assemblies with Win32::OLE" created="2004-09-19 23:15:41" updated="2005-08-12 08:28:09">
+<type id="956">
+perltutorial</type>
+<author id="45622">
+InfiniteSilence</author>
+<data>
+<field name="doctext">
+This is a tutorial for calling a .NET assembly via Win32::OLE. I was looking for such a tutorial on the web and previously at PerlMonks but didn't find anything, so I elected to research the issue, get a quick example working, and submit it.
+&lt;P&gt;
+Basically what you want to be able to do is:
+&lt;code&gt;
+perl -e "use Win32::OLE; $hl = new Win32::OLE('HelloDot.HelloWorld') or die $!; $hl-&gt;SayHello();"
+&lt;/code&gt;
+Where &lt;b&gt;HelloDot.HelloWorld&lt;/b&gt; is a .NET assembly registered in the system to look/act/smell like a regular COM component. The following are preliminary setup steps that do not require explanation:
+&lt;P&gt;
+&lt;li&gt;Step 1: You will have to install both the .NET Framework and the .NET SDK on your machine (type .net framework/sdk download in Google)
+&lt;li&gt;Step 2: The installer does not set your path, so you will have to add the following to be able to reach gacutil.exe, regasm.exe, csc.exe (my cheezy example was written in C#), etc.: C:\Program Files\Microsoft.NET\SDK\v1.1\Bin\;C:\WINDOWS\Microsoft.NET\Framework\v1.1.4322\
+&lt;P&gt;
+After mucking with your PATH, you should create a key file like this:
+&lt;code&gt;
+sn -k personality.snk
+&lt;/code&gt;
+This creates a 'key pair' file which contains a public &lt;i&gt;and&lt;/i&gt; a private key for entering the .dll we are about to create into the GAC, the Global Assembly Cache. Think of it as a Windows registry for .NET assemblies. There is a way to separate the public key part from the private one (using sn -p) in case you are interested. (Note: I'm not sure why this thing didn't offer to allow me a choice of ciphers or allow me to choose my own entropy engine. I remember reading that it is using SHA1 or something, but I don't know.)
+&lt;P&gt;
+The first think you will notice when you run an example with the .NET framework is that it is terribly slow. A simple 'Hello World' takes about three seconds to run every time. It seems obvious to me that this thing was not written for quick one-liner-like execution, so be warned. Copy the following hello.cs file and compile it:
+&lt;code&gt;
+ using System;
+using System.Reflection;
+[assembly:AssemblyVersion("1.0.0.0")]
+[assembly:AssemblyKeyFile("personality.snk")]
+
+namespace HelloDot {
+
+  public class HelloWorld {
+   public HelloWorld(){
+    //no param constructor for COM
+
+   }
+   public void SayHello(){
+     Console.WriteLine("Hello from DOT NET");
+   }
+  }
+}
+&lt;/code&gt;
+You need a constructor with no params for the .NET assembly to be called like a regular COM component (as with Win32::OLE). There is some kind of wrapper that M$soft creates to allow COM components to interact with .NET assemblies and the constructor is necessary to make that happen. If you are interested on the why, more information on that is &lt;a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/dnofftalk/html/office11012001.asp"&gt;here&lt;/a&gt;. The only problem with this is that a third party .dll is probably not going to have this constructor, so at that point you will have to create a wrapper class that &lt;i&gt;does&lt;/i&gt; have it before you try this.
+&lt;P&gt;
+Anyway, you need to compile this into a .dll like so:
+&lt;code&gt;
+csc /t:library /out:hellodot.dll hello.cs
+&lt;/code&gt;
+If you go back to to the hello.cs code, you will notice the funny lines before the namespace that stand out like a sore thumb: &lt;b&gt;assembly:AssemblyVersion...yadda,yadda&lt;/b&gt;. These instructions tell the compiler that you are creating an assembly you are intending to share. If you remove the lines and recompile you will notice that the .dll becomes a little smaller. Remember to put it back in and recompile before you continue this tutorial.
+&lt;P&gt;
+If the .dll compiled okay you now have to register it:
+&lt;code&gt;
+ gacutil /i hellodot.dll
+&lt;/code&gt;
+There is one more thing to do. Your .NET assembly still needs to look and act like a regular COM component. Normal COM components (i.e. Excel.Application, Microsoft.XML, etc.) are registered with regsvr32. This puts their GUIDs in the Window's Registry (see HKEY_LOCAL_MACHINE/Software/Classes for the ones you've got). Not so in this case. You need to use regasm.exe in order to 'register' your .NET .dll to be usable by everybody outside of the .NET camp:
+&lt;code&gt;
+regasm hellodot.dll
+&lt;/code&gt;
+With all of this being done, you should be able to call the following:
+&lt;code&gt;
+perl -e "use Win32::OLE; $hl = new Win32::OLE('HelloDot.HelloWorld') or die $!; $hl-&gt;SayHello();"
+&lt;/code&gt;
+&lt;P&gt;
+You may read from various online sources that it is unncessary to load the assembly into the GAC for you to call it as a COM component, but this does not (at least for me) seem to work. Without registering in the GAC I had to copy the .dll to the Windows/System32 directory just to get it to work for the Window's Scripting Host. Win32::OLE simply could not find the bugger until I registered it in the GAC.
+&lt;P&gt;
+&lt;B&gt;Summary:&lt;/B&gt;
+&lt;br&gt;&amp;nbsp;&lt;BR&gt;
+Are you are asking yourself, "why is any of this important?" Well, it seems that the only other way to get Perl on Windows to interact with .NET is to pony up cash for Visual Studio.NET and &lt;a href="www.activestate.com"&gt;Visual Perl&lt;/a&gt;. The above tutorial offers a (relatively) quick and (depending on your threshold) painless way to interoperate with .NET components.</field>
+</data>
+</node>

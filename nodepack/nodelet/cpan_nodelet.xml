@@ -1,0 +1,43 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>929</author_user>
+  <createtime>2000-09-06 18:43:04</createtime>
+  <node_id>31304</node_id>
+  <title>CPAN nodelet</title>
+  <nlcode>[%
+  my $str;
+  my $NL;
+
+  eval{
+    use XML::RSS;
+    use LWP::Simple;
+    my $xml = LWP::Simple::get( 'http://search.cpan.org/uploads.rdf' );
+    my $rss = XML::RSS-&gt;new;
+    $rss-&gt;parse( $xml );
+    my @items = @{ $rss-&gt;{items} };
+    @items = @items[0..24]
+      if @items &gt; 25;
+    $str .= qq(&lt;li&gt;&lt;a href = &quot;$_-&gt;{link}&quot;&gt;$_-&gt;{title}&lt;/a&gt;&lt;/li&gt;\n)
+      for @items;
+    $str =~ s!search.cpan.org,\s+!!g;
+    $str = htmlcode('split_html','',$str);
+    $str = '&lt;ul class=&quot;spacey-list&quot;&gt;'.$str.'&lt;/ul&gt;';
+    $str .= &lt;&lt;'END';
+      &lt;form method = get action=&quot;http://search.cpan.org/search&quot;&gt;
+        &lt;select name = &quot;mode&quot;&gt;
+          &lt;option value = &quot;module&quot; &gt;Module        &lt;/option&gt;
+          &lt;option value = &quot;dist&quot;   &gt;Distribution  &lt;/option&gt;
+          &lt;option value = &quot;author&quot; &gt;Author        &lt;/option&gt;
+          &lt;option value = &quot;doc&quot;    &gt;Documentation &lt;/option&gt;
+        &lt;/select&gt;
+        &lt;input type = &quot;text&quot;   name  = &quot;query&quot;  /&gt;&lt;br /&gt;
+        &lt;input type = &quot;submit&quot; value = &quot;Search&quot; /&gt;
+      &lt;/form&gt;
+END
+  };
+  $@ ? &quot;CPAN seems to be down; connection trouble&lt;br /&gt;\n&quot; : $str;
+%]
+</nlcode>
+  <nodeupdated>1331254374</nodeupdated>
+</node>

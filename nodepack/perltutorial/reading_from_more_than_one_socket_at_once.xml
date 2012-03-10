@@ -1,0 +1,369 @@
+<node>
+  <doctext>It bothered me when I was learning this stuff that the perlipc documentation
+did not go into enough detail about how to create really fun servers,
+like the ones used for chat room and so on. Corion asked a question
+recently touching on this, so I thought it may be useful to go through
+the correct way to create these things. (Since then, two other people
+have asked roughly the same question...). Note that I don't have Activestate
+Perl, so I'm not sure if any of the concepts here differ on platforms other
+than UNIX and workalikes.
+
+&lt;h2&gt;Blocking and buffering&lt;/h2&gt;
+
+Under UNIX there are various special types of file (sockets being a good
+example of one of these) whose data is not necessarily all immediately
+available. When you read to the end of the currently available data on one of
+these files, UNIX will wait for further data to arrive. This is known as
+'blocking', and means that if you are reading from only one file, you
+don't have to keep checking to see if theres more data available.
+&lt;p&gt;
+This causes some problems - you don't know if a read from one of these files
+will cause a block or not, so if you want to read from another file while
+one is waiting for data, there is no obvious way of going about it. In
+addition, most of the Perl file handling routines are buffered, and Perl will
+read a few bytes ahead to improve performance. If Perl gets blocked while
+reading ahead, it will wait until it can get all the data it wants before
+continuing - however, while it is waiting, it is not returning the data it
+may have already read. This means that sometimes your program can appear
+to have blocked before it has received all the data that you know has already
+been sent!
+
+&lt;h2&gt;The other use of select&lt;/h2&gt;
+
+Just to make sure everyone gets thoroughly confused, the perl select function
+has two uses. Its original use is to select the default filehandle for output.
+This isn't particularily exciting. The other use is the UNIX select(2) call.
+This call blocks your process until one of four different events occur - data
+becomes available on a filehandle for reading, a filehandle becomes available
+for writing, an exception occurs on a filehandle or a timeout occurs. The
+'data to be read' and 'timeout' functions of select makes it perfect for
+writing servers which have to deal with more than one simultaneous connection,
+or other applications where blocking is a problem.
+&lt;p&gt;
+This form of select can be accessed either through the IO::Select package
+or through the [select] call itself. I'll focus on the [select] call as
+opposed to the module here - the techniques for both are very similar,
+though. select takes four arguments: filehandles to wait for data to read,
+filehandles to wait for availability to write, filehandles to wait for
+exceptions and a timeout. The first three arguments have a slightly weird
+format, owing to the heritage of the command, and are altered on return
+to indicate which file handles caused select to stop blocking. To mark
+a file handle as one you are interested in, you need to set the bit
+corresponding to that file handle's number, as returned by [fileno], using
+[vec], like so:
+
+&lt;code&gt;
+  # FILE1 &amp; FILE2 is a filehandle opened elsewhere. $read is a list of
+  # filehandles we are interested in reading
+
+  my $read = '';                    # Initialise to an empty set
+                                    # (NOTE: $read=0 is very wrong)
+  vec($read, fileno(FILE1), 1) = 1; # Set the appropriate bit
+  vec($read, fileno(FILE2), 1) = 1; # And for another file...
+&lt;/code&gt;
+
+And now to wait for data to become available for reading on that filehandle,
+we use [select] to do the job:
+
+&lt;code&gt;
+  my $nfound = select($read, undef, undef, undef);
+&lt;/code&gt;
+
+The undefs here indicate we aren't interested in writing, exceptions or
+timeouts at the moment. When select returns, $read is changed to contain
+the list of filehandles with data waiting, and $nfound contains the number of
+filehandles in the list. The format is still the bitmap, so you need to use
+[vec] once again to test if a file is ready for reading:
+
+&lt;code&gt;
+  # Does FILE1 have data waiting?
+  if (vec($read, fileno(FILE1), 1))
+    {
+      # ... do stuff ...
+    }
+&lt;/code&gt;
+
+&lt;h3&gt;Buffering again&lt;/h3&gt;
+
+Of course, the same old buffering problems I talked about before still apply,
+and perl may be over-enthusiastically reading ahead and blocking before you
+get back to the [select], causing hair loss all round. The answer is to
+&lt;em&gt;never, ever&lt;/em&gt; use the standard perl file IO function with sockets.
+That includes [print], [eof], the &lt;&gt; notation and just about any
+file function you can think about. Instead, use [sysread] and [syswrite],
+which bypass Perl's buffering and record seperation routines and go
+straight down to the bare metal and just read the raw bytes from the
+appropriate input stream. You have to deal with newlines and so on yourself,
+but that's what regular expressions are for. Note that [sysread] will return
+undef for an error and 0 for end of file (so you can avoid calling [eof]) -
+use $! to get the error message or number (see [perlvar]).
+
+&lt;h2&gt;A multiplexing package&lt;/h2&gt;
+
+This is a short package that demonstrates how to use [select] for reading
+from several file handles, and also for timing out the [select] function.
+Note that the [select] timer can be specified to microseconds (as a decimal),
+although its exact precision depends on your operating system. To take
+advantage of this, we use the [time] function from Time::HiRes, available from
+CPAN - note that is equivalent to the standard [time] function, except that
+it returns a decimal value, providing higher precision.
+&lt;p&gt;
+Anyway, here's the package:
+
+&lt;code&gt;
+#
+# Simple multiplexing package
+#
+# by Andrew Hunter. All rights given away.
+#
+
+package Multiplex;
+
+use strict;                 # De-rigeur
+use Carp;                   # Nicer error reporting
+
+use Time::HiRes qw/time/;   # High precision time
+
+# These structures contain the file objects and timers that we are currently
+# interested in:
+my @files = ();
+my @timers = ();
+
+# Function to add a file object to the list to listen to
+# A file object should be a blessed reference, providing the functions
+# receive(), called when data becomes available, and file(), which should
+# return a reference to a filehandle.
+sub listen ($)
+  {
+    my ($file) = @_;
+
+    croak &quot;File object must provide receive and file methods&quot;
+      if (!defined($file-&gt;can('receive')) || 
+	  !defined($file-&gt;can('file')));
+
+    push @files, $file;
+  }
+
+# Function to add a timer object to the list to wait for
+# A timer object should be a blessed reference, providing the function timeout,
+# which is called when it expires.
+#
+# This function takes two arguments - the timer object and the length of
+# time to wait until timing out.
+sub timeout ($$)
+  {
+    my ($timer, $howlong) = @_;
+
+    croak &quot;Timer object must provide timeout method&quot;
+      if (!defined($timer-&gt;can(&quot;timeout&quot;)));
+
+    push @timers, { what =&gt; $timer, when =&gt; time()+$howlong };
+    @timers = sort { $a-&gt;{when} &lt;=&gt; $b-&gt;{when} } @timers;
+    # Yeah, the sort is probably inefficient with large numbers of timers
+  }
+
+# This removes a timeout from the list. This takes a reference to a blessed
+# timer object. It should be the same as the reference passed to timeout.
+sub removetimout ($)
+  {
+    my ($timer) = @_;
+
+    @timers = grep { $_-&gt;{what} ne &quot;$timer&quot; } @timers;
+  }
+
+# Actually do the select business itself!
+# This should be repeatedly called to create a feeling of interactivity
+sub despatchevents ()
+  {
+    my $now = time();
+
+    # Send out any timeouts that have expired
+    while ($#timers &gt;= 0 and $timers[0]-&gt;{when} &lt; $now)
+      {
+        $timers[0]-&gt;{what}-&gt;timeout();
+	shift @timers;
+
+        $now = time();
+      }
+
+    # Set up the file handles to wait for
+    my $rin = '';
+
+    vec($rin, fileno($_-&gt;file()), 1) = 1
+      foreach (@files);
+
+    # Actually do the select
+    my $rout;
+    select($rout=$rin,
+	   undef,
+	   undef, 
+	   $#timers&gt;=0?$timers[0]-&gt;{when} - $now:undef);
+
+    # Notify any files that have data waiting
+    foreach (@files)
+      {
+        $_-&gt;receive()
+          if (vec($rout, fileno($_-&gt;file()), 1));
+      }
+  }
+
+# ==
+return 1;
+&lt;/code&gt;
+
+&lt;h2&gt;A TCP acceptor class&lt;/h2&gt;
+
+To demonstrate the Multiplex class, here is a TCP acceptor. Derive your
+own objects from it, and override the accepted() method to accept client
+sockets. Creating a similar object to deal with the client sockets
+themselves is left as an exercise to the reader (don't forget the
+importance of only using [sysread] :-)
+
+&lt;code&gt;
+#
+# TCP listener socket
+#
+# by Andrew Hunter. All rights given away.
+#
+
+package tcpAccept;
+
+use strict;
+use Carp;
+use Multiplex;
+use Socket;
+
+# Creates a new object. Call like this:
+#
+# tcpAccept-&gt;new(port =&gt; 5454), where port specifies the port you want to
+# listen on
+sub new
+  {
+    my $proto = shift;
+    my $class = ref($proto) || $proto;
+    my %args  = @_;
+    my $self  = \%args;
+
+    bless($self, $class);
+
+    local *SOCKET;         # Filehandle for the socket we're going to create
+
+    # Some error checking
+    croak &quot;You must give a port for the socket&quot;
+      if (!defined($self-&gt;{port}));
+
+    # Create a TCP socket
+    socket(SOCKET, PF_INET, SOCK_STREAM, getprotobyname('tcp'))
+      or croak &quot;socket: $!&quot;;
+    # Set the 'REUSEADDR' option
+    setsockopt(SOCKET, SOL_SOCKET, SO_REUSEADDR, pack(&quot;l&quot;, 1))
+      or croak &quot;setsockopt: $!&quot;;
+    # Bind to the port specified
+    bind(SOCKET, sockaddr_in($self-&gt;{port}, INADDR_ANY))
+      or croak &quot;bind: $!&quot;;
+    # Listen to the socket
+    listen(SOCKET, SOMAXCONN)
+      or croak &quot;listen: $!&quot;;
+
+    # Store the socket filehandle away for future reference
+    $self-&gt;{_FILE} = *SOCKET;
+    
+    return $self;
+  }
+
+# file() function, as defined by the Multiplex module
+sub file
+  {
+    my ($self) = @_;
+
+    return $self-&gt;{_FILE};
+  }
+
+# receive() function, as defined by the Multiplex module
+sub receive
+  {
+    my ($self) = @_;
+    my $client;
+
+    {
+      local(*CLIENT);          # The client socket we will create
+      
+      # Accept the connection that is waiting
+      accept(CLIENT, $self-&gt;{_FILE})
+	or die &quot;accept: $!&quot;;
+
+      $client = *CLIENT;
+    }
+      
+    # Report the accepted socket
+    $self-&gt;accepted($client);
+  }
+
+# Override this with your own function
+sub accepted
+  {
+    my ($self, $client) = @_;
+
+    # Display a silly message and close the socket
+    syswrite $client, &quot;Implement me\n&quot;, length(&quot;Implement me\n&quot;);
+    close $client;
+  }
+
+# ==
+return 1;
+&lt;/code&gt;
+
+For completeness, here is the perl file I used to test these two modules:
+
+&lt;code&gt;
+package sillyTimer;
+
+use strict;
+use Multiplex;
+
+# Example timer class
+sub new
+  {
+    my $proto = shift;
+    my $class = ref($proto) || $proto;
+    my %args  = @_;
+    my $self  = \%args;
+
+    bless($self, $class);
+  }
+
+# Print 'bing' every 5 seconds
+sub timeout
+  {
+    print &quot;Bing!\n&quot;;
+
+    Multiplex::timeout(sillyTimer-&gt;new(), 5);
+  }
+
+package Main;
+
+use strict;
+use Multiplex;
+use tcpAccept;
+
+my $acceptor = tcpAccept-&gt;new(port =&gt; 20000);
+Multiplex::listen($acceptor);
+
+Multiplex::timeout(sillyTimer-&gt;new(), 1);
+Multiplex::timeout(sillyTimer-&gt;new(), 1.5);
+
+for (;;)
+  {
+    Multiplex::despatchevents()
+  }
+&lt;/code&gt;
+
+Andrew.
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>21054</node_id>
+  <author_user>7531</author_user>
+  <title>Reading from more than one socket at once</title>
+  <createtime>2000-07-04 20:07:11</createtime>
+  <nodeupdated>2005-08-15 11:45:41</nodeupdated>
+</node>

@@ -1,0 +1,135 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>454955</node_id>
+  <author_user>142755</author_user>
+  <title>expandfreenodelet</title>
+  <createtime>2005-05-07 23:45:57</createtime>
+  <code>my( $html, $just )= @_;
+my %ss_abbr = qw(
+    perlquestion          Wi
+    monkdiscuss           D
+    obfuscated            Ob
+    CUFP                  CU
+    sourcecode            CC
+    categorized_question  CQ
+    categorized_answer    CA
+    pmdevtopic            IS
+    offtopicroot          OT
+    perltutorial          Tu
+    user                  U
+    poem                  Po
+    perlcraft             Cr
+    snippet               Sn
+    perlnews              N
+    quest                 Q
+    poll                  Pol
+    perlmeditation        M
+    scratchpad            SP
+    modulereview          MR
+    bookreview            BR
+    perlman               pPd
+    perlfunc              pFn
+    perlfaq_nodetype      pFq
+    sitefaqlet            Hlp
+);
+my( $AUTHOR, $PARENT, $ROOT )= map {
+    my $id= $_;
+    $id= ''   if  ! defined $id;
+    my $N= $id &amp;&amp; getNodeById($id);
+    $N || { node_id =&gt; $id, title =&gt; '' };
+} @{$NODE}{qw/ author_user parent_node root_node /};
+my $parent = $query-&gt;param('parent')
+          || $query-&gt;param('note_parent_node');
+$PARENT = getNodeById($parent)
+    if $parent &amp;&amp; !$PARENT-&gt;{'title'};
+$PARENT-&gt;{type_nodetype} ||= $NODE-&gt;{type_nodetype};
+$PARENT-&gt;{type}{title} ||= $NODE-&gt;{type}{title};
+$ROOT-&gt;{type_nodetype} ||= $NODE-&gt;{type_nodetype};
+$ROOT-&gt;{type}{title} ||= $NODE-&gt;{type}{title};
+my %var= (
+    createtime =&gt; $NODE-&gt;{createtime},   # node
+    nodeupdated =&gt; $NODE-&gt;{nodeupdated}, # node; null
+    lastedit =&gt; $NODE-&gt;{lastedit},       # doc; null
+    lastupdate =&gt; $NODE-&gt;{lastupdate},   # user; null
+    lasthere =&gt; $NODE-&gt;{lasttime},       # user
+    id =&gt; $NODE-&gt;{node_id},
+    title =&gt; $NODE-&gt;{title},
+    parent_id =&gt; $PARENT-&gt;{node_id},     # note
+    parent_title =&gt; $PARENT-&gt;{title},    # note
+    root_id =&gt; $ROOT-&gt;{node_id},         # note
+    root_title =&gt; $ROOT-&gt;{title},        # note
+    type_id =&gt; $NODE-&gt;{type_nodetype},
+    type_title =&gt; $NODE-&gt;{type}{title},
+    root_type_id =&gt; $ROOT-&gt;{type_nodetype},
+    root_type_title =&gt; $ROOT-&gt;{type}{title},
+    ss_type =&gt; $ss_abbr{ $NODE-&gt;{type}{title} },
+    parent_ss_type =&gt; $ss_abbr{ $PARENT-&gt;{type}{title} },
+    root_ss_type =&gt; $ss_abbr{ $ROOT-&gt;{type}{title} },
+    author_id =&gt; $AUTHOR-&gt;{node_id},
+    author_title =&gt; $AUTHOR-&gt;{title},
+    user_id =&gt; $USER-&gt;{node_id},
+    user_title =&gt; $USER-&gt;{title},
+    group =&gt; join(' ', map { '['.getId($_).']' } @{$NODE-&gt;{group}||[]} ),
+    url =&gt; $q-&gt;url(-relative=&gt;1,-query=&gt;1,-path_info=&gt;1),
+    theme_id =&gt; $$VARS{preferred_theme},
+    theme_desc =&gt; $THEME-&gt;{description},
+);
+
+#   root_id root_title sect_id sect_title
+$html =~ s{`([\[\]]|`+|(\w+)([%&amp;\\]?)`?|.)}{
+    my $s= $1;
+    if(  '[' eq $s  ) {
+        $just ? '[' : '`{';
+    } elsif(  ']' eq $s  ) {
+        $just ? ']' : '`}';
+    } elsif(  defined $2  ) {
+        my( $key, $suff )= ( $2, $3 );
+        my $val;
+        if(  $key =~ /^_./  ) {
+            $val= $q-&gt;param($key);
+            $val= $q-&gt;param( substr($key,1) )
+                if  ! defined $val;
+        } else {
+            $key =~ s/_name$/_title/i;
+            $val= $var{ lc $key };
+        }
+        if(  ! defined $val  ) {
+            $val= &quot;`$key$suff`&quot;
+        } elsif(  $suff eq '%'  ) {
+            $val= $q-&gt;escape($val);
+        } elsif(  $suff eq '&amp;'  ) {
+            $val= $q-&gt;escapeHTML($val);
+        } elsif(  $suff eq '\\'  ) {
+            $val=~ s/(['&quot;\\])/\\$1/g;
+        }
+        $val;
+    } elsif(  $s =~ /^`/  ) {
+        $just ? $s : '`'.$s;
+    } else {
+        $just ? '`'.$s : '``'.$s;
+    }
+}seg;
+
+return $html   if  $just;
+
+$html =~ s{(&lt;!--.*?--&gt;)|\[([^\[\]]{1,4096})\]}{
+    $1 ? $1 : handleLinks($2)
+}seg;
+
+$html =~ s{`([{}]|`+|.)}{
+    my $s= $1;
+    if(  '{' eq $s  ) {
+        '[';
+    } elsif(  '}' eq $s  ) {
+        ']';
+    } elsif(  $s =~ /^`/  ) {
+        $s;
+    } else {
+        '`'.$s;
+    }
+}seg;
+
+return $html;
+</code>
+  <nodeupdated>2005-08-05 06:52:06</nodeupdated>
+</node>

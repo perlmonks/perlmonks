@@ -1,0 +1,103 @@
+<node>
+  <doctext>&lt;h1&gt;One way to change URIs in Text to HTML-Links&lt;/h1&gt;
+
+Use the module [CPAN://URI::Find] or [CPAN://URI::Find::Schemeless], e.g&lt;P&gt;
+
+&amp;lt;&lt;u&gt;Update&lt;/u&gt;&amp;gt;&lt;BR&gt;
+Added encode_entities in the following code because of [merlyn]'s answer (Thank you very much!)&lt;BR&gt;
+&amp;lt;/Update&amp;gt;
+&lt;readmore&gt;
+&lt;code&gt;
+#! /usr/bin/perl
+use strict;
+use warnings;
+use URI::Find::Schemeless;
+use HTML::Entities qw(encode_entities); # changed
+
+my $text = q~
+   hello this is no.url
+   this is an url: www.fabiani.net
+   ftp.anything.de/test/thisfile mailto:martin@fabiani.net or the like
+   yeah martin@fabiani.net http://www.fabiani.net/
+~;
+
+
+# create a new URI::Find::Schemeless objekt and add as callback 
+# the function what shell be done with each found URI
+my $finder = URI::Find::Schemeless-&gt;new
+  ( 
+    sub {
+      my ($uri, $originalUri) = @_;
+
+# error: encode_entities is missing
+#      return qq~&lt;a href=&quot;$uri&quot; target=&quot;_newpage&quot;&gt;$originalUri&lt;/a&gt;~;
+
+      return 
+        q/&lt;a href=&quot;/ . encode_entities(&quot;$uri&quot;) . q/&quot;&gt;/ .
+        encode_entities($originalUri) . q/&gt;/;
+
+    }
+  );
+
+# here starts the search (and in our case the replacement):
+my $howManyFound = $finder-&gt;find(\$text);
+
+# lets have a look at the result
+print &quot;$howManyFound URIs found\n&quot;;
+print &quot;$text\n&quot;;
+&lt;/code&gt;
+This will replace the following URIs:
+&lt;ul&gt;
+&lt;li&gt;www.fabiani.net&lt;/li&gt;
+&lt;li&gt;ftp.anything.de/test/thisfile &lt;/li&gt;
+&lt;li&gt;mailto:martin@fabiani.net&lt;/li&gt;
+&lt;li&gt;http://www.fabiani.net/&lt;/li&gt;
+&lt;/ul&gt;
+If you just want to replace the following URIs, use URI::Find, which is more strict:
+&lt;ul&gt;
+&lt;li&gt;mailto:martin@fabiani.net&lt;/li&gt;
+&lt;li&gt;http://www.fabiani.net/&lt;/li&gt;
+&lt;/ul&gt;
+You can do this by killing ::Schemeless:
+&lt;code&gt;
+use URI::Find; # instead of URI::Find::Schemeless
+...
+my $finder = URI::Find-&gt;new # instead of URI::Find::Schemeless
+  ( 
+    sub {
+      my ($uri, $originalUri) = @_;
+# error: encode_entities is missing
+#      return qq~&lt;a href=&quot;$uri&quot; target=&quot;_newpage&quot;&gt;$originalUri&lt;/a&gt;~;
+
+      return 
+        q/&lt;a href=&quot;/ . encode_entities(&quot;$uri&quot;) . q/&quot;&gt;/ .
+        encode_entities($originalUri) . q/&gt;/;
+     }
+  );
+
+...
+&lt;/code&gt;
+If you dont want the Links to open a browser in a new window, just kill &lt;code&gt;target=&quot;_newpage&quot;&lt;/code&gt;
+&lt;P&gt;
+It is just a shame that these modules are not standard modules of perl, but I hope that they soon will become.&lt;p&gt;
+If your provider hasn't installed them and doesn't want to, just copy the directorries of URI to your webpath, e.g. to cgi-bin/lib and load them perhaps from your cgi-scripts which are located in cgi-bin with the modules [CPAN://FindBin] and [CPAN://lib]:
+&lt;code&gt;
+BEGIN {
+  use FindBin qw($Bin);
+  use lib &quot;$Bin/lib&quot;;
+}
+use URI::Find::Schemeless;
+&lt;/code&gt;
+&lt;p&gt;
+Big thanks to [mdupont] for pointing me to the new interface of URI::Find (was working with find_uris for a long time, and with a piece of code much too complicated)
+&lt;p&gt;
+Best regards,&lt;P&gt;
+[strat]
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>211046</node_id>
+  <author_user>123953</author_user>
+  <title>Change URIs in Text to HTML-Links</title>
+  <createtime>2002-11-07 06:41:16</createtime>
+  <nodeupdated>2005-08-12 09:40:29</nodeupdated>
+</node>

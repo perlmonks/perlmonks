@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="72572" title="Template Toolkit 2" created="2001-04-14 12:57:44" updated="2005-08-05 14:24:41">
+<type id="31663">
+modulereview</type>
+<author id="53423">
+Masem</author>
+<data>
+<field name="doctext">
+&lt;B&gt;Item Description&lt;/B&gt;: Create text streams from Perl data and template files
+&lt;BR&gt;
+&lt;B&gt;Review Synopsis&lt;/B&gt;: An extremely powerful and extendable module that can 
+be used to separate data presentation concerns from Perl code
+&lt;BR&gt;
+&lt;B&gt;Module Author&lt;/B&gt;: Andy Wardley
+&lt;BR&gt;
+&lt;B&gt;Module Homepage&lt;/B&gt;: [http://www.template-toolkit.org/index.html]
+&lt;P&gt;
+
+&lt;H2&gt;Description&lt;/H2&gt;
+&lt;B&gt;Template Toolkit 2&lt;/B&gt; (hence referred to as &lt;B&gt;TT2&lt;/B&gt;) is a distribution of 
+Perl modules that can be used to place Perl data into templates, similar to 
+modules like [HTML::Template], [HTML::Mason], or [Text::Template].  However, 
+unlike these other template modules, &lt;B&gt;TT2&lt;/B&gt; is language-neutral and can be 
+used to generate output for any text-based language, include HTML, XML, PS, 
+plain text, or what have you.
+&lt;P&gt;
+&lt;b&gt;TT2&lt;/B&gt; can be found on CPAN as a Distribution, and thus, can be easily 
+installed on your system.  It does take a while to compile support libraries, 
+however.  As there's no special system calls, &lt;b&gt;TT2&lt;/b&gt; should work on any 
+platform that uses Perl.  The documentation is well written and includes numerous examples of using &lt;b&gt;TT2&lt;/b&gt;, and also has a mailing list for further
+support (available at the site above).
+&lt;P&gt;
+The Perl interface to &lt;b&gt;TT2&lt;/b&gt; is rather simple:
+&lt;CODE&gt;
+use Template;
+my $tt = Template-new();
+
+$tt-&gt;process( $template_file , {
+                  scalar_param =&gt; $scalar,
+		      array_param =&gt; \@array,
+		      hash_param =&gt; \%hash
+                                        } ) or die $tt-&gt;error();
+&lt;/code&gt;
+The first parameter to &lt;code&gt;process()&lt;/code&gt; is the file which your template is 
+in; various configuration flags can have this located relative to your script, 
+or in an absolute file location.  The second parameter is an anonymous hash 
+which can contain &lt;em&gt;anything&lt;/em&gt; (within reason); the keys are used for 
+further reference in the template file.  An optional third parameter can be used 
+to point the output to a predefined string, file, or other text stream; 
+without this, the output is sent directly to STDOUT (very handy for CGI 
+scripting).
+&lt;P&gt;
+The template itself may look something like this:
+&lt;CODE&gt;
+Hello [% name %], how are you doing on this fine
+[%- IF hour &lt; 11 -%]
+morning
+[%- ELSIF hour &lt; 18 -%]
+afternoon
+[%- ELSE -%]
+evening
+[%- END -%]
+?
+&lt;/CODE&gt;
+&lt;B&gt;TT2&lt;/B&gt; interprets everything between '&amp;#091;%' and '%&amp;#093;' itself, leaving other 
+parts untouched.  Because commands can sometimes extend onto multiple lines when 
+the final output should not be, both the opening and closing delimiters can be 
+marked to indicate if pre- or post-chomping should be done or not , as 
+demonstrated in the IF block above.  So if the above was processed, the final 
+line would be contained on one single line.
+&lt;P&gt;
+Unless recognized as a keyword or a statement, &lt;b&gt;TT2&lt;/b&gt; will substitute 
+whatever is between the delimiters with the value associated with that key in 
+the hash passed as the second parameter in the &lt;code&gt;process&lt;/code&gt; function.  
+Deeply nested data structures can be recalled using name-dot-name like notation:
+&lt;CODE&gt;
+#
+# .. from perl ..
+#
+$tt()-&gt;process( 'text.tt', { 
+                    data =&gt; (
+		        name =&gt; 'John',
+		        age =&gt; '18',
+		        grades =&gt; ( 98, 57, 79 )
+		             ) } ) or die $tt-&gt;error();
+#
+# .. in template file ..
+#
+Hello, [% data.name %], your third test grade was [% data.grades.2 %]
+Your grades so far have been:
+[% FOREACH grade = data.grades %]
+  [% grade %]
+[% END %]
+&lt;/CODE&gt;
+In addition, you can assign and adjust variables within the template language if
+needed.  If you pass object variables, you can also call their methods directly 
+from the template file.  You can also create variables that exist only within the template, and furthermore, you can allow &lt;b&gt;TT2&lt;/b&gt; to specify a configuration template that will be precluded for any other template that you 
+call, a useful tool when several data streams will be generated but with common elements.
+&lt;P&gt;
+A large number of keywords (indicated as all-caps words) can be used for basic 
+flow control, include IF-ELSIF-ELSE blocks, FOREACH blocks, and several others. 
+You can also create template blocks, small bits of repeated code, and use 
+INCLUDE statements to encourage code reuse.  You can also define MARCOs to 
+simplify parts of your input template file.  Another powerful feature is the 
+ability to use plug-ins for &lt;b&gt;TT2&lt;/b&gt;, including one that gives you direct 
+access to [CGI.pm]'s functions, one to interface with DBI, and several XML ones.
+Since &lt;b&gt;TT2&lt;/b&gt; is language-neutral, there is no direct support for HTML or CGI 
+forms, but the ability to access [CGI.pm]'s features makes this a non-problem.  
+There's also several other ways to extend the module beyond plug-ins to suit 
+your needs.
+&lt;P&gt;
+Besides being very useful from Perl, &lt;b&gt;TT2&lt;/B&gt; comes with two perl scripts, 
+"tpage" and "ttree", that can allow you to create a single page or a whole 
+directory tree of files from template files.  This can be helpful to maintain, 
+for example, static portions of a web site to keep a consistent theme across it. 
+External configuration files can also help change certain features without doing 
+massive editing of several files.
+&lt;P&gt;
+One final key feature is the ability to include Perl code directly 
+into the template file via the PERL directive.  While this ability can be taken advantage of at any time, it easily allows one to create what are effectively  embedded-perl pages, though some tweaking with the server will need to be done to make sure these are served efficently.
+&lt;P&gt;
+&lt;H3&gt;Benefits&lt;/H3&gt;
+&lt;P&gt;
+The key benefit of &lt;B&gt;TT2&lt;/B&gt; over the other templating modules, as already 
+mentioned, is it's language neutrality; other template modules tend to be tied 
+to one language, but &lt;B&gt;TT2&lt;/B&gt; lacks that, though the current batch of plugins 
+tend to favor HTML.  &lt;B&gt;TT2&lt;/b&gt; has good caching support, which allows it to 
+work quickly after initial processing in a persistent environment, such as in 
+mod_perl.
+&lt;P&gt;
+With proper use of &lt;B&gt;TT2&lt;/B&gt; it should be very easy to separate details of 
+output from your Perl code, thus making it easier to either debug the logic in 
+the Perl script, or redesign the output through the templates.  Doing such can 
+lead to a rapid development and design environment for any Perl application that 
+has much moving targets.
+&lt;P&gt;
+Numerous other benefits have been pointed out to by [id://37838|this node].
+&lt;P&gt;
+&lt;H3&gt;Pitfalls/Caveats&lt;/H3&gt;
+&lt;P&gt;
+&lt;B&gt;TT2&lt;/B&gt; is not lightweight.  When you initially load a template file, you'll 
+get some delay as parsing and caching occur on the file.  However, this can be 
+easily avoided by taking proper steps to ensure that caching of the parsed files 
+will be done (namely by keeping the instance variable around).  While the 
+caching may not be as fast as the other templating systems, it's understandable 
+that a complex system such as this will take more time and resources to do it's 
+job.  In practical tests, once &lt;b&gt;TT2&lt;/b&gt; is caching the template files, it 
+works at an outstanding pace.
+&lt;P&gt;
+A minor nit that I've had is that the &lt;code&gt;process&lt;/code&gt; function defaults to 
+STDOUT, as opposed to going to some output string.  Mind you, this is also 
+easily dealt with using a third parameter, but when &lt;code&gt;print $cgi-&gt;f()&lt;/code&gt; 
+calls are mixed with &lt;code&gt;$tt-&gt;process&lt;/code&gt; statements, both sending output 
+to STDOUT, it can be a bit confusing.
+&lt;P&gt;
+&lt;H3&gt;Conclusions&lt;/H3&gt;
+&lt;B&gt;TT2&lt;/B&gt; is an excellent module for plugging data into a template file for 
+preparation for any sort of text stream output, thanks to it's language 
+neutrality.  Numerous control functions allow for a powerful scripting language 
+which can be interfaced back with Perl.  While &lt;B&gt;TT2&lt;/B&gt; may be a bit 
+power-hungry, it should work fine on high load servers once it gets going, 
+making it excellent not only for HTML delivery, but XML or any other custom 
+format.  In addition, as I hope to get to in a later article, it helps to create 
+the ability to do rapid development of applications by separating logic from 
+presentation.
+&lt;P&gt;
+&lt;small&gt;Edited 2001-04-16 by [Ovid]&lt;/small&gt;&lt;!-- fixed bad hyperlink --&gt;</field>
+<field name="itemdescription">
+A language-neutral templating system</field>
+<field name="usercomment">
+</field>
+<field name="identifier">
+</field>
+</data>
+</node>

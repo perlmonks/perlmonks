@@ -1,0 +1,81 @@
+<node>
+  <doctext>If you are familiar with Perl's regular expressions, you are probably already familiar with zero-width assertions: the &lt;c&gt;^&lt;/c&gt; indicating the beginning of string and the &lt;c&gt;\b&lt;/c&gt; indicating a word boundary are examples. They do not match any characters, but &quot;look around&quot; to see what comes before and/or after the current position.
+&lt;p&gt;
+With the look-ahead and look-behind constructs documented in [http://perldoc.perl.org/perlre.html#Extended-Patterns|perlre.html#Extended-Patterns], you can &quot;roll your own&quot; zero-width assertions to fit your needs. You can look forward or backward in the string being processed, and you can require that a pattern match succeed (positive assertion) or fail (negative assertion) there.
+&lt;h3&gt;Syntax&lt;/h3&gt;
+Every extended pattern is written as a parenthetical group with a question mark as the first character. The notation for the look-arounds is fairly mnemonic, but there are some other, experimental patterns that are similar, so it is important to get all the characters in the right order. 
+&lt;dl&gt;
+&lt;dt&gt;&lt;c&gt;(?=&lt;/c&gt;&lt;i&gt;pattern&lt;/i&gt;&lt;c&gt;)&lt;/c&gt;&lt;/dt&gt;&lt;dd&gt;is a positive look-ahead assertion&lt;/dd&gt;
+&lt;dt&gt;&lt;c&gt;(?!&lt;/c&gt;&lt;i&gt;pattern&lt;/i&gt;&lt;c&gt;)&lt;/c&gt;&lt;/dt&gt;&lt;dd&gt;is a negative look-ahead assertion&lt;/dd&gt;
+&lt;dt&gt;&lt;c&gt;(?&lt;=&lt;/c&gt;&lt;i&gt;pattern&lt;/i&gt;&lt;c&gt;)&lt;/c&gt;&lt;/dt&gt;&lt;dd&gt;is a positive look-behind assertion&lt;/dd&gt;
+&lt;dt&gt;&lt;c&gt;(?&lt;!&lt;/c&gt;&lt;i&gt;pattern&lt;/i&gt;&lt;c&gt;)&lt;/c&gt;&lt;/dt&gt;&lt;dd&gt;is a negative look-behind assertion&lt;/dd&gt;
+&lt;/dl&gt;
+Notice that the &lt;c&gt;=&lt;/c&gt; or &lt;c&gt;!&lt;/c&gt; is always last. The directional indicator is only present in the look-behind, and comes before the positive-or-negative indicator.
+&lt;h3&gt;Common tasks&lt;/h3&gt;
+&lt;h4&gt;Finding the last occurrence&lt;/h4&gt;
+There are actually a number of ways to get the last occurrence that don't involve look-around, but if you think of &quot;the last foo&quot; as &quot;foo that isn't followed by a string containing foo&quot;, you can express that notion like this:
+&lt;c&gt;
+/foo(?!.*foo)/
+&lt;/c&gt;
+The regular expression engine will do its best to match &lt;c&gt;.*foo&lt;/c&gt;, starting at the end of the string &quot;foo&quot;. If it is able to match that, then the negative look-ahead will fail, which will force the engine to progress through the string to try the next foo.
+&lt;h4&gt;Substituting before, after, or between characters&lt;/h4&gt;
+Many substitutions match a chunk of text and then replace part or all of it. You can often avoid that by using look-arounds. For example, if you want to put a comma after every foo:
+&lt;c&gt;
+s/(?&lt;=foo)/,/g; # Without lookbehind: s/foo/foo,/g or s/(foo)/$1,/g
+&lt;/c&gt;
+or to put the hyphen in look-ahead:
+&lt;c&gt;
+s/(?&lt;=look)(?=ahead)/-/g;
+&lt;/c&gt;
+This kind of thing is likely to be the bulk of what you use look-arounds for. It is important to remember that &lt;b&gt;look-behind expressions cannot be of variable length&lt;/b&gt;. That means you cannot use quantifiers (&lt;c&gt;?, *, +, or {1,5}&lt;/c&gt;) or alternation of different-length items inside them.
+&lt;h4&gt;Matching a pattern that doesn't include another pattern&lt;/h4&gt;
+You might want to capture everything between foo and bar that doesn't include baz. The technique is to have the regex engine look-ahead at every character to ensure that it isn't the beginning of the undesired pattern:
+&lt;c&gt;
+/foo  # Match starting at foo
+ (         # Capture
+ (?:       # Complex expression:
+   (?!baz) #   make sure we're not at the beginning of baz 
+   .       #   accept any character
+ )*        # any number of times
+ )         # End capture
+ bar  # and ending at bar
+/x;
+&lt;/c&gt;
+&lt;h3&gt;Nesting&lt;/h3&gt;
+You can put look-arounds inside of other look-arounds. This has been known to induce a flight response in certain readers (me, for example, the first time I saw it), but it's really not such a hard concept. A look-around sub-expression inherits a starting position from the enclosing expression, and can walk all around relative to that position without affecting the position of the enclosing expression. They all have independent (though initially inherited) bookkeeping for where they are in the string.
+&lt;p&gt;
+The concept is pretty simple, but the notation becomes hairy very quickly, so commented regular expressions are recommended. Let's look at the real example of [id://319742]. The poster wants to put a space after any comma (punctuation, actually, but for simplicity, let's say comma) that is not nestled between two digits. Building up the s/// expression:
+&lt;c&gt;
+s/(?&lt;=,        # after a comma,
+    (?!        # but not matching
+      (?&lt;=\d,) #   digit-comma before, AND
+      (?=\d)   #   digit afterward
+    )
+  )/ /gx;      # substitute a space
+&lt;/c&gt;
+Note that multiple lookarounds can be used to enforce multiple conditions at the same place, like an AND condition that complements the alternation (vertical bar)'s OR. In fact, you can use Boolean algebra ( &lt;c&gt;NOT (a AND b) === (NOT a OR NOT b)&lt;/c&gt; ) to convert the expression to use OR:
+&lt;c&gt;
+s/(?&lt;=,        # after a comma, but either
+    (?:
+      (?&lt;!\d,) #   not matching digit-comma before
+      |        #   OR
+      (?!\d)   #   not matching digit afterward
+    )
+  )/ /gx;      # substitute a space
+&lt;/c&gt;
+&lt;h3&gt;Capturing&lt;/h3&gt;
+It is sometimes useful to use capturing parentheses within a look-around. You might think that you wouldn't be able to do that, since you're just browsing, but [478043|you can]. But remember: the capturing parentheses must be within the look-around expression; from the enclosing expression's point of view, no actual matching was done by the zero-width look-around.
+&lt;p&gt;
+This is most useful for finding overlapping matches in a global pattern match. You can capture substrings without consuming them, so they are available for further matching later. Probably the simplest example is to get all right-substrings of a string:
+&lt;c&gt;
+print &quot;$1\n&quot; while /(?=(.*))/g;
+&lt;/c&gt;
+Note that the pattern technically consumes no characters at all, but Perl knows to advance a character on an empty match, to prevent infinite looping.
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>518444</node_id>
+  <author_user>300037</author_user>
+  <title>Using Look-ahead and Look-behind</title>
+  <createtime>2005-12-21 16:57:23</createtime>
+  <nodeupdated>2005-12-21 11:57:23</nodeupdated>
+</node>

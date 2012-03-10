@@ -1,0 +1,54 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>492845</node_id>
+  <author_user>357600</author_user>
+  <title>replies_in_tree</title>
+  <createtime>2005-09-17 07:36:33</createtime>
+  <code># replies_in_tree (htmlcode)
+
+=head1 DESCRIPTION
+
+Finds all replies of a node, and all their  replies, and ...  
+The replies are returned via a supplied array ref
+
+=head1 SYNOPSIS
+
+  my @list;
+  htmlcode('replies_in_tree', '', $node, \@list);
+  foreach (@list) { ... }
+
+=cut
+
+my ($node, $list) = @_;
+return unless ref $list eq 'ARRAY';
+$node = getNodeById($node) if !ref $node;
+
+if ($node-&gt;{type}{title} ne 'note') {
+    foreach (getNodeWhere({root_node =&gt; getId($node)},
+                          'note', 'note_id'))
+    {
+        push @$list, $_;
+    }
+    # If a thread was moved from 'Cat Q&amp;A' 
+    # replies will not have root node set
+    # so need to continue searching
+    return $list if @$list &gt; 0;
+}
+
+my $tree; $tree = sub {
+    my $parent = shift;
+    my $kids = [getNodeWhere({parent_node =&gt; $$parent{node_id}},
+                             'note', 'note_id')];
+    return $kids unless @$kids;
+
+    my @tree;
+    foreach my $kid ( @$kids ) {
+      push @tree, $kid, @{$tree-&gt;($kid)};
+    }
+    return \@tree;
+};
+
+push @$list, @{$tree-&gt;($node)};
+return $list;</code>
+  <nodeupdated>2005-09-17 03:36:33</nodeupdated>
+</node>

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1641" title="Complex sorting" created="1999-12-31 17:02:57" updated="2005-08-15 03:30:58">
+<type id="956">
+perltutorial</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="doctext">
+Ever wanted to sort on a computed value or a certain column in a string within an array.  It can get pretty tricky to do right.
+ You only want to compute the value you're sorting on once for each array element not every time you
+do a comparison throughout the sort.&lt;BR&gt;
+&lt;BR&gt;
+One key function you'll want to know how to use is [map]. Map allows you to 
+apply a change to a list and get back a new list with the changes.&lt;BR&gt;
+&lt;BR&gt;
+There are two ways you can use the map function;
+&lt;CODE&gt;
+#map BLOCK, LIST
+#or something like
+@revwords=map{
+@letters=split(//);
+@revletters=reverse(@letters);
+join(' ',@revletters);
+} @words;
+
+#or
+#map EXPR, LIST   
+@asciival=map(ord,@letters);
+&lt;/CODE&gt;
+The first example takes a list of words and returns a list of each of those words with the 
+letters reversed.  This is done by splitting them, then reversing the resulting array, and then returning
+ the joined array which is the word reversed.  The second example takes an array of letters and returns a list of their 
+ascii values;&lt;BR&gt;
+&lt;BR&gt;
+Now say we want to sort an array that contains 3 columns of numbers separated by spaces.  We want 
+to sort this array on the sum of these three numbers.&lt;BR&gt;
+&lt;BR&gt;
+The first thing we want to do is map the original array to an array
+with the calculated sums, as well as the original values in it.&lt;BR&gt;
+&lt;CODE&gt;
+@origarray=('0 1 2','0 0 0','-3 -2 -1','10 11 12');
+@sortedarray=
+ map{$_-&gt;[0]}
+    sort{$a-&gt;[1] &lt;=&gt; $b-&gt;[1]}
+       map{
+          my @cols=split(/\s+/);
+          my $sum=$cols[0]+$cols[1]+$cols[2];
+          [$_,$sum];
+       } @origarray;
+
+
+
+foreach(@sortedarray){
+  print "$_\n";
+}
+&lt;/CODE&gt;
+
+We start by doing the basic transform within the innermost map.  The current list
+ value comes in as the default variable($_), then we split the columns, add them up,
+and return &amp;#091;$_, $sum&amp;#093; which contains the original value followed by the computed 
+value for sorting on.  We then sort numerically on this computed value.  And then use map so the array 
+only contains the original stuff.&lt;BR&gt;
+&lt;BR&gt;
+This whole process is known as the Schwartzian Transform.&lt;BR&gt;
+
+Here's a template for doing complex sorting&lt;BR&gt;
+&lt;CODE&gt;
+@sortedarray=
+ map{$_-&gt;[0]}
+    # only use one of these sort lines
+    sort{$a-&gt;[1] &lt;=&gt; $b-&gt;[1]} # this one for numerical sorting
+    sort{$a-&gt;[1] cmp $b-&gt;[1]} # this one for textual sorting
+       map{
+          #calculate $computedsortval
+          [$_,$computedsortval];
+       } @origarray;
+&lt;/CODE&gt;
+This should hopefully give you a better understanding of what is going on when you need to
+do a complex sort, and hopefully allow you to do it right with very little hassle.
+
+
+  </field>
+</data>
+</node>

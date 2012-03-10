@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="357774" title="scratchpad_link" created="2004-05-31 07:24:35" updated="2005-05-29 22:32:10">
+<type id="4">
+htmlcode</type>
+<author id="321667">
+theonetwo</author>
+<data>
+<field name="code">
+my ($user_spec, $text, $linktype, $idonly, $create) = @_;
+# $user_spec =&gt; a $USER object, a users id, or a users name
+# $text      =&gt; text to use for link
+# $linktype  =&gt; a hash of parameters to add to the links url
+# $idonly    =&gt; we want an ID back ONLY
+# $create    =&gt; create the scratchpad if necessary
+
+# Do some juggling to manage the different forms of $user_spec
+my $user;
+if (ref $user_spec) {
+   # Its an object
+   $user=$user_spec;
+} else {
+   # Its either an id or a name. The || is to handle any pesky users
+   # who have a number for a name. Not sure if thats legal, but we check anyway.
+   $user = $user_spec=~/\D/ ? getNode($user_spec, 'user')
+                            : ( getNodeById($user_spec) ||
+                                getNode($user_spec, 'user') );
+
+   # Bail if we still have no $user (we can't create without a user so
+   # that flag is irrelevent here)
+   unless ($user) {
+     return $idonly
+            ? ""
+            : linkNode(108949, ($text || "$user_spec\'s scratchpad"),
+                       { user=&gt; $user_spec } )
+   }
+}
+
+# at this point we have a valid $user object
+my $user_id    = $user-&gt;{user_id};
+my $user_title = $user-&gt;{title};
+
+# [demerphq] commented the following out for now because
+# Anonymonk _has_ a scratchpad.  Maybe one day the gods
+# will put something useful there...
+#
+# return $idonly ? "" : 'Anonymonk has no scratchpad!'
+#    if  and getId($user) == $HTMLVARS{guest_user};
+
+
+# Fetch the pad
+my $ret={user=&gt;$user};
+my ($pad_id,$pad_title);
+if ( htmlcode('get_user_scratchpads','',$ret) ) {
+  ($pad_id,$pad_title) = @{$ret-&gt;{pads}[0]};
+}
+
+# Links to scratchpads go to the scratchpad viewer prior to
+# creating a proper node. If they actually follow the link
+# and go to the viewer then the creation will occur because
+# that node will call us again, but with the magic $create flag
+if (!$pad_id and !$create) {
+  return "" if $idonly;
+  $text ||= $user_title."'s scratchpad";
+  return ($linktype &amp;&amp; $linktype-&gt;{displaytype} eq 'edit')
+          ? linkNode(108949, $text, { user=&gt;$user_title, svmode=&gt;'edit'})
+          : linkNode(108949, $text, { user=&gt;$user_title })
+} else {
+  $text||=$pad_title;
+}
+
+# They either have a pad, or we are supposed to force its creation.
+# So make a pad if there isn't one already...
+$pad_id = htmlcode('createscratchpad', '', $user,'',1)
+  unless $pad_id;
+
+# Sanity clause -- Make sure we actually got one back
+return $idonly ? ""
+               : "Woah! Bad Mojo in scratchpad_link ($user_id,$text,$user_title)"
+  unless $pad_id;
+$linktype-&gt;{viewmode}='public' unless $linktype-&gt;{viewmode};
+# Return the link/or ID of the scratchpad
+return $idonly ? $pad_id : linkNode($pad_id, $text, $linktype);
+</field>
+</data>
+</node>

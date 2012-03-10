@@ -1,0 +1,162 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+#
+## nstat - print a little news statistic
+#
+## Lukas Ertl, 1999
+#
+##
+
+$newsdir = &quot;/var/spool/news&quot;;
+
+$group = $ARGV[0];
+
+$now = localtime;
+
+print &lt;&lt;EOF;
+nstat - print a little news statistic
+-------------------------------------
+$now
+(Remember: quantity != quality)
+EOF
+
+unless ($group) {
+    print &quot;Which newsgroup? &quot;;
+    chomp ($group = &lt;STDIN&gt;);
+}
+
+print &quot;Some statistics about the newsgroup $group\n&quot;;
+
+@group = split(/\./, $group);
+
+foreach $subdir (@group) {
+    $newsdir = $newsdir . &quot;/&quot; . $subdir;
+}
+
+opendir(NEWS, $newsdir) or die $!;
+
+@posts = readdir(NEWS) or die $!;
+
+foreach $file (@posts) {
+    $num_of_posts++;
+    if ($file =~ /^\d+$/) {
+		$file = $newsdir . &quot;/&quot; . $file;
+		open(TEMP, $file) or die $!;
+		while (&lt;TEMP&gt;){
+		    if (/^From: (.+)$/) {
+				if ($1 =~ /^&quot;(.+)&quot; &lt;(.+\@.+)&gt;$/) {
+				    $poster = &quot;$1 &lt;$2&gt;&quot;;
+				    $posters{$poster}++;
+				} elsif ($1 =~ /(.+\@.+) \((.+)\)/) {
+				    $poster = &quot;$2 &lt;$1&gt;&quot;;
+				    $posters{$poster}++;
+				} else {
+				    $posters{$1}++;
+				}
+		    }
+		    if (/^(X-Newsreader:|X-Mailer:|User-Agent:|X-Newsposter:|X-Http-User-Agent:) (.+)$/) {
+				$readers{$2}++;
+		    }
+		    next;
+		}
+    }
+}
+
+print &quot;\n\nNumber of postings: $num_of_posts&quot;;
+
+print &quot;\n\nCount posters, order alphabetically:\n&quot;;
+print &quot;------------------------------------\n\n&quot;;
+foreach $key (sort keys %posters) {
+    print &quot;$key: $posters{$key}\n&quot;;
+    push @{$posters_by_posts{$posters{$key}}}, $key;
+}
+
+print &quot;\n\nCount posters, order by postings:\n&quot;;
+print &quot;---------------------------------\n\n&quot;;
+foreach $num (sort {$b &lt;=&gt; $a} keys %posters_by_posts) {
+    print &quot;$num: \n&quot;;
+    foreach $poster (sort @{$posters_by_posts{$num}}) {
+		print &quot;\t$poster\n&quot;;
+    }
+}
+
+print &quot;\n\nCount newsreaders, order alphabetically:\n&quot;;
+print &quot;----------------------------------------\n\n&quot;;
+foreach $key (sort { $a cmp $b } keys %readers) {
+    print &quot;$key: $readers{$key}\n&quot;;
+    push @{$readers_by_posts{$readers{$key}}}, $key;
+}
+
+print &quot;\n\nCount newsreaders, order by postings:\n&quot;;
+print &quot;-------------------------------------\n\n&quot;;
+foreach $count (sort { $b &lt;=&gt; $a } keys %readers_by_posts) {
+    print &quot;$count:\n&quot;;
+    foreach $reader (sort @{$readers_by_posts{$count}}) {
+		print &quot;\t$reader\n&quot;;
+    }
+}
+
+foreach $key (keys %readers) {
+    if ($key =~ /\bMozilla\b/) {
+		if ($key =~ /X11/) {
+		    $readers_by_kind{'Mozilla Linux/Unix'} += $readers{$key};
+		} elsif ($key =~ /Win/) {
+		    $readers_by_kind{'Mozilla Windows'} += $readers{$key};
+		} elsif ($key =~ /Macintosh/) {
+		    $readers_by_kind{'Mozilla Macintosh'} += $readers{$key};
+		} else {
+		    $readers_by_kind{$key} += $readers{$key};
+		}
+    } elsif ($key =~ /\bForte\b/) {
+		$readers_by_kind{'Forte (Free) Agent'} += $readers{$key};
+    } elsif ($key =~ /\bCrossPoint\b/) {
+		$readers_by_kind{'CrossPoint'} += $readers{$key};
+    } elsif ($key =~ /\bGnus\b/) {
+		$readers_by_kind{'Gnus (X)Emacs'} += $readers{$key};
+    } elsif ($key =~ /\bMicrosoft\b/) {
+		$readers_by_kind{'Microsoft Outlook'} += $readers{$key};
+    } elsif ($key =~ /\bKNode\b/) {
+		$readers_by_kind{'KNode'} += $readers{$key};
+    } elsif ($key =~ /\bNN\b/) {
+		$readers_by_kind{'NN'} += $readers{$key};
+    } elsif ($key =~ /(\bTIN\b|\btin\b)/) {
+		$readers_by_kind{'tin'} += $readers{$key};
+    } elsif ($key =~ /\bknews\b/) {
+		$readers_by_kind{'knews'} += $readers{$key};
+    } elsif ($key =~ /\bslrn\b/) {
+		$readers_by_kind{'slrn'} += $readers{$key};
+    } elsif ($key =~ /\btrn\b/) {
+		$readers_by_kind{'trn'} += $readers{$key};
+    } elsif ($key =~ /\bKRN\b/) {
+		$readers_by_kind{'KRN'} += $readers{$key};
+    } elsif ($key =~ /\bkexpress\b/) {
+		$readers_by_kind{'kexpress'} += $readers{$key};
+    } elsif ($key =~ /Xnews\//) {
+		$readers_by_kind{'Xnews'} += $readers{$key};
+    } else {
+		$readers_by_kind{$key} += $readers{$key};
+    }
+}
+
+print &quot;\n\nCount readers, order alphabetically and by kind:\n&quot;;
+print &quot;------------------------------------------------\n\n&quot;;
+foreach $count (sort keys %readers_by_kind) {
+    print &quot;$count: $readers_by_kind{$count}\n&quot;;
+    push @{$readers_by_kind_posts{$readers_by_kind{$count}}}, $count;
+}
+
+print &quot;\n\nCount readers, order by postings and by kind:\n&quot;;
+print &quot;---------------------------------------------\n\n&quot;;
+foreach $num (sort { $b &lt;=&gt; $a } keys %readers_by_kind_posts) {
+    print &quot;$num:\n&quot;;
+    foreach $reader (sort @{$readers_by_kind_posts{$num}}) {
+		print &quot;\t$reader\n&quot;;
+    }
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>17222</node_id>
+  <author_user>16339</author_user>
+  <title>nstat - Retrieve statistics about a newsgroup when you're using the leafnode newsserver</title>
+  <createtime>2000-06-08 21:29:09</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

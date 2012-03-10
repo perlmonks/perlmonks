@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="18705" title="Server Users Webpage Generator" created="2000-06-18 07:46:44" updated="2005-07-21 06:51:53">
+<type id="121">
+perlcraft</type>
+<author id="17542">
+cleen</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+# Little user list thingy, controlled by an rc file in each users dir.
+# Best used if run daily via crontab.
+#
+# Mark Thomas &lt;mark@cidera.com&gt;
+ 
+## Description
+## All this does is look for a file in each persons home directory
+## called ".luserrc", this holds a few peices of information the syntax
+## of the .luserrc file is somthing along the lines of:
+## Name: blah       
+## Email: blah@blah.com
+## Comment: blah blah!
+##
+## If there is no .luserrc in the home directory then it creates
+## a default one, and assigns it the correct permissions, if the
+## user does not want to be listed on the html page, then they simply
+## create a file called .noshow (touch ~/.noshow) and they will not
+## show up.
+##
+## If the user has a ~/public_html/index.html file then their homepage
+## will be linked, if not, then it just shows up as non-existant.
+##                 
+## I understand this is lame code, but also realize it was done fairly
+## quickly, so you understand right? :)
+## This is kinda tailored for my server, but can easily be changed.
+
+use strict;
+require "ctime.pl";
+
+## Standard Variables
+# Set this to 1 if you want to see various output to stdout
+my $debug = 0;
+# This is the directory where all your users exist
+my $homedir = "/home"; 
+# This is the file this program reads from to generate the html
+my $rcfile = ".luserrc";
+# The hostname of this box.
+my $hostname = "ackers.net";
+# What is the file were generating?
+my $htmlfile = "/var/www/htdocs/index.html";
+# This is the file a user must have in their home
+# Directory if they dont want to be listed on the
+# $htmlfile.
+my $dontshowme = ".noshow";
+                   
+#############
+
+my ($dir, @dirarray, $array);
+my $current_time = &amp;ctime(time());
+
+opendir (HOME, $homedir) or print "cannot open directory $dir!\n";
+foreach $dir (readdir(HOME)) {
+ push(@dirarray, $dir) if $dir !~ /\./;
+}
+
+open(HTMLFILE, "&gt;$htmlfile");
+
+print HTMLFILE &lt;&lt;END_OF_HEADER;
+&lt;html&gt;
+&lt;body bgColor=black link=orange vlink=orange text=white&gt;
+&lt;title&gt;Ackers...Were all assholes here.&lt;/title&gt;
+&lt;center&gt;&lt;img src="wankers.jpg"&gt;&lt;/center&gt;
+&lt;br&gt;&lt;br&gt;&lt;br&gt;
+&lt;center&gt;&lt;font color=white&gt;&lt;i&gt;&lt;b&gt;Users&lt;/b&gt;&lt;/i&gt;&lt;/center&gt;
+&lt;center&gt;
+
+END_OF_HEADER      
+
+foreach $dir (@dirarray) {
+ my($name,$email,$comment,$homepage) = read_rc($dir);
+ print HTMLFILE "Name: $name&lt;br&gt;\nEmail: &lt;a href=\"mailto:$email\"&gt;$email&lt;\/a&gt;&lt;br&gt;\n"
+  if (-e "$homedir/$dir/$dontshowme" eq '');
+ if ($homepage eq 0) {
+  print HTMLFILE "Homepage: Non-Existant&lt;br&gt;\n"
+   if(-e "$homedir/$dir/$dontshowme" eq '');
+ } elsif ($homepage eq 1) {
+  print HTMLFILE "Homepage: &lt;a href=\"\/\~$dir\"&gt;Here&lt;\/a&gt;&lt;br&gt;\n"
+   if(-e "$homedir/$dir/$dontshowme" eq '');
+ }
+ print HTMLFILE "Comment: $comment&lt;br&gt;&lt;br&gt;\n"
+  if(-e "$homedir/$dir/$dontshowme" eq '');
+ print "Name:\t\t$name\nEmail:\t\t$email\nComment:\t$comment\n\n" if ($debug eq 1);
+}
+
+print HTMLFILE &lt;&lt;END_OF_FOOTER;
+
+&lt;/center&gt;
+&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;
+&lt;center&gt;Last updated $current_time&lt;\/center&gt;
+&lt;br&gt;
+&lt;center&gt;&lt;a href=\"mailto:root\@ackers.net\"&gt;Problems?&lt;/a&gt;
+&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;
+&lt;center&gt;Want the code that generated this page? &lt;a href=\"makedex.txt\"&gt;Click here&lt;\/a&gt;&lt;\/center&gt;
+&lt;br&gt;&lt;br&gt;
+&lt;center&gt;&lt;img src="openbsd_pb.jpg"&gt;&lt;/center&gt;
+  
+&lt;/html&gt;
+ 
+END_OF_FOOTER
+   
+close(HTMLFILE);
+ 
+sub no_rc {
+ my($dir) = @_;
+ # If there is no rc file, we might as well give them one right?
+ my($name,$passwd,$uid,$gid,$quota,$comment,$realname,$hdir,$shell) = getpwnam $dir
+ or print "uhh for some reason $dir doesnt exist as a user\n" if ($debug eq 1);
+ open(RC, "&gt;&gt;$homedir/$dir/$rcfile") or print "Cannot open $dir/$rcfile for writing\n" if ($debug eq 1);
+  print RC "# Default $rcfile, please change to your liking!\n";
+  print RC "Name: $realname\n";
+  print RC "Email: $dir\@$hostname\n";
+  print RC "Comment: Hi my name is $realname, I suck!";
+ close(RC);
+ chmod 0755, '$homedir/$dir/$rcfile';
+ chown($uid,$gid,"$homedir/$dir/$rcfile");
+ return($realname,"$dir\@$hostname","Hi my name is $realname, I suck!");
+}
+  
+
+sub read_rc {
+ my($dir) = @_;
+ my($name,$email,$comment,$option,$rest,$homepage);
+ open(RC, "$homedir/$dir/$rcfile") or ($name,$email,$comment) = no_rc($dir);
+ while (&lt;RC&gt;) {
+  s/\s+$//g;             # Remove trailing whitespace
+  s/\s/ /g;              # Replace whitespace with space
+  next if /^\s*\#/;      # Ignore Comment Lines
+  s/\s*\#$//g;           # Ignore Trailing Comment
+  next if /^\s*$/;       # Ignore Empty Lines
+  my($option,$rest) = split(/:/);
+  $rest =~ s/^\s+//g; # Remove First white space.
+  if ($option eq 'Name') {
+   $name = $rest;
+   $name =~ s/&lt;[^&gt;]*&gt;//gs;
+  }
+  elsif ($option eq 'Email') {
+   $email = $rest;
+   $email =~ s/&lt;[^&gt;]*&gt;//gs;
+  }
+  elsif ($option eq 'Comment') {
+   $comment = $rest;
+   $comment =~ s/&lt;[^&gt;]*&gt;//gs;
+  }
+ }
+ if(-e "$homedir/$dir/public_html/index.html") {
+  $homepage = 1;
+ } else { $homepage = 0; }
+ return($name,$email,$comment,$homepage);
+ close(RC);
+}
+
+</field>
+</data>
+</node>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="42" title="openform" created="1999-10-04 18:34:59" updated="2005-08-15 10:07:57">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+# takes optional list of named parameters which are passed to CGI's
+# start_form, except for a -displaytype parameter which can be used to
+# override the current displaytype.
+# -node_id=&gt;0 prevents the node_id/node hidden params (for 'search' forms)
+
+my %opts= ( -method =&gt; 'post', -action =&gt; '?', @_ );
+$opts{-target} ||= $q-&gt;param("formtarget");
+
+my( $node_param, $node_val )= ( 'node_id', delete $opts{-node_id} );
+if(  '0' eq $node_val  ) {
+    $node_param= 0;
+} elsif(  ! $node_val  ) {
+    if(  $node_val= delete $opts{-node}  ) {
+        $node_param= 'node';
+    } else {
+        $node_val= getId($NODE);
+    }
+}
+
+my $displaytype= delete( $opts{-displaytype} );
+my $multipart=   delete( $opts{-multipart} );
+
+my @formparms=
+    map {
+      defined $opts{$_}
+        ?   ( $_ =&gt; delete $opts{$_} )
+        :   ()
+    }
+    qw/ -method -action -enctype -target /, sort keys %opts;
+
+my $html=
+    $multipart
+        ?   $q-&gt;start_multipart_form( @formparms )
+        :   $q-&gt;start_form( @formparms );
+return $html
+    if  ! $node_param;
+
+return join '',
+    $html,
+    '&lt;div style="display:none"&gt;',
+    $displaytype
+        ?   $q-&gt;hidden(
+                -name =&gt; 'displaytype',
+                -value =&gt; $displaytype, -force =&gt; 1 )
+        :   $q-&gt;hidden( 'displaytype' ),
+    $q-&gt;hidden( -name =&gt; $node_param, -value =&gt; $node_val, -force =&gt; 1 ),
+    '&lt;/div&gt;';
+</field>
+</data>
+</node>

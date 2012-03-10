@@ -1,0 +1,146 @@
+<node>
+  <doctext>&lt;p&gt;
+This review was requested by one of the module's authors, [belg4mit]. A
+while ago, we discussed some easier ways of using [cpan://DBI], and of
+course his [cpan://EZDBI] and my [cpan://DBIx::Simple] were mentioned. I
+will not discuss DBIx::Simple in this review. If anyone wants to review
+it, please do so.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;What is EZDBI?&lt;/b&gt;&lt;br&gt;
+
+EZDBI (Easy DBI) is a module that provides functions for database
+connections, using DBI as its backend. Many people find DBI either too
+hard or too much work (why &lt;tt&gt;fetchrow_arrayref&lt;/tt&gt; if you can have
+something shorter?), and several modules try to end that problem. EZDBI
+uses no object orientation, so anyone without too much programming
+experience can install and use the module immediately. I review version
+0.1.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Its name&lt;/b&gt;&lt;br&gt;
+
+Normally, modules in CPAN have some sort of hierarchy. It isn't always
+consistent or well-chosen, but most modules are grouped in top-level
+namespaces. DBI extensions should be in the DBIx:: namespace (that's
+right, not even DBI::), but this one uses a top-level namespace of its
+own. It is hard to find when searching CPAN: when using keywords like
+'Easy' and 'Simple' in a module-name search, EZDBI is not one of the
+results. Even when you look for modules with 'DBI' in the name, EZDBI is
+unclear until you pronounce it letter by letter in English (which may
+not be a natural thing to do for those who don't natively speak
+English). There is a module called EasyDB, one called DBIx::Easy and one
+called EZDBI. That isn't very handy.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Connecting to a database&lt;/b&gt;&lt;br&gt;
+
+The connecting function is simply called &lt;tt&gt;Connect&lt;/tt&gt;. It's a
+straightforward function call that takes either a DBI DSN or named
+arguments. 
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Querying&lt;/b&gt;&lt;br&gt;
+
+Of course, the most important thing you will want to do with a database
+module is sending queries to the database and getting results. EZDBI
+provides a function for each of the most used SQL commands:
+&lt;tt&gt;Select&lt;/tt&gt;, &lt;tt&gt;Insert&lt;/tt&gt;, &lt;tt&gt;Update&lt;/tt&gt;, &lt;tt&gt;Delete&lt;/tt&gt;. If
+you have a normal database select like &lt;tt&gt;SELECT foo FROM bar&lt;/tt&gt;, you
+would put the Select part outside of the quotes and have &lt;tt&gt;Select 'foo
+From bar';&lt;/tt&gt;. I changed &lt;tt&gt;FROM&lt;/tt&gt; to &lt;tt&gt;From&lt;/tt&gt; to match the
+ucfirsted &lt;tt&gt;Select&lt;/tt&gt;.
+&lt;/p&gt;
+
+&lt;p&gt;
+The &lt;tt&gt;Select&lt;/tt&gt; function is rather intelligent. By default, it fetches
+everything and returns it, but it can also return an object that can be
+used to fetch one row at a time. Insert has a nice &lt;tt&gt;??L&lt;/tt&gt; shortcut
+that is turned into &lt;tt&gt;(?, ?, ?, ...)&lt;/tt&gt; with as many question marks
+as the number of remaining arguments.
+&lt;/p&gt;
+
+&lt;p&gt;
+There is &lt;tt&gt;Sql&lt;/tt&gt; for when the given functions cannot execute the
+SQL you want it to. Unfortunately, this uses DBI's &lt;tt&gt;do&lt;/tt&gt;, so don't
+expect to be able to get information out of it (For example with mysql's
+&lt;tt&gt;SHOW TABLES&lt;/tt&gt; command).
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Documentation&lt;/b&gt;&lt;br&gt;
+
+Every module needs documentation. Without the documentation, I wouldn't
+be able to write this review, as I didn't actually test the module
+thoroughly. I did not have to, as the manual provided almost everything
+I wanted to know, and the source gave me the rest of the clues. Although
+the programming style itself is not the one I like, the manual is very
+clear and easy to read. It is written with beginning programmers in
+mind, so the EZ is worth its bits. I especially like the vivid examples.
+&lt;/p&gt;
+
+&lt;p&gt;
+However, I found something in the documentation that bothers me. EZDBI's
+manual states that EZDBI takes care of &lt;tt&gt;?&lt;/tt&gt; placeholders, but this
+module only expands its special &lt;tt&gt;??L&lt;/tt&gt; placeholder (which is in
+turn only for &lt;tt&gt;Insert&lt;/tt&gt;). Placeholder substitution is performed by
+DBI's execute(), but up to three times, EZDBI takes credit for what DBI
+does.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Multiple databases&lt;/b&gt;&lt;br&gt;
+
+This is quite a hassle with EZDBI. You can have multiple databases, but
+you'll have to use &lt;tt&gt;Use&lt;/tt&gt;, which can be compared to Perl's own
+[select] that selects a filehandle. This way, copying data from one
+database to another (which is not uncommon: a lot of people migrate from
+MySQL to Postgres, for example) has to be done using temporary variables
+and a lot of &lt;tt&gt;Use&lt;/tt&gt; calls. I don't think this is EZ, object
+orientation would be so much better for this.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Disconnecting&lt;/b&gt;&lt;br&gt;
+
+When the Perl interpreter ends, it will destroy all variables, including
+the DBI object that is stored inside of EZDBI. That way, database
+connections are properly terminated. If the end of the interpreter never
+happens (i.e. when using PPerl or mod_perl), you're stuck with the
+database connection even after your script ends. You will have to
+explicitly call &lt;tt&gt;Disconnect&lt;/tt&gt;. EZDBI is not object oriented, so
+there is no object to destroy automatically when it goes out of scope.
+This is potentially very dangerous.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Conclusion&lt;/b&gt;&lt;br&gt;
+
+I wouldn't use EZDBI myself, but not because the module is bad. It's a very
+good module, but I happen to like object orientation, and I prefer raw SQL to
+semi-abstracted SQL.  Maybe I'll steal the &lt;tt&gt;??L&lt;/tt&gt; idea one day, though.
+If object orientation is too hard for you, or if you want to do things the
+
+easiest way, EZDBI is perfect for you. Don't forget to &lt;tt&gt;Disconnect&lt;/tt&gt;
+explicitly when using EZDBI in mod_perl, because otherwise someone else might
+be able to access to your database!
+&lt;/p&gt;
+
+&lt;p&gt;&lt;small&gt;This is the very first module review I've ever written. Please
+tell me if I did anything wrong (reply).&lt;/small&gt;&lt;/p&gt;
+
+</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>132236</author_user>
+  <createtime>2002-06-12 19:09:59</createtime>
+  <itemdescription>Easy interface to SQL database</itemdescription>
+  <identifier></identifier>
+  <node_id>174059</node_id>
+  <usercomment></usercomment>
+  <title>EZDBI</title>
+  <nodeupdated>2005-07-29 09:31:54</nodeupdated>
+</node>

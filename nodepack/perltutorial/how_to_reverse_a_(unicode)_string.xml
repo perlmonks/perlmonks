@@ -1,0 +1,118 @@
+<node>
+  <doctext>&lt;p&gt;You have written some Perl scripts already, and when somebody asks you how to reverse a string, you'll answer: &quot;That's easy, just call [doc://reverse] in scalar context&quot;.
+
+&lt;p&gt;And of course, you're right - if you're only considering ASCII chars.
+
+&lt;p&gt;But suppose you have an UTF-8 environment:
+
+&lt;code&gt;
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+print scalar reverse &quot;\no&#228;u&quot;;
+&lt;/code&gt;
+
+&lt;p&gt;The output consists of a &quot;u&quot;, two garbage characters, and a newline.
+
+&lt;p&gt;The reason is that &quot;&#228;&quot;, like many other chars, is represented by several bytes in UTF-8, here as &lt;c&gt;0xC3 0xA4&lt;/c&gt;. [doc://reverse] Works on bytes, so it will produce &lt;c&gt;0xA4&lt; 0xC3&lt;/c&gt;. And that is not legal UTF-8, so the output contains two bytes of garbage. 
+
+&lt;p&gt;You can solve this problem by decoding the text strings (read [doc://perluniintro] and [doc://perlunicode] for more information):
+
+&lt;code&gt;
+#!/usr/bin/perl
+use strict;
+use warnings;
+use utf8;
+binmode STDOUT, ':utf8';
+print scalar reverse &quot;\no&#228;u&quot;;
+__END__
+u&#228;o
+&lt;/code&gt;
+
+&lt;p&gt;The &lt;c&gt;use utf8;&lt;/c&gt; takes care that every string literal in the script is treated as a text string, so &lt;c&gt;reverse&lt;/c&gt; (and other functions like [doc://uc]) will work on codepoint level.
+
+&lt;p&gt;While this example worked, it could just as well fail.
+
+&lt;p&gt;The reason is that there are multiple ways to encode some characters.
+
+&lt;p&gt;Consider the letter &quot;&#196;&quot;, which has the Unicode name &lt;c&gt;LATIN CAPITAL LETTER A WITH DIAERESIS&lt;/c&gt;. You could also write that as two Codepoints: &lt;c&gt;LATIN CAPITAL LETTER A, COMBINING DIAERESIS&lt;/c&gt;. That is a base character, in this case &quot;A&quot;, and a combining character, here the &lt;c&gt;COMBINING DARESIS&lt;/c&gt;.
+
+&lt;p&gt;Converting one representation into the other is called &quot;Unicode normalization&quot;.
+
+&lt;p&gt;Bad luck, in our case, &lt;c&gt;reverse&lt;/c&gt; doesn't work for the normalized form:
+
+&lt;code&gt;
+#!/usr/bin/perl
+use strict;
+use warnings;
+use utf8;
+use Unicode::Normalize;
+use charnames ':full';
+my $str = '&#196;';
+
+sub mydump {
+    print map { '\N['. charnames::viacode(ord $_) . ']' } 
+                split m//, $_[0];
+    print &quot;\n&quot;;
+}
+
+mydump $str;
+mydump NFKD($str);
+mydump scalar reverse NFKD($str);
+
+binmode STDOUT, ':utf8';
+my $tmp = &quot;\n&#196;O&quot;;
+print scalar reverse NFKD($tmp);
+__END__
+\N[LATIN CAPITAL LETTER A WITH DIAERESIS]
+\N[LATIN CAPITAL LETTER A]\N[COMBINING DIAERESIS]
+\N[COMBINING DIAERESIS]\N[LATIN CAPITAL LETTER A]
+&#214;A
+&lt;/code&gt;
+
+&lt;p&gt;You can see that reversing a string moves the combining character(s) to the front, thus they are applied to the wrong base character; &quot;&#196;O&quot; reversed becomes &quot;&#214;A&quot;.
+
+&lt;p&gt;(You wouldn't normalize with NFKD here under normal circumstances, in this example it is done to demonstrate the problem that can arise from such strings).
+
+&lt;p&gt;It seems the problem could easily be solved by not doing the normalization in the first place, and indeed that works in this example. But there are Unicode graphemes that can't be expressed with a single Codepoint, and if one of your users enters such a grapheme, your application won't work correctly.
+
+&lt;p&gt;So we need a &quot;real&quot; solution. Since perl doesn't work with graphemes, we need a CPAN module that does:
+
+&lt;code&gt;
+#!/usr/bin/perl
+use strict;
+use warnings;
+use utf8;
+use Unicode::Normalize;
+use charnames ':full';
+use String::Multibyte;
+my $str = NFKD &quot;&#196;O&quot;;
+sub mydump {
+	print map { '\N['. charnames::viacode(ord $_) . ']' } 
+			split m//, $_[0];
+	print &quot;\n&quot;;
+}
+
+my $u = String::Multibyte-&gt;new('Grapheme');
+
+mydump $str;
+mydump $u-&gt;strrev($str);
+binmode STDOUT, ':utf8';
+print $u-&gt;strrev($str), &quot;\n&quot;;
+__END__
+\N[LATIN CAPITAL LETTER A]\N[COMBINING DIAERESIS]\N[LATIN CAPITAL LETTER O]
+\N[LATIN CAPITAL LETTER O]\N[LATIN CAPITAL LETTER A]\N[COMBINING DIAERESIS]
+O&#196;
+&lt;/code&gt;
+
+&lt;p&gt;The [mod://String::Multibyte::Grapheme] module helps you with reversing the string without tearing the graphemes apart. 
+
+&lt;p&gt;(It can also count the number of graphemes, generate substrings with grapheme semantics and more; see [mod://String::Multibyte].)</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>661510</node_id>
+  <author_user>616540</author_user>
+  <title>How to reverse a (Unicode) string</title>
+  <createtime>2008-01-09 16:24:48</createtime>
+  <nodeupdated>2008-01-09 11:24:48</nodeupdated>
+</node>

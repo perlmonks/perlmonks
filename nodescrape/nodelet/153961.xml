@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="153961" title="testing nodelet" created="1999-12-27 21:23:17" updated="1002590815">
+<type id="9">
+nodelet</type>
+<author id="114">
+gods</author>
+<data>
+<field name="nlcode">
+[%
+  my $considered = $DB-&gt;sqlSelect('1', 'considernodes', "considernodes_id = $NODE-&gt;{node_id}");
+
+  return undef
+    unless $considered;
+
+  my $str;
+
+  my @consider = $DB-&gt;sqlSelect('keep,edit,del,description', 'considernodes', "considernodes_id = $NODE-&gt;{node_id}");
+  my $dropdown = htmlcode('considerdropdown');
+
+  $str = sprintf &lt;&lt;'END',
+   &lt;p&gt;
+     %s | %s
+   &lt;/p&gt;
+END
+  linkNode(28877, 'Nodes to consider'),
+  linkNode(92975, 'Help');
+
+  $consider[3] =~ s/^[(](.+?)[)]\s*(.*)/sprintf '(%s) %s', linkNodeTitle($1), $2/eg;
+  $str .= sprintf &lt;&lt;'END',
+      %s
+      &lt;hr /&gt;
+END
+  $consider[3];
+
+  my $votes = sprintf &lt;&lt;'END',
+      Keep/Edit/Delete: %d/%d/%d&lt;br /&gt;
+END
+  @consider[0..2];
+
+  return $str . $votes
+    if $DB-&gt;sqlSelect('1', 'considervote', sprintf 'voter_user = %d AND considervote_id = %d', getId($USER), getId($NODE));
+
+  $str .= sprintf &lt;&lt;'END',
+    &lt;form action="%s" method="post" enctype="application/x-www-urlencoded"&gt;
+      &lt;input type="hidden" name="node_id" value="%d" /&gt;
+%s
+      &lt;input type="hidden" name="op" value="consider" /&gt;
+      &lt;input type="submit" name="sexisgood" value="vote" /&gt;
+    &lt;/form&gt;
+END
+  $ENV{SCRIPT_NAME},
+  getId($NODE),
+  $dropdown;
+
+  if ( isGod($USER) ) {
+    $str .= sprintf &lt;&lt;'END',
+    &lt;br /&gt;
+%s
+END
+    $votes;
+  }
+
+  return $str;
+%]</field>
+<field name="parent_container">
+14885</field>
+</data>
+</node>

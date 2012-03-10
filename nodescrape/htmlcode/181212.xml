@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="181212" title="parselinkstotags" created="2002-07-12 01:36:48" updated="2005-04-22 04:04:10">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my $s = $HTMLVARS{linkstagparse};
+
+while ( $s =~ m!(&lt;code&gt;((.|\n)*?)&lt;/code&gt;)!i ) {
+  my $whole = $1;
+  my $code  = $2;
+
+  $code =~ s/\&amp;/&amp;amp;/g;
+  $code =~ s/\[/&amp;#91;/g;
+  $code =~ s/\]/&amp;#93;/g;
+  $code =~ s/&lt;/&amp;lt;/g;
+  $code =~ s/&gt;/&amp;gt;/g;
+
+  $s =~ s!\Q$whole\E!&lt;code&gt;$code&lt;/code&gt;!;
+}
+
+my $tag = sub
+{
+  my $inner = shift;
+
+  if ( $inner =~ m!\w+://.+! ) {
+    my $handlers = getVars( getNode('new links settings', 'setting') );
+
+    my ($pfx, $data, $label) = ( $inner =~ m!([^:]+)://([^|]+)(?:\|(.+))?! );
+
+    if ( exists $handlers-&gt;{ lc $pfx } ) {
+      my $get = eval( 'sub { ' . $handlers-&gt;{ lc $pfx } . '};' );
+      my $url = $get-&gt;($data);
+
+      return sprintf '&lt;link url="%s" type="%s"&gt;%s&lt;/link&gt;',
+        $url, $pfx, $label || $data;
+    } else {
+      return sprintf '&lt;link url="%s"&gt;%s&lt;/link&gt;',
+        urlGen({ node =&gt; $inner }, -1),
+        $q-&gt;escapeHTML($inner);
+    }
+
+  } else {
+    return sprintf '&lt;link url="%s"&gt;%s&lt;/link&gt;',
+      urlGen({ node =&gt; $inner }, -1),
+      $q-&gt;escapeHTML($inner);
+  }
+};
+
+$s =~ s!\[([^\]]+)\]!$tag-&gt;($1)!egs;
+
+return $s;</field>
+</data>
+</node>

@@ -1,0 +1,134 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+ExtUtils::Packlist - manage .packlist files
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+ExtUtils::Packlist provides a standard way to manage .packlist files.
+Functions are provided to read and write .packlist files. The original
+.packlist format is a simple list of absolute pathnames, one per line. In
+addition, this package supports an extended format, where as well as a
+filename each line may contain a list of attributes in the form of a space
+separated list of key=value pairs. This is used by the installperl script
+to differentiate between files and links, for example.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;USAGE&quot;&gt;USAGE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The hash reference returned by the 
+&lt;CODE&gt;new()&lt;/CODE&gt; function can be used to examine and modify the contents of the .packlist. Items may be added/deleted from the .packlist by modifying the hash. If the value associated with a hash key is a scalar, the entry written to the .packlist by any subsequent 
+&lt;CODE&gt;write()&lt;/CODE&gt; will be a simple filename. If the value is a hash, the entry written will be the filename followed by the key=value pairs from the hash. Reading back the .packlist will recreate the original entries.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;FUNCTIONS&quot;&gt;FUNCTIONS&lt;/A&gt;&lt;/H1&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_new&quot;&gt;new()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This takes an optional parameter, the name of a .packlist. If the file exists, it will be opened and the contents of the file will be read. The 
+&lt;CODE&gt;new()&lt;/CODE&gt; method returns a reference to a hash. This hash holds an entry for each line in the .packlist. In the case of old-style .packlists, the value associated with each key is undef. In the case of new-style .packlists, the value associated with each key is a hash containing the key=value pairs following the filename in the .packlist.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_read&quot;&gt;read()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This takes an optional parameter, the name of the .packlist to be read. If no file is specified, the .packlist specified to 
+&lt;CODE&gt;new()&lt;/CODE&gt; will be read. If the .packlist does not exist, Carp::croak will be called.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_write&quot;&gt;write()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This takes an optional parameter, the name of the .packlist to be written. If no file is specified, the .packlist specified to 
+&lt;CODE&gt;new()&lt;/CODE&gt; will be overwritten.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_validate&quot;&gt;validate()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This checks that every file listed in the .packlist actually exists. If an
+argument which evaluates to true is given, any missing files will be
+removed from the internal hash. The return value is a list of the missing
+files, which will be empty if they all exist.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_packlist_file&quot;&gt;packlist_file()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This returns the name of the associated .packlist file
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;EXAMPLE&quot;&gt;EXAMPLE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Here's &lt;CODE&gt;modrm&lt;/CODE&gt;, a little utility to cleanly remove an installed module.
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/local/bin/perl -w
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+    use IO::Dir;
+    use ExtUtils::Packlist;
+    use ExtUtils::Installed;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub emptydir($) {
+        my ($dir) = @_;
+        my $dh = IO::Dir-&amp;gt;new($dir) || return(0);
+        my @count = $dh-&amp;gt;read();
+        $dh-&amp;gt;close();
+        return(@count == 2 ? 1 : 0);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Find all the installed packages
+    print(&amp;quot;Finding all installed modules...\n&amp;quot;);
+    my $installed = ExtUtils::Installed-&amp;gt;new();
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    foreach my $module (grep(!/^Perl$/, $installed-&amp;gt;modules())) {
+       my $version = $installed-&amp;gt;version($module) || &amp;quot;???&amp;quot;;
+       print(&amp;quot;Found module $module Version $version\n&amp;quot;);
+       print(&amp;quot;Do you want to delete $module? &amp;#091;n&amp;#093; &amp;quot;);
+       my $r = &amp;lt;STDIN&amp;gt;; chomp($r);
+       if ($r &amp;amp;&amp;amp; $r =~ /^y/i) {
+          # Remove all the files
+          foreach my $file (sort($installed-&amp;gt;files($module))) {
+             print(&amp;quot;rm $file\n&amp;quot;);
+             unlink($file);
+          }
+          my $pf = $installed-&amp;gt;packlist($module)-&amp;gt;packlist_file();
+          print(&amp;quot;rm $pf\n&amp;quot;);
+          unlink($pf);
+          foreach my $dir (sort($installed-&amp;gt;directory_tree($module))) {
+             if (emptydir($dir)) {
+                print(&amp;quot;rmdir $dir\n&amp;quot;);
+                rmdir($dir);
+             }
+          }
+       }
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Alan Burlison &amp;lt;&lt;A
+HREF=&quot;mailto:Alan.Burlison@uk.sun.com&quot;&gt;Alan.Burlison@uk.sun.com&lt;/A&gt;&amp;gt;
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:51:44</createtime>
+  <node_id>1197</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;   use ExtUtils::Packlist;
+   my ($pl) = ExtUtils::Packlist-&amp;gt;new('.packlist');
+   $pl-&amp;gt;read('/an/old/.packlist');
+   my @missing_files = $pl-&amp;gt;validate();
+   $pl-&amp;gt;write('/a/new/.packlist');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   $pl-&amp;gt;{'/some/file/name</synopsis>
+  <title>perlman:ExtUtils::Packlist</title>
+  <nodeupdated>2005-08-10 15:44:24</nodeupdated>
+</node>

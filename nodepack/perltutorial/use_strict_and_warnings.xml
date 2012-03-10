@@ -1,0 +1,133 @@
+<node>
+  <doctext>&lt;h3&gt;When you want to use strict&lt;/h3&gt;
+Whenever your program gets over a few lines long, definitely when you can't view the whole program on one page, or sometimes when you just can't figure out what else
+could be wrong.
+&lt;h3&gt;Why do you want to use strict?&lt;/h3&gt;
+To help you catch typos so you can quickly get on to finding more significant problems (and so we don't have to catch the typos for you either), among other reasons.
+&lt;br&gt;Its difficult to spot '$recieve_date' when on the previous page you've been calling it '$receive_date'. Also, to give your variables as small a scope as possible so that you don't have to worry about what they're doing to other parts of your program (although that's the function of [my], it forces you to use [my] which when properly used helps achieve this goal).
+&lt;h3&gt;Why it's not 'too much trouble' to use strict&lt;/h3&gt;
+It's just 11 extra characters at the top of your script(use [strict];), and two extra characters throughout your script([my]).
+&lt;h3&gt;That sounds great. How do I use strict?&lt;/h3&gt;
+Put this line at the top of your script (after the shebang, e.g.,  '#!/usr/bin/perl' line):&lt;code&gt;
+use strict;
+&lt;/code&gt;
+&lt;h3&gt;Now my program's broken. What do I do?&lt;/h3&gt;
+The most common error showing up looks something like this:&lt;code&gt;
+Global symbol &quot;$xxx&quot; requires explicit package name at ./tst line 5.&lt;/code&gt;
+This is the error we're going to focus on fixing.
+&lt;br&gt;(If you are getting 'Server Error' or the like, then
+either check your web server error logs or run your script
+from the command line, or look into using [cpan://CGI::Carp]).
+&lt;br&gt;Whenever you first use a variable, put 'my' in front of it, e.g.:&lt;code&gt;
+# Change this:
+$string = &quot;hello world&quot;;
+@array = qw(ABC DEF);
+%hash = (A=&gt;1, B=&gt;2);
+
+# To this:
+my $string = &quot;hello world&quot;;
+my @array = qw(ABC DEF);
+my %hash = (A=&gt;1, B=&gt;2);
+
+# Change this:
+# '$name' is global here
+foreach $name (@names) {
+ print &quot;Name: $name\n&quot;;
+}
+
+# To this:
+foreach my $name (@names) {
+ # Now '$name' only exists in this block
+ print &quot;Name: $name\n&quot;;
+}
+
+# Change this:
+# Likewise, '$digit' is global here
+foreach $digit (@digits) {
+ $number = 10*$number + $digit;
+}
+print &quot;Number: $number\n&quot;;
+
+# To this (variables used in an outer scope ('$number')
+# will have to be declared in an outer scope):
+my $number = 0;
+foreach my $digit (@digits)
+ # Now '$digit' only exists in this block
+ $number = 10*$number + $digit;
+}
+print &quot;Number: $number\n&quot;;
+
+# Change this:
+sub my_sub {
+ ($arg1, $arg2) = @_;
+ print &quot;Arg1: $arg1 Arg2: $arg2\n&quot;;
+}
+
+# To this:
+sub my_sub {
+ my ($arg1, $arg2) = @_;
+ print &quot;Arg1: $arg1 Arg2: $arg2\n&quot;;
+}
+
+# Using DBI? You can change this:
+$sth-&gt;bind_columns(\$field1, \$field2);
+while ($sth-&gt;fetch) {
+ print &quot;F1: $field1 F2: $field2\n&quot;;
+}
+
+# To this (the '\' is distributed over a list of values):
+$sth-&gt;bind_columns(\my ($field1, $field2));
+while ($sth-&gt;fetch) {
+ print &quot;F1: $field1 F2: $field2\n&quot;;
+}
+&lt;/code&gt;
+&lt;h3&gt;That seems like too much trouble. Isn't laziness a virtue?&lt;/h3&gt;
+Sure we're lazy. And we don't like spending time looking for simple mistakes in your program that you could have found yourself with 'use [strict]'.
+&lt;h3&gt;What about warnings?&lt;/h3&gt;
+Oh yeah. In version 5.6 or later you can put this right around the same place you put 'use strict;':&lt;code&gt;
+use warnings;
+&lt;/code&gt;
+In perl's before 5.6 (or if you just want to be portable between the versions), you can put '-w' on the 'shebang' line, or set the $^W variable (however, setting $^W will not catch compile time warnings unless its in a BEGIN{} block, so '-w' is usually preferable):&lt;code&gt;
+#!/usr/local/bin/perl -w
+
+# Or
+$^W = 1;
+# Or
+BEGIN { $^W = 1 }
+&lt;/code&gt;
+If you know you want to disable warnings, you can do it in a limited scope:&lt;code&gt;
+
+# Change this:
+sub add_two_numbers_which_might_be_undef {
+ $_[0] + $_[1];
+}
+
+# To one of these (depending on perl version):
+# 1
+sub add_two_numbers_which_might_be_undef {
+ # See 'perldoc perllexwarn' for all the categories of warnings
+ # because its better to only disable the warnings you're expecting
+ no warnings &quot;uninitialized&quot;;
+ $_[0] + $_[1];
+}
+
+# 2
+sub add_two_numbers_which_might_be_undef {
+ local $^W;
+ $_[0] + $_[1];
+}
+&lt;/code&gt;
+Or sometimes you'll have to initialize variables as in the example above that uses '$number'.
+&lt;h2&gt;See Also:&lt;/h2&gt;
+&lt;p&gt;Also read [Ovid]'s excellent ['use strict' is not Perl].&lt;/p&gt;
+&lt;br&gt;And (as [wog] pointed out): [Use strict warnings and diagnostics].
+&lt;br&gt;And [id://87628].
+&lt;br&gt;And [id://686571].
+&lt;p&gt;And that's it! Now you have no excuse for not using [strict] or warnings. And it'll make life easier for all of us :)&lt;/p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>111088</node_id>
+  <author_user>31503</author_user>
+  <title>Use strict and warnings</title>
+  <createtime>2001-09-08 00:09:43</createtime>
+  <nodeupdated>2005-08-15 13:09:39</nodeupdated>
+</node>

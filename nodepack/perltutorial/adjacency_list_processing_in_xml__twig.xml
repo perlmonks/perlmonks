@@ -1,0 +1,146 @@
+<node>
+  <doctext>Hello XML fans, it's time to do some Prolog-like search and query on a
+small XML database. What is shown below is an adjacency map. It is an
+XML document which shows which cities are next to which other
+cities. The utility of such a document/data structure can be imagined
+to be if a person had an inter-city travel ticket and wanted to look
+up which cities were next to his. Which cities were two away, etc,
+etc.
+&lt;P&gt;
+While you could use normal nested Perl data structures to deal with
+this, XML is becoming &lt;I&gt;en vogue&lt;/I&gt; and as a result we have to be
+just as fashionable. Actually, this isn't true, we can always use
+Gisle Aas' [cpan://Data::XMLDumper] to convert XML to-and-for Perl
+nested data structures. But for the purpose of this tutorial, we will
+act like that module doesn't exist.
+&lt;P&gt;
+So without further adieu, I present the XML document detailing the
+(far too windy) part of the world I currently live in (and will be
+escaping from as soon as Christmas is here):
+&lt;code&gt;
+&lt;border_list&gt;
+
+&lt;pair&gt;&lt;city&gt;mountain view&lt;/city&gt;&lt;city&gt;sunnyvale&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;mountain view&lt;/city&gt;&lt;city&gt;palo alto&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;menlo park&lt;/city&gt;&lt;city&gt;palo alto&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;atherton&lt;/city&gt;&lt;city&gt;menlo park&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;atherton&lt;/city&gt;&lt;city&gt;redwood city&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;san carlos&lt;/city&gt;&lt;city&gt;redwood city&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;san carlos&lt;/city&gt;&lt;city&gt;belmont&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;hillesdale&lt;/city&gt;&lt;city&gt;belmont&lt;/city&gt;&lt;/pair&gt;
+&lt;pair&gt;&lt;city&gt;hillesdale&lt;/city&gt;&lt;city&gt;san mateo&lt;/city&gt;&lt;/pair&gt;
+
+&lt;/border_list&gt;
+&lt;/code&gt;
+
+&lt;h3&gt;Ok, so now what&lt;/h3&gt;
+
+So, now that I have shown the data, it is time to &lt;I&gt;grok&lt;/I&gt; it,
+&lt;I&gt;munge&lt;/I&gt; it, eat it for breakfast as a meal replacement and
+basically put it at it's knees to do our bidding.
+
+&lt;h3&gt;Program One: find all cities next to menlo park&lt;/h3&gt;
+
+Ok, here is a program to grok this XML-base for all cities next menlo
+park:
+&lt;code&gt;
+use XML::Twig;
+
+my $t = XML::Twig-&gt;new(PrettyPrint =&gt; 'record');
+
+$t-&gt;parsefile('adj.xml');
+my $root = $t-&gt;root;
+
+# @pair has all the pairs of adjacent cities in it
+my @pair = $root-&gt;children;
+
+# target city we are looking for
+my $city = 'menlo park';
+
+# this routine takes a search text and a list of XML elements and
+# searches them for the text
+sub candidate_generator {
+    my ($search_text, @data) = @_;
+    grep { grep { $_-&gt;text eq $search_text } $_-&gt;children  } @data;
+}
+
+# take the entire XML-base and search for records which have our
+# target city in them
+my @adj = candidate_generator($city,@pair);
+
+# print them out in a human-readable form
+map { $_-&gt;print } @adj;
+
+&lt;/code&gt;
+and here is the pretty output:
+
+&lt;code&gt;
+  &lt;pair&gt;
+    &lt;city&gt;menlo park&lt;/city&gt;
+    &lt;city&gt;palo alto&lt;/city&gt;
+  &lt;/pair&gt;
+  &lt;pair&gt;
+    &lt;city&gt;atherton&lt;/city&gt;
+    &lt;city&gt;menlo park&lt;/city&gt;
+  &lt;/pair&gt;
+&lt;/code&gt;
+
+&lt;h3&gt;all done&lt;/h3&gt;
+The program was documented, so it should make sense, but let's take a
+closer look at &lt;code&gt;candidate_generator()&lt;/code&gt;.
+&lt;code&gt;
+# this routine takes a search text and a list of XML elements and
+# searches them for the text
+sub candidate_generator {
+    my ($search_text, @data) = @_;
+    grep { grep { $_-&gt;text eq $search_text } $_-&gt;children  } @data;
+}
+&lt;/code&gt;
+
+It consists of two
+nested greps and hence can be a little confusing. Depending on the
+way you think you might want to think about the outer grep and then
+the inner grep or vice versa. It is only fitting that I discuss both
+methods of program comprehension.
+&lt;P&gt;
+Let's do top-down first. The outer grep is basically saying: take all
+the XML records and only return the ones which satisfy the inner
+search criteria. The inner search criteria takes each individual XML
+record and looks at each of it's children, where each child is a city
+and examines its text for equality with the text to be searched for,
+or concretely speaking &lt;code&gt;menlo park&lt;/code&gt;.
+&lt;P&gt;
+Ok, now bottom up. The innermost expression is
+&lt;code&gt; $_-&gt;text eq $search_text&lt;/code&gt; and what this does is take an
+XML element and get its text and compare it to a normal Perl
+string. So if &lt;code&gt;$elt&lt;/code&gt; was an &lt;code&gt;XML::Twig::Elt&lt;/code&gt;
+representing
+&lt;code&gt;
+&lt;city&gt;boise&lt;/city&gt;
+&lt;/code&gt;
+then &lt;code&gt;$elt-&gt;text&lt;/code&gt; would be &lt;code&gt;boise&lt;/code&gt;.
+Now we work out a bit more. And a bit more out is
+&lt;code&gt; grep { YADAYADA } $_-&gt;children &lt;/code&gt;
+So here we take advantage of the fact that the XML is structured so that
+neighboring cities are both children of the pair element, e..g:
+&lt;code&gt;
+&lt;pair&gt;&lt;city&gt;mountain view&lt;/city&gt;&lt;city&gt;sunnyvale&lt;/city&gt;&lt;/pair&gt;
+&lt;/code&gt;
+
+and we are just checking to see if either child is the text we are
+looking for. And now we finally make it to the outer grep and the
+first sentence in the top-down description says what that is doing.
+
+&lt;h3&gt;th-th-th-that's the first post, folks&lt;/h3&gt;
+Anyway, that was the first in a series of 3 posts. The next two will
+do slightly more advanced searching and in the process introduce a
+call or two more from the XML::Twig API.
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>105906</node_id>
+  <author_user>10395</author_user>
+  <title>Adjacency List Processing in XML::Twig</title>
+  <createtime>2001-08-18 11:20:04</createtime>
+  <nodeupdated>2005-08-15 11:47:34</nodeupdated>
+</node>

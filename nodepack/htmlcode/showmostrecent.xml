@@ -1,0 +1,34 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>2089</node_id>
+  <author_user>979</author_user>
+  <title>showmostrecent</title>
+  <createtime>2000-01-13 17:11:47</createtime>
+  <code>my ($type,$length,$descon,$showauthor)=@_;
+$length||=10;
+my $start=$query-&gt;param('startat');
+$start||=0;
+my $str;
+$str.=&quot;&lt;H3&gt;$type&lt;/H3&gt;&quot; if $descon;
+my $type=getId(getType($type));
+my $N;
+
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;SELECT * FROM node WHERE type_nodetype=$type ORDER BY createtime DESC limit $start, $length&quot;);
+$csr-&gt;execute or return &quot;SHIT&quot;;
+$str.=&quot;&lt;UL&gt;&quot;;
+my $numfound=0;
+while($N = $csr-&gt;fetchrow_hashref){
+   $numfound++;
+   $str.=&quot;&lt;li&gt;&quot;.linkNode($N);
+   $str.=&quot; by &quot;.linkNode($$N{author_user}) if $showauthor;
+}
+$str.&quot;&lt;/UL&gt;&quot;;
+$str.=&quot;&lt;BR&gt;&lt;BR&gt;&quot;;
+$str.=&quot;&lt;CENTER&gt;&quot;;
+$str.=&quot;&lt;A HREF=&quot;.urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',startat=&gt;$start-$length}).&quot;&gt;&amp;lt;--Previous $length&lt;/A&gt;&quot; if($start);
+$str.=&quot;&amp;nbsp;&amp;nbsp;&lt;&quot;.($start+1).&quot;-&quot;.($start+$numfound).&quot;&gt;&amp;nbsp;&amp;nbsp;&quot;;
+$str.=&quot;&lt;A HREF=&quot;.urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',startat=&gt;$start+$length}).&quot;&gt;Next $length--&amp;gt;&lt;/A&gt;&quot; if($numfound==$length);
+$str.=&quot;&lt;/CENTER&gt;&quot;;
+$str;</code>
+  <nodeupdated>2005-07-30 15:59:22</nodeupdated>
+</node>

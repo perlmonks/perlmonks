@@ -1,0 +1,145 @@
+<node>
+  <doctext># (Please move this node if it belongs in Snippets or something)
+#
+# This little program will print a prettified inheritance
+# tree for the given perl module.  Its usage is:
+# perl-inheritance [&lt;options&gt;] &lt;module-name&gt;
+# e.g.: perl-inheritance Class::DBI
+#
+# Available options are:
+# -I&lt;path&gt; : include &lt;path&gt; in @INC
+# -a : attempt to use all modules instead of just the root one
+# -i : ignore modules that can't be found
+#
+# Some example output:
+# perl-inheritance Class::DBI
+# Class::DBI (v0.93)
+# +---Class::DBI::__::Base (v-1, set by base.pm)
+#     +---Class::Data::Inheritable (v0.02)
+#     +---Class::Accessor (v0.18)
+#     +---Ima::DBI (v0.29)
+#         +---Class::WhiteHole (v0.04)
+#         +---DBI (v1.37)
+#         |   +---Exporter (v5.567)
+#         |   +---DynaLoader (v1.04)
+#         +---Class::Data::Inheritable (loaded by Class::DBI::__::Base)
+#
+# perl-inheritance Net::FTP
+# Net::FTP (v2.71)
+# +---Exporter (v5.567)
+# +---Net::Cmd (v2.24)
+# |   +---Exporter (loaded by Net::FTP)
+# +---IO::Socket::INET (v1.26)
+#     +---IO::Socket (v1.27)
+#         +---IO::Handle (v1.21)
+#             +---Exporter (loaded by Net::FTP)
+
+#!/usr/local/bin/perl -w
+use warnings;
+use strict;
+no strict 'refs';
+
+my @ignore_list      = ();
+my $ignore_not_found = 0;
+my %already_loaded   = ();
+my $load_all         = 0;
+
+ARG: while (@ARGV) {
+  SWITCH: {
+    ($ARGV[0] =~ /\-I(.+)/o) &amp;&amp; do {
+      eval &quot;use lib '$1';&quot;;
+      shift @ARGV;
+     last SWITCH;
+    };
+    ($ARGV[0] =~ /\-i$/o) &amp;&amp; do {
+      $ignore_not_found = 1;
+      shift @ARGV;
+     last SWITCH;
+    };
+    ($ARGV[0] =~ /\-a$/o) &amp;&amp; do {
+      $load_all = 1;
+      shift @ARGV;
+     last SWITCH;
+    };
+    ($ARGV[0] =~ /\-i=(.+)/o) &amp;&amp; do {
+      @ignore_list = split &quot; &quot;, $1;
+      shift @ARGV;
+     last SWITCH;
+    };
+   last ARG;
+  } ## end SWITCH:
+} ## end while (@ARGV)
+
+if (!@ARGV) {
+  print STDERR &quot;Usage: $0 &lt;perl modules&gt;\n&quot;;
+  exit 1;
+}
+
+foreach (@ARGV) {
+  %already_loaded = ();
+  ScanModule(undef, $_, 0);
+}
+
+sub ScanModule {
+  my $parent  = shift;
+  my $module  = shift;
+  my $depth   = shift;
+  my @total   = @_;
+  my $ignored = 0;
+  my $loaded  = 0;
+
+  $loaded = 1 if (exists $already_loaded{$module});
+
+  eval &quot;use $module&quot; if (!defined $parent || $load_all);
+  if ($@ =~ /Can't locate .+ in \@INC/o) {
+    if ($ignore_not_found
+      || index(&quot;@ignore_list &quot;, &quot;$module &quot;) != -1) {
+      $ignored = 1;
+      } else {
+      die &quot;Error using $module: $@\n&quot;;
+    }
+  } elsif ($@) {
+    die &quot;Error using $module: $@\n&quot;;
+  }
+
+  if ($depth &gt; 1) {
+    for (my $iter = 0; $iter &lt; @total - 2; $iter += 2) {
+      if ($total[$iter] &lt; $total[$iter + 1]) {
+        print &quot;|   &quot;;
+      } else {
+        print &quot;    &quot;;
+      }
+    } ## end for (my $iter = 0; $iter...
+  } ## end if ($depth &gt; 1)
+
+  if ($depth &gt; 0) {
+    print &quot;+---&quot;;
+  }
+
+  print $module;
+  print &quot; (ignored)&quot; if ($ignored);
+  if ($loaded) {
+    print &quot; (loaded by $already_loaded{$module})\n&quot;;
+  } else {
+    my $version = $module-&gt;VERSION();
+    print &quot; (v$version)&quot; if $version;
+    print &quot;\n&quot;;
+    my $isa   = &quot;${module}::ISA&quot;;
+    my $count = 1;
+    my $total = @$isa;
+
+    foreach (@$isa) {
+      ScanModule($module, $_, $depth + 1, @total, $count, $total);
+      $count++;
+    }
+    $already_loaded{$module} = $parent;
+  } ## end else [ if ($loaded)
+} ## end sub ScanModule
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>278901</node_id>
+  <author_user>177429</author_user>
+  <title>Prettified Perl Inheritance</title>
+  <createtime>2003-07-29 13:40:24</createtime>
+  <nodeupdated>2005-08-13 09:29:39</nodeupdated>
+</node>

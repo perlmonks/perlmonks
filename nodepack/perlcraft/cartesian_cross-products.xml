@@ -1,0 +1,92 @@
+<node>
+  <doctext>=pod What is a Cartesian Cross Product?
+
+I think this is just too damn cool to pass up.  If you don't
+know what a Cartesian (Cross-) Product is, it's basically:
+
+  A = (1,2,3)
+  B = (4,5)
+  CCP(A,B) =&gt;
+   (1,4)
+   (1,5)
+   (2,4)
+   (2,5)
+   (3,4)
+   (3,5)
+
+Yay, that's all well and good.  Here's how to implement the
+Cartesian Product generator in Perl:
+
+=pod Explanation of algorithm used
+
+Given a list of sets, say ([a,b], [c,d,e], [f,g]), we first determine how
+many sets can be created.  Mathematically, this is determined as follows:
+
+  For a list of sets, { a[1], a[2], ..., a[n] }, to determine how many sets
+  can be created by choosing an element from a[1] as the first element of a
+  set, an element of a[2] for the second element, and so on, picking an
+  element of a[n] as the n-th element, we create a list { s[1], s[2], ...,
+  s[n] }, where each element s[i] is the number of element in a[i].  We can
+  pick any of the s[i] elements from a[i] for the specified element in the
+  set to be created, so the number of sets to be created is
+
+      n
+    -----
+     | |   s[p]  .
+     | |
+     p=1
+
+  That is, the product of the sizes of all the sets.
+
+Now that we know how many sets we'll be creating, we start to populate these
+sets.  We modify the same index of each set per loop; that is, we modify
+a[0][0], a[1][0], a[2][0], ..., a[n][0], before we modify any index in a[1].
+
+I utilize a &quot;repetition value&quot;, which starts at 1, and is multiplied by the
+size of the previous set (s[i-1]) when the population of a specific index of
+the new sets is complete.  The repetition value indicates how many times the
+specific element will be inserted in a row on a pass over an index.  The
+starting value of 1 means that each element in a[0] will be inserted once, and
+then the next element will be entered, and after all elements have been
+exhausted, we go back to inserting a[0].
+
+After we've exhausted a[0], we multiply the repetition value by s[0], and we
+move on to a[1].  For each value here, we fill in the next index in the new
+sets, but we do this R times in succession, where R is the repetition value.
+
+We continue through until the new sets are completed.
+
+=cut
+
+  sub cartesian {
+    my $len = 1;
+    my (@ret,$rep,$i,$j,$p,$k);
+
+    for (@_) { $len *= @$_ }
+
+    for ($rep = 1, $i = 0; $i &lt; @_; $rep *= @{ $_[$i] }, $i++) {
+      for ($j = 0, $p = 0; $j &lt; $len; $j += $rep, $p++) {
+        for ($k = 0; $k &lt; $rep; $k++) {
+          print STDERR &lt;&lt; &quot;DEBUGGING&quot; if 0;  # set to true to see debug output
+repetition value: $rep
+modifying set[@{[ $j + $k]}], index[$i]
+value is element @{[ $p % @{ $_[$i] } ]} ('$_[$i][$p % @{ $_[$i] }]') of original set[$i]
+
+DEBUGGING
+          $ret[$j + $k][$i] = $_[$i][$p % @{ $_[$i] }]
+        }
+      }
+    }
+
+    return @ret;
+  }
+
+  # uncomment to see a test run
+  # print map &quot;@$_\n&quot;, cartesian( [1,2] , [3,4,5] , [6,7] );</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>7366</node_id>
+  <author_user>1936</author_user>
+  <title>Cartesian Cross-Products</title>
+  <createtime>2000-04-12 06:06:18</createtime>
+  <nodeupdated>2005-07-20 23:18:25</nodeupdated>
+</node>

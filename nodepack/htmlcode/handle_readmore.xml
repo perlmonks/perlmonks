@@ -1,0 +1,63 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>401302</node_id>
+  <author_user>357600</author_user>
+  <title>handle_readmore</title>
+  <createtime>2004-10-21 16:44:28</createtime>
+  <code>my ($id,$str,$enc,$remove)=@_;
+
+  my ($lt,$gt)=$enc ? qw( &amp;lt; &amp;gt; ) : qw( &lt; &gt; );
+
+
+  if ($remove) {
+    my $open=
+    $str=~s# $lt \s* readmore \s* (?:(?!$gt).)* $gt
+           # $lt . 'div class=&quot;readmore&quot;' . $gt
+           #xigse;
+    my $closed=
+    $str=~s# $lt \s* / \s* readmore \s* $gt
+           # $lt . &quot;/div&quot;. $gt
+           #gixse;
+    if ($open != $closed)
+    {
+       $str.=&quot;$lt/div\n$gt&quot; x ($open-$closed);
+    }
+  } else {
+    $str =~ s{
+             $lt \s* readmore                     # start tag
+             (?: \s+
+                 title \s* = \s*                  # title attribute
+                 (?: ([&quot;&quot;''])                     # $1 quoted string?
+                     (                            # $2 content of quoted string
+                       (?:(?!\1|$gt).)+           # Not tag finish nor close quote
+                     )
+                     \1                           # end quote
+                   |
+                     (                            # $3 unquoted content
+                       (?:(?!$gt|[&quot;&quot;''\s]).)+     # unquote attribute text
+                     )
+                 )
+             )?
+             \s* $gt                              # finish of start tag
+             (.*?)                                # $4 content
+             (?:
+                 $lt \s* / \s* readmore \s* $gt   # close tag
+               | $                                # end of string
+             )
+            }
+    {
+      my $title=$2 || $3 || '';
+      my $length = htmlcode('shorten_num_bytes', '', length($4));
+      &quot;&lt;div class='readmore-link'&gt;&quot;.
+      linkNode($id,&quot;Read more...&quot;).
+      ($title ? &quot;&lt;span class='readmore-title'&gt; &quot;.
+                $title.
+                &quot;&lt;/span&gt;&quot; 
+              : &quot;&quot; ).
+      &quot;&lt;span class='readmore-size'&gt; ($length)&lt;/span&gt;&quot;.
+      &quot;&lt;/div&gt;&quot;
+    }xegis
+  }
+  $str;</code>
+  <nodeupdated>2005-05-09 23:15:21</nodeupdated>
+</node>

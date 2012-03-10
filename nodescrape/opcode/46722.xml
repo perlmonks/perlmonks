@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="46722" title="sopwify" created="2000-12-14 21:01:09" updated="2004-02-20 08:26:26">
+<type id="3545">
+opcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my ($NODE) = $query-&gt;param('node_id');
+getRef $NODE;
+Everything::printLog('sopwify 1');
+Everything::printLog("sopwify user $$USER{title}");
+
+return 
+  unless $DB-&gt;isApproved($USER, getNode('QandAEditors', 'usergroup'));
+
+Everything::printLog('sopwify 2');
+
+if ( $$NODE{type}{title} eq "categorized question" ) {
+   Everything::printLog('sopwify 3');
+   $$NODE{author_user} = $$NODE{original_author};
+   updateNode($NODE, -1);
+
+   my $section = $$NODE{parent_node};
+   htmlcode('changetype', "$$NODE{node_id},perlquestion");
+
+   my (@NODES) = getNodeWhere({parent_node=&gt;getId($NODE)}, "categorized answer");
+   foreach my $ND (@NODES){
+      $$ND{author_user} = $$ND{original_author};
+      $$ND{root_node} = $$NODE{node_id};
+      $$ND{title} =~ s/^Answer:/Re:/;
+      updateNode($ND, -1);
+      htmlcode('changetype', "$$ND{node_id},note");
+   }
+   removeFromNodegroup($section, $NODE, $USER);
+}
+elsif ( $$NODE{type}{title} eq "categorized answer" ) {
+   $$NODE{author_user} = $$NODE{original_author};
+   $$NODE{root_node} = $$NODE{node_id};
+   $$NODE{title} =~ s/^Answer:\s*//;
+   updateNode($NODE, -1);
+   htmlcode('changetype', "$$NODE{node_id},perlquestion");
+   htmlcode('update_root_in_tree', '', $NODE);
+}
+</field>
+</data>
+</node>

@@ -1,0 +1,83 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>465937</node_id>
+  <author_user>357600</author_user>
+  <title>selectcode</title>
+  <createtime>2005-06-12 07:35:09</createtime>
+  <code>my( $field, $node ) = @_;
+$node ||= $NODE;
+my $text = $node-&gt;{$field};
+
+my (@code,@html);
+while(  $text =~ m[&lt;(c(?:ode)?)&gt;(.*?)&lt;/\1&gt;]sig  ) {
+  push @code, $2;
+}
+
+if (exists $VARS-&gt;{ignore_inline_dl_code}) {
+    # this is stupid and its my fault 
+    # it should be removed one day - demerphq 
+    $VARS-&gt;{show_inline_dl_code}=
+        not delete $VARS-&gt;{ignore_inline_dl_code};
+}
+
+
+push @html,
+   qq[&lt;p align=&quot;right&quot;&gt;&lt;a href=&quot;/?node_id=626918&quot;&gt;Help for this page&lt;/a&gt;&lt;/p&gt;\n],
+   &quot;&lt;h1&gt;Select Code to Download&lt;/h1&gt;&quot;,
+   &quot;&lt;p&gt;&quot;,
+   htmlcode( 'openform' ),
+   htmlcode( 'checkvar', '',
+            'show_inline_dl_code',
+            &quot;Show inline code blocks?&quot;,
+            &quot;show&quot;
+   ),
+   $q-&gt;submit( 'sexisgood', 'stumbit'),
+   $q-&gt;endform,
+   &quot;&lt;/p&gt;&quot;;
+
+@code = grep { /\n/ } @code
+   if !$VARS-&gt;{show_inline_dl_code};
+
+push @html,
+   htmlcode( 'openform', '', -displaytype =&gt; 'displaycode' ),
+   $q-&gt;submit(
+      -name =&gt; 'ShowCode',
+      -value =&gt; &quot;Download Selected Code&quot;
+   ),
+   &quot;&lt;br /&gt;&quot;,
+   $q-&gt;ol(
+      $q-&gt;li([
+         map {
+                 my $sample=$code[$_-1];
+                 my @lines=split /\n/,$sample;
+                 if (@lines&gt;6) {
+                    @lines=(@lines[0..2],&quot;...&quot;,@lines[-3,-2,-1]);
+                 }
+
+                 $q-&gt;checkbox(
+                       -name =&gt; &quot;part&quot;,
+                       -checked =&gt; 0,
+                       -value =&gt; $_,
+                       -label =&gt; &quot;Select&quot;,
+                 ).&quot; or &quot;.
+                 linkNode(
+                       $node,
+                       qq[&lt;font size=&quot;-1&quot;&gt;download this&lt;/font&gt;],
+                       { displaytype =&gt; 'displaycode', part =&gt; $_ },
+                       { trusted =&gt; 'yes' },
+                 ).&quot;&lt;br /&gt;&quot;.
+                 htmlcode( 'wrapcode', '', join &quot;\n&quot;,@lines )
+           } 1..@code
+       ]),
+   ),
+   $q-&gt;submit(
+       -name =&gt; 'ShowCode',
+       -value =&gt; &quot;Download Selected Code&quot;
+   ),
+   &quot;&lt;br /&gt;&quot;,
+   $q-&gt;endform,
+;
+
+return join &quot;\n&quot;, @html;</code>
+  <nodeupdated>2005-07-31 11:52:07</nodeupdated>
+</node>

@@ -1,0 +1,1195 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1193" title="perlman:ExtUtils::MakeMaker" created="1999-12-22 19:51:44" updated="2005-08-14 03:13:01">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+ExtUtils::MakeMaker - create an extension Makefile
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+&lt;CODE&gt;use ExtUtils::MakeMaker;&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;CODE&gt;WriteMakefile( ATTRIBUTE =&amp;gt; VALUE &amp;#091;, ...&amp;#093; );&lt;/CODE&gt;
+
+&lt;P&gt;
+which is really
+
+&lt;P&gt;
+&lt;CODE&gt;MM-&amp;gt;new(\%att)-&amp;gt;flush;&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="description">
+
+&lt;P&gt;
+This utility is designed to write a Makefile for an extension module from a
+Makefile.PL. It is based on the Makefile.SH model provided by Andy
+Dougherty and the perl5-porters.
+
+&lt;P&gt;
+It splits the task of generating the Makefile into several subroutines that
+can be individually overridden. Each subroutine returns the text it wishes
+to have written to the Makefile.
+
+&lt;P&gt;
+MakeMaker is object oriented. Each directory below the current directory that contains a Makefile.PL. Is treated as a separate object. This makes it possible to write an unlimited number of Makefiles with a single invocation of 
+&lt;CODE&gt;WriteMakefile().&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="How_To_Write_A_Makefile_PL"&gt;How To Write A Makefile.PL&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The short answer is: Don't.
+
+&lt;P&gt;
+&lt;PRE&gt;        Always begin with h2xs.
+        Always begin with h2xs!
+        ALWAYS BEGIN WITH H2XS!
+&lt;/PRE&gt;
+&lt;P&gt;
+even if you're not building around a header file, and even if you don't have an 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; component.
+
+&lt;P&gt;
+Run 
+&lt;CODE&gt;h2xs(1)&lt;/CODE&gt; before you start
+thinking about writing a module. For so called pm-only modules that consist
+of &lt;CODE&gt;*.pm&lt;/CODE&gt; files only, h2xs has the &lt;CODE&gt;-X&lt;/CODE&gt; switch. This will generate dummy files of all kinds that are useful for the
+module developer.
+
+&lt;P&gt;
+The medium answer is:
+
+&lt;P&gt;
+&lt;PRE&gt;    use ExtUtils::MakeMaker;
+    WriteMakefile( NAME =&amp;gt; &amp;quot;Foo::Bar&amp;quot; );
+&lt;/PRE&gt;
+&lt;P&gt;
+The long answer is the rest of the manpage :-)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Default_Makefile_Behaviour"&gt;Default Makefile Behaviour&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The generated Makefile enables the user of the extension to invoke
+
+&lt;P&gt;
+&lt;PRE&gt;  perl Makefile.PL # optionally &amp;quot;perl Makefile.PL verbose&amp;quot;
+  make
+  make test        # optionally set TEST_VERBOSE=1
+  make install     # See below
+&lt;/PRE&gt;
+&lt;P&gt;
+The Makefile to be produced may be altered by adding arguments of the form &lt;CODE&gt;KEY=VALUE&lt;/CODE&gt;. E.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  perl Makefile.PL PREFIX=/tmp/myperl5
+&lt;/PRE&gt;
+&lt;P&gt;
+Other interesting targets in the generated Makefile are
+
+&lt;P&gt;
+&lt;PRE&gt;  make config     # to check if the Makefile is up-to-date
+  make clean      # delete local temp files (Makefile gets renamed)
+  make realclean  # delete derived files (including ./blib)
+  make ci         # check in all the files in the MANIFEST file
+  make dist       # see below the Distribution Support section
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="make_test"&gt;make test&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+MakeMaker checks for the existence of a file named &lt;EM&gt;test.pl&lt;/EM&gt; in the current directory and if it exists it adds commands to the test
+target of the generated Makefile that will execute the script with the
+proper set of perl &lt;CODE&gt;-I&lt;/CODE&gt; options.
+
+&lt;P&gt;
+MakeMaker also checks for any files matching 
+&lt;CODE&gt;glob(``t/*.t'').&lt;/CODE&gt; It will
+add commands to the test target of the generated Makefile that execute all
+matching files via the [perlman:ExtUtils::Harness|Harness] module with the &lt;CODE&gt;-I&lt;/CODE&gt;
+switches set correctly.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="make_testdb"&gt;make testdb&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; useful variation of the above is the target &lt;CODE&gt;testdb&lt;/CODE&gt;. It runs the test under the Perl debugger (see [perlman:perldebug|perldebug]). If the file
+&lt;EM&gt;test.pl&lt;/EM&gt; exists in the current directory, it is used for the test.
+
+&lt;P&gt;
+If you want to debug some other testfile, set &lt;CODE&gt;TEST_FILE&lt;/CODE&gt; variable thusly:
+
+&lt;P&gt;
+&lt;PRE&gt;  make testdb TEST_FILE=t/mytest.t
+&lt;/PRE&gt;
+&lt;P&gt;
+By default the debugger is called using &lt;CODE&gt;-d&lt;/CODE&gt; option to perl. If you want to specify some other option, set &lt;CODE&gt;TESTDB_SW&lt;/CODE&gt; variable:
+
+&lt;P&gt;
+&lt;PRE&gt;  make testdb TESTDB_SW=-Dx
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="make_install"&gt;make install&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+make alone puts all relevant files into directories that are named by the macros 
+&lt;FONT SIZE=-1&gt;INST_LIB,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INST_ARCHLIB,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INST_MAN1DIR,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;INST_MAN3DIR.&lt;/FONT&gt; All these default to something below ./blib if you are
+
+&lt;EM&gt;not&lt;/EM&gt; building below the perl source directory. If you &lt;EM&gt;are&lt;/EM&gt;
+building below the perl source, 
+&lt;FONT SIZE=-1&gt;INST_LIB&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;INST_ARCHLIB&lt;/FONT&gt; default to ../../lib, and 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT&lt;/FONT&gt; is not defined.
+
+&lt;P&gt;
+The &lt;EM&gt;install&lt;/EM&gt; target of the generated Makefile copies the files found below each of the 
+&lt;FONT SIZE=-1&gt;INST_*&lt;/FONT&gt; directories to their 
+&lt;FONT SIZE=-1&gt;INSTALL*&lt;/FONT&gt; counterparts. Which counterparts are chosen depends on the setting of 
+&lt;FONT SIZE=-1&gt;INSTALLDIRS&lt;/FONT&gt; according to the following table:
+
+&lt;P&gt;
+&lt;PRE&gt;                           INSTALLDIRS set to
+                        perl              site
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    INST_ARCHLIB    INSTALLARCHLIB    INSTALLSITEARCH
+    INST_LIB        INSTALLPRIVLIB    INSTALLSITELIB
+    INST_BIN                  INSTALLBIN
+    INST_SCRIPT              INSTALLSCRIPT
+    INST_MAN1DIR             INSTALLMAN1DIR
+    INST_MAN3DIR             INSTALLMAN3DIR
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;INSTALL...&lt;/FONT&gt; macros in turn default to their
+&lt;CODE&gt;%Config&lt;/CODE&gt; ($Config{installprivlib}, $Config{installarchlib},
+etc.) counterparts.
+
+&lt;P&gt;
+You can check the values of these variables on your system with
+
+&lt;P&gt;
+&lt;PRE&gt;    perl '-V:install.*'
+&lt;/PRE&gt;
+&lt;P&gt;
+And to check the sequence in which the library directories are searched by
+perl, run
+
+&lt;P&gt;
+&lt;PRE&gt;    perl -le 'print join $/, @INC'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="PREFIX_and_LIB_attribute"&gt;PREFIX and LIB attribute&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;LIB&lt;/FONT&gt; can be used to set several 
+&lt;FONT SIZE=-1&gt;INSTALL*&lt;/FONT&gt; attributes in one go. The quickest way to install a module in a non-standard place might be
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL LIB=~/lib
+&lt;/PRE&gt;
+&lt;P&gt;
+This will install the module's architecture-independent files into ~/lib,
+the architecture-dependent files into ~/lib/$archname/auto.
+
+&lt;P&gt;
+Another way to specify many 
+&lt;FONT SIZE=-1&gt;INSTALL&lt;/FONT&gt; directories with a single parameter is 
+&lt;FONT SIZE=-1&gt;PREFIX.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL PREFIX=~
+&lt;/PRE&gt;
+&lt;P&gt;
+This will replace the string specified by $Config{prefix} in all
+$Config{install*} values.
+
+&lt;P&gt;
+Note, that in both cases the tilde expansion is done by MakeMaker, not by perl by default, nor by make. Conflicts between parmeters 
+&lt;FONT SIZE=-1&gt;LIB,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; and the various 
+&lt;FONT SIZE=-1&gt;INSTALL*&lt;/FONT&gt; arguments are resolved so that 
+&lt;FONT SIZE=-1&gt;XXX&lt;/FONT&gt;
+
+&lt;P&gt;
+If the user has superuser privileges, and is not working on 
+&lt;FONT SIZE=-1&gt;AFS&lt;/FONT&gt; (Andrew File System) or relatives, then the defaults for 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INSTALLARCHLIB,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;INSTALLSCRIPT,&lt;/FONT&gt; etc. will be appropriate, and this incantation will be the best:
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL; make; make test
+    make install
+&lt;/PRE&gt;
+&lt;P&gt;
+make install per default writes some documentation of what has been done
+into the file &lt;CODE&gt;$(INSTALLARCHLIB)/perllocal.pod&lt;/CODE&gt;. This feature can be bypassed by calling make pure_install.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="AFS_users"&gt;AFS users&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+will have to specify the installation directories as these most probably
+have changed since perl itself has been installed. They will have to do
+this by calling
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL INSTALLSITELIB=/afs/here/today \
+        INSTALLSCRIPT=/afs/there/now INSTALLMAN3DIR=/afs/for/manpages
+    make
+&lt;/PRE&gt;
+&lt;P&gt;
+Be careful to repeat this procedure every time you recompile an extension, unless you are sure the 
+&lt;FONT SIZE=-1&gt;AFS&lt;/FONT&gt; installation directories are still valid.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Static_Linking_of_a_new_Perl_Bin"&gt;Static Linking of a new Perl Binary&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+An extension that is built with the above steps is ready to use on systems
+supporting dynamic loading. On systems that do not support dynamic loading,
+any newly created extension has to be linked together with the available
+resources. MakeMaker supports the linking process by creating appropriate
+targets in the Makefile whenever an extension is built. You can invoke the
+corresponding section of the makefile with
+
+&lt;P&gt;
+&lt;PRE&gt;    make perl
+&lt;/PRE&gt;
+&lt;P&gt;
+That produces a new perl binary in the current directory with all extensions linked in that can be found in 
+&lt;FONT SIZE=-1&gt;INST_ARCHLIB&lt;/FONT&gt; , 
+&lt;FONT SIZE=-1&gt;SITELIBEXP,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;PERL_ARCHLIB.&lt;/FONT&gt; To do that, MakeMaker writes a new Makefile, on 
+&lt;FONT SIZE=-1&gt;UNIX,&lt;/FONT&gt; this is called Makefile.aperl (may be system dependent). If you want to force the creation of a new perl, it is recommended, that you delete this Makefile.aperl, so the directories are searched-through for linkable libraries again.
+
+&lt;P&gt;
+The binary can be installed into the directory where perl normally resides
+on your machine with
+
+&lt;P&gt;
+&lt;PRE&gt;    make inst_perl
+&lt;/PRE&gt;
+&lt;P&gt;
+To produce a perl binary with a different name than &lt;CODE&gt;perl&lt;/CODE&gt;, either say
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL MAP_TARGET=myperl
+    make myperl
+    make inst_perl
+&lt;/PRE&gt;
+&lt;P&gt;
+or say
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL
+    make myperl MAP_TARGET=myperl
+    make inst_perl MAP_TARGET=myperl
+&lt;/PRE&gt;
+&lt;P&gt;
+In any case you will be prompted with the correct invocation of the
+&lt;CODE&gt;inst_perl&lt;/CODE&gt; target that installs the new binary into 
+&lt;FONT SIZE=-1&gt;INSTALLBIN.&lt;/FONT&gt;
+
+&lt;P&gt;
+make inst_perl per default writes some documentation of what has been done
+into the file &lt;CODE&gt;$(INSTALLARCHLIB)/perllocal.pod&lt;/CODE&gt;. This can be bypassed by calling make pure_inst_perl.
+
+&lt;P&gt;
+Warning: the inst_perl: target will most probably overwrite your existing
+perl binary. Use with care!
+
+&lt;P&gt;
+Sometimes you might want to build a statically linked perl although your
+system supports dynamic loading. In this case you may explicitly set the
+linktype with the invocation of the Makefile.PL or make:
+
+&lt;P&gt;
+&lt;PRE&gt;    perl Makefile.PL LINKTYPE=static    # recommended
+&lt;/PRE&gt;
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    make LINKTYPE=static                # works on most systems
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Determination_of_Perl_Library_an"&gt;Determination of Perl Library and Installation Locations&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+MakeMaker needs to know, or to guess, where certain things are located. Especially 
+&lt;FONT SIZE=-1&gt;INST_LIB&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;INST_ARCHLIB&lt;/FONT&gt; (where to put the files during the 
+&lt;CODE&gt;make(1)&lt;/CODE&gt; run), 
+&lt;FONT SIZE=-1&gt;PERL_LIB&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;PERL_ARCHLIB&lt;/FONT&gt; (where to read existing modules from), and 
+&lt;FONT SIZE=-1&gt;PERL_INC&lt;/FONT&gt; (header files and
+ &lt;CODE&gt;libperl*.*&lt;/CODE&gt;).
+
+&lt;P&gt;
+Extensions may be built either using the contents of the perl source
+directory tree or from the installed perl library. The recommended way is
+to build extensions after you have run 'make install' on perl itself. You
+can do that in any directory on your hard disk that is not below the perl
+source tree. The support for extensions below the ext directory of the perl
+distribution is only good for the standard extensions that come with perl.
+
+&lt;P&gt;
+If an extension is being built below the &lt;CODE&gt;ext/&lt;/CODE&gt; directory of the perl source then MakeMaker will set 
+&lt;FONT SIZE=-1&gt;PERL_SRC&lt;/FONT&gt; automatically (e.g.,
+&lt;CODE&gt;../..&lt;/CODE&gt;). If 
+&lt;FONT SIZE=-1&gt;PERL_SRC&lt;/FONT&gt; is defined and the extension is recognized as
+a standard extension, then other variables default to the following:
+
+&lt;P&gt;
+&lt;PRE&gt;  PERL_INC     = PERL_SRC
+  PERL_LIB     = PERL_SRC/lib
+  PERL_ARCHLIB = PERL_SRC/lib
+  INST_LIB     = PERL_LIB
+  INST_ARCHLIB = PERL_ARCHLIB
+&lt;/PRE&gt;
+&lt;P&gt;
+If an extension is being built away from the perl source then MakeMaker will leave 
+&lt;FONT SIZE=-1&gt;PERL_SRC&lt;/FONT&gt; undefined and default to using the installed copy of the perl library. The other variables default to the following:
+
+&lt;P&gt;
+&lt;PRE&gt;  PERL_INC     = $archlibexp/CORE
+  PERL_LIB     = $privlibexp
+  PERL_ARCHLIB = $archlibexp
+  INST_LIB     = ./blib/lib
+  INST_ARCHLIB = ./blib/arch
+&lt;/PRE&gt;
+&lt;P&gt;
+If perl has not yet been installed then 
+&lt;FONT SIZE=-1&gt;PERL_SRC&lt;/FONT&gt; can be defined on the command line as shown
+in the previous section.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Which_architecture_dependent_dir"&gt;Which architecture dependent directory?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you don't want to keep the defaults for the 
+&lt;FONT SIZE=-1&gt;INSTALL*&lt;/FONT&gt; macros, MakeMaker helps you to minimize the typing needed: the usual relationship between 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;INSTALLARCHLIB&lt;/FONT&gt; is determined by Configure at perl compilation time. MakeMaker supports the user who sets 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB.&lt;/FONT&gt; If 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB&lt;/FONT&gt; is set, but 
+&lt;FONT SIZE=-1&gt;INSTALLARCHLIB&lt;/FONT&gt; not, then MakeMaker defaults the latter to be the same subdirectory of 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB&lt;/FONT&gt; as Configure decided for the counterparts in &lt;CODE&gt;%Config&lt;/CODE&gt; , otherwise it defaults to 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB.&lt;/FONT&gt; The same relationship holds for 
+&lt;FONT SIZE=-1&gt;INSTALLSITELIB&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;INSTALLSITEARCH.&lt;/FONT&gt;
+
+&lt;P&gt;
+MakeMaker gives you much more freedom than needed to configure internal variables and get different results. It is worth to mention, that 
+&lt;CODE&gt;make(1)&lt;/CODE&gt; also lets you configure most of the variables that are used in the Makefile. But in the majority of situations this will not be necessary, and should only be done, if the author of a package recommends it (or you know what you're doing).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Using_Attributes_and_Parameters"&gt;Using Attributes and Parameters&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The following attributes can be specified as arguments to 
+&lt;CODE&gt;WriteMakefile()&lt;/CODE&gt; or as 
+&lt;FONT SIZE=-1&gt;NAME=VALUE&lt;/FONT&gt; pairs on the command line:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_C"&gt;C&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to array of *.c file names. Initialised from a directory scan and the values portion of the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; attribute hash. This is not currently used by MakeMaker but may be handy in Makefile.PLs.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_CCFLAGS"&gt;CCFLAGS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+String that will be included in the compiler call command line between the arguments 
+&lt;FONT SIZE=-1&gt;INC&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OPTIMIZE.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_CONFIG"&gt;CONFIG&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Arrayref. E.g. &amp;#091;qw(archname manext)&amp;#093; defines 
+&lt;FONT SIZE=-1&gt;ARCHNAME&lt;/FONT&gt; &amp;amp; 
+&lt;FONT SIZE=-1&gt;MANEXT&lt;/FONT&gt; from config.sh. MakeMaker will add to 
+&lt;FONT SIZE=-1&gt;CONFIG&lt;/FONT&gt; the following values anyway: ar cc cccdlflags ccdlflags dlext dlsrc ld lddlflags ldflags libc lib_ext obj_ext ranlib sitelibexp sitearchexp so
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_CONFIGURE"&gt;CONFIGURE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;CODE&lt;/FONT&gt; reference. The subroutine should return a hash reference. The hash may contain further attributes, e.g. 
+&lt;FONT SIZE=-1&gt;{LIBS&lt;/FONT&gt; =&amp;gt; ...}, that have to be determined by some evaluation method.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_DEFINE"&gt;DEFINE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Something like &lt;CODE&gt;&amp;quot;-DHAVE_UNISTD_H&amp;quot;&lt;/CODE&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_DIR"&gt;DIR&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to array of subdirectories containing Makefile.PLs e.g. &amp;#091; 'sdbm' &amp;#093; in
+ext/SDBM_File
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_DISTNAME"&gt;DISTNAME&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Your name for distributing the package (by tar file). This defaults to 
+&lt;FONT SIZE=-1&gt;NAME&lt;/FONT&gt; above.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_DL_FUNCS"&gt;DL_FUNCS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Hashref of symbol names for routines to be made available as universal symbols. Each key/value pair consists of the package name and an array of routine names in that package. Used only under 
+&lt;FONT SIZE=-1&gt;AIX&lt;/FONT&gt; (export lists) and 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; (linker options) at present. The routine names supplied will be expanded in the same way as 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; names are expanded by the 
+&lt;CODE&gt;XS()&lt;/CODE&gt; macro. Defaults to
+
+&lt;P&gt;
+&lt;PRE&gt;  {&amp;quot;$(NAME)&amp;quot; =&amp;gt; &amp;#091;&amp;quot;boot_$(NAME)&amp;quot; &amp;#093; }
+&lt;/PRE&gt;
+&lt;P&gt;
+e.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  {&amp;quot;RPC&amp;quot; =&amp;gt; &amp;#091;qw( boot_rpcb rpcb_gettime getnetconfigent )&amp;#093;,
+   &amp;quot;NetconfigPtr&amp;quot; =&amp;gt; &amp;#091; 'DESTROY'&amp;#093; }
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_DL_VARS"&gt;DL_VARS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Array of symbol names for variables to be made available as universal symbols. Used only under 
+&lt;FONT SIZE=-1&gt;AIX&lt;/FONT&gt; (export lists) and 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; (linker options) at present. Defaults to &amp;#091;&amp;#093;. (e.g. &amp;#091; 
+&lt;CODE&gt;qw(&lt;/CODE&gt; Foo_version Foo_numstreams Foo_tree ) &amp;#093;)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_EXCLUDE_EXT"&gt;EXCLUDE_EXT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Array of extension names to exclude when doing a static build. This is ignored if 
+&lt;FONT SIZE=-1&gt;INCLUDE_EXT&lt;/FONT&gt; is present. Consult 
+&lt;FONT SIZE=-1&gt;INCLUDE_EXT&lt;/FONT&gt; for more details. (e.g. &amp;#091; 
+&lt;CODE&gt;qw(&lt;/CODE&gt; Socket 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; ) &amp;#093; )
+
+&lt;P&gt;
+This attribute may be most useful when specified as a string on the
+commandline: perl Makefile.PL EXCLUDE_EXT='Socket Safe'
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_EXE_FILES"&gt;EXE_FILES&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to array of executable files. The files will be copied to the 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT&lt;/FONT&gt; directory. Make realclean will delete them
+from there again.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_NO_VC"&gt;NO_VC&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+In general any generated Makefile checks for the current version of MakeMaker and the version the Makefile was built under. If 
+&lt;FONT SIZE=-1&gt;NO_VC&lt;/FONT&gt; is set, the version check is neglected. Do not write this into your Makefile.PL, use it interactively instead.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_FIRST_MAKEFILE"&gt;FIRST_MAKEFILE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The name of the Makefile to be produced. Defaults to the contents of 
+&lt;FONT SIZE=-1&gt;MAKEFILE,&lt;/FONT&gt; but can be overridden. This is used for the second Makefile that will be produced for the 
+&lt;FONT SIZE=-1&gt;MAP_TARGET.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_FULLPERL"&gt;FULLPERL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl binary able to run this extension.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_H"&gt;H&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to array of *.h file names. Similar to 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_IMPORTS"&gt;IMPORTS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;IMPORTS&lt;/FONT&gt; is only used on 
+&lt;FONT SIZE=-1&gt;OS/2.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INC"&gt;INC&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Include file dirs eg: &lt;CODE&gt;&amp;quot;-I/usr/5include -I/path/to/inc&amp;quot;&lt;/CODE&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INCLUDE_EXT"&gt;INCLUDE_EXT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Array of extension names to be included when doing a static build. MakeMaker will normally build with all of the installed extensions when doing a static build, and that is usually the desired behavior. If 
+&lt;FONT SIZE=-1&gt;INCLUDE_EXT&lt;/FONT&gt; is present then MakeMaker will build only with those extensions which are explicitly mentioned. (e.g. &amp;#091; 
+&lt;CODE&gt;qw(&lt;/CODE&gt; Socket 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; ) &amp;#093;)
+
+&lt;P&gt;
+It is not necessary to mention DynaLoader or the current extension when filling in 
+&lt;FONT SIZE=-1&gt;INCLUDE_EXT.&lt;/FONT&gt; If the 
+&lt;FONT SIZE=-1&gt;INCLUDE_EXT&lt;/FONT&gt; is mentioned but is empty then only DynaLoader and the current extension will be included in the build.
+
+&lt;P&gt;
+This attribute may be most useful when specified as a string on the commandline: perl Makefile.PL 
+&lt;FONT SIZE=-1&gt;INCLUDE_EXT='POSIX&lt;/FONT&gt; Socket Devel::Peek'
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLARCHLIB"&gt;INSTALLARCHLIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by 'make install', which copies files from 
+&lt;FONT SIZE=-1&gt;INST_ARCHLIB&lt;/FONT&gt; to this directory if 
+&lt;FONT SIZE=-1&gt;INSTALLDIRS&lt;/FONT&gt; is set to perl.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLBIN"&gt;INSTALLBIN&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory to install binary files (e.g. tkperl) into.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLDIRS"&gt;INSTALLDIRS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Determines which of the two sets of installation directories to choose:
+installprivlib and installarchlib versus installsitelib and
+installsitearch. The first pair is chosen with INSTALLDIRS=perl, the second
+with INSTALLDIRS=site. Default is site.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLMAN1DIR"&gt;INSTALLMAN1DIR&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This directory gets the man pages at 'make install' time. Defaults to
+$Config{installman1dir}.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLMAN3DIR"&gt;INSTALLMAN3DIR&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This directory gets the man pages at 'make install' time. Defaults to
+$Config{installman3dir}.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLPRIVLIB"&gt;INSTALLPRIVLIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by 'make install', which copies files from 
+&lt;FONT SIZE=-1&gt;INST_LIB&lt;/FONT&gt; to this directory if 
+&lt;FONT SIZE=-1&gt;INSTALLDIRS&lt;/FONT&gt; is set to perl.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLSCRIPT"&gt;INSTALLSCRIPT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by 'make install' which copies files from 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT&lt;/FONT&gt; to this directory.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLSITELIB"&gt;INSTALLSITELIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by 'make install', which copies files from 
+&lt;FONT SIZE=-1&gt;INST_LIB&lt;/FONT&gt; to this directory if 
+&lt;FONT SIZE=-1&gt;INSTALLDIRS&lt;/FONT&gt; is set to site (default).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INSTALLSITEARCH"&gt;INSTALLSITEARCH&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by 'make install', which copies files from 
+&lt;FONT SIZE=-1&gt;INST_ARCHLIB&lt;/FONT&gt; to this directory if 
+&lt;FONT SIZE=-1&gt;INSTALLDIRS&lt;/FONT&gt; is set to site (default).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_ARCHLIB"&gt;INST_ARCHLIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Same as 
+&lt;FONT SIZE=-1&gt;INST_LIB&lt;/FONT&gt; for architecture dependent files.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_BIN"&gt;INST_BIN&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory to put real binary files during 'make'. These will be copied to 
+&lt;FONT SIZE=-1&gt;INSTALLBIN&lt;/FONT&gt; during 'make install'
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_EXE"&gt;INST_EXE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Old name for 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT.&lt;/FONT&gt; Deprecated. Please use 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT&lt;/FONT&gt; if you need to use it.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_LIB"&gt;INST_LIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory where we put library files of this extension while building it.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_MAN1DIR"&gt;INST_MAN1DIR&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory to hold the man pages at 'make' time
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_MAN3DIR"&gt;INST_MAN3DIR&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory to hold the man pages at 'make' time
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_INST_SCRIPT"&gt;INST_SCRIPT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory, where executable files should be installed during 'make'. Defaults to ``./blib/bin'', just to have a dummy location during testing. make install will copy the files in 
+&lt;FONT SIZE=-1&gt;INST_SCRIPT&lt;/FONT&gt; to 
+&lt;FONT SIZE=-1&gt;INSTALLSCRIPT.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_LDFROM"&gt;LDFROM&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+defaults to 
+&lt;FONT SIZE=-1&gt;``$(OBJECT)''&lt;/FONT&gt; and is used in the ld command to specify
+what files to link/load from (also see dynamic_lib below for how to specify
+ld flags)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_LIBPERL_A"&gt;LIBPERL_A&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The filename of the perllibrary that will be used together with this
+extension. Defaults to libperl.a.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_LIB"&gt;LIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;LIB&lt;/FONT&gt; can only be set at &lt;CODE&gt;perl Makefile.PL&lt;/CODE&gt; time. It has the effect of setting both 
+&lt;FONT SIZE=-1&gt;INSTALLPRIVLIB&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;INSTALLSITELIB&lt;/FONT&gt; to that value regardless any
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_LIBS"&gt;LIBS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+An anonymous array of alternative library specifications to be searched for
+(in order) until at least one library is found. E.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  'LIBS' =&amp;gt; &amp;#091;&amp;quot;-lgdbm&amp;quot;, &amp;quot;-ldbm -lfoo&amp;quot;, &amp;quot;-L/path -ldbm.nfs&amp;quot;&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+Mind, that any element of the array contains a complete set of arguments
+for the ld command. So do not specify
+
+&lt;P&gt;
+&lt;PRE&gt;  'LIBS' =&amp;gt; &amp;#091;&amp;quot;-ltcl&amp;quot;, &amp;quot;-ltk&amp;quot;, &amp;quot;-lX11&amp;quot;&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+See ODBM_File/Makefile.PL for an example, where an array is needed. If you
+specify a scalar as in
+
+&lt;P&gt;
+&lt;PRE&gt;  'LIBS' =&amp;gt; &amp;quot;-ltcl -ltk -lX11&amp;quot;
+&lt;/PRE&gt;
+&lt;P&gt;
+MakeMaker will turn it into an array with one element.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_LINKTYPE"&gt;LINKTYPE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+'static' or 'dynamic' (default unless usedl=undef in config.sh). Should
+only be used to force static linking (also see linkext below).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MAKEAPERL"&gt;MAKEAPERL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Boolean which tells MakeMaker, that it should include the rules to make a
+perl. This is handled automatically as a switch by MakeMaker. The user
+normally does not need it.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MAKEFILE"&gt;MAKEFILE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The name of the Makefile to be produced.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MAN1PODS"&gt;MAN1PODS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Hashref of pod-containing files. MakeMaker will default this to all 
+&lt;FONT SIZE=-1&gt;EXE_FILES&lt;/FONT&gt; files that include 
+&lt;FONT SIZE=-1&gt;POD&lt;/FONT&gt; directives. The files listed here will be converted to man pages and installed as was requested at Configure time.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MAN3PODS"&gt;MAN3PODS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Hashref of .pm and .pod files. MakeMaker will default this to all .pod and any .pm files that include 
+&lt;FONT SIZE=-1&gt;POD&lt;/FONT&gt; directives. The files listed here will be converted to man pages and installed as was requested at Configure time.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MAP_TARGET"&gt;MAP_TARGET&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If it is intended, that a new perl binary be produced, this variable may
+hold a name for that binary. Defaults to perl
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MYEXTLIB"&gt;MYEXTLIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If the extension links to a library that it builds set this to the name of
+the library (see SDBM_File)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_NAME"&gt;NAME&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl module name for this extension (DBD::Oracle). This will default to the
+directory name but should be explicitly defined in the Makefile.PL.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_NEEDS_LINKING"&gt;NEEDS_LINKING&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+MakeMaker will figure out, if an extension contains linkable code anywhere
+down the directory tree, and will set this variable accordingly, but you
+can speed it up a very little bit, if you define this boolean variable
+yourself.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_NOECHO"&gt;NOECHO&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Defaults to &lt;CODE&gt;@&lt;/CODE&gt;. By setting it to an empty string you can generate a Makefile that echos
+all commands. Mainly used in debugging MakeMaker itself.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_NORECURS"&gt;NORECURS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Boolean. Attribute to inhibit descending into subdirectories.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_OBJECT"&gt;OBJECT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+List of object files, defaults to 
+&lt;FONT SIZE=-1&gt;'$(BASEEXT)$(OBJ_EXT)',&lt;/FONT&gt; but can be a long string
+containing all object files, e.g. ``tkpBind.o tkpButton.o tkpCanvas.o''
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_OPTIMIZE"&gt;OPTIMIZE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Defaults to &lt;CODE&gt;-O&lt;/CODE&gt;. Set it to &lt;CODE&gt;-g&lt;/CODE&gt; to turn debugging on. The flag is passed to subdirectory makes.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERL"&gt;PERL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Perl binary for tasks that can be done by miniperl
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERLMAINCC"&gt;PERLMAINCC&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The call to the program that is able to compile perlmain.c. Defaults to 
+&lt;FONT SIZE=-1&gt;$(CC).&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERL_ARCHLIB"&gt;PERL_ARCHLIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Same as above for architecture dependent files
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERL_LIB"&gt;PERL_LIB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory containing the Perl library to use.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERL_SRC"&gt;PERL_SRC&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Directory containing the Perl source code (use of this should be avoided,
+it may be undefined)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERM_RW"&gt;PERM_RW&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Desired Permission for read/writable files. Defaults to &lt;CODE&gt;644&lt;/CODE&gt;. See also [perlman:ExtUtils::MM_Unix|MM_Unix].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PERM_RWX"&gt;PERM_RWX&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Desired permission for executable files. Defaults to &lt;CODE&gt;755&lt;/CODE&gt;. See also [perlman:ExtUtils::MM_Unix|MM_Unix].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PL_FILES"&gt;PL_FILES&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to hash of files to be processed as perl programs. MakeMaker will default to any found 
+&lt;FONT SIZE=-1&gt;*.PL&lt;/FONT&gt; file (except Makefile.PL) being keys and the basename of the file being the value. E.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  {'foobar.PL' =&amp;gt; 'foobar'}
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;*.PL&lt;/FONT&gt; files are expected to produce output to the
+target files themselves.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PM"&gt;PM&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Hashref of .pm files and *.pl files to be installed. e.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  {'name_of_file.pm' =&amp;gt; '$(INST_LIBDIR)/install_as.pm'}
+&lt;/PRE&gt;
+&lt;P&gt;
+By default this will include *.pm and *.pl and the files found in the 
+&lt;FONT SIZE=-1&gt;PMLIBDIRS&lt;/FONT&gt; directories. Defining 
+&lt;FONT SIZE=-1&gt;PM&lt;/FONT&gt; in the Makefile.PL will override 
+&lt;FONT SIZE=-1&gt;PMLIBDIRS.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PMLIBDIRS"&gt;PMLIBDIRS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to array of subdirectories containing library files. Defaults to &amp;#091; 'lib', 
+&lt;FONT SIZE=-1&gt;$(BASEEXT)&lt;/FONT&gt; &amp;#093;. The directories will be scanned and
+ &lt;EM&gt;any&lt;/EM&gt; files they contain will be installed in the corresponding location in the library. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;CODE&gt;libscan()&lt;/CODE&gt; method can be used to alter the behaviour. Defining 
+&lt;FONT SIZE=-1&gt;PM&lt;/FONT&gt; in the Makefile.PL will override 
+&lt;FONT SIZE=-1&gt;PMLIBDIRS.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PREFIX"&gt;PREFIX&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Can be used to set the three 
+&lt;FONT SIZE=-1&gt;INSTALL*&lt;/FONT&gt; attributes in one go (except for probably 
+&lt;FONT SIZE=-1&gt;INSTALLMAN1DIR,&lt;/FONT&gt; if it is not below 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; according to %Config). They will have 
+&lt;FONT SIZE=-1&gt;PREFIX&lt;/FONT&gt; as a common directory node and will branch from that node into lib/, lib/ARCHNAME or whatever Configure decided at the build time of your perl (unless you override one of them, of course).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PREREQ_PM"&gt;PREREQ_PM&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Hashref: Names of modules that need to be available to run this extension
+(e.g. Fcntl for SDBM_File) are the keys of the hash and the desired version
+is the value. If the required version number is 0, we only check if any
+version is installed already.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_SKIP"&gt;SKIP&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Arryref. E.g. &amp;#091;qw(name1 name2)&amp;#093; skip (do not write) sections of the Makefile. Caution! Do not use the 
+&lt;FONT SIZE=-1&gt;SKIP&lt;/FONT&gt; attribute for the neglectible speedup. It may seriously damage the resulting Makefile. Only use it, if you really need it.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_TYPEMAPS"&gt;TYPEMAPS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Ref to array of typemap file names. Use this when the typemaps are in some
+directory other than the current directory or when they are not named &lt;STRONG&gt;typemap&lt;/STRONG&gt;. The last typemap in the list takes precedence. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; typemap in the current directory has highest precedence, even if it isn't listed in 
+&lt;FONT SIZE=-1&gt;TYPEMAPS.&lt;/FONT&gt; The default system typemap has lowest precedence.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_VERSION"&gt;VERSION&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Your version number for distributing the package. This defaults to 0.1.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_VERSION_FROM"&gt;VERSION_FROM&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Instead of specifying the 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; in the Makefile.PL you can let MakeMaker parse a file to determine the version number. The parsing routine requires that the file named by 
+&lt;FONT SIZE=-1&gt;VERSION_FROM&lt;/FONT&gt; contains one single line to compute the version number. The first line in the file that contains the regular expression
+
+&lt;P&gt;
+&lt;PRE&gt;    /(&amp;#091;\$*&amp;#093;)((&amp;#091;\w\:\'&amp;#093;*)\bVERSION)\b.*\=/
+&lt;/PRE&gt;
+&lt;P&gt;
+will be evaluated with 
+&lt;CODE&gt;eval()&lt;/CODE&gt; and the value of the
+named variable
+&lt;STRONG&gt;after&lt;/STRONG&gt; the 
+&lt;CODE&gt;eval()&lt;/CODE&gt; will be assigned to the 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; attribute of the MakeMaker object. The following lines will be parsed o.k.:
+
+&lt;P&gt;
+&lt;PRE&gt;    $VERSION = '1.00';
+    *VERSION = \'1.01';
+    ( $VERSION ) = '$Revision: 1.222 $ ' =~ /\$Revision:\s+(&amp;#091;^\s&amp;#093;+)/;
+    $FOO::VERSION = '1.10';
+    *FOO::VERSION = \'1.11';
+&lt;/PRE&gt;
+&lt;P&gt;
+but these will fail:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $VERSION = '1.01';
+    local $VERSION = '1.02';
+    local $FOO::VERSION = '1.30';
+&lt;/PRE&gt;
+&lt;P&gt;
+The file named in 
+&lt;FONT SIZE=-1&gt;VERSION_FROM&lt;/FONT&gt; is not added as a dependency to Makefile. This is not really correct, but it would be a major pain during development to have to rewrite the Makefile for any smallish change in that file. If you want to make sure that the Makefile contains the correct 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; macro after any change of the file, you would have to do something like
+
+&lt;P&gt;
+&lt;PRE&gt;    depend =&amp;gt; { Makefile =&amp;gt; '$(VERSION_FROM)' }
+&lt;/PRE&gt;
+&lt;P&gt;
+See attribute &lt;CODE&gt;depend&lt;/CODE&gt; below.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_XS"&gt;XS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Hashref of .xs files. MakeMaker will default this. e.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  {'name_of_file.xs' =&amp;gt; 'name_of_file.c'}
+&lt;/PRE&gt;
+&lt;P&gt;
+The .c files will automatically be included in the list of files deleted by
+a make clean.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_XSOPT"&gt;XSOPT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+String of options to pass to xsubpp. This might include [perlman:perlop|perlop] or
+&lt;CODE&gt;-extern&lt;/CODE&gt;. Do not include typemaps here; the 
+&lt;FONT SIZE=-1&gt;TYPEMAP&lt;/FONT&gt; parameter exists for that purpose.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_XSPROTOARG"&gt;XSPROTOARG&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+May be set to an empty string, which is identical to &lt;CODE&gt;-prototypes&lt;/CODE&gt;, or
+&lt;CODE&gt;-noprototypes&lt;/CODE&gt;. See the xsubpp documentation for details. MakeMaker defaults to the empty
+string.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_XS_VERSION"&gt;XS_VERSION&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Your version number for the .xs file of this package. This defaults to the value of the 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; attribute.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Additional_lowercase_attributes"&gt;Additional lowercase attributes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+can be used to pass parameters to the methods which implement that part of
+the Makefile.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_clean"&gt;clean&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {FILES =&amp;gt; &amp;quot;*.xyz foo&amp;quot;}
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_depend"&gt;depend&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {ANY_TARGET =&amp;gt; ANY_DEPENDECY, ...}
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dist"&gt;dist&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {TARFLAGS =&amp;gt; 'cvfF', COMPRESS =&amp;gt; 'gzip', SUFFIX =&amp;gt; '.gz',
+  SHAR =&amp;gt; 'shar -m', DIST_CP =&amp;gt; 'ln', ZIP =&amp;gt; '/bin/zip',
+  ZIPFLAGS =&amp;gt; '-rl', DIST_DEFAULT =&amp;gt; 'private tardist' }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you specify 
+&lt;FONT SIZE=-1&gt;COMPRESS,&lt;/FONT&gt; then 
+&lt;FONT SIZE=-1&gt;SUFFIX&lt;/FONT&gt; should also be altered, as it is needed to tell make the target file of the compression. Setting 
+&lt;FONT SIZE=-1&gt;DIST_CP&lt;/FONT&gt; to ln can be useful, if you need to preserve the timestamps on your files. 
+&lt;FONT SIZE=-1&gt;DIST_CP&lt;/FONT&gt; can take the values 'cp', which copies the file, 'ln', which links the file, and 'best' which copies symbolic links and links the rest. Default is 'best'.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dynamic_lib"&gt;dynamic_lib&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {ARMAYBE =&amp;gt; 'ar', OTHERLDFLAGS =&amp;gt; '...', INST_DYNAMIC_DEP =&amp;gt; '...'}
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_installpm"&gt;installpm&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Deprecated as of MakeMaker 5.23. See [perlman:ExtUtils::MM_Unix_pm_to_blib|MM_Unix_pm_to_blib].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_linkext"&gt;linkext&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {LINKTYPE =&amp;gt; 'static', 'dynamic' or ''}
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NB:&lt;/FONT&gt; Extensions that have nothing but *.pm files had to
+say
+
+&lt;P&gt;
+&lt;PRE&gt;  {LINKTYPE =&amp;gt; ''}
+&lt;/PRE&gt;
+&lt;P&gt;
+with Pre-5.0 MakeMakers. Since version 5.00 of MakeMaker such a line can be
+deleted safely. MakeMaker recognizes, when there's nothing to be linked.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_macro"&gt;macro&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {ANY_MACRO =&amp;gt; ANY_VALUE, ...}
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_realclean"&gt;realclean&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {FILES =&amp;gt; '$(INST_ARCHAUTODIR)/*.xyz'}
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_tool_autosplit"&gt;tool_autosplit&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  {MAXLEN =&amp;gt; 8}
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Overriding_MakeMaker_Methods"&gt;Overriding MakeMaker Methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you cannot achieve the desired Makefile behaviour by specifying
+attributes you may define private subroutines in the Makefile.PL. Each
+subroutines returns the text it wishes to have written to the Makefile. To
+override a section of the Makefile you can either say:
+
+&lt;P&gt;
+&lt;PRE&gt;        sub MY::c_o { &amp;quot;new literal text&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+or you can edit the default by saying something like:
+
+&lt;P&gt;
+&lt;PRE&gt;        sub MY::c_o {
+            package MY; # so that &amp;quot;SUPER&amp;quot; works right
+            my $inherited = shift-&amp;gt;SUPER::c_o(@_);
+            $inherited =~ s/old text/new text/;
+            $inherited;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you are running experiments with embedding perl as a library into other
+applications, you might find MakeMaker is not sufficient. You'd better have
+a look at ExtUtils::Embed which is a collection of utilities for embedding.
+
+&lt;P&gt;
+If you still need a different solution, try to develop another subroutine
+that fits your needs and submit the diffs to
+&lt;EM&gt;perl5-porters@perl.org&lt;/EM&gt; or &lt;EM&gt;comp.lang.perl.moderated&lt;/EM&gt; as appropriate.
+
+&lt;P&gt;
+For a complete description of all MakeMaker methods see [perlman:ExtUtils::MM_Unix|MM_Unix].
+
+&lt;P&gt;
+Here is a simple example of how to add a new target to the generated
+Makefile:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub MY::postamble {
+        '
+    $(MYEXTLIB): sdbm/Makefile
+            cd sdbm &amp;amp;&amp;amp; $(MAKE) all
+    ';
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Hintsfile_support"&gt;Hintsfile support&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+MakeMaker.pm uses the architecture specific information from Config.pm. In
+addition it evaluates architecture specific hints files in a &lt;CODE&gt;hints/&lt;/CODE&gt; directory. The hints files are expected to be named like their counterparts
+in &lt;CODE&gt;PERL_SRC/hints&lt;/CODE&gt;, but with an &lt;CODE&gt;.pl&lt;/CODE&gt; file name extension (eg. &lt;CODE&gt;next_3_2.pl&lt;/CODE&gt;). They are simply [perlfunc:eval|eval]ed by MakeMaker within the 
+&lt;CODE&gt;WriteMakefile()&lt;/CODE&gt;
+subroutine, and can be used to execute commands as well as to include
+special variables. The rules which hintsfile is chosen are the same as in
+Configure.
+
+&lt;P&gt;
+The hintsfile is 
+&lt;CODE&gt;eval()ed&lt;/CODE&gt; immediately after
+the arguments given to WriteMakefile are stuffed into a hash reference
+&lt;CODE&gt;$self&lt;/CODE&gt; but before this reference becomes blessed. So if you
+want to do the equivalent to override or create an attribute you would say
+something like
+
+&lt;P&gt;
+&lt;PRE&gt;    $self-&amp;gt;{LIBS} = &amp;#091;'-ldbm -lucb -lc'&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Distribution_Support"&gt;Distribution Support&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+For authors of extensions MakeMaker provides several Makefile targets. Most
+of the support comes from the ExtUtils::Manifest module, where additional
+documentation can be found.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_make"&gt;make distcheck&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+reports which files are below the build directory but not in the 
+&lt;FONT SIZE=-1&gt;MANIFEST&lt;/FONT&gt; file and vice versa. (See
+ExtUtils::Manifest::fullcheck() for details)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make skipcheck&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+reports which files are skipped due to the entries in the
+&lt;CODE&gt;MANIFEST.SKIP&lt;/CODE&gt; file (See ExtUtils::Manifest::skipcheck() for details)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make distclean&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+does a realclean first and then the distcheck. Note that this is not needed to build a new distribution as long as you are sure, that the 
+&lt;FONT SIZE=-1&gt;MANIFEST&lt;/FONT&gt; file is ok.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make manifest&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+rewrites the 
+&lt;FONT SIZE=-1&gt;MANIFEST&lt;/FONT&gt; file, adding all remaining files found (See
+ExtUtils::Manifest::mkmanifest() for details)
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make distdir&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Copies all the files that are in the 
+&lt;FONT SIZE=-1&gt;MANIFEST&lt;/FONT&gt; file to a newly created directory with the
+name &lt;CODE&gt;$(DISTNAME)-$(VERSION)&lt;/CODE&gt;. If that directory exists, it will be removed first.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make disttest&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Makes a distdir first, and runs a &lt;CODE&gt;perl Makefile.PL&lt;/CODE&gt;, a make, and a make test in that directory.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make tardist&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+First does a distdir. Then a command 
+&lt;FONT SIZE=-1&gt;$(PREOP)&lt;/FONT&gt; which defaults to a null command, followed by 
+&lt;FONT SIZE=-1&gt;$(TOUNIX),&lt;/FONT&gt; which defaults to a null command under 
+&lt;FONT SIZE=-1&gt;UNIX,&lt;/FONT&gt; and will convert files in distribution directory to 
+&lt;FONT SIZE=-1&gt;UNIX&lt;/FONT&gt; format otherwise. Next it runs
+ &lt;CODE&gt;tar&lt;/CODE&gt; on that directory into a tarfile and deletes the directory. Finishes with a command 
+&lt;FONT SIZE=-1&gt;$(POSTOP)&lt;/FONT&gt; which defaults to a null command.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make dist&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Defaults to 
+&lt;FONT SIZE=-1&gt;$(DIST_DEFAULT)&lt;/FONT&gt; which in turn defaults to tardist.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make uutardist&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Runs a tardist first and uuencodes the tarfile.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make shdist&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+First does a distdir. Then a command 
+&lt;FONT SIZE=-1&gt;$(PREOP)&lt;/FONT&gt; which defaults to a null command. Next it
+runs &lt;CODE&gt;shar&lt;/CODE&gt; on that directory into a sharfile and deletes the intermediate directory again. Finishes with a command 
+&lt;FONT SIZE=-1&gt;$(POSTOP)&lt;/FONT&gt; which defaults to a null command. Note: For shdist to work properly a
+ &lt;CODE&gt;shar&lt;/CODE&gt; program that can handle directories is mandatory.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make zipdist&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+First does a distdir. Then a command 
+&lt;FONT SIZE=-1&gt;$(PREOP)&lt;/FONT&gt; which defaults to a null command. Runs &lt;CODE&gt;$(ZIP) $(ZIPFLAGS)&lt;/CODE&gt; on that directory into a zipfile. Then deletes that directory. Finishes with a command 
+&lt;FONT SIZE=-1&gt;$(POSTOP)&lt;/FONT&gt; which defaults to a null command.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;make ci&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Does a 
+&lt;FONT SIZE=-1&gt;$(CI)&lt;/FONT&gt; and a 
+&lt;FONT SIZE=-1&gt;$(RCS_LABEL)&lt;/FONT&gt; on all files in the 
+&lt;FONT SIZE=-1&gt;MANIFEST&lt;/FONT&gt; file.
+
+&lt;/DL&gt;
+&lt;P&gt;
+Customization of the dist targets can be done by specifying a hash
+reference to the dist attribute of the WriteMakefile call. The following
+parameters are recognized:
+
+&lt;P&gt;
+&lt;PRE&gt;    CI           ('ci -u')
+    COMPRESS     ('gzip --best')
+    POSTOP       ('@ :')
+    PREOP        ('@ :')
+    TO_UNIX      (depends on the system)
+    RCS_LABEL    ('rcs -q -Nv$(VERSION_SYM):')
+    SHAR         ('shar')
+    SUFFIX       ('.gz')
+    TAR          ('tar')
+    TARFLAGS     ('cvf')
+    ZIP          ('zip')
+    ZIPFLAGS     ('-r')
+&lt;/PRE&gt;
+&lt;P&gt;
+An example:
+
+&lt;P&gt;
+&lt;PRE&gt;    WriteMakefile( 'dist' =&amp;gt; { COMPRESS=&amp;gt;&amp;quot;bzip2&amp;quot;, SUFFIX=&amp;gt;&amp;quot;.bz2&amp;quot; })
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Disabling_an_extension"&gt;Disabling an extension&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If some events detected in &lt;EM&gt;Makefile.PL&lt;/EM&gt; imply that there is no way to create the Module, but this is a normal state
+of things, then you can create a &lt;EM&gt;Makefile&lt;/EM&gt; which does nothing, but succeeds on all the ``usual'' build targets. To do
+so, use
+
+&lt;P&gt;
+&lt;PRE&gt;   ExtUtils::MakeMaker::WriteEmptyMakefile();
+&lt;/PRE&gt;
+&lt;P&gt;
+instead of 
+&lt;CODE&gt;WriteMakefile().&lt;/CODE&gt;
+
+&lt;P&gt;
+This may be useful if other modules expect this module to be &lt;EM&gt;built&lt;/EM&gt;
+
+&lt;FONT SIZE=-1&gt;OK,&lt;/FONT&gt; as opposed to &lt;EM&gt;work&lt;/EM&gt; 
+&lt;FONT SIZE=-1&gt;OK&lt;/FONT&gt; (say, this system-dependent module builds in a
+subdirectory of some other distribution, or is listed as a dependency in a
+CPAN::Bundle, but the functionality is supported by different means on the
+current architecture).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+ExtUtils::MM_Unix, ExtUtils::Manifest, ExtUtils::testlib,
+ExtUtils::Install, ExtUtils::Embed
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="AUTHORS"&gt;AUTHORS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Andy Dougherty &amp;lt;&lt;EM&gt;doughera@lafcol.lafayette.edu&lt;/EM&gt;&amp;gt;, Andreas K&amp;ouml;nig &amp;lt;&lt;EM&gt;A.Koenig@franz.ww.TU-Berlin.DE&lt;/EM&gt;&amp;gt;, Tim Bunce &amp;lt;&lt;EM&gt;Tim.Bunce@ig.co.uk&lt;/EM&gt;&amp;gt;. 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; support by Charles Bailey &amp;lt;&lt;EM&gt;bailey@genetics.upenn.edu&lt;/EM&gt;&amp;gt;. 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; support by Ilya Zakharevich &amp;lt;&lt;EM&gt;ilya@math.ohio-state.edu&lt;/EM&gt;&amp;gt;. Contact the makemaker mailing list &lt;CODE&gt;mailto:makemaker@franz.ww.tu-berlin.de&lt;/CODE&gt;, if you have any questions.
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

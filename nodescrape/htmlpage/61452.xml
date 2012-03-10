@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="61452" title="node basicedit page" created="2001-02-28 21:37:55" updated="2005-01-15 22:05:21">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+[%
+# This edit page displays each field of a node with a
+# (usually) appropriate form item in which to edit the
+# contents of each field.  This is useful to edit a node's
+# data that is usually not accessable through a standard
+# edit page (like createtime, or hits)
+
+return "Can't edit&lt;br /&gt;" unless(isGod($USER));
+
+# This code does the update, if we have one.
+my $param;
+my @params = $query-&gt;param;
+
+foreach $param (@params)
+{
+  if ($param =~ /^update_(\w*)$/)
+  {
+    $$NODE{$1} = $query-&gt;param($param);
+  }
+}
+
+updateNode($NODE, $USER);
+
+return "";
+%]
+
+[%
+# This code generates the form fields and the stuff that
+# the user sees.
+return "" unless(isGod($USER));
+my $tables = $DB-&gt;getNodetypeTables($$NODE{type_nodetype});
+my @fields;
+my $table;
+my $field;
+my %titletype;
+my $str = htmlcode('openform');
+
+foreach $table ('node',@$tables)
+{
+  @fields = $DB-&gt;getFieldsHash($table);
+
+  foreach $field (@fields)
+  {
+    $titletype{$$field{Field}} = $$field{Type};
+  }
+  delete $titletype{$table.'_id'};
+}
+
+foreach $field (sort keys %titletype)
+{
+  $str .= "$field ($titletype{$field}): ";
+
+  if($titletype{$field} =~ /int/)
+  {
+    $str .= $query-&gt;textfield( -name =&gt; "update_$field",
+      -default =&gt; $$NODE{$field}, -size =&gt; 15,
+      -maxlength =&gt; 15) . "&lt;br&gt;\n";
+  }
+  elsif($titletype{$field} =~ /char\((.*)\)/)
+  {
+    my $size = 80;
+
+    $size = $1 if($size &gt; $1);
+    $str .= $query-&gt;textfield( -name =&gt; "update_$field",
+      -default =&gt; $$NODE{$field}, -size =&gt; $size,
+      -maxlength =&gt; $1 ) . "&lt;br&gt;\n";
+  }
+  elsif($titletype{$field} =~ /text/)
+  {
+    $str .= "&lt;br /&gt;\n";
+    $str .= $query-&gt;textarea( "update_$field",
+      $$NODE{$field}, 20, 80) . "&lt;br&gt;\n";
+  }
+  elsif($titletype{$field} =~ /time/)
+  {
+    $str .= $query-&gt;textfield( -name =&gt; "update_$field",
+      -default =&gt; $$NODE{$field}, -size =&gt; 19,
+      -maxlength =&gt; 19 ) . "&lt;br&gt;\n";
+  }
+  else
+  {
+    # This is for the unknown field types.
+    $str .= $query-&gt;textfield( -name =&gt; "update_$field",
+      -default =&gt; $$NODE{$field}, -size =&gt; 80,
+      -maxlength =&gt; 256) . "&lt;br&gt;\n";
+  }
+}
+
+return $str . htmlcode('closeform');
+%]</field>
+<field name="displaytype">
+basicedit</field>
+</data>
+</node>

@@ -1,0 +1,104 @@
+<node>
+  <doctext>#!/usr/bin/perl
+
+#===[ MonkBot ]===============================================================
+#
+# Jabber bot that serves as an IM gateway to the perlmonks.org chatterbox.
+# Homepage: http://hutta.com/perl/jabberbots/monkbot.html
+#
+# Note that this requires Net::Jabber, Net::Jabber::Bot and PerlMonks::Chat
+# http://download.jabber.org/perl/
+# http://hutta.com/perl/jabberbots/
+# http://www.cerias.purdue.edu/homes/zamboni/perlmonks.html
+#
+# My personal MonkBot is on jabber as MonkBot@jabber.icgcorp.net.
+# Add him to your roster and you can test this out.
+#
+#===[ TODO ]==================================================================
+#
+# - Let MonkBot take user/pass to allow people to send messages as themselves.
+# - More integration with PM... New nodes, etc, etc, etc.
+#
+#=============================================================================
+
+use Net::Jabber::Bot;
+use PerlMonks::Chat;
+
+#===[ Initialize ]============================================================
+
+my $pm = new PerlMonks::Chat;
+$pm-&gt;add_cookies;
+
+my $bot = new Net::Jabber::Bot(
+        client  =&gt; 'MonkBot',
+        verbos  =&gt; '2',
+        logfile =&gt; '/tmp/monkbot.log',
+        version =&gt; '1.0',
+        status  =&gt; 'Meditating',
+);
+
+$bot-&gt;connect(
+        hostname =&gt; 'jabber.com',
+        port     =&gt; '5222'
+) || die &quot;Can't connect&quot;; 
+
+$bot-&gt;auth(
+        username =&gt; 'MonkBot',
+        password =&gt; 'passwordhere',
+        resource =&gt; 'bot',
+        digest   =&gt; '1'
+);
+
+$bot-&gt;send_presence();
+
+#===[ Defining Callbacks ]====================================================
+
+$bot-&gt;set_callback( &quot;hello&quot; =&gt; \&amp;SayHello );
+$bot-&gt;set_callback( &quot;hi&quot;    =&gt; \&amp;SayHello );
+$bot-&gt;set_callback( &quot;help&quot;  =&gt; \&amp;SayHello );
+$bot-&gt;set_callback( &quot;all&quot;   =&gt; \&amp;SendAll );
+
+sub SayHello {
+        my $user = shift;
+        $user-&gt;write(&quot;Greetings.&quot;);
+        $user-&gt;write(&quot;Add me to your roster/buddylist and I'll send you every&quot; . 
+                     &quot;thing that happens on the chatterbox automatically.  &quot; .
+                     &quot;Send the command 'all' to get all lines currently &quot; . 
+                     &quot;available.&quot;);
+}
+
+sub SendAll {
+        my $user = shift;
+        my ($lines) = ($pm-&gt;getalllines(1,1));
+        foreach (@{$lines}) {
+                $user-&gt;write(&quot;$_&quot;);
+        }
+}
+
+#===[ The main loop. ]========================================================
+#
+# This is where the bot will spend most of its time.  Looping and looping,
+# waiting for new chatterbox messages.  When we get them, we'll send them
+# out to anyone subscribed to our presence.
+#
+#=============================================================================
+
+while (1) {
+        $bot-&gt;Process(5);
+
+        foreach ($pm-&gt;getnewlines(1,1)) { 
+                $bot-&gt;broadcast(body=&gt;&quot;$_&quot;, type=&gt;'chat');
+        }
+
+        $bot-&gt;Connected() || die &quot;Lost my connection!&quot;;
+}
+# Edited: Sun Oct 14 06:52:45 2001 (GMT), by [footpad]
+# Fixed formatting by adding line line breaks.
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>118732</node_id>
+  <author_user>117788</author_user>
+  <title>Jabber Bot For Chatterbox</title>
+  <createtime>2001-10-14 03:42:24</createtime>
+  <nodeupdated>2005-08-14 21:17:00</nodeupdated>
+</node>

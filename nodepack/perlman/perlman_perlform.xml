@@ -1,0 +1,381 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlform - Perl formats
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Perl has a mechanism to help you generate simple reports and charts. To facilitate this, Perl helps you code up your output page close to how it will look when it's printed. It can keep track of things like how many lines are on a page, what page you're on, when to print page headers, etc. Keywords are borrowed from 
+&lt;FONT SIZE=-1&gt;FORTRAN:&lt;/FONT&gt; 
+&lt;CODE&gt;format()&lt;/CODE&gt; to declare and 
+&lt;CODE&gt;write()&lt;/CODE&gt; to execute; see their entries in
+ [perlman:perlfunc|the perlfunc manpage]. Fortunately, the layout is much more legible, more like BASIC's 
+&lt;FONT SIZE=-1&gt;PRINT&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;USING&lt;/FONT&gt; statement. Think of it as a poor man's 
+&lt;CODE&gt;nroff(1).&lt;/CODE&gt;
+
+&lt;P&gt;
+Formats, like packages and subroutines, are declared rather than executed, so they may occur at any point in your program. (Usually it's best to keep them all together though.) They have their own namespace apart from all the other ``types'' in Perl. This means that if you have a function named ``Foo'', it is not the same thing as having a format named ``Foo''. However, the default name for the format associated with a given filehandle is the same as the name of the filehandle. Thus, the default format for 
+&lt;FONT SIZE=-1&gt;STDOUT&lt;/FONT&gt; is named 
+&lt;FONT SIZE=-1&gt;``STDOUT'',&lt;/FONT&gt; and the default format for filehandle 
+&lt;FONT SIZE=-1&gt;TEMP&lt;/FONT&gt; is named 
+&lt;FONT SIZE=-1&gt;``TEMP''.&lt;/FONT&gt; They just look the same. They aren't.
+
+&lt;P&gt;
+Output record formats are declared as follows:
+
+&lt;P&gt;
+&lt;PRE&gt;    format NAME =
+    FORMLIST
+    .
+&lt;/PRE&gt;
+&lt;P&gt;
+If name is omitted, format 
+&lt;FONT SIZE=-1&gt;``STDOUT''&lt;/FONT&gt; is defined. 
+&lt;FONT SIZE=-1&gt;FORMLIST&lt;/FONT&gt; consists of a sequence of lines, each of which may be one of three types:
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__&quot;&gt;.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; comment, indicated by putting a '#' in the first
+column.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; ``picture'' line giving the format for one output
+line.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+An argument line supplying values to plug into the previous picture line.
+
+&lt;/OL&gt;
+&lt;P&gt;
+Picture lines are printed exactly as they look, except for certain fields
+that substitute values into the line. Each field in a picture line starts
+with either ``@'' (at) or ``^'' (caret). These lines do not undergo any
+kind of variable interpolation. The at field (not to be confused with the
+array marker @) is the normal kind of field; the other kind, caret fields,
+are used to do rudimentary multi-line text block filling. The length of the
+field is supplied by padding out the field with multiple ``&amp;lt;'',
+``&amp;gt;'', or ``|'' characters to specify, respectively, left
+justification, right justification, or centering. If the variable would
+exceed the width specified, it is truncated.
+
+&lt;P&gt;
+As an alternate form of right justification, you may also use ``#''
+characters (with an optional ``.'') to specify a numeric field. This way
+you can line up the decimal points. If any value supplied for these fields
+contains a newline, only the text up to the newline is printed. Finally,
+the special field ``@*'' can be used for printing multi-line, nontruncated
+values; it should appear by itself on a line.
+
+&lt;P&gt;
+The values are specified on the following line in the same order as the
+picture fields. The expressions providing the values should be separated by
+commas. The expressions are all evaluated in a list context before the line
+is processed, so a single list expression could produce multiple list
+elements. The expressions may be spread out to more than one line if
+enclosed in braces. If so, the opening brace must be the first token on the
+first line. If an expression evaluates to a number with a decimal part, and
+if the corresponding picture specifies that the decimal part should appear
+in the output (that is, any picture except multiple ``#'' characters &lt;STRONG&gt;without&lt;/STRONG&gt; an embedded ``.''), the character used for the decimal point is &lt;STRONG&gt;always&lt;/STRONG&gt; determined by the current 
+&lt;FONT SIZE=-1&gt;LC_NUMERIC&lt;/FONT&gt; locale. This means that, if, for example,
+the run-time environment happens to specify a German locale, ``,'' will be
+used instead of the default ``.''. See
+[perlman:perllocale|the perllocale manpage] and &lt;A HREF=&quot;#WARNINGS&quot;&gt;WARNINGS&lt;/A&gt; for more information.
+
+&lt;P&gt;
+Picture fields that begin with ^ rather than @ are treated specially. With a # field, the field is blanked out if the value is undefined. For other field types, the caret enables a kind of fill mode. Instead of an arbitrary expression, the value supplied must be a scalar variable name that contains a text string. Perl puts as much text as it can into the field, and then chops off the front of the string so that the next time the variable is referenced, more of the text can be printed. (Yes, this means that the variable itself is altered during execution of the 
+&lt;CODE&gt;write()&lt;/CODE&gt; call, and is not returned.) Normally you would use a sequence of fields in a vertical stack to print out a block of text. You might wish to end the final field with the text ``...'', which will appear in the output if the text was too long to appear in its entirety. You can change which characters are legal to break on by changing the variable
+ &lt;CODE&gt;$:&lt;/CODE&gt; (that's &lt;CODE&gt;$FORMAT_LINE_BREAK_CHARACTERS&lt;/CODE&gt; if you're using the
+English module) to a list of the desired characters.
+
+&lt;P&gt;
+Using caret fields can produce variable length records. If the text to be
+formatted is short, you can suppress blank lines by putting a ``~'' (tilde)
+character anywhere in the line. The tilde will be translated to a space
+upon output. If you put a second tilde contiguous to the first, the line
+will be repeated until all the fields on the line are exhausted. (If you
+use a field of the at variety, the expression you supply had better not
+give the same value every time forever!)
+
+&lt;P&gt;
+Top-of-form processing is by default handled by a format with the same name as the current filehandle with 
+&lt;FONT SIZE=-1&gt;``_TOP''&lt;/FONT&gt; concatenated to it. It's triggered at the top of each page. See
+ [perlfunc:write|write].
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt; # a report on the /etc/passwd file
+ format STDOUT_TOP =
+                         Passwd File
+ Name                Login    Office   Uid   Gid Home
+ ------------------------------------------------------------------
+ .
+ format STDOUT =
+ @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; @||||||| @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;@&amp;gt;&amp;gt;&amp;gt;&amp;gt; @&amp;gt;&amp;gt;&amp;gt;&amp;gt; @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+ $name,              $login,  $office,$uid,$gid, $home
+ .
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; # a report from a bug report form
+ format STDOUT_TOP =
+                         Bug Reports
+ @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;     @|||         @&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;&amp;gt;
+ $system,                      $%,         $date
+ ------------------------------------------------------------------
+ .
+ format STDOUT =
+ Subject: @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+          $subject
+ Index: @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+        $index,                       $description
+ Priority: @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; Date: @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+           $priority,        $date,   $description
+ From: @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+       $from,                         $description
+ Assigned to: @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+              $programmer,            $description
+ ~                                    ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+                                      $description
+ ~                                    ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+                                      $description
+ ~                                    ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+                                      $description
+ ~                                    ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+                                      $description
+ ~                                    ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;...
+                                      $description
+ .
+&lt;/PRE&gt;
+&lt;P&gt;
+It is possible to intermix 
+&lt;CODE&gt;print()s&lt;/CODE&gt; with 
+&lt;CODE&gt;write()s&lt;/CODE&gt; on the same output channel, but you'll have to handle
+ &lt;CODE&gt;$-&lt;/CODE&gt; (&lt;CODE&gt;$FORMAT_LINES_LEFT&lt;/CODE&gt;) yourself.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Format_Variables&quot;&gt;Format Variables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The current format name is stored in the variable &lt;CODE&gt;$~&lt;/CODE&gt; (&lt;CODE&gt;$FORMAT_NAME&lt;/CODE&gt;), and the current top of form format name is in &lt;CODE&gt;$^&lt;/CODE&gt; (&lt;CODE&gt;$FORMAT_TOP_NAME&lt;/CODE&gt;). The current output page number is stored in &lt;CODE&gt;$%&lt;/CODE&gt; (&lt;CODE&gt;$FORMAT_PAGE_NUMBER&lt;/CODE&gt;), and the number of lines on the page is in &lt;CODE&gt;$=&lt;/CODE&gt; (&lt;CODE&gt;$FORMAT_LINES_PER_PAGE&lt;/CODE&gt;). Whether to autoflush output on this handle is stored in &lt;CODE&gt;$|&lt;/CODE&gt;
+(&lt;CODE&gt;$OUTPUT_AUTOFLUSH&lt;/CODE&gt;). The string output before each top of page (except the first) is stored
+in &lt;CODE&gt;$^L&lt;/CODE&gt; (&lt;CODE&gt;$FORMAT_FORMFEED&lt;/CODE&gt;). These variables are set on a per-filehandle basis, so you'll need to 
+&lt;CODE&gt;select()&lt;/CODE&gt; into a different one
+to affect them:
+
+&lt;P&gt;
+&lt;PRE&gt;    select((select(OUTF),
+            $~ = &amp;quot;My_Other_Format&amp;quot;,
+            $^ = &amp;quot;My_Top_Format&amp;quot;
+           )&amp;#091;0&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+Pretty ugly, eh? It's a common idiom though, so don't be too surprised when
+you see it. You can at least use a temporary variable to hold the previous
+filehandle: (this is a much better approach in general, because not only
+does legibility improve, you now have intermediary stage in the expression
+to single-step the debugger through):
+
+&lt;P&gt;
+&lt;PRE&gt;    $ofh = select(OUTF);
+    $~ = &amp;quot;My_Other_Format&amp;quot;;
+    $^ = &amp;quot;My_Top_Format&amp;quot;;
+    select($ofh);
+&lt;/PRE&gt;
+&lt;P&gt;
+If you use the English module, you can even read the variable names:
+
+&lt;P&gt;
+&lt;PRE&gt;    use English;
+    $ofh = select(OUTF);
+    $FORMAT_NAME     = &amp;quot;My_Other_Format&amp;quot;;
+    $FORMAT_TOP_NAME = &amp;quot;My_Top_Format&amp;quot;;
+    select($ofh);
+&lt;/PRE&gt;
+&lt;P&gt;
+But you still have those funny 
+&lt;CODE&gt;select()s.&lt;/CODE&gt; So just use the
+FileHandle module. Now, you can access these special variables using
+lowercase method names instead:
+
+&lt;P&gt;
+&lt;PRE&gt;    use FileHandle;
+    format_name     OUTF &amp;quot;My_Other_Format&amp;quot;;
+    format_top_name OUTF &amp;quot;My_Top_Format&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Much better!
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NOTES&quot;&gt;NOTES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Because the values line may contain arbitrary expressions (for at fields, not caret fields), you can farm out more sophisticated processing to other functions, like 
+&lt;CODE&gt;sprintf()&lt;/CODE&gt; or one of your own. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    format Ident =
+        @&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+        &amp;amp;commify($n)
+    .
+&lt;/PRE&gt;
+&lt;P&gt;
+To get a real at or caret into the field, do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    format Ident =
+    I have an @ here.
+            &amp;quot;@&amp;quot;
+    .
+&lt;/PRE&gt;
+&lt;P&gt;
+To center a whole line of text, do something like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    format Ident =
+    @|||||||||||||||||||||||||||||||||||||||||||||||
+            &amp;quot;Some text line&amp;quot;
+    .
+&lt;/PRE&gt;
+&lt;P&gt;
+There is no builtin way to say ``float this to the right hand side of the page, however wide it is.'' You have to specify where it goes. The truly desperate can generate their own format on the fly, based on the current number of columns, and then 
+&lt;CODE&gt;eval()&lt;/CODE&gt; it:
+
+&lt;P&gt;
+&lt;PRE&gt;    $format  = &amp;quot;format STDOUT = \n&amp;quot;
+             . '^' . '&amp;lt;' x $cols . &amp;quot;\n&amp;quot;
+             . '$entry' . &amp;quot;\n&amp;quot;
+             . &amp;quot;\t^&amp;quot; . &amp;quot;&amp;lt;&amp;quot; x ($cols-8) . &amp;quot;~~\n&amp;quot;
+             . '$entry' . &amp;quot;\n&amp;quot;
+             . &amp;quot;.\n&amp;quot;;
+    print $format if $Debugging;
+    eval $format;
+    die $@ if $@;
+&lt;/PRE&gt;
+&lt;P&gt;
+Which would generate a format looking something like this:
+
+&lt;P&gt;
+&lt;PRE&gt; format STDOUT =
+ ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;
+ $entry
+         ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;~~
+ $entry
+ .
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's a little program that's somewhat like 
+&lt;CODE&gt;fmt(1):&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt; format =
+ ^&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt;&amp;lt; ~~
+ $_
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; .
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; $/ = '';
+ while (&amp;lt;&amp;gt;) {
+     s/\s*\n\s*/ /g;
+     write;
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Footers&quot;&gt;Footers&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+While &lt;CODE&gt;$FORMAT_TOP_NAME&lt;/CODE&gt; contains the name of the current header format, there is no corresponding mechanism to automatically do the same thing for a footer. Not knowing how big a format is going to be until you evaluate it is one of the major problems. It's on the 
+&lt;FONT SIZE=-1&gt;TODO&lt;/FONT&gt; list.
+
+&lt;P&gt;
+Here's one strategy: If you have a fixed-size footer, you can get footers by checking &lt;CODE&gt;$FORMAT_LINES_LEFT&lt;/CODE&gt; before each 
+&lt;CODE&gt;write()&lt;/CODE&gt; and print the footer yourself if necessary.
+
+&lt;P&gt;
+Here's another strategy: Open a pipe to yourself, using [perlfunc:open|open(MYSELF, &amp;quot;|-&amp;quot;)]
+(see [perlfunc:open|open()]) and always 
+&lt;CODE&gt;write()&lt;/CODE&gt; to 
+&lt;FONT SIZE=-1&gt;MYSELF&lt;/FONT&gt; instead of 
+&lt;FONT SIZE=-1&gt;STDOUT.&lt;/FONT&gt; Have your child process massage its 
+&lt;FONT SIZE=-1&gt;STDIN&lt;/FONT&gt; to rearrange headers and footers however you like. Not very convenient, but doable.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Accessing_Formatting_Internals&quot;&gt;Accessing Formatting Internals&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+For low-level access to the formatting mechanism. you may use 
+&lt;CODE&gt;formline()&lt;/CODE&gt; and access &lt;CODE&gt;$^A&lt;/CODE&gt; (the &lt;CODE&gt;$ACCUMULATOR&lt;/CODE&gt; variable) directly.
+
+&lt;P&gt;
+For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $str = formline &amp;lt;&amp;lt;'END', 1,2,3;
+    @&amp;lt;&amp;lt;&amp;lt;  @|||  @&amp;gt;&amp;gt;&amp;gt;
+    END
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;Wow, I just stored `$^A' in the accumulator!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Or to make an 
+&lt;CODE&gt;swrite()&lt;/CODE&gt; subroutine, which is to 
+&lt;CODE&gt;write()&lt;/CODE&gt; what 
+&lt;CODE&gt;sprintf()&lt;/CODE&gt; is to 
+&lt;CODE&gt;printf(),&lt;/CODE&gt; do this:
+
+&lt;P&gt;
+&lt;PRE&gt;    use Carp;
+    sub swrite {
+        croak &amp;quot;usage: swrite PICTURE ARGS&amp;quot; unless @_;
+        my $format = shift;
+        $^A = &amp;quot;&amp;quot;;
+        formline($format,@_);
+        return $^A;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $string = swrite(&amp;lt;&amp;lt;'END', 1, 2, 3);
+ Check me out
+ @&amp;lt;&amp;lt;&amp;lt;  @|||  @&amp;gt;&amp;gt;&amp;gt;
+ END
+    print $string;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;WARNINGS&quot;&gt;WARNINGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The lone dot that ends a format can also prematurely end a mail message passing through a misconfigured Internet mailer (and based on experience, such misconfiguration is the rule, not the exception). So when sending format code through mail, you should indent it so that the format-ending dot is not on the left margin; this will prevent 
+&lt;FONT SIZE=-1&gt;SMTP&lt;/FONT&gt; cutoff.
+
+&lt;P&gt;
+Lexical variables (declared with ``my'') are not visible within a format
+unless the format is declared within the scope of the lexical variable.
+(They weren't visible at all before version 5.001.)
+
+&lt;P&gt;
+Formats are the only part of Perl that unconditionally use information from a program's locale; if a program's environment specifies an 
+&lt;FONT SIZE=-1&gt;LC_NUMERIC&lt;/FONT&gt; locale, it is always used to specify the decimal point character in formatted output. Perl ignores all other aspects of locale handling unless the
+ &lt;CODE&gt;use locale&lt;/CODE&gt; pragma is in effect. Formatted output cannot be controlled by &lt;CODE&gt;use locale&lt;/CODE&gt; because the pragma is tied to the block structure of the program, and, for
+historical reasons, formats exist outside that block structure. See [perlman:perllocale|the perllocale manpage] for further discussion of locale handling.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>390</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlform</title>
+  <createtime>1999-08-25 02:29:01</createtime>
+  <nodeupdated>2005-08-15 05:26:10</nodeupdated>
+</node>

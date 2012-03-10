@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="33774" title="CGI::Imagemap" created="2000-09-23 14:18:00" updated="2005-08-08 21:23:31">
+<type id="121">
+perlcraft</type>
+<author id="1936">
+japhy</author>
+<data>
+<field name="doctext">
+package CGI::Imagemap;
+
+use Carp;
+use strict;
+use vars qw( $VERSION );
+
+$VERSION = '0.01';
+
+
+sub new {
+  my $class = shift;
+  my $self = bless { SHAPES =&gt; [], POINTS =&gt; [], }, $class;
+  croak "odd number of parameters to CGI::Imagemap::new" if @_ % 2;
+  while (@_) {
+    my $type = shift;
+    my $config = shift;
+    croak "configuration not an array reference in CGI::Imagemap::new"
+      if ref($config) ne "ARRAY";
+    my $shape = CGI::Imagemap::Shape-&gt;new($type,$config);
+    $self-&gt;{DEFAULT} = $shape, next if $type eq 'DEFAULT';
+    push @{ $self-&gt;{SHAPES} }, $shape unless @{ $self-&gt;{POINTS} };
+    push @{ $self-&gt;{POINTS} }, $shape if $type eq 'POINT';
+  }
+  return $self;
+}
+
+
+sub query_eval {
+  my ($self, $query, $field) = @_;
+  croak "query must be CGI object in CGI::Imagemap::query_eval"
+    unless UNIVERSAL::isa($query, 'CGI');
+  my ($x,$y) = ($query-&gt;param("$field.x"), $query-&gt;param("$field.y"));
+  $self-&gt;manual_eval($x,$y);
+}
+
+
+sub manual_eval {
+  my ($self, $x, $y) = @_;
+  for (@{ $self-&gt;{SHAPES} }) {
+    if ($_-&gt;type('POINT')) {
+      my ($min,$shape) = ($_-&gt;proximity($x,$y),$_);
+      for (@{ $self-&gt;{POINTS} }) {
+        my $dst = $_-&gt;proximity($x,$y);
+        $dst &lt; $min and ($min,$shape) = ($dst,$_);
+      }
+      $shape-&gt;execute() and return 1;
+    }
+    $_-&gt;proximity($x,$y) and $_-&gt;execute() and return 1;
+  }
+  $self-&gt;{DEFAULT} and $self-&gt;{DEFAULT}-&gt;execute();
+  return 0;
+}
+
+
+
+package CGI::Imagemap::Shape;
+
+use Carp;
+
+my %types;
+@types{qw( CIRCLE OVAL RECT POLY POINT DEFAULT )} = ();
+
+sub new {
+  my ($class, $type, $config) = @_;
+  croak "invalid shape (must be @{[ keys %types ]}) '$type'"
+    unless exists $types{uc $type};
+  croak "handler must be code ref" if ref($config-&gt;[0]) ne 'CODE';
+  my $self = bless {}, $class . "::" . uc($type);
+  $self-&gt;{HANDLER} = shift @$config;
+  $self-&gt;{COORDS} = $config;
+  return $self;
+}
+
+
+sub coords { return @{ $_[0]{COORDS} } }
+
+
+sub execute { $_[0]{HANDLER}-&gt;() }
+
+
+
+package CGI::Imagemap::Shape::CIRCLE;
+
+use vars '@ISA';
+@ISA = qw( CGI::Imagemap::Shape );
+
+sub proximity {
+  my ($shape, $x, $y) = @_;
+  my ($Cx, $Cy, $r) = $shape-&gt;coords;
+  return ($x - $Cx)**2 + ($y - $Cy)**2 &lt;= $r**2; 
+}
+
+
+
+package CGI::Imagemap::Shape::OVAL;
+
+use vars '@ISA';
+@ISA = qw( CGI::Imagemap::Shape );
+
+sub proximity {
+  my ($shape, $x, $y) = @_;
+  my ($Cx, $Cy, $a, $b) = $shape-&gt;coords;
+  return (($x - $Cx)/$a)**2 + (($y - $Cy)/$b)**2 &lt;= 1;
+}
+
+
+
+package CGI::Imagemap::Shape::RECT;
+
+use vars '@ISA';
+@ISA = qw( CGI::Imagemap::Shape );
+
+sub proximity {
+  my ($shape, $x, $y) = @_;
+  my ($ULx, $ULy, $LRx, $LRy) = $shape-&gt;coords;
+  return ($ULx &lt;= $x) &amp;&amp; ($x &lt;= $LRx) &amp;&amp; ($ULy &lt;= $y) &amp;&amp; ($y &lt;= $LRy);
+}
+
+
+
+package CGI::Imagemap::Shape::POLY;
+
+use vars '@ISA';
+@ISA = qw( CGI::Imagemap::Shape );
+
+sub coords {
+  my ($shape) = @_;
+  my @x = map $shape-&gt;{COORDS}[$_ * 2], 0 .. $#{ $shape-&gt;{COORDS} }/2;
+  my @y = map $shape-&gt;{COORDS}[$_ * 2 + 1], 0 .. $#{ $shape-&gt;{COORDS} }/2;
+  return (\@x, \@y);
+}
+
+
+sub proximity {
+  my ($shape, $x, $y) = @_;
+  my ($Xc, $Yc) = $shape-&gt;coords;
+  my @X = @$Xc;
+  my @Y = @$Yc;
+  my $n = @X;
+  my ($i,$j);
+  my $inside = 0;
+  # thanks to "Mastering Algorithms in Perl" (pg. 444-5)
+  # point_in_ploygon derived from Wm. Randolph Franklin
+
+  for ($i = 0, $j = $n - 1; $i &lt; $n; $j = $i++) {
+    if (
+         (
+           (($Y[$i] &lt;= $y) &amp;&amp; ($y &lt; $Y[$j])) ||
+           (($Y[$j] &lt;= $y) &amp;&amp; ($y &lt; $Y[$i]))
+         )
+         and
+         ($x &lt;
+           ($X[$j] - $X[$i]) *
+           ($y - $Y[$i]) /
+           ($Y[$j] - $Y[$i]) +
+           $X[$i]
+         )
+       ) { $inside = !$inside }
+  }
+
+  return $inside;
+}
+
+
+
+package CGI::Imagemap::Shape::POINT;
+
+use vars '@ISA';
+@ISA = qw( CGI::Imagemap::Shape );
+
+sub proximity {
+  my ($shape, $x, $y) = @_;
+  my ($Px, $Py) = $shape-&gt;coords;
+  return sqrt(($Px - $x)**2 + ($Py - $y)**2);
+}
+
+
+1;
+
+
+__END__
+
+=head1 NAME
+
+CGI::Imagemap - program-handling of X,Y coordinates in an
+image
+
+=head1 SYNOPSIS
+
+  use CGI::Imagemap;
+  $request = CGI::Imagemap-&gt;new(
+    CIRCLE =&gt; [\&amp;handler, $center_x, $center_y, $radius],
+    OVAL =&gt; [\&amp;handler, $axis_x, $axis_y, $den_x, $den_y],
+    RECT =&gt; [\&amp;handler, $upleft_x, $upleft_y, $lowright_x, $lowright_y],
+    POLY =&gt; [\&amp;handler, $x0, $y0, $x1, $y1, ..., $xN, $yN],
+    POINT =&gt; [\&amp;handler, $x, $y],
+    DEFAULT =&gt; [\&amp;handler],
+  );
+  $found = $request-&gt;query_eval($CGIobj, $fieldname);
+  $found = $request-&gt;manual_eval($px, $py);
+  if (!$found) {
+    # resorted to DEFAULT handler
+  }
+
+=head1 DESCRIPTION
+
+Basically, you make a CGI::Imagemap object, and list (in
+order of precedence) the zones that the imagemap should map
+to.  The shape names are CIRCLE, OVAL, RECT, POLY, POINT,
+and DEFAULT.  All POINT shapes will be compared at the same
+time, and they should be left for last.
+
+The query_eval method takes a CGI query object and a
+fieldname, and gets the fieldname.x and fieldname.y values
+from the query object.  Then it calls manual_eval.  This
+just takes the (x,y) pair of coordinates.
+
+The shapes take a handler (code reference) as their first
+argument, and this handler will be executed if the point is
+within the bounds of the shape.  If the default handler is
+resorted to, the query_eval and manual_eval methods will
+return 0.  Otherwise, they'll return 1.
+
+That's about it.
+
+=head1 AUTHOR
+
+  Jeff "japhy" Pinyan
+  CPAN ID: PINYAN
+  japhy@pobox.com
+
+=cut</field>
+</data>
+</node>

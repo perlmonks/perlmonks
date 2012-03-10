@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="154069" title="jot" created="2002-03-25 06:43:38" updated="2005-07-21 01:31:11">
+<type id="121">
+perlcraft</type>
+<author id="154057">
+negravulo</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+# Simple notes script.
+
+use XML::Simple;
+
+print "\nWelcome to jot\n";
+print "Type 'h' for help.\n";
+do {
+    print "%&gt; ";
+    my $command = &lt;STDIN&gt;;
+    chomp($command);
+    $command = short($command);
+    &amp;q() if ($command =~ m/^q/);
+    &amp;{$command}();
+} until $command eq 'q';
+
+sub a {
+    # Add to a file
+
+    while (&lt;*.idea&gt;) {
+	print $_,"\n";
+    }
+    print "Name of file to edit : ";
+    my $cfile = &lt;STDIN&gt;;
+    chomp($cfile);
+    if (! -e $cfile) {
+	warn "jot : $cfile doesn't exist\n";
+    } else {
+	my $simple = XML::Simple-&gt;new();
+	
+	$cdata = $simple-&gt;XMLin($cfile, searchpath =&gt; ".");
+
+	print "Project name(s) : ", $cdata-&gt;{name};
+	my $cname = &lt;STDIN&gt;;
+	chomp($cname);
+
+	print "Description : ", $cdata-&gt;{desc};
+	my $cdesc = &lt;STDIN&gt;;
+	chomp($cdesc);
+
+	my $oname = $cdata-&gt;{name}; # get all the old to concat with new
+	my $odesc = $cdata-&gt;{desc};
+
+	%cdata = (name =&gt; "$oname$cname",
+		  desc =&gt; "$odesc$cdesc");
+
+	my $xml = $simple-&gt;XMLout(\%cdata, noattr =&gt; 1, rootname =&gt; "idea", outputfile =&gt; "$cfile");
+    }
+}
+
+sub b {
+    # Backup all idea files
+
+    while (my $cfile = &lt;*.idea&gt;) {
+	# read, output to $cfile.idea~
+	my $simple = XML::Simple-&gt;new(); # this is slow. better way?
+	my $cdata = $simple-&gt;XMLin($cfile, searchpath =&gt; '.');
+	my $xml = $simple-&gt;XMLout($cdata, noattr =&gt; 1, rootname =&gt; "idea", outputfile =&gt; "$cfile~");
+	print "Backup of $cfile unsuccesfull : $!\n" if $!;
+    }
+}
+
+sub d {
+    # Delete an idea file
+
+    while (&lt;*.idea&gt;) {
+	print $_,"\n";
+    }
+    print "File to delete : ";
+    my $cfile = &lt;STDIN&gt;;
+    chomp($cfile);
+    unlink($cfile);
+}
+
+sub h {
+    print "a - Add info to a project\n";
+    print "b - Backup all project files\n";
+    print "d - Delete a project file\n";
+    print "h - Display this message\n";
+    print "l - List all projects\n";
+    print "n - New project\n";
+    print "q - Quit\n";
+    print "r - Restore project files\n";
+}
+
+sub l {
+    # List all idea files and their contents in quasi-nicely formatted way
+
+    while (my $cfile = &lt;*.idea&gt;) {
+	my $simple = XML::Simple-&gt;new();
+	print "\n$cfile\n";
+	my $idea = $simple-&gt;XMLin($cfile, searchpath =&gt; '.');
+	print "\t", $idea-&gt;{name}, "\n\t", $idea-&gt;{desc}, "\n\t";
+    }
+}
+
+sub n {
+    # New project file
+
+    my $simple = XML::Simple-&gt;new();
+    print "Project name(s) : ";
+    my $cname = &lt;STDIN&gt;;
+    chomp($cname);
+    print "Description : ";
+    my $cdesc = &lt;STDIN&gt;;
+    chomp($cdesc);
+
+    my $ofile = short($cname);
+
+    my %pdata = (name =&gt; $cname,
+		 desc =&gt; $cdesc,);
+
+    my $xml = $simple-&gt;XMLout(\%pdata, noattr =&gt; 1, rootname =&gt; "idea", outputfile =&gt; "$ofile.idea");
+}
+
+sub q {
+    print "bye\n";
+    exit;
+}
+
+sub r {
+    # Restore backup files
+
+    my $simple = XML::Simple-&gt;new();
+    while (my $cfile = &lt;*.idea~&gt;) {
+	my $ofile = $cfile;
+	chop($ofile); # remove the ~
+
+	my $cdata = $simple-&gt;XMLin($cfile, searchpath =&gt; ".");
+	my $xml = $simple-&gt;XMLout($cdata, noattr =&gt; 1, rootname =&gt; "idea", outputfile =&gt; $ofile);
+
+	print "Restoration of $cfile unsuccesfull : $!\n" if $!;
+    }
+}
+
+sub short {
+    (my $word) = @_;
+    $word =~ s/\W.*//;
+    $word =~ tr/A-Z/a-z/;
+    return $word;
+}
+</field>
+</data>
+</node>

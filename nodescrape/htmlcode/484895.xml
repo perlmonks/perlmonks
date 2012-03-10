@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="484895" title="get_root_node" created="2005-08-18 13:44:43" updated="2005-08-18 09:44:44">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+# Takes a node and returns its root_node.
+#
+# This is determined by whether the node has a root_node and/or 
+# parent_node field. If the root_node is present then it is returned.
+# If the parent_node is present then then we iterate into it and
+# repeat the procedure. If no root_node value is found then the 
+# last parent_node value found is returned. If no parent_node value
+# is found then the original nodes id is returned.
+#
+# By default we work on the note table, but you can override this,
+# however the field names are expected to be the same: node_id, 
+# parent_node, and root_node.
+#
+# If $node is not a ref it is assumed to be an id.
+#
+
+my ( $node, $table )=@_;
+
+$node||=$NODE;
+if (!ref $node) {
+    $node = getNodeById($node);
+}
+return unless $node;
+
+$table ||= 'note';
+
+return $node-&gt;{root_node}
+    if $node-&gt;{root_node};
+
+my (%seen,$prevparent);
+my ($parent,$root)=@{$node}{qw(parent_node root_node)};
+while ($parent &amp;&amp; !$root) {
+   last if $seen{$parent}++;
+   $prevparent = $parent;
+   ($parent, $root) = $DB-&gt;sqlSelect("parent_node,root_node",$table,$table."_id=$parent");
+}
+
+$root = $root || $prevparent || $node-&gt;{node_id};
+
+$node-&gt;{root_node} = $root;
+updateNode($node, -1);
+
+return $root;</field>
+</data>
+</node>

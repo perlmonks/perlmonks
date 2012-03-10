@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="120814" title="LDAP search with callback" created="2001-10-23 15:27:36" updated="2005-08-15 13:51:15">
+<type id="121">
+perlcraft</type>
+<author id="96742">
+beernuts</author>
+<data>
+<field name="doctext">
+This code searches an ldap server and returns records
+without an email address in a particular branch of the 
+database (here, specified by the 'ou' attribute).
+
+
+#!/usr/local/bin/perl -w
+
+use strict;
+use Net::LDAP;
+use Text::CSV_XS;
+
+my $outfile = "noemail.csv";
+my $host = "yourldapserver.com";
+my $port = "389";
+my $ldap = Net::LDAP-&gt;new($host, port=&gt;$port, timeout=&gt;10)or die "Can not create new LDAP object: $!\n";
+my $bind_result = $ldap-&gt;bind() or die "Could not bind to $host: $!\n";
+# $searchbase varies (perhaps significantly)
+# depending on how you built you ldap server
+my $searchbase = "o=yourcompany,c=yourcountry";
+my $organization = "yourorg";
+my $csv = Text::CSV_XS-&gt;new();
+
+open(UNI,"&gt;$outfile");
+
+my $filt = "(&amp;(!(mail=*))(ou=$organization))";
+ldapsearch($filt);
+
+
+sub ldapsearch{
+    my $filter = shift;
+    my $search = $ldap-&gt;search(
+                        base=&gt;$searchbase,
+                        filter=&gt;$filter,
+                        callback=&gt;\&amp;callback,
+                        );
+}
+
+
+sub callback {
+    # Use callback if you search a lot
+    # of records and want some kind of feedback
+    # as each returned record is processed.
+    my ($search,$entry) = @_;
+    my $number = $search-&gt;count;
+    $entry = $search-&gt;shift_entry;
+    my @results=();
+
+    if($entry){
+        # Our $entry always contains
+        # dn, cn, givenname, surname, and alias.
+        # Manager and tele may or may not exist.
+        my $results[0] = $entry-&gt;dn;
+        my $results[1] = $entry-&gt;get_value('cn');
+        my $results[2] = $entry-&gt;get_value('givenname');
+        my $results[3] = $entry-&gt;get_value('surname');
+        my $results[4] = $entry-&gt;get_value('alias');
+        my $results[5] = $entry-&gt;get_value('manager') || "No Manager Listed";
+        my $results[6] = $entry-&gt;get_value('telephonenumber') || "No Phone Listed";
+           
+        my $status = $csv-&gt;combine(@results);
+        my $line = $csv-&gt;string();
+        print UNI $line."\n";
+#        print UNI "\"$dn\",$given,$sn,$alias,$tele,\"$manager\"";
+        print "$cn\n";
+    }
+}
+
+close(UNI);
+
+
+
+Updated (10/24) - Taking a tip from someone
+more learned in the ways of PM,
+my blatant plea for first post mercy is 
+now removed. =)
+
+Updated (10/26) - '-' at line 59 is now '='.
+Thanks, Fokat.
+
+Updated (12/21) - Now checking $bind_result and using
+Text::CSV for output data. Removed 'To do' comments as a
+result. Fixed $searchbase and $filt so that results would 
+actually be returned. Before, $searchbase was restrictive
+enough that the filter would have no branch of ldap to 
+search.
+</field>
+</data>
+</node>

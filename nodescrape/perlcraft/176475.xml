@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="176475" title="Tk Rubberband Demo" created="2002-06-22 06:45:46" updated="2005-08-12 12:03:15">
+<type id="121">
+perlcraft</type>
+<author id="10277">
+crazyinsomniac</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+# rubberband.pl
+# a little rubberbanding Tk demo (demonstrates rubberbanding with perl Tk)
+# copyright crazyinsomniac.perlmonk.org 2002, all rights reserved
+# released under the same terms as perl itself
+use strict;
+
+use Tk 8;
+
+my $MW = new MainWindow(
+        -background =&gt; 'darkblue',
+        -borderwidth =&gt; 1,
+        -relief =&gt; 'groove',
+        -width =&gt; 500,
+        -height =&gt; 500,
+    ,);
+
+my $F = $MW-&gt;Frame(
+    -relief  =&gt; "groove",
+    -height =&gt; 300,
+    -width =&gt; 500,
+,)-&gt;pack(
+    -anchor =&gt; 'n',
+    -side =&gt; 'top',
+    -expand =&gt; 'yes',
+,);
+
+use vars '$OBJECT'; BEGIN{$OBJECT="oval"};
+
+Button($F, "oval", groove =&gt; sub { $OBJECT = "oval" } );
+Button($F, "line", groove =&gt; sub { $OBJECT = "line" } );
+Button($F, "arc", groove =&gt; sub { $OBJECT = "arc" } );
+Button($F, "rectangle", groove =&gt; sub { $OBJECT = "rectangle" } );
+
+
+$F-&gt;Label(
+    -text =&gt; " OBJECT:",
+    -relief =&gt; 'flat',
+    -font =&gt; "Arial",
+,)-&gt;pack(
+    -side =&gt; 'left',
+    -expand =&gt; 1,
+,);
+
+$F-&gt;Label(
+    -textvariable =&gt; \$OBJECT,
+    -relief =&gt; 'flat',
+    -font =&gt; "Arial",
+,)-&gt;pack(
+    -side =&gt; 'left',
+    -expand =&gt; 1,
+,);
+
+my $C = $MW-&gt;Canvas(
+        -width      =&gt; 500,
+        -height     =&gt; 500,
+        -background =&gt; "#AFFAAF",
+    ,)-&gt;pack;
+
+## S&amp;M (left button down only)
+$MW-&gt;bind(
+    'Tk::Canvas',
+    '&lt;ButtonPress-1&gt;' =&gt; [\&amp;BandOn, map{Ev($_)} qw{ x y s } ]
+);
+
+$MW-&gt;bind(
+    'Tk::Canvas',
+    '&lt;ButtonRelease-1&gt;' =&gt; [\&amp;BandOff, map{Ev($_)} qw{ x y s } ]
+);
+
+
+&amp;MainLoop();
+
+sub BandOn {
+    BEEP("BandOn",@_);
+    
+    my( $C, $X, $Y, $S ) = @_;
+    $C-&gt;{"\0__Xo"} = $X; # the origin, to remain constant
+    $C-&gt;{"\0__Yo"} = $Y;
+    $C-&gt;{"\0__RUBBER"} = "RUBBER".time;
+    $C-&gt;create($OBJECT, $X, $Y, $X+10, $Y+10, -tags =&gt; $C-&gt;{"\0__RUBBER"});
+
+    $MW-&gt;bind(
+        'Tk::Canvas',
+        '&lt;Motion&gt;' =&gt; [\&amp;BandIt, map { Ev($_) } qw{ x y s } ]
+    );
+}
+
+
+sub BandOff {
+    BEEP("BandOff",@_);
+    my( $C, $X, $Y, $S ) = @_;
+    
+    $MW-&gt;bind(
+        'Tk::Canvas',
+        '&lt;Motion&gt;' =&gt; undef, # essentially unbind
+    );   
+}
+
+sub BandIt {
+    BEEP("BandIt",@_);
+    my( $C, $X, $Y, $S ) = @_;
+
+    $C-&gt;delete($C-&gt;{"\0__RUBBER"}); # I wish I could transform the existing one
+    $C-&gt;create(
+        $OBJECT,
+        $C-&gt;{"\0__Xo"},
+        $C-&gt;{"\0__Yo"},
+        $X, $Y, -tags =&gt; $C-&gt;{"\0__RUBBER"},
+    );
+
+}
+
+
+sub BEEP {
+   print shift(@_),"\n";
+   print shift(@_)-&gt;{"\0__RUBBER"},"\n";
+   print "$_)$_[$_]\n" for 0..$#_;
+}
+
+
+
+
+sub Button {
+    my ( $W , $text , $relief , $sub )=@_;
+
+    $W = $W-&gt;Button(
+        -text =&gt; $text,
+        -relief =&gt; $relief,
+    ,)-&gt;pack(
+        -anchor =&gt; 'n',
+        -expand =&gt; 'no',
+        -side =&gt; 'left',
+    ,);
+
+    $W-&gt;configure(-command =&gt; [ $sub, $W ] );
+
+    return undef;
+}
+
+</field>
+</data>
+</node>

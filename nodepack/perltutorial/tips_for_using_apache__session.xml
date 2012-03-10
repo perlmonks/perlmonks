@@ -1,0 +1,114 @@
+<node>
+  <doctext>&lt;p&gt;&lt;i&gt;I have been intending to write a full-fledged tutorial for Apache::Session
+  for a while, but still haven't gotten around to it. Though still a work-in-progress,
+  I hope this will be helpful to some people in the meantime. If you have any
+  corrections/suggestions, let me know.&lt;/i&gt;&lt;/p&gt;
+&lt;h3&gt;&lt;a name=&quot;whatis&quot;&gt;&lt;/a&gt;What is Apache::Session? &lt;/h3&gt;
+&lt;p&gt;[kobe://Apache::Session] is a Perl module which provides tools for session management.&lt;/p&gt;
+&lt;p&gt;Session management is primarily used to provide persistent storage of data
+  for a particular user between CGI requests. This requires being able to identify
+  a specific request as belonging to a particular user/session, and linking that
+  user/session to some type of (typically server-side) storage of data.&lt;/p&gt;
+&lt;p&gt;A few things about Apache::Session may not be obvious:&lt;/p&gt;
+&lt;readmore&gt;
+&lt;ul&gt;
+  &lt;li&gt;Apache::Session does not require that you be using an Apache web server.
+    In fact, Apache::Session is fully functional (though perhaps not as useful)
+    without any web server at all.&lt;/li&gt;
+  &lt;li&gt;Apache::Session does not provide a turnkey session management solution.
+    Instead, it provides tools for important session management tasks like session
+    ID generation, serialization, session data storage, and session data locking
+    (to prevent data corruption in a multi-user environment).&lt;/li&gt;
+  &lt;li&gt;Apache::Session uses a tied hash for its interface to the session data.
+    In most cases, however, it is not necessary to really understand Perl's &lt;a href=&quot;http://www.perldoc.com/perl5.6.1/pod/perltie.html&quot;&gt;tie&lt;/a&gt;
+    mechanism to use Apache::Session.&lt;/li&gt;
+  &lt;li&gt;Apache::Session is usually not used directly. Instead, you will use a derived
+    class which integrates specific implementations for data storage, serialization,
+    and locking, such as [kobe://Apache::Session::File], [kobe://Apache::Session::DB_File], or [kobe://Apache::Session::MySQL].&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Here are some things I've learned in the course of using Apache::Session for
+  my own session management needs.&lt;/p&gt;
+&lt;h3&gt;&lt;a name=&quot;does&quot;&gt;&lt;/a&gt;What does Apache::Session do?&lt;/h3&gt;
+&lt;h4&gt;Session ID Generation&lt;/h4&gt;
+&lt;p&gt;When creating a new session, Apache::Session generates a unique ID (using an
+  MD5 hash) which can be used to track the user session.&lt;/p&gt;
+&lt;h4&gt;Serialization&lt;/h4&gt;
+&lt;p&gt;Apache::Session uses the [kobe://Storable] module for serialization, allowing the storage
+  of complex Perl data structures as session data. This allows your tied session
+  hash to contain references to hashes, arrays, hashes of arrays, arrays of hashes,
+  arrays of arrays, etc.&lt;/p&gt;
+&lt;p&gt;&lt;i&gt;(Note: The module also provides for the ability to use serialization methods
+  other than Storable.)&lt;/i&gt;&lt;/p&gt;
+&lt;h4&gt;Session Data Storage&lt;/h4&gt;
+&lt;p&gt;Apache::Session stores session data using the implementation defined by the
+  particular derived class which is used. Implementations exist for a large number
+  of storage options, including files, various databases, persistent memory, etc.&lt;/p&gt;
+&lt;h4&gt;Session Data Locking&lt;/h4&gt;
+&lt;p&gt;In a multi-user environment (like a web server), multiple users trying to access
+  the data store at one time could cause corruption of the data. Therefore, Apache::Session
+  uses locking mechanisms to protect the data from simultaneous write access.&lt;/p&gt;
+&lt;h3&gt;&lt;a name=&quot;doesnot&quot;&gt;&lt;/a&gt;What does Apache::Session NOT do?&lt;/h3&gt;
+&lt;h4&gt;Session Tracking&lt;/h4&gt;
+&lt;p&gt;Session management requires some way of sending a session ID to the client,
+  and having the client send the session ID back with each request, to track which
+  session data to use. Apache::Session does not provide a built-in way to do this,
+  though the documentation does provide simple examples of how you can do this
+  yourself. Standard methods of session tracking include adding the session ID
+  as extra path information or as a GET query string parameter, storing the ID in hidden fields
+  in forms, or using cookies.&lt;/p&gt;
+&lt;p&gt;&lt;i&gt;(Note: There are also modules on CPAN that wrap Apache::Session to provide
+  session tracking.)&lt;/i&gt;&lt;/p&gt;
+&lt;h4&gt;Clean Up&lt;/h4&gt;
+&lt;p&gt;As a general rule, Apache::Session modules do not clean up after themselves.
+  Therefore, it is necessary to create some method for cleaning up old session
+  entries, lock files, etc. One standard way of doing this (on Unix-type operating
+  systems) is to create a cron job to remove old sessions, etc.&lt;/p&gt;
+&lt;h3&gt;&lt;a name=&quot;usage&quot;&gt;&lt;/a&gt;How do I use Apache::Session?&lt;/h3&gt;
+&lt;p&gt;The [kobe://Apache::Session|Apache::Session documentation] provides examples of how to use an Apache::Session
+  derived class, and each derived class usually provides additional class-specific
+  documentation.&lt;/p&gt;
+&lt;p&gt;&lt;i&gt;(Note: I may update this document at some point to include some type of
+  usage overview.) &lt;/i&gt; &lt;/p&gt;
+&lt;h3&gt;&lt;a name=&quot;gotchas&quot;&gt;&lt;/a&gt;Apache::Session Gotchas&lt;/h3&gt;
+&lt;h4&gt;Data Storage Issues&lt;/h4&gt;
+&lt;p&gt;Apache::Session stores changes to session data in memory until the session
+  hash is untied or passes out of scope. It then writes changes to the data store
+  if anything has changed. However, &lt;b&gt;Apache::Session only updates the data store
+  when the top level of the tied hash changes.&lt;/b&gt; Therefore, it is sometimes
+  necessary to provide some mechanism for forcing an update. Here is one way:&lt;/p&gt;
+&lt;code&gt;
+my %session;
+# Connect to old session with ID $session_id
+tie %session, 'Apache::Session::MySQL', $session_id;
+
+# Change session data
+$session{user}{state} = 'Texas';
+
+# If $session{user}{state} already existed in the data store, it will not be updated.
+# Therefore we force an update by changing the top level of the session hash.
+$session{TIMESTAMP} = time;
+&lt;/code&gt;
+&lt;h4&gt;Locking Issues&lt;/h4&gt;
+&lt;p&gt;Several of the Apache::Session modules use the File locking scheme. Since the
+  File locking scheme is dependent on the implementation of the &lt;a href=&quot;http://www.perldoc.com/perl5.6.1/pod/func/flock.html&quot;&gt;flock&lt;/a&gt; function
+  on a specific platform, &lt;b&gt;File locking may not work properly on some platforms.&lt;/b&gt;
+  For example, flock is not implemented on the Window 9x OSes, which means you
+  can not use File locking on that platform.&lt;/p&gt;
+&lt;h3&gt;&lt;a name=&quot;alternatives&quot;&gt;&lt;/a&gt;Alternatives to Apache::Session&lt;/h3&gt;
+&lt;p&gt;There are several alternative modules for session management on CPAN (many
+  of which merely extend Apache::Session). Since I am comfortable with Apache::Session,
+  and it meets my current needs, I haven't used any of these, though I have looked
+  at a few.&lt;/p&gt;
+&lt;p&gt;Sherzod Ruzmetov's [kobe://CGI::Session] was originally a front-end to Apache::Session,
+  but is now a standalone module. It provides an object-oriented interface (similar
+  to that of CGI.pm) as well as a tied hash interface (similar to Apache::Session).
+  It also includes (among other features) support for expiring sessions and storing/loading
+  CGI parameters to/from a session.&lt;/p&gt;
+&lt;br&gt;&lt;i&gt;Impossible Robot&lt;/i&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>214293</node_id>
+  <author_user>112187</author_user>
+  <title>Tips for Using Apache::Session</title>
+  <createtime>2002-11-19 17:55:02</createtime>
+  <nodeupdated>2005-08-15 11:46:36</nodeupdated>
+</node>

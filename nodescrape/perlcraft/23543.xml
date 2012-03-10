@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="23543" title="PipsPerlMonksThemer" created="2000-07-21 05:28:26" updated="2005-08-03 09:08:54">
+<type id="121">
+perlcraft</type>
+<author id="5272">
+PipTigger</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+#I didn't intend for something so long to end up on the
+# frontpage.  I'd keep it in Craft if I could.  Sorry.
+
+#PipsPerlMonksThemer - PPMT
+# You can play with this craft at http://BinQ.org/ppmt/
+#  Please do... and tell me what you thinq. =)
+
+use CGI ":standard";
+use LWP::UserAgent;
+
+my $this = "http://BinQ.org/ppmt/index.cgi";
+my $filp = "/home/httpd/html/ppmt/filters/";
+my $favs = "/home/httpd/html/ppmt/favoritz.txt";
+my $meth = $ENV{'REQUEST_METHOD'};
+my $quer = $ENV{'QUERY_STRING'};
+my $what = param("whattodo");
+my $monk = param("wichmonk");
+my $site = "http://PerlMonks.org";
+my $srch = "PerlMonks";
+
+my $wich = param("wichfilt");
+my $nick = param("wichnick");
+my $uage = new LWP::UserAgent;
+my @flis = glob("$filp*");
+   $uage-&gt;agent("AgentName/0.1 " . $uage-&gt;agent);
+my $requ = "";
+my $resp = "";
+
+
+print "Content-type: text/html\n\n";
+
+if ($quer ne "") {
+    if ($quer =~ /^filt=([^&amp;]*)&amp;/) { $filt = $1; $quer =~ s/^filt=[^&amp;]*&amp;//; }
+    if ($quer !~ /^http\:\/\//) { $quer = "http://" . $quer; }
+    $requ = new HTTP::Request GET =&gt; "$quer";
+    $resp = $uage-&gt;request($requ);
+    if ($resp-&gt;is_success) {
+        $cont = $resp-&gt;content;
+        $foun = 0;
+        open FILE, "&lt;$filp$filt";
+        while (&lt;FILE&gt;) {
+            chomp ($parm = $_);
+            chomp ($sour = &lt;FILE&gt;);
+            chomp ($dest = &lt;FILE&gt;);
+            $quer =~ s/(.*\/).*/$1/;
+            $dest =~ s/\{\$quer\}/$quer/;
+            if ($filt eq "randomal") {
+                $whol = $sour;
+                if ($whol =~ /((color="?\#?|\w+="?\#|\w+=")([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})"?)/i) {
+                    $redv = $3; $grnv = $4; $bluv = $5;
+                    $nred = sprintf "%lx", (rand(255));
+                    $ngrn = sprintf "%lx", (rand(255));
+                    $nblu = sprintf "%lx", (rand(255));
+                    if (length($nred) == 1) { $nred = "0" . $nred; }
+                    if (length($ngrn) == 1) { $ngrn = "0" . $ngrn; }
+                    if (length($nblu) == 1) { $nblu = "0" . $nblu; }
+                    $whol =~ s/(color="?\#?|\w+="?\#)$redv$grnv$bluv"?/$1/i;
+                    $whol =~ s/="?\#?/="\#/i;
+                    #$whol =~ tr/A-Z/a-z/;
+                    $nred =~ tr/a-z/A-Z/;
+                    $ngrn =~ tr/a-z/A-Z/;
+                    $nblu =~ tr/a-z/A-Z/;
+                    $whol .= "$nred$ngrn$nblu\"";
+                    $dest = $whol;
+                }
+            }
+            $dlis[$foun] = $dest;
+            if ($foun &lt; 1024) {
+                if ($parm =~ /g/i) {
+                    if ($parm =~ /i/i) {
+                        $cont =~ s/$sour/SoUr${foun}dEsT/gi;
+                    } else {
+                        $cont =~ s/$sour/SoUr${foun}dEsT/g;
+                    }
+                } else {
+                    if ($parm =~ /i/i) {
+                        $cont =~ s/$sour/SoUr${foun}dEsT/i;
+                    } else {
+                        $cont =~ s/$sour/SoUr${foun}dEsT/;
+                    }
+                }
+                $foun++;
+            }
+        }
+        while ($foun) {
+            $foun--;
+            if ($parm =~ /g/i) {
+                if ($parm =~ /i/i) {
+                    $cont =~ s/SoUr${foun}dEsT/$dlis[$foun]/gi;
+                } else {
+                    $cont =~ s/SoUr${foun}dEsT/$dlis[$foun]/g;
+                }
+            } else {
+                if ($parm =~ /i/i) {
+                    $cont =~ s/SoUr${foun}dEsT/$dlis[$foun]/i;
+                } else {
+                    $cont =~ s/SoUr${foun}dEsT/$dlis[$foun]/;
+                }
+            }
+        }
+        $foun = 1;
+        close FILE;
+        print $cont;
+    } else { print "Bad luck this time\n"; }
+} elsif ($what &amp;&amp; $what ne "creafilt" &amp;&amp; $what ne "delefilt") {
+    if ($what eq "mangfavs" || $what eq "updtfavs" || $what eq "add2favs") {
+        print "&lt;html&gt;&lt;head&gt;&lt;title&gt;PPMT v1.0&lt;/title&gt;&lt;/head&gt;\n";
+        print "&lt;body bgcolor=\"#03071b\" text=\"#03feab\"&gt;&lt;center&gt;\n";
+        print "&lt;h1&gt;&lt;a href=\"$this\"&gt;PPMT v1.0 ndx&lt;/a&gt;&lt;/h1&gt;\n";
+        print "&lt;h2&gt;Favorites&lt;/h2&gt;\n";
+        if ($what eq "add2favs") {
+            open FILE, "&lt;$favs";
+            @fvls = &lt;FILE&gt;;
+            close FILE;
+            @chos = split /\s/, $fvls[0];
+            @cvlz = split /\s/, $fvls[1];
+            if ($nick !~ /\#?[0-9A-Fa-f]{6}/) { $wich = "Black"; $nick = "#000000"; }
+            if ($nick !~ /^\#/) { $nick = "\#" . $nick; }
+            if ($wich !~ /\w+/) { $wich = "Black"; }
+            $wich =~ s/\n//g; $nick =~ s/\n//g;
+            $chos[$#chos] = "$wich"; $chos[@chos] = "end\n";
+            $cvlz[$#cvlz] = "$nick"; $cvlz[@cvlz] = "end\n";
+            $fvls[0] = " " . join ' ', @chos;
+            $fvls[1] = " " . join ' ', @cvlz;
+            $fvls[@fvls] = "$wich\n";
+            $fvls[@fvls] = "$nick\n";
+print "&lt;h2&gt;Adding &lt;i&gt;$wich&lt;/i&gt; with value &lt;i&gt;$nick&lt;/i&gt; to Favorites!&lt;/h2&gt;\n";
+            open FILE, "&gt;$favs";
+            foreach (@fvls) { print FILE $_; }
+            close FILE;
+        } elsif ($what eq "updtfavs") {
+print "&lt;h2&gt;Updating Favorites!&lt;/h2&gt;\n";
+            open FILE, "&lt;$favs";
+            @fvls = &lt;FILE&gt;;
+            close FILE;
+            $fvls[0] = " ";
+            $fvls[1] = " ";
+            $coun = 2;
+            while ($fvls[$coun]) {
+                chomp ($kaka = $fvls[$coun++]);
+                if (param("ChooseColor$kaka") eq "YES") {
+                    $fvls[0] .= "$kaka ";
+                    chomp ($kaka = $fvls[$coun++]);
+                    $fvls[1] .= "$kaka ";
+                }
+            }
+            $fvls[0] .= "end\n";
+            $fvls[1] .= "end\n";
+            open FILE, "&gt;$favs";
+            foreach (@fvls) { print FILE $_; }
+            close FILE;
+        }
+        print "&lt;table border=\"1\"&gt;&lt;tr&gt;&lt;td&gt;Choose&lt;td&gt;Name&lt;td&gt;Value&lt;td&gt;Example\n";
+        print "&lt;td&gt;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;&lt;td&gt;Choose&lt;td&gt;Name&lt;td&gt;Value&lt;td&gt;Example&lt;/tr&gt;\n";
+        print "&lt;form action=\"$this\" method=\"post\"&gt;\n";
+        print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"updtfavs\"&gt;\n";
+        open FILE, "&lt;$favs";
+        $fnmz = &lt;FILE&gt;;
+        $fvlz = &lt;FILE&gt;;
+        while (&lt;FILE&gt;) {
+            chomp;
+            print "&lt;tr&gt;&lt;td align=\"center\"&gt;&lt;input type=\"checkbox\" name=\"ChooseColor$_\" value=\"YES\"";
+            if ($fnmz =~ /\s$_\s/) { print " checked"; }
+            print "&gt;\n&lt;td&gt;$_&lt;td&gt;";
+            chomp ($_ = &lt;FILE&gt;);
+            print "$_&lt;td bgcolor=\"$_\"&gt;\&amp;nbsp\;\&amp;nbsp\;&lt;td&gt;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\&amp;nbsp\;\n";
+            if ($_ = &lt;FILE&gt;) {
+#                chomp ($_ = &lt;FILE&gt;);
+                chomp;
+                print "&lt;td align=\"center\"&gt;&lt;input type=\"checkbox\" name=\"ChooseColor$_\" value=\"YES\"";
+                if ($fnmz =~ /\s$_\s/) { print " checked"; }
+                print "&gt;\n&lt;td&gt;$_&lt;td&gt;";
+                chomp ($_ = &lt;FILE&gt;);
+                print "$_&lt;td bgcolor=\"$_\"&gt;\&amp;nbsp\;\&amp;nbsp\;\n";
+            }
+        }
+        close FILE;
+        print "&lt;/table&gt;&lt;input type=\"submit\" name=\"submit\" value=\"Update Favorites\"&gt;&lt;/form&gt;\n";
+        print "&lt;form action=\"$this\" method=\"post\"&gt;\n";
+        print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"add2favs\"&gt;\n";
+        print "Name: &lt;input type=\"text\" name=\"wichfilt\"&gt;&lt;br&gt;\n";
+        print "Value: &lt;input type=\"text\" name=\"wichnick\"&gt;&lt;br&gt;\n";
+        print "&lt;input type=\"submit\" name=\"submit\" value=\"Add Choice\"&gt;&lt;/form&gt;\n";
+        print "&lt;br&gt;&lt;h1&gt;&lt;a href=\"$this\"&gt;PPMT v1.0 ndx&lt;/a&gt;&lt;/h1&gt;\n";
+        print "&lt;/body&gt;&lt;/html&gt;\n";
+    } else {
+        print "&lt;html&gt;&lt;head&gt;&lt;title&gt;PPMT v1.0&lt;/title&gt;&lt;/head&gt;\n";
+        print "&lt;body bgcolor=\"#03071b\" text=\"#03feab\"&gt;&lt;center&gt;\n";
+        print "&lt;h1&gt;&lt;a href=\"$this\"&gt;PPMT v1.0 ndx&lt;/a&gt;&lt;/h1&gt;\n";
+        if ($what eq "updtseti") {
+            $filt = $wich;
+            $filt =~ s/^.*\///;
+            print "&lt;h2&gt;Updating Filter: &lt;i&gt;$filt&lt;/i&gt;!&lt;/h2&gt;\n";
+            open FILE, "&gt;$wich";
+            $wich =~ s/.*\/([^\/]+)/$1/;
+            $clim = param("filtcoun");
+            $coun = 1;
+            $blok = "";
+            while ($coun &lt;= $clim) {
+                $parm = param("pArM${coun}PaRm") . param("pAr2${coun}PaR2");
+                $sour = param("sOuR${coun}SoUr");
+                $dest = param("dEsT${coun}DeSt");
+                if (param("pIcK${coun}PiCk") ne "") {
+                    $turd = param("pIcK${coun}PiCk");
+                    if ($turd =~ /"\#[0-9A-Fa-f]{6}"/) {
+                        $dest =~ s/"\#[0-9A-Fa-f]{6}"/$turd/;
+                    }
+                }
+                if ($sour ne "") {
+                    if ($sour =~ /^"\#?[0-9A-Fa-f]{6}"$/) {
+                        if ($dest !~ /^"\#?[0-9A-Fa-f]{6}"$/) {
+                            if ($dest =~ /([0-9A-Fa-f]+)/) {
+                                $turd = $1;
+                                $turd = "0" x (6-length($turd)) . $turd;
+                                $dest = "\"\#$turd\"";
+                            }
+                        }
+                    }
+                    $sour =~ s/&amp;amp;/&amp;/g;
+                    $sour =~ s/&amp;quot;/"/g;
+                    $sour =~ s/&amp;lt;/&lt;/g;
+                    $sour =~ s/&amp;gt;/&gt;/g;
+                    $sour =~ s/&amp;brvbar;/\|/g;
+                    $dest =~ s/&amp;amp;/&amp;/g;
+                    $dest =~ s/&amp;quot;/"/g;
+                    $dest =~ s/&amp;lt;/&lt;/g;
+                    $dest =~ s/&amp;gt;/&gt;/g;
+                    $dest =~ s/&amp;brvbar;/\|/g;
+                    if ($parm =~ /i/i) {
+                        if ($blok !~ /\s$coun\s/) {
+                            if ($parm =~ /g/i) { print FILE "g"; }
+                            print FILE "i\n$sour\n$dest\n";
+                        }
+                        $pcou = $coun;
+                        while (++$pcou &lt; $clim) {
+                            if ($sour eq param("sOuR${pcou}SoUr")) { $blok .= " $pcou "; }
+                        }
+                    } else {
+                        if ($parm =~ /g/i) { print FILE "g"; }
+                        if ($blok !~ /\s$coun\s/) {
+                            print FILE "\n$sour\n$dest\n";
+                        }
+                    }
+                }
+                $coun++;
+            }
+            close FILE;
+            $wich = $filp . $wich;
+        }
+        open FILE, "&lt;$favs";
+        chomp ($kaka = &lt;FILE&gt;);
+        chomp ($poop = &lt;FILE&gt;);
+        close FILE;
+        @chos = split /\s/, $kaka; $#chos--; @cvlz = split /\s/, $poop; $#cvlz--;
+        $coun = 0;
+        while ($coun &lt; @chos) {
+            $optn .= "&lt;option value=\"&amp;quot;$cvlz[$coun]&amp;quot;\"&gt;$chos[$coun]\n";
+            $coun++;
+        }
+        print "&lt;h2&gt;Settings for &lt;i&gt;$filt&lt;/i&gt;:&lt;/h2&gt;\n";
+        print "&lt;form action=\"$this\" method=\"post\"&gt;\n";
+        print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"updtseti\"&gt;\n";
+        print "&lt;input type=\"hidden\" name=\"wichfilt\" value=\"$wich\"&gt;\n";
+        print "&lt;table border=\"1\"&gt;&lt;tr&gt;&lt;td&gt;Source&lt;td&gt;Destination&lt;td&gt;Global?&lt;td&gt;Ignore Case?\n";
+        open FILE, "&lt;$wich";
+        $wich =~ s/.*\/([^\/]+)/$1/;
+        $coun = 1;
+        while (&lt;FILE&gt;) {
+            chomp ($parm = $_);
+            print "&lt;tr&gt;&lt;td&gt;&lt;input type=\"text\" size=\"32\" name=\"sOuR${coun}SoUr\" value=";
+            chomp ($kaka = &lt;FILE&gt;);
+            $kaka =~ s/"/&amp;quot;/g;
+            $kaka =~ s/&lt;/&amp;lt;/g;
+            $kaka =~ s/&gt;/&amp;gt;/g;
+            $kaka =~ s/\|/&amp;brvbar;/g;
+#            $kaka =~ s/&amp;/&amp;amp;/g;
+            print "\"$kaka\"&gt;\n&lt;td&gt;&lt;input type=\"text\" size=\"32\" name=\"dEsT${coun}DeSt\" value=";
+            chomp ($kaka = &lt;FILE&gt;);
+            $kaka =~ s/"/&amp;quot;/g;
+            $kaka =~ s/&lt;/&amp;lt;/g;
+            $kaka =~ s/&gt;/&amp;gt;/g;
+            $kaka =~ s/\|/&amp;brvbar;/g;
+#            $kaka =~ s/&amp;/&amp;amp;/g;
+            if ($kaka =~ /^&amp;quot;\#?[0-9A-Fa-f]{6}&amp;quot;$/) { $kaka =~ tr/a-f/A-F/; }
+            print "\"$kaka\"&gt;\n";
+            if ($coun &lt; 8 &amp;&amp; $kaka =~ /(&amp;quot;\#[0-9A-Fa-f]{6}&amp;quot;)/) { #1024
+                $turd = $1; $poop = $optn; if ($poop =~ /="$turd"&gt;/i) { $poop =~ s/(="$turd")&gt;/$1 selected&gt;/i; }
+                print "&lt;select name=\"pIcK${coun}PiCk\"&gt;&lt;option&gt;$poop&lt;/select&gt;\n";
+            }
+            print "&lt;td&gt;&lt;input type=\"checkbox\" name=\"pArM${coun}PaRm\" value=\"g\"";
+            if ($parm =~ /g/i) { print " checked"; }
+            print "&gt;\n";
+            print "&lt;td&gt;&lt;input type=\"checkbox\" name=\"pAr2${coun}PaR2\" value=\"i\"";
+            if ($parm =~ /i/i) { print " checked"; }
+            print "&gt;\n";
+            $coun++;
+        }
+        close FILE;
+        print "&lt;tr&gt;&lt;th colspan=\"4\"&gt;Create New Filter&lt;tr&gt;&lt;td&gt;&lt;input type=\"text\" size=\"32\" name=\"sOuR${coun}SoUr\"&gt;\n";
+        print "&lt;td&gt;&lt;input type=\"text\" size=\"32\" name=\"dEsT${coun}DeSt\"&gt;\n";
+        print "&lt;select name=\"pIcK${coun}PiCk\"&gt;&lt;option&gt;$optn&lt;/select&gt;\n";
+        print "&lt;td&gt;&lt;input type=\"checkbox\" name=\"pArM${coun}PaRm\" value=\"g\"&gt;\n";
+        print "&lt;td&gt;&lt;input type=\"checkbox\" name=\"pAr2${coun}PaR2\" value=\"i\"&gt;\n";
+        print "&lt;/table&gt;&lt;input type=\"hidden\" name=\"filtcoun\" value=\"$coun\"&gt;\n";
+        print "&lt;input type=\"submit\" name=\"submit\" value=\"Update Settings\"&gt;&lt;/form&gt;\n";
+        print "&lt;br&gt;&lt;h1&gt;&lt;a href=\"$this\"&gt;PPMT v1.0 ndx&lt;/a&gt;&lt;/h1&gt;\n";
+        print "&lt;/body&gt;&lt;/html&gt;\n";
+    }
+} else {
+    print "&lt;html&gt;&lt;head&gt;&lt;title&gt;PPMT v1.0&lt;/title&gt;&lt;/head&gt;\n";
+    print "&lt;body bgcolor=\"#03071b\" text=\"#03feab\"&gt;&lt;center&gt;\n";
+    print "&lt;h1&gt;&lt;a href=\"$this\"&gt;PPMT v1.0 ndx&lt;/a&gt;&lt;/h1&gt;\n";
+    print "&lt;h3&gt;This is PipsPerlMonksThemer.  Please create a new theme.&lt;/h3&gt;\n";
+    print "&lt;h3&gt;See my settings for examples below.  Please also be courteous and refrain from changing other Monk\'s settings.  If you wish to experiment without creating a new theme, please use the AnonymousMonk theme.  Also note (thanks to Aighearach) when you login, your password is sent directly to PerlMonks.org so your theme settings will be discarded once you login.  I mainly intended this to be a theme specification tool so that we could define and preview different themes for potential implementation as genuine user options.  Thank you very much.&lt;/h3&gt;\n";
+    print "&lt;h3&gt;Email me (&lt;a href=\"mailto:pip\@BinQ.org\"&gt;PipTigger&lt;/a&gt;) if you have any comments or recommendations.  TTFN.&lt;/h3&gt;\n";
+    if ($what eq "creafilt") {
+        if ($monk eq "") {
+            $monk = "AnonymousMonk";
+            unlink "$filp$monk";
+            print "&lt;h2&gt;Auto-Deleted &amp;&amp; Created New Theme For: &lt;i&gt;AnonymousMonk&lt;/i&gt;!&lt;/h2&gt;\n";
+        } else {
+            $monk =~ s/\W//g;
+        }
+        open FILE, "&gt;$filp$monk";
+        $requ = new HTTP::Request GET =&gt; "$site";
+        $resp = $uage-&gt;request($requ);
+        if ($resp-&gt;is_success) {
+            $cont = $resp-&gt;content;
+            while ($cont =~ /((color="?\#?|\w+="?\#|\w+=")([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})"?)/i) {
+                $whol = $owhl = $1; $redv = $3; $grnv = $4; $bluv = $5;
+                print FILE "\n$whol\n";
+                if (param("autodata")) {
+                    if (param("autodata") eq "inverted") {
+                        $nred = sprintf "%lx", (255-hex("$redv"));
+                        $ngrn = sprintf "%lx", (255-hex("$grnv"));
+                        $nblu = sprintf "%lx", (255-hex("$bluv"));
+                    } else {
+                        $nred = sprintf "%lx", (rand(255));
+                        $ngrn = sprintf "%lx", (rand(255));
+                        $nblu = sprintf "%lx", (rand(255));
+                    }
+                    if (length($nred) == 1) { $nred = "0" . $nred; }
+                    if (length($ngrn) == 1) { $ngrn = "0" . $ngrn; }
+                    if (length($nblu) == 1) { $nblu = "0" . $nblu; }
+                    $whol =~ s/(color="?\#?|\w+="?\#)$redv$grnv$bluv"?/$1/i;
+                    $whol =~ s/="?\#?/="\#/i;
+                    #$whol =~ tr/A-Z/a-z/;
+                    $nred =~ tr/a-z/A-Z/;
+                    $ngrn =~ tr/a-z/A-Z/;
+                    $nblu =~ tr/a-z/A-Z/;
+                    $whol .= "$nred$ngrn$nblu\"";
+                } 
+                print FILE "$whol\n";
+                $cont =~ s/$owhl//;
+            }
+	    print FILE "\n&lt;FORM METHOD=\"POST\" ACTION=\"index.pl\"\n&lt;form action=\"http://PerlMonks.org/index.pl\" method=\"post\"\n";
+	    print FILE "\n&lt;FORM METHOD=\"POST\"\n&lt;form action=\"http://PerlMonks.org/index.pl\" method=\"post\"\n";
+            if (param("autodata") eq "randomal") {
+                $monk = "randomal";
+            }
+            if ($cont =~ /href=("?)$site\//i) {
+                $sour = $1;
+                print FILE "gi\nhref=$sour$site/\nhref=$sour$this?filt=$monk&amp;$site/\n";
+                $cont =~ s/href=$sour$site\///gi;
+            }
+            if ($cont =~ /href=("?)\//i) {
+                $sour = $1;
+                print FILE "gi\nhref=$sour/\nhref=$sour$this?filt=$monk&amp;$site/\n";
+                $cont =~ s/href=$sour\///gi;
+            }
+            if ($cont =~ /src=("?)\//i) {
+                $sour = $1;
+                print FILE "gi\nsrc=$sour/\nsrc=$sour$site/\n";
+                $cont =~ s/src=$sour\///gi;
+            }
+        } else { print "Bad luck this new time\n"; }
+        close FILE;
+        @flis = glob("$filp*");
+    }
+    if ($what eq "delefilt") {
+        unlink "$filp$monk";
+        @flis = glob("$filp*");
+        print "&lt;h2&gt;Deleted &lt;i&gt;$monk&lt;/i&gt;!&lt;/h2&gt;\n";
+    }
+    print "&lt;table border=\"1\"&gt;&lt;form action=\"$this\" method=\"post\"&gt;\n";
+    print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"creafilt\"&gt;\n";
+    print "&lt;tr&gt;&lt;td&gt;PerlMonks UserName: &lt;td&gt;&lt;input type=\"text\" size=\"32\" name=\"wichmonk\"&gt;\n";
+    print "&lt;tr&gt;&lt;td align=\"center\"&gt;InvertColors?: &lt;input type=\"radio\" name=\"autodata\" value=\"inverted\"&gt;\n";
+    print "&lt;br&gt;RandomizeColors?: &lt;input type=\"radio\" name=\"autodata\" value=\"randomiz\"&gt;\n";
+    print "&lt;br&gt;AlwaysRandomColors?: &lt;input type=\"radio\" name=\"autodata\" value=\"randomal\"&gt;\n";
+    print "&lt;td&gt;&lt;br&gt;&lt;input type=\"submit\" name=\"submit\" value=\"Create New PerlMonks Theme\"&gt;&lt;/form&gt;\n";
+    print "&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;\n";
+    print "&lt;table border=\"1\"&gt;&lt;tr&gt;&lt;td&gt;PerlMonk:&lt;td&gt;Change\n";#&lt;td&gt;Remove\n";
+
+    foreach $filt (@flis) {
+        $kaka = $filt;
+        $kaka =~ s/^$filp//;
+        if ($kaka ne "randomal") {
+            print "&lt;tr&gt;&lt;td&gt;&lt;h3&gt;&lt;a href=\"$this?filt=$kaka&amp;$site\"&gt;$kaka&lt;/a&gt;&lt;/h3&gt;\n";
+            print "&lt;td&gt;&lt;form action=\"$this\" method=\"post\"&gt;\n";
+            print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"chngseti\"&gt;\n";
+            print "&lt;input type=\"hidden\" name=\"wichfilt\" value=\"$filt\"&gt;\n";
+            print "&lt;input type=\"submit\" name=\"submit\" value=\"Settings\"&gt;&lt;/form&gt;\n";
+            #print "&lt;td&gt;&lt;form action=\"$this\" method=\"post\"&gt;\n";
+            #print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"delefilt\"&gt;\n";
+            #print "&lt;input type=\"hidden\" name=\"wichfilt\" value=\"$filt\"&gt;\n";
+            #print "&lt;input type=\"submit\" name=\"submit\" value=\"DELETE\"&gt;&lt;/form&gt;\n";
+        }
+    }
+    print "&lt;/table&gt;\n";
+    print "&lt;br&gt;&lt;form action=\"$this\" method=\"post\"&gt;\n";
+    print "&lt;input type=\"hidden\" name=\"whattodo\" value=\"mangfavs\"&gt;\n";
+    print "&lt;input type=\"submit\" name=\"submit\" value=\"Manage Favorites\"&gt;&lt;/form&gt;\n";
+    print "&lt;/body&gt;&lt;/html&gt;\n";
+}
+#   $requ = new HTTP::Request GET =&gt; 'http://razorstorm.net';
+#   $requ-&gt;content_type('application/x-www-form-urlencoded');
+#   $requ-&gt;content('match=www&amp;errors=0');
+#   my $resp = $uage-&gt;request($requ);
+#   if ($resp-&gt;is_success) { print $resp-&gt;content; }
+#   else { print "Bad luck this time\n"; }
+</field>
+</data>
+</node>

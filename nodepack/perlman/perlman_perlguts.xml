@@ -1,0 +1,1522 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlguts - Perl's Internal Functions
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This document attempts to describe some of the internal functions of the
+Perl executable. It is far from complete and probably contains many errors.
+Please refer any questions or comments to the author below.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Variables&quot;&gt;Variables&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Datatypes&quot;&gt;Datatypes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl has three typedefs that handle Perl's three main data types:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV  Scalar Value
+    AV  Array Value
+    HV  Hash Value
+&lt;/PRE&gt;
+&lt;P&gt;
+Each typedef has specific routines that manipulate the various data types.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;What_is_an_IV_&quot;&gt;What is an &quot;IV&quot;?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl uses a special typedef 
+&lt;FONT SIZE=-1&gt;IV&lt;/FONT&gt; which is a simple integer type that is guaranteed
+to be large enough to hold a pointer (as well as an integer).
+
+&lt;P&gt;
+Perl also uses two special typedefs, 
+&lt;FONT SIZE=-1&gt;I32&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;I16,&lt;/FONT&gt; which will always be at least 32-bits and 16-bits long, respectively.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Working_with_SVs&quot;&gt;Working with SVs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+An 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; can be created and loaded with one command. There are four types of values that can be loaded: an integer value 
+&lt;FONT SIZE=-1&gt;(IV),&lt;/FONT&gt; a double 
+&lt;FONT SIZE=-1&gt;(NV),&lt;/FONT&gt; a string, 
+&lt;FONT SIZE=-1&gt;(PV),&lt;/FONT&gt; and another scalar 
+&lt;FONT SIZE=-1&gt;(SV).&lt;/FONT&gt;
+
+&lt;P&gt;
+The six routines are:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV*  newSViv(IV);
+    SV*  newSVnv(double);
+    SV*  newSVpv(char*, int);
+    SV*  newSVpvn(char*, int);
+    SV*  newSVpvf(const char*, ...);
+    SV*  newSVsv(SV*);
+&lt;/PRE&gt;
+&lt;P&gt;
+To change the value of an *already-existing* 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; there are seven routines:
+
+&lt;P&gt;
+&lt;PRE&gt;    void  sv_setiv(SV*, IV);
+    void  sv_setuv(SV*, UV);
+    void  sv_setnv(SV*, double);
+    void  sv_setpv(SV*, char*);
+    void  sv_setpvn(SV*, char*, int)
+    void  sv_setpvf(SV*, const char*, ...);
+    void  sv_setpvfn(SV*, const char*, STRLEN, va_list *, SV **, I32, bool);
+    void  sv_setsv(SV*, SV*);
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice that you can choose to specify the length of the string to be
+assigned by using [perlman:perlguts], [perlman:perlguts], or [perlman:perlguts], or you may allow Perl to calculate the length by using [perlman:perlguts] or by specifying 0 as the second argument to [perlman:perlguts]. Be warned, though, that Perl will determine the string's length by using &lt;CODE&gt;strlen&lt;/CODE&gt;, which depends on the string terminating with a 
+&lt;FONT SIZE=-1&gt;NUL&lt;/FONT&gt; character.
+
+&lt;P&gt;
+The arguments of [perlman:perlguts] are processed like [perlfunc:sprintf|sprintf], and the formatted output becomes the value.
+
+&lt;P&gt;
+&lt;CODE&gt;sv_setpvfn&lt;/CODE&gt; is an analogue of &lt;CODE&gt;vsprintf&lt;/CODE&gt;, but it allows you to specify either a pointer to a variable argument list
+or the address and length of an array of SVs. The last argument points to a
+boolean; on return, if that boolean is true, then locale-specific
+information has been used to format the string, and the string's contents
+are therefore untrustworty (see
+[perlman:perlsec|the perlsec manpage]). This pointer may be 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if that information is not important. Note that
+this function requires you to specify the length of the format.
+
+&lt;P&gt;
+The &lt;CODE&gt;sv_set*()&lt;/CODE&gt; functions are not generic enough to operate on values that have ``magic''.
+See &lt;A HREF=&quot;#Magic_Virtual_Tables&quot;&gt;Magic Virtual Tables&lt;/A&gt; later in this document.
+
+&lt;P&gt;
+All SVs that contain strings should be terminated with a 
+&lt;FONT SIZE=-1&gt;NUL&lt;/FONT&gt; character. If it is not NUL-terminated there is a risk of core dumps and corruptions from code which passes the string to 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; functions or system calls which expect a NUL-terminated string. Perl's own functions typically add a trailing 
+&lt;FONT SIZE=-1&gt;NUL&lt;/FONT&gt; for this reason. Nevertheless, you should be very careful when you pass a string stored in an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; to a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function or system call.
+
+&lt;P&gt;
+To access the actual value that an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; points to, you can use the macros:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvIV(SV*)
+    SvNV(SV*)
+    SvPV(SV*, STRLEN len)
+&lt;/PRE&gt;
+&lt;P&gt;
+which will automatically coerce the actual scalar type into an 
+&lt;FONT SIZE=-1&gt;IV,&lt;/FONT&gt; double, or string.
+
+&lt;P&gt;
+In the [perlman:perlguts] macro, the length of the string returned is placed into the variable &lt;CODE&gt;len&lt;/CODE&gt; (this is a macro, so you do &lt;EM&gt;not&lt;/EM&gt; use &lt;CODE&gt;&amp;amp;len&lt;/CODE&gt;). If you do not care what the length of the data is, use the global
+variable [perlman:perlguts]. Remember, however, that Perl allows arbitrary strings of data that may both contain NULs and might not be terminated by a 
+&lt;FONT SIZE=-1&gt;NUL.&lt;/FONT&gt;
+
+&lt;P&gt;
+If you want to know if the scalar value is 
+&lt;FONT SIZE=-1&gt;TRUE,&lt;/FONT&gt; you can use:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvTRUE(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+Although Perl will automatically grow strings for you, if you need to force Perl to allocate more memory for your 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; you can use the macro
+
+&lt;P&gt;
+&lt;PRE&gt;    SvGROW(SV*, STRLEN newlen)
+&lt;/PRE&gt;
+&lt;P&gt;
+which will determine if more memory needs to be allocated. If so, it will
+call the function [perlman:perlguts]. Note that [perlman:perlguts] can only increase, not decrease, the allocated memory of an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and that it does not automatically add a byte for the a trailing 
+&lt;FONT SIZE=-1&gt;NUL&lt;/FONT&gt; (perl's own string functions typically do
+
+[perlman:perlguts]).
+
+&lt;P&gt;
+If you have an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and want to know what kind of data Perl thinks is stored in it, you can use the following macros to check the type of 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; you have.
+
+&lt;P&gt;
+&lt;PRE&gt;    SvIOK(SV*)
+    SvNOK(SV*)
+    SvPOK(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+You can get and set the current length of the string stored in an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; with the following macros:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvCUR(SV*)
+    SvCUR_set(SV*, I32 val)
+&lt;/PRE&gt;
+&lt;P&gt;
+You can also get a pointer to the end of the string stored in the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; with the macro:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvEND(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+But note that these last three macros are valid only if [perlman:perlguts] is true.
+
+&lt;P&gt;
+If you want to append something to the end of string stored in an [perlman:perlguts], you can use the following functions:
+
+&lt;P&gt;
+&lt;PRE&gt;    void  sv_catpv(SV*, char*);
+    void  sv_catpvn(SV*, char*, int);
+    void  sv_catpvf(SV*, const char*, ...);
+    void  sv_catpvfn(SV*, const char*, STRLEN, va_list *, SV **, I32, bool);
+    void  sv_catsv(SV*, SV*);
+&lt;/PRE&gt;
+&lt;P&gt;
+The first function calculates the length of the string to be appended by
+using &lt;CODE&gt;strlen&lt;/CODE&gt;. In the second, you specify the length of the string yourself. The third
+function processes its arguments like [perlfunc:sprintf|sprintf] and appends the formatted output. The fourth function works like &lt;CODE&gt;vsprintf&lt;/CODE&gt;. You can specify the address and length of an array of SVs instead of the va_list argument. The fifth function extends the string stored in the first 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; with the string stored in the second 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; It also forces the second 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; to be interpreted as a string.
+
+&lt;P&gt;
+The &lt;CODE&gt;sv_cat*()&lt;/CODE&gt; functions are not generic enough to operate on values that have ``magic''.
+See &lt;A HREF=&quot;#Magic_Virtual_Tables&quot;&gt;Magic Virtual Tables&lt;/A&gt; later in this document.
+
+&lt;P&gt;
+If you know the name of a scalar variable, you can get a pointer to its 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; by using the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV*  perl_get_sv(&amp;quot;package::varname&amp;quot;, FALSE);
+&lt;/PRE&gt;
+&lt;P&gt;
+This returns 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if the variable does not exist.
+
+&lt;P&gt;
+If you want to know if this variable (or any other 
+&lt;FONT SIZE=-1&gt;SV)&lt;/FONT&gt; is actually [perlfunc:defined|defined], you can call:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvOK(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+The scalar [perlfunc:undef|undef] value is stored in an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; instance called [perlman:perlguts]. Its address can be used whenever an [perlman:perlguts] is needed.
+
+&lt;P&gt;
+There are also the two values [perlman:perlguts] and [perlman:perlguts], which contain Boolean 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;FALSE&lt;/FONT&gt; values, respectively. Like
+ [perlman:perlguts], their addresses can be used whenever an [perlman:perlguts] is needed.
+
+&lt;P&gt;
+Do not be fooled into thinking that &lt;CODE&gt;(SV *) 0&lt;/CODE&gt; is the same as [perlman:perlguts]. Take this code:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV* sv = (SV*) 0;
+    if (I-am-to-return-a-real-value) {
+            sv = sv_2mortal(newSViv(42));
+    }
+    sv_setsv(ST(0), sv);
+&lt;/PRE&gt;
+&lt;P&gt;
+This code tries to return a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; (which contains the value 42) if it should return a real value, or undef otherwise. Instead it has returned a 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; pointer which, somewhere down the line, will cause a segmentation violation, bus error, or just weird results. Change the zero to
+ [perlman:perlguts] in the first line and all will be well.
+
+&lt;P&gt;
+To free an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; that you've created, call [perlman:perlguts]. Normally this call is not necessary (see &lt;A HREF=&quot;#Reference_Counts_and_Mortality&quot;&gt;Reference Counts and Mortality&lt;/A&gt;).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;What_s_Really_Stored_in_an_SV_&quot;&gt;What's Really Stored in an SV?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Recall that the usual method of determining the type of scalar you have is
+to use [perlman:perlguts] macros. Because a scalar can be both a number and a string, usually these macros will always return 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; and calling the
+ &lt;CODE&gt;Sv*V&lt;/CODE&gt;
+macros will do the appropriate conversion of string to integer/double or
+integer/double to string.
+
+&lt;P&gt;
+If you &lt;EM&gt;really&lt;/EM&gt; need to know if you have an integer, double, or string pointer in an 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; you can use the following three macros instead:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvIOKp(SV*)
+    SvNOKp(SV*)
+    SvPOKp(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+These will tell you if you truly have an integer, double, or string pointer stored in your 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; The ``p'' stands for private.
+
+&lt;P&gt;
+In general, though, it's best to use the &lt;CODE&gt;Sv*V&lt;/CODE&gt; macros.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Working_with_AVs&quot;&gt;Working with AVs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are two ways to create and load an 
+&lt;FONT SIZE=-1&gt;AV.&lt;/FONT&gt; The first method creates an empty 
+&lt;FONT SIZE=-1&gt;AV:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    AV*  newAV();
+&lt;/PRE&gt;
+&lt;P&gt;
+The second method both creates the 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; and initially populates it with SVs:
+
+&lt;P&gt;
+&lt;PRE&gt;    AV*  av_make(I32 num, SV **ptr);
+&lt;/PRE&gt;
+&lt;P&gt;
+The second argument points to an array containing &lt;CODE&gt;num&lt;/CODE&gt;  [perlman:perlguts]'s. Once the 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; has been created, the SVs can be destroyed, if so
+desired.
+
+&lt;P&gt;
+Once the 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; has been created, the following operations are
+possible on AVs:
+
+&lt;P&gt;
+&lt;PRE&gt;    void  av_push(AV*, SV*);
+    SV*   av_pop(AV*);
+    SV*   av_shift(AV*);
+    void  av_unshift(AV*, I32 num);
+&lt;/PRE&gt;
+&lt;P&gt;
+These should be familiar operations, with the exception of [perlman:perlguts]. This routine adds &lt;CODE&gt;num&lt;/CODE&gt; elements at the front of the array with the [perlfunc:undef|undef]
+value. You must then use [perlman:perlguts] (described below) to assign values to these new elements.
+
+&lt;P&gt;
+Here are some other functions:
+
+&lt;P&gt;
+&lt;PRE&gt;    I32   av_len(AV*);
+    SV**  av_fetch(AV*, I32 key, I32 lval);
+    SV**  av_store(AV*, I32 key, SV* val);
+&lt;/PRE&gt;
+&lt;P&gt;
+The [perlman:perlguts] function returns the highest index value in array (just like $#array in
+Perl). If the array is empty, -1 is returned. The
+[perlman:perlguts] function returns the value at index &lt;CODE&gt;key&lt;/CODE&gt;, but if &lt;CODE&gt;lval&lt;/CODE&gt;
+is non-zero, then [perlman:perlguts] will store an undef value at that index. The [perlman:perlguts] function stores the value &lt;CODE&gt;val&lt;/CODE&gt; at index &lt;CODE&gt;key&lt;/CODE&gt;, and does not increment the reference count of &lt;CODE&gt;val&lt;/CODE&gt;. Thus the caller is responsible for taking care of that, and if [perlman:perlguts] returns 
+&lt;FONT SIZE=-1&gt;NULL,&lt;/FONT&gt; the caller will have to decrement the reference
+count to avoid a memory leak. Note that
+[perlman:perlguts] and [perlman:perlguts] both return [perlman:perlguts]'s, not [perlman:perlguts]'s as their return value.
+
+&lt;P&gt;
+&lt;PRE&gt;    void  av_clear(AV*);
+    void  av_undef(AV*);
+    void  av_extend(AV*, I32 key);
+&lt;/PRE&gt;
+&lt;P&gt;
+The [perlman:perlguts] function deletes all the elements in the 
+&lt;FONT SIZE=-1&gt;AV*&lt;/FONT&gt; array, but does not actually delete the array
+itself. The [perlman:perlguts] function will delete all the elements in the array plus the array itself.
+The
+[perlman:perlguts] function extends the array so that it contains &lt;CODE&gt;key&lt;/CODE&gt;
+elements. If &lt;CODE&gt;key&lt;/CODE&gt; is less than the current length of the array, then nothing is done.
+
+&lt;P&gt;
+If you know the name of an array variable, you can get a pointer to its 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; by using the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    AV*  perl_get_av(&amp;quot;package::varname&amp;quot;, FALSE);
+&lt;/PRE&gt;
+&lt;P&gt;
+This returns 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if the variable does not exist.
+
+&lt;P&gt;
+See &lt;A HREF=&quot;#Understanding_the_Magic_of_Tied_&quot;&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use the array access functions on tied
+arrays.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Working_with_HVs&quot;&gt;Working with HVs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+To create an 
+&lt;FONT SIZE=-1&gt;HV,&lt;/FONT&gt; you use the following routine:
+
+&lt;P&gt;
+&lt;PRE&gt;    HV*  newHV();
+&lt;/PRE&gt;
+&lt;P&gt;
+Once the 
+&lt;FONT SIZE=-1&gt;HV&lt;/FONT&gt; has been created, the following operations are
+possible on HVs:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV**  hv_store(HV*, char* key, U32 klen, SV* val, U32 hash);
+    SV**  hv_fetch(HV*, char* key, U32 klen, I32 lval);
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;klen&lt;/CODE&gt; parameter is the length of the key being passed in (Note that you cannot
+pass 0 in as a value of &lt;CODE&gt;klen&lt;/CODE&gt; to tell Perl to measure the length of the key). The &lt;CODE&gt;val&lt;/CODE&gt; argument contains the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; pointer to the scalar being stored, and &lt;CODE&gt;hash&lt;/CODE&gt; is the precomputed hash value (zero if you want [perlman:perlguts] to calculate it for you). The &lt;CODE&gt;lval&lt;/CODE&gt; parameter indicates whether this fetch is actually a part of a store operation, in which case a new undefined value will be added to the 
+&lt;FONT SIZE=-1&gt;HV&lt;/FONT&gt; with the supplied key and
+ [perlman:perlguts] will return as if the value had already existed.
+
+&lt;P&gt;
+Remember that [perlman:perlguts] and [perlman:perlguts] return [perlman:perlguts]'s and not just
+[perlman:perlguts]. To access the scalar value, you must first dereference the return value. However, you should check to make sure that the return value is not 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; before dereferencing it.
+
+&lt;P&gt;
+These two functions check if a hash table entry exists, and deletes it.
+
+&lt;P&gt;
+&lt;PRE&gt;    bool  hv_exists(HV*, char* key, U32 klen);
+    SV*   hv_delete(HV*, char* key, U32 klen, I32 flags);
+&lt;/PRE&gt;
+&lt;P&gt;
+If &lt;CODE&gt;flags&lt;/CODE&gt; does not include the [perlman:perlguts] flag then [perlman:perlguts] will create and return a mortal copy of the deleted value.
+
+&lt;P&gt;
+And more miscellaneous functions:
+
+&lt;P&gt;
+&lt;PRE&gt;    void   hv_clear(HV*);
+    void   hv_undef(HV*);
+&lt;/PRE&gt;
+&lt;P&gt;
+Like their 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; counterparts, [perlman:perlguts] deletes all the entries in the hash table but does not actually delete the
+hash table. The [perlman:perlguts] deletes both the entries and the hash table itself.
+
+&lt;P&gt;
+Perl keeps the actual data in linked list of structures with a typedef of 
+&lt;FONT SIZE=-1&gt;HE.&lt;/FONT&gt; These contain the actual key and value pointers
+(plus extra administrative overhead). The key is a string pointer; the
+value is an [perlman:perlguts]. However, once you have an &lt;CODE&gt;HE*&lt;/CODE&gt;, to get the actual key and value, use the routines specified below.
+
+&lt;P&gt;
+&lt;PRE&gt;    I32    hv_iterinit(HV*);
+            /* Prepares starting point to traverse hash table */
+    HE*    hv_iternext(HV*);
+            /* Get the next entry, and return a pointer to a
+               structure that has both the key and value */
+    char*  hv_iterkey(HE* entry, I32* retlen);
+            /* Get the key from an HE structure and also return
+               the length of the key string */
+    SV*    hv_iterval(HV*, HE* entry);
+            /* Return a SV pointer to the value of the HE
+               structure */
+    SV*    hv_iternextsv(HV*, char** key, I32* retlen);
+            /* This convenience routine combines hv_iternext,
+               hv_iterkey, and hv_iterval.  The key and retlen
+               arguments are return values for the key and its
+               length.  The value is returned in the SV* argument */
+&lt;/PRE&gt;
+&lt;P&gt;
+If you know the name of a hash variable, you can get a pointer to its 
+&lt;FONT SIZE=-1&gt;HV&lt;/FONT&gt; by using the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    HV*  perl_get_hv(&amp;quot;package::varname&amp;quot;, FALSE);
+&lt;/PRE&gt;
+&lt;P&gt;
+This returns 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if the variable does not exist.
+
+&lt;P&gt;
+The hash algorithm is defined in the &lt;CODE&gt;PERL_HASH(hash, key, klen)&lt;/CODE&gt; macro:
+
+&lt;P&gt;
+&lt;PRE&gt;    i = klen;
+    hash = 0;
+    s = key;
+    while (i--)
+        hash = hash * 33 + *s++;
+&lt;/PRE&gt;
+&lt;P&gt;
+See &lt;A HREF=&quot;#Understanding_the_Magic_of_Tied_&quot;&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use the hash access functions on tied
+hashes.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Hash_API_Extensions&quot;&gt;Hash API Extensions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Beginning with version 5.004, the following functions are also supported:
+
+&lt;P&gt;
+&lt;PRE&gt;    HE*     hv_fetch_ent  (HV* tb, SV* key, I32 lval, U32 hash);
+    HE*     hv_store_ent  (HV* tb, SV* key, SV* val, U32 hash);
+    
+    bool    hv_exists_ent (HV* tb, SV* key, U32 hash);
+    SV*     hv_delete_ent (HV* tb, SV* key, I32 flags, U32 hash);
+    
+    SV*     hv_iterkeysv  (HE* entry);
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that these functions take [perlman:perlguts] keys, which simplifies writing of extension code that deals with hash
+structures. These functions also allow passing of [perlman:perlguts] keys to [perlfunc:tie|tie] functions without forcing you to stringify the keys (unlike the previous
+set of functions).
+
+&lt;P&gt;
+They also return and accept whole hash entries (&lt;CODE&gt;HE*&lt;/CODE&gt;), making their use more efficient (since the hash number for a particular
+string doesn't have to be recomputed every time). See &lt;A HREF=&quot;#API_LISTING&quot;&gt;API LISTING&lt;/A&gt; later in this document for detailed descriptions.
+
+&lt;P&gt;
+The following macros must always be used to access the contents of hash
+entries. Note that the arguments to these macros must be simple variables,
+since they may get evaluated more than once. See
+&lt;A HREF=&quot;#API_LISTING&quot;&gt;API LISTING&lt;/A&gt; later in this document for detailed descriptions of these macros.
+
+&lt;P&gt;
+&lt;PRE&gt;    HePV(HE* he, STRLEN len)
+    HeVAL(HE* he)
+    HeHASH(HE* he)
+    HeSVKEY(HE* he)
+    HeSVKEY_force(HE* he)
+    HeSVKEY_set(HE* he, SV* sv)
+&lt;/PRE&gt;
+&lt;P&gt;
+These two lower level macros are defined, but must only be used when
+dealing with keys that are not [perlman:perlguts]s:
+
+&lt;P&gt;
+&lt;PRE&gt;    HeKEY(HE* he)
+    HeKLEN(HE* he)
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that both [perlman:perlguts] and [perlman:perlguts] do not increment the reference count of the stored &lt;CODE&gt;val&lt;/CODE&gt;, which is the caller's responsibility. If these functions return a 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; value, the caller will usually have to decrement
+the reference count of &lt;CODE&gt;val&lt;/CODE&gt; to avoid a memory leak.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;References&quot;&gt;References&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+References are a special type of scalar that point to other data types
+(including references).
+
+&lt;P&gt;
+To create a reference, use either of the following functions:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV* newRV_inc((SV*) thing);
+    SV* newRV_noinc((SV*) thing);
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;thing&lt;/CODE&gt; argument can be any of an [perlman:perlguts], [perlman:perlguts], or [perlman:perlguts]. The functions are identical except that [perlman:perlguts] increments the reference count of the &lt;CODE&gt;thing&lt;/CODE&gt;, while [perlman:perlguts] does not. For historical reasons, &lt;CODE&gt;newRV&lt;/CODE&gt; is a synonym for [perlman:perlguts].
+
+&lt;P&gt;
+Once you have a reference, you can use the following macro to dereference
+the reference:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvRV(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+then call the appropriate routines, casting the returned [perlman:perlguts] to either an
+[perlman:perlguts] or [perlman:perlguts], if required.
+
+&lt;P&gt;
+To determine if an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is a reference, you can use the following macro:
+
+&lt;P&gt;
+&lt;PRE&gt;    SvROK(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+To discover what type of value the reference refers to, use the following
+macro and then check the return value.
+
+&lt;P&gt;
+&lt;PRE&gt;    SvTYPE(SvRV(SV*))
+&lt;/PRE&gt;
+&lt;P&gt;
+The most useful types that will be returned are:
+
+&lt;P&gt;
+&lt;PRE&gt;    SVt_IV    Scalar
+    SVt_NV    Scalar
+    SVt_PV    Scalar
+    SVt_RV    Scalar
+    SVt_PVAV  Array
+    SVt_PVHV  Hash
+    SVt_PVCV  Code
+    SVt_PVGV  Glob (possible a file handle)
+    SVt_PVMG  Blessed or Magical Scalar
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    See the sv.h header file for more details.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Blessed_References_and_Class_Obj&quot;&gt;Blessed References and Class Objects&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+References are also used to support object-oriented programming. In the 
+&lt;FONT SIZE=-1&gt;OO&lt;/FONT&gt; lexicon, an object is simply a reference that has
+been blessed into a package (or class). Once blessed, the programmer may
+now use the reference to access the various methods in the class.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; reference can be blessed into a package with the
+following function:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV* sv_bless(SV* sv, HV* stash);
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;sv&lt;/CODE&gt; argument must be a reference. The &lt;CODE&gt;stash&lt;/CODE&gt; argument specifies which class the reference will belong to. See
+&lt;A HREF=&quot;#Stashes_and_Globs&quot;&gt;Stashes and Globs&lt;/A&gt; for information on converting class names into stashes.
+
+&lt;P&gt;
+/* Still under construction */
+
+&lt;P&gt;
+Upgrades rv to reference if not already one. Creates new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; for rv to point to. If &lt;CODE&gt;classname&lt;/CODE&gt; is non-null, the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is blessed into the specified class. 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV* newSVrv(SV* rv, char* classname);
+&lt;/PRE&gt;
+&lt;P&gt;
+Copies integer or double into an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; whose reference is &lt;CODE&gt;rv&lt;/CODE&gt;. 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is blessed if &lt;CODE&gt;classname&lt;/CODE&gt; is non-null.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV* sv_setref_iv(SV* rv, char* classname, IV iv);
+        SV* sv_setref_nv(SV* rv, char* classname, NV iv);
+&lt;/PRE&gt;
+&lt;P&gt;
+Copies the pointer value (&lt;EM&gt;the address, not the string!&lt;/EM&gt;) into an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; whose reference is rv. 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is blessed if
+ &lt;CODE&gt;classname&lt;/CODE&gt; is non-null.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV* sv_setref_pv(SV* rv, char* classname, PV iv);
+&lt;/PRE&gt;
+&lt;P&gt;
+Copies string into an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; whose reference is &lt;CODE&gt;rv&lt;/CODE&gt;. Set length to 0 to let Perl calculate the string length. 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is blessed if &lt;CODE&gt;classname&lt;/CODE&gt; is non-null.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV* sv_setref_pvn(SV* rv, char* classname, PV iv, int length);
+&lt;/PRE&gt;
+&lt;P&gt;
+Tests whether the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is blessed into the specified class. It does not
+check inheritance relationships.
+
+&lt;P&gt;
+&lt;PRE&gt;        int  sv_isa(SV* sv, char* name);
+&lt;/PRE&gt;
+&lt;P&gt;
+Tests whether the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is a reference to a blessed object.
+
+&lt;P&gt;
+&lt;PRE&gt;        int  sv_isobject(SV* sv);
+&lt;/PRE&gt;
+&lt;P&gt;
+Tests whether the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is derived from the specified class. 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; can be either a reference to a blessed object or a string containing a class name. This is the function implementing the
+ &lt;CODE&gt;UNIVERSAL::isa&lt;/CODE&gt; functionality.
+
+&lt;P&gt;
+&lt;PRE&gt;        bool sv_derived_from(SV* sv, char* name);
+&lt;/PRE&gt;
+&lt;P&gt;
+To check if you've got an object derived from a specific class you have to
+write:
+
+&lt;P&gt;
+&lt;PRE&gt;        if (sv_isobject(sv) &amp;amp;&amp;amp; sv_derived_from(sv, class)) { ... }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Creating_New_Variables&quot;&gt;Creating New Variables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+To create a new Perl variable with an undef value which can be accessed
+from your Perl script, use the following routines, depending on the
+variable type.
+
+&lt;P&gt;
+&lt;PRE&gt;    SV*  perl_get_sv(&amp;quot;package::varname&amp;quot;, TRUE);
+    AV*  perl_get_av(&amp;quot;package::varname&amp;quot;, TRUE);
+    HV*  perl_get_hv(&amp;quot;package::varname&amp;quot;, TRUE);
+&lt;/PRE&gt;
+&lt;P&gt;
+Notice the use of 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; as the second parameter. The new variable can now
+be set, using the routines appropriate to the data type.
+
+&lt;P&gt;
+There are additional macros whose values may be bitwise OR'ed with the
+&lt;CODE&gt;TRUE&lt;/CODE&gt; argument to enable certain extra features. Those bits are:
+
+&lt;P&gt;
+&lt;PRE&gt;    GV_ADDMULTI Marks the variable as multiply defined, thus preventing the
+                &amp;quot;Name &amp;lt;varname&amp;gt; used only once: possible typo&amp;quot; warning.
+    GV_ADDWARN  Issues the warning &amp;quot;Had to create &amp;lt;varname&amp;gt; unexpectedly&amp;quot; if
+                the variable did not exist before the function was called.
+&lt;/PRE&gt;
+&lt;P&gt;
+If you do not specify a package name, the variable is created in the
+current package.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Reference_Counts_and_Mortality&quot;&gt;Reference Counts and Mortality&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl uses an reference count-driven garbage collection mechanism. SVs, AVs,
+or HVs (xV for short in the following) start their life with a reference
+count of 1. If the reference count of an xV ever drops to 0, then it will
+be destroyed and its memory made available for reuse.
+
+&lt;P&gt;
+This normally doesn't happen at the Perl level unless a variable is
+undef'ed or the last variable holding a reference to it is changed or
+overwritten. At the internal level, however, reference counts can be
+manipulated with the following macros:
+
+&lt;P&gt;
+&lt;PRE&gt;    int SvREFCNT(SV* sv);
+    SV* SvREFCNT_inc(SV* sv);
+    void SvREFCNT_dec(SV* sv);
+&lt;/PRE&gt;
+&lt;P&gt;
+However, there is one other function which manipulates the reference count
+of its argument. The [perlman:perlguts] function, you will recall, creates a reference to the specified argument.
+As a side effect, it increments the argument's reference count. If this is
+not what you want, use [perlman:perlguts] instead.
+
+&lt;P&gt;
+For example, imagine you want to return a reference from an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; function. Inside the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; routine, you create an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; which initially has a reference count of one. Then you call
+ [perlman:perlguts], passing it the just-created 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; This returns the reference as a new 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; but the reference count of the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; you passed to
+ [perlman:perlguts] has been incremented to two. Now you return the reference from the 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; routine and forget about the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; But Perl hasn't! Whenever the returned reference is destroyed, the reference count of the original 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is decreased to one and nothing happens. The 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; will hang around without any way to access it until Perl itself terminates. This is a memory leak.
+
+&lt;P&gt;
+The correct procedure, then, is to use [perlman:perlguts] instead of
+[perlman:perlguts]. Then, if and when the last reference is destroyed, the reference count of the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; will go to zero and it will be destroyed, stopping any memory leak.
+
+&lt;P&gt;
+There are some convenience functions available that can help with the destruction of xVs. These functions introduce the concept of ``mortality''. An xV that is mortal has had its reference count marked to be decremented, but not actually decremented, until ``a short time later''. Generally the term ``short time later'' means a single Perl statement, such as a call to an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; function. The actual determinant for when mortal xVs have their reference count decremented depends on two macros, 
+&lt;FONT SIZE=-1&gt;SAVETMPS&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;FREETMPS.&lt;/FONT&gt; See
+ [perlman:perlcall|the perlcall manpage] and [perlman:perlxs|the perlxs manpage] for more details on these macros.
+
+&lt;P&gt;
+``Mortalization'' then is at its simplest a deferred [perlman:perlguts]. However, if you mortalize a variable twice, the reference count will
+later be decremented twice.
+
+&lt;P&gt;
+You should be careful about creating mortal variables. Strange things can
+happen if you make the same value mortal within multiple contexts, or if
+you make a variable mortal multiple times.
+
+&lt;P&gt;
+To create a mortal variable, use the functions:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV*  sv_newmortal()
+    SV*  sv_2mortal(SV*)
+    SV*  sv_mortalcopy(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+The first call creates a mortal 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; the second converts an existing 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; to a mortal 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; (and thus defers a call to
+ [perlman:perlguts]), and the third creates a mortal copy of an existing 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+The mortal routines are not just for SVs -- AVs and HVs can be made mortal
+by passing their address (type-casted to [perlman:perlguts]) to the
+[perlman:perlguts] or [perlman:perlguts] routines.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Stashes_and_Globs&quot;&gt;Stashes and Globs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; ``stash'' is a hash that contains all of the different objects that are contained within a package. Each key of the stash is a symbol name (shared by all the different types of objects that have the same name), and each value in the hash table is a 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; (Glob Value). This 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; in turn contains references to the various objects of that name, including (but not limited to) the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    Scalar Value
+    Array Value
+    Hash Value
+    I/O Handle
+    Format
+    Subroutine
+&lt;/PRE&gt;
+&lt;P&gt;
+There is a single stash called ``PL_defstash'' that holds the items that
+exist in the ``main'' package. To get at the items in other packages,
+append the string ``::'' to the package name. The items in the ``Foo''
+package are in the stash ``Foo::'' in PL_defstash. The items in the
+``Bar::Baz'' package are in the stash ``Baz::'' in ``Bar::'''s stash.
+
+&lt;P&gt;
+To get the stash pointer for a particular package, use the function:
+
+&lt;P&gt;
+&lt;PRE&gt;    HV*  gv_stashpv(char* name, I32 create)
+    HV*  gv_stashsv(SV*, I32 create)
+&lt;/PRE&gt;
+&lt;P&gt;
+The first function takes a literal string, the second uses the string stored in the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; Remember that a stash is just a hash table, so you get back an
+
+[perlman:perlguts]. The &lt;CODE&gt;create&lt;/CODE&gt; flag will create a new package if it is set.
+
+&lt;P&gt;
+The name that &lt;CODE&gt;gv_stash*v&lt;/CODE&gt; wants is the name of the package whose symbol table you want. The default
+package is called &lt;CODE&gt;main&lt;/CODE&gt;. If you have multiply nested packages, pass their names to &lt;CODE&gt;gv_stash*v&lt;/CODE&gt;, separated by &lt;CODE&gt;::&lt;/CODE&gt; as in the Perl language itself.
+
+&lt;P&gt;
+Alternately, if you have an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; that is a blessed reference, you can find out the
+stash pointer by using:
+
+&lt;P&gt;
+&lt;PRE&gt;    HV*  SvSTASH(SvRV(SV*));
+&lt;/PRE&gt;
+&lt;P&gt;
+then use the following to get the package name itself:
+
+&lt;P&gt;
+&lt;PRE&gt;    char*  HvNAME(HV* stash);
+&lt;/PRE&gt;
+&lt;P&gt;
+If you need to bless or re-bless an object you can use the following
+function:
+
+&lt;P&gt;
+&lt;PRE&gt;    SV*  sv_bless(SV*, HV* stash)
+&lt;/PRE&gt;
+&lt;P&gt;
+where the first argument, an [perlman:perlguts], must be a reference, and the second argument is a stash. The returned [perlman:perlguts] can now be used in the same way as any other 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+For more information on references and blessings, consult [perlman:perlref|the perlref manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Double_Typed_SVs&quot;&gt;Double-Typed SVs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Scalar variables normally contain only one type of value, an integer,
+double, pointer, or reference. Perl will automatically convert the actual
+scalar data from the stored type into the requested type.
+
+&lt;P&gt;
+Some scalar variables contain more than one type of scalar data. For
+example, the variable &lt;CODE&gt;$!&lt;/CODE&gt; contains either the numeric value of &lt;CODE&gt;errno&lt;/CODE&gt;
+or its string equivalent from either &lt;CODE&gt;strerror&lt;/CODE&gt; or &lt;CODE&gt;sys_errlist&amp;#091;&amp;#093;&lt;/CODE&gt;.
+
+&lt;P&gt;
+To force multiple data values into an 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; you must do two things: use the
+&lt;CODE&gt;sv_set*v&lt;/CODE&gt; routines to add the additional scalar type, then set a flag so that Perl
+will believe it contains more than one type of data. The four macros to set
+the flags are:
+
+&lt;P&gt;
+&lt;PRE&gt;        SvIOK_on
+        SvNOK_on
+        SvPOK_on
+        SvROK_on
+&lt;/PRE&gt;
+&lt;P&gt;
+The particular macro you must use depends on which &lt;CODE&gt;sv_set*v&lt;/CODE&gt; routine you called first. This is because every &lt;CODE&gt;sv_set*v&lt;/CODE&gt; routine turns on only the bit for the particular type of data being set,
+and turns off all the rest.
+
+&lt;P&gt;
+For example, to create a new Perl variable called ``dberror'' that contains
+both the numeric and descriptive string error values, you could use the
+following code:
+
+&lt;P&gt;
+&lt;PRE&gt;    extern int  dberror;
+    extern char *dberror_list;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    SV* sv = perl_get_sv(&amp;quot;dberror&amp;quot;, TRUE);
+    sv_setiv(sv, (IV) dberror);
+    sv_setpv(sv, dberror_list&amp;#091;dberror&amp;#093;);
+    SvIOK_on(sv);
+&lt;/PRE&gt;
+&lt;P&gt;
+If the order of [perlman:perlguts] and [perlman:perlguts] had been reversed, then the macro [perlman:perlguts] would need to be called instead of [perlman:perlguts].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Magic_Variables&quot;&gt;Magic Variables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&amp;#091;This section still under construction. Ignore everything here. Post no
+bills. Everything not permitted is forbidden.&amp;#093;
+
+&lt;P&gt;
+Any 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; may be magical, that is, it has special features that a normal 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; does not have. These features are stored in the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; structure in a linked list of
+ &lt;CODE&gt;struct magic&lt;/CODE&gt;'s, typedef'ed to &lt;CODE&gt;MAGIC&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;    struct magic {
+        MAGIC*      mg_moremagic;
+        MGVTBL*     mg_virtual;
+        U16         mg_private;
+        char        mg_type;
+        U8          mg_flags;
+        SV*         mg_obj;
+        char*       mg_ptr;
+        I32         mg_len;
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+Note this is current as of patchlevel 0, and could change at any time.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Assigning_Magic&quot;&gt;Assigning Magic&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl adds magic to an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; using the sv_magic function:
+
+&lt;P&gt;
+&lt;PRE&gt;    void sv_magic(SV* sv, SV* obj, int how, char* name, I32 namlen);
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;sv&lt;/CODE&gt; argument is a pointer to the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; that is to acquire a new magical feature.
+
+&lt;P&gt;
+If &lt;CODE&gt;sv&lt;/CODE&gt; is not already magical, Perl uses the [perlman:perlguts] macro to set the [perlman:perlguts] flag for the &lt;CODE&gt;sv&lt;/CODE&gt;. Perl then continues by adding it to the beginning of the linked list of magical features. Any prior entry of the same type of magic is deleted. Note that this can be overridden, and multiple instances of the same type of magic can be associated with an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+The &lt;CODE&gt;name&lt;/CODE&gt; and &lt;CODE&gt;namlen&lt;/CODE&gt; arguments are used to associate a string with the magic, typically the name
+of a variable. &lt;CODE&gt;namlen&lt;/CODE&gt; is stored in the
+[perlman:perlguts] field and if &lt;CODE&gt;name&lt;/CODE&gt; is non-null and &lt;CODE&gt;namlen&lt;/CODE&gt; &amp;gt;= 0 a malloc'd copy of the name is stored in &lt;CODE&gt;mg_ptr&lt;/CODE&gt; field.
+
+&lt;P&gt;
+The sv_magic function uses &lt;CODE&gt;how&lt;/CODE&gt; to determine which, if any, predefined ``Magic Virtual Table'' should be
+assigned to the &lt;CODE&gt;mg_virtual&lt;/CODE&gt; field. See the ``Magic Virtual Table'' section below. The &lt;CODE&gt;how&lt;/CODE&gt; argument is also stored in the &lt;CODE&gt;mg_type&lt;/CODE&gt; field.
+
+&lt;P&gt;
+The &lt;CODE&gt;obj&lt;/CODE&gt; argument is stored in the &lt;CODE&gt;mg_obj&lt;/CODE&gt; field of the &lt;CODE&gt;MAGIC&lt;/CODE&gt;
+structure. If it is not the same as the &lt;CODE&gt;sv&lt;/CODE&gt; argument, the reference count of the &lt;CODE&gt;obj&lt;/CODE&gt; object is incremented. If it is the same, or if the &lt;CODE&gt;how&lt;/CODE&gt; argument is ``#'', or if it is a 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; pointer, then &lt;CODE&gt;obj&lt;/CODE&gt; is merely stored, without the reference count being incremented.
+
+&lt;P&gt;
+There is also a function to add magic to an [perlman:perlguts]:
+
+&lt;P&gt;
+&lt;PRE&gt;    void hv_magic(HV *hv, GV *gv, int how);
+&lt;/PRE&gt;
+&lt;P&gt;
+This simply calls [perlman:perlguts] and coerces the &lt;CODE&gt;gv&lt;/CODE&gt; argument into an [perlman:perlguts].
+
+&lt;P&gt;
+To remove the magic from an 
+&lt;FONT SIZE=-1&gt;SV,&lt;/FONT&gt; call the function sv_unmagic:
+
+&lt;P&gt;
+&lt;PRE&gt;    void sv_unmagic(SV *sv, int type);
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;type&lt;/CODE&gt; argument should be equal to the &lt;CODE&gt;how&lt;/CODE&gt; value when the [perlman:perlguts]
+was initially made magical.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Magic_Virtual_Tables&quot;&gt;Magic Virtual Tables&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;mg_virtual&lt;/CODE&gt; field in the &lt;CODE&gt;MAGIC&lt;/CODE&gt; structure is a pointer to a
+&lt;CODE&gt;MGVTBL&lt;/CODE&gt;, which is a structure of function pointers and stands for ``Magic Virtual
+Table'' to handle the various operations that might be applied to that
+variable.
+
+&lt;P&gt;
+The &lt;CODE&gt;MGVTBL&lt;/CODE&gt; has five pointers to the following routine types:
+
+&lt;P&gt;
+&lt;PRE&gt;    int  (*svt_get)(SV* sv, MAGIC* mg);
+    int  (*svt_set)(SV* sv, MAGIC* mg);
+    U32  (*svt_len)(SV* sv, MAGIC* mg);
+    int  (*svt_clear)(SV* sv, MAGIC* mg);
+    int  (*svt_free)(SV* sv, MAGIC* mg);
+&lt;/PRE&gt;
+&lt;P&gt;
+This 
+&lt;FONT SIZE=-1&gt;MGVTBL&lt;/FONT&gt; structure is set at compile-time in &lt;CODE&gt;perl.h&lt;/CODE&gt; and there are currently 19 types (or 21 with overloading turned on). These
+different structures contain pointers to various routines that perform
+additional actions depending on which function is being called.
+
+&lt;P&gt;
+&lt;PRE&gt;    Function pointer    Action taken
+    ----------------    ------------
+    svt_get             Do something after the value of the SV is retrieved.
+    svt_set             Do something after the SV is assigned a value.
+    svt_len             Report on the SV's length.
+    svt_clear           Clear something the SV represents.
+    svt_free            Free any extra storage associated with the SV.
+&lt;/PRE&gt;
+&lt;P&gt;
+For instance, the 
+&lt;FONT SIZE=-1&gt;MGVTBL&lt;/FONT&gt; structure called &lt;CODE&gt;vtbl_sv&lt;/CODE&gt; (which corresponds to an &lt;CODE&gt;mg_type&lt;/CODE&gt; of '\0') contains:
+
+&lt;P&gt;
+&lt;PRE&gt;    { magic_get, magic_set, magic_len, 0, 0 }
+&lt;/PRE&gt;
+&lt;P&gt;
+Thus, when an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is determined to be magical and of type '\0', if a
+get operation is being performed, the routine &lt;CODE&gt;magic_get&lt;/CODE&gt; is called. All the various routines for the various magical types begin
+with &lt;CODE&gt;magic_&lt;/CODE&gt;.
+
+&lt;P&gt;
+The current kinds of Magic Virtual Tables are:
+
+&lt;P&gt;
+&lt;PRE&gt;    mg_type  MGVTBL              Type of magic
+    -------  ------              ----------------------------
+    \0       vtbl_sv             Special scalar variable
+    A        vtbl_amagic         %OVERLOAD hash
+    a        vtbl_amagicelem     %OVERLOAD hash element
+    c        (none)              Holds overload table (AMT) on stash
+    B        vtbl_bm             Boyer-Moore (fast string search)
+    E        vtbl_env            %ENV hash
+    e        vtbl_envelem        %ENV hash element
+    f        vtbl_fm             Formline ('compiled' format)
+    g        vtbl_mglob          m//g target / study()ed string
+    I        vtbl_isa            @ISA array
+    i        vtbl_isaelem        @ISA array element
+    k        vtbl_nkeys          scalar(keys()) lvalue
+    L        (none)              Debugger %_&amp;lt;filename 
+    l        vtbl_dbline         Debugger %_&amp;lt;filename element
+    o        vtbl_collxfrm       Locale transformation
+    P        vtbl_pack           Tied array or hash
+    p        vtbl_packelem       Tied array or hash element
+    q        vtbl_packelem       Tied scalar or handle
+    S        vtbl_sig            %SIG hash
+    s        vtbl_sigelem        %SIG hash element
+    t        vtbl_taint          Taintedness
+    U        vtbl_uvar           Available for use by extensions
+    v        vtbl_vec            vec() lvalue
+    x        vtbl_substr         substr() lvalue
+    y        vtbl_defelem        Shadow &amp;quot;foreach&amp;quot; iterator variable /
+                                  smart parameter vivification
+    *        vtbl_glob           GV (typeglob)
+    #        vtbl_arylen         Array length ($#ary)
+    .        vtbl_pos            pos() lvalue
+    ~        (none)              Available for use by extensions
+&lt;/PRE&gt;
+&lt;P&gt;
+When an uppercase and lowercase letter both exist in the table, then the
+uppercase letter is used to represent some kind of composite type (a list
+or a hash), and the lowercase letter is used to represent an element of
+that composite type.
+
+&lt;P&gt;
+The '~' and 
+&lt;FONT SIZE=-1&gt;'U'&lt;/FONT&gt; magic types are defined specifically for use by
+extensions and will not be used by perl itself. Extensions can use '~'
+magic to 'attach' private information to variables (typically objects).
+This is especially useful because there is no way for normal perl code to
+corrupt this private information (unlike using extra elements of a hash
+object).
+
+&lt;P&gt;
+Similarly, 
+&lt;FONT SIZE=-1&gt;'U'&lt;/FONT&gt; magic can be used much like 
+&lt;CODE&gt;tie()&lt;/CODE&gt; to call a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function any time a scalar's value is used or changed. The
+ &lt;CODE&gt;MAGIC&lt;/CODE&gt;'s
+&lt;CODE&gt;mg_ptr&lt;/CODE&gt; field points to a &lt;CODE&gt;ufuncs&lt;/CODE&gt; structure:
+
+&lt;P&gt;
+&lt;PRE&gt;    struct ufuncs {
+        I32 (*uf_val)(IV, SV*);
+        I32 (*uf_set)(IV, SV*);
+        IV uf_index;
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+When the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is read from or written to, the &lt;CODE&gt;uf_val&lt;/CODE&gt; or &lt;CODE&gt;uf_set&lt;/CODE&gt;
+function will be called with &lt;CODE&gt;uf_index&lt;/CODE&gt; as the first arg and a pointer to the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; as the second.
+
+&lt;P&gt;
+Note that because multiple extensions may be using '~' or 
+&lt;FONT SIZE=-1&gt;'U'&lt;/FONT&gt; magic, it is important for extensions to take extra care to avoid conflict. Typically only using the magic on objects blessed into the same class as the extension is sufficient. For '~' magic, it may also be appropriate to add an 
+&lt;FONT SIZE=-1&gt;I32&lt;/FONT&gt; 'signature' at the top of the private data area and check that.
+
+&lt;P&gt;
+Also note that the &lt;CODE&gt;sv_set*()&lt;/CODE&gt; and &lt;CODE&gt;sv_cat*()&lt;/CODE&gt; functions described earlier do &lt;STRONG&gt;not&lt;/STRONG&gt; invoke 'set' magic on their targets. This must be done by the user either
+by calling the [perlman:perlguts] macro after calling these functions, or by using one of the &lt;CODE&gt;sv_set*_mg()&lt;/CODE&gt; or
+&lt;CODE&gt;sv_cat*_mg()&lt;/CODE&gt; functions. Similarly, generic 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; code must call the
+[perlman:perlguts] macro to invoke any 'get' magic if they use an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; obtained from external sources in functions that
+don't handle magic.
+&lt;A HREF=&quot;#API_LISTING&quot;&gt;API LISTING&lt;/A&gt; later in this document identifies such functions. For example, calls to the &lt;CODE&gt;sv_cat*()&lt;/CODE&gt; functions typically need to be followed by [perlman:perlguts], but they don't need a prior [perlman:perlguts]
+since their implementation handles 'get' magic.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Finding_Magic&quot;&gt;Finding Magic&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    MAGIC* mg_find(SV*, int type); /* Finds the magic pointer of that type */
+&lt;/PRE&gt;
+&lt;P&gt;
+This routine returns a pointer to the &lt;CODE&gt;MAGIC&lt;/CODE&gt; structure stored in the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; If the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; does not have that magical feature,
+ &lt;CODE&gt;NULL&lt;/CODE&gt; is returned. Also, if the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is not of type SVt_PVMG, Perl may core dump.
+
+&lt;P&gt;
+&lt;PRE&gt;    int mg_copy(SV* sv, SV* nsv, char* key, STRLEN klen);
+&lt;/PRE&gt;
+&lt;P&gt;
+This routine checks to see what types of magic &lt;CODE&gt;sv&lt;/CODE&gt; has. If the mg_type field is an uppercase letter, then the mg_obj is copied
+to &lt;CODE&gt;nsv&lt;/CODE&gt;, but the mg_type field is changed to be the lowercase letter.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Understanding_the_Magic_of_Tied_&quot;&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Tied hashes and arrays are magical beasts of the 
+&lt;FONT SIZE=-1&gt;'P'&lt;/FONT&gt; magic type.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;WARNING:&lt;/FONT&gt; As of the 5.004 release, proper usage of the array and hash access functions requires understanding a few caveats. Some of these caveats are actually considered bugs in the 
+&lt;FONT SIZE=-1&gt;API,&lt;/FONT&gt; to be fixed in later releases, and are bracketed with 
+&lt;FONT SIZE=-1&gt;&amp;#091;MAYCHANGE&amp;#093;&lt;/FONT&gt; below. If you find yourself actually applying such information in this section, be aware that the behavior may change in the future, umm, without warning.
+
+&lt;P&gt;
+The [perlman:perlguts] function, when given a tied array argument, merely copies the magic of the
+array onto the value to be ``stored'', using
+[perlman:perlguts]. It may also return 
+&lt;FONT SIZE=-1&gt;NULL,&lt;/FONT&gt; indicating that the value did not actually need to be stored in the array. 
+&lt;FONT SIZE=-1&gt;&amp;#091;MAYCHANGE&amp;#093;&lt;/FONT&gt; After a call to
+
+[perlman:perlguts] on a tied array, the caller will usually need to call
+[perlman:perlguts] to actually invoke the perl level 
+&lt;FONT SIZE=-1&gt;``STORE''&lt;/FONT&gt; method on the 
+&lt;FONT SIZE=-1&gt;TIEARRAY&lt;/FONT&gt; object. If
+ [perlman:perlguts] did return 
+&lt;FONT SIZE=-1&gt;NULL,&lt;/FONT&gt; a call to
+[perlman:perlguts] will also be usually necessary to avoid a memory leak. 
+&lt;FONT SIZE=-1&gt;&amp;#091;/MAYCHANGE&amp;#093;&lt;/FONT&gt;
+
+&lt;P&gt;
+The previous paragraph is applicable verbatim to tied hash access using the
+[perlman:perlguts] and [perlman:perlguts] functions as well.
+
+&lt;P&gt;
+[perlman:perlguts] and the corresponding hash functions [perlman:perlguts] and
+[perlman:perlguts] actually return an undefined mortal value whose magic has been initialized
+using [perlman:perlguts]. Note the value so returned does not need to be deallocated, as it is already mortal. 
+&lt;FONT SIZE=-1&gt;&amp;#091;MAYCHANGE&amp;#093;&lt;/FONT&gt; But you will need to call
+ [perlman:perlguts] on the returned value in order to actually invoke the perl level 
+&lt;FONT SIZE=-1&gt;``FETCH''&lt;/FONT&gt; method on the underlying 
+&lt;FONT SIZE=-1&gt;TIE&lt;/FONT&gt; object. Similarly, you may also call
+ [perlman:perlguts] on the return value after possibly assigning a suitable value to it using [perlman:perlguts], which will invoke the 
+&lt;FONT SIZE=-1&gt;``STORE''&lt;/FONT&gt; method on the 
+&lt;FONT SIZE=-1&gt;TIE&lt;/FONT&gt; object. 
+&lt;FONT SIZE=-1&gt;&amp;#091;/MAYCHANGE&amp;#093;&lt;/FONT&gt;
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;&amp;#091;MAYCHANGE&amp;#093;&lt;/FONT&gt; In other words, the array or hash
+fetch/store functions don't really fetch and store actual values in the
+case of tied arrays and hashes. They merely call [perlman:perlguts] to attach magic to the values that were meant to be ``stored'' or
+``fetched''. Later calls to [perlman:perlguts] and [perlman:perlguts] actually do the job of invoking the 
+&lt;FONT SIZE=-1&gt;TIE&lt;/FONT&gt; methods on the underlying objects. Thus the magic
+mechanism currently implements a kind of lazy access to arrays and hashes.
+
+&lt;P&gt;
+Currently (as of perl version 5.004), use of the hash and array access functions requires the user to be aware of whether they are operating on ``normal'' hashes and arrays, or on their tied variants. The 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; may be changed to provide more transparent access to both tied and normal data types in future versions. 
+&lt;FONT SIZE=-1&gt;&amp;#091;/MAYCHANGE&amp;#093;&lt;/FONT&gt;
+
+&lt;P&gt;
+You would do well to understand that the 
+&lt;FONT SIZE=-1&gt;TIEARRAY&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;TIEHASH&lt;/FONT&gt; interfaces are mere sugar to invoke some perl method calls while using the uniform hash and array syntax. The use of this sugar imposes some overhead (typically about two to four extra opcodes per 
+&lt;FONT SIZE=-1&gt;FETCH/STORE&lt;/FONT&gt; operation, in addition to the creation of all the mortal variables required to invoke the methods). This overhead will be comparatively small if the 
+&lt;FONT SIZE=-1&gt;TIE&lt;/FONT&gt; methods are themselves substantial, but if they are only a few statements long, the overhead will not be insignificant.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Localizing_changes&quot;&gt;Localizing changes&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl has a very handy construction
+
+&lt;P&gt;
+&lt;PRE&gt;  {
+    local $var = 2;
+    ...
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+This construction is &lt;EM&gt;approximately&lt;/EM&gt; equivalent to
+
+&lt;P&gt;
+&lt;PRE&gt;  {
+    my $oldvar = $var;
+    $var = 2;
+    ...
+    $var = $oldvar;
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+The biggest difference is that the first construction would reinstate the
+initial value of $var, irrespective of how control exits the block: [perlfunc:goto|goto], [perlfunc:return|return], [perlfunc:die|die]/[perlfunc:eval|eval] etc. It is a little bit more efficient as well.
+
+&lt;P&gt;
+There is a way to achieve a similar task from 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; via Perl 
+&lt;FONT SIZE=-1&gt;API:&lt;/FONT&gt; create a
+
+&lt;EM&gt;pseudo-block&lt;/EM&gt;, and arrange for some changes to be automatically undone at the end of it, either explicit, or via a non-local exit (via 
+&lt;CODE&gt;die()).&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt;
+ &lt;EM&gt;block&lt;/EM&gt;-like construct is created by a pair of
+[perlman:perlguts]/[perlman:perlguts] macros (see [perlman:perlcall]). Such a construct may be created specially for some important localized task, or an existing one (like boundaries of enclosing Perl subroutine/block, or an existing pair for freeing TMPs) may be used. (In the second case the overhead of additional localization must be almost negligible.) Note that any 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; is automatically enclosed in an
+ [perlman:perlguts]/[perlman:perlguts] pair.
+
+&lt;P&gt;
+Inside such a &lt;EM&gt;pseudo-block&lt;/EM&gt; the following service is available:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEINT&quot;&gt;SAVEINT(int i)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEIV&quot;&gt;SAVEIV(IV i)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEI32&quot;&gt;SAVEI32(I32 i)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVELONG&quot;&gt;SAVELONG(long i)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These macros arrange things to restore the value of integer variable
+&lt;CODE&gt;i&lt;/CODE&gt; at the end of enclosing &lt;EM&gt;pseudo-block&lt;/EM&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVESPTR&quot;&gt;SAVESPTR(s)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEPPTR&quot;&gt;SAVEPPTR(p)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These macros arrange things to restore the value of pointers [perlman:perlop] and
+&lt;CODE&gt;p&lt;/CODE&gt;. [perlman:perlop] must be a pointer of a type which survives conversion to
+[perlman:perlguts] and back, &lt;CODE&gt;p&lt;/CODE&gt; should be able to survive conversion to &lt;CODE&gt;char*&lt;/CODE&gt;
+and back.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEFREESV&quot;&gt;SAVEFREESV(SV *sv)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The refcount of &lt;CODE&gt;sv&lt;/CODE&gt; would be decremented at the end of
+&lt;EM&gt;pseudo-block&lt;/EM&gt;. This is similar to [perlman:perlguts], which should (?) be used instead.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEFREEOP&quot;&gt;SAVEFREEOP(OP *op)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;CODE&gt;OP *&lt;/CODE&gt; is 
+&lt;CODE&gt;op_free()ed&lt;/CODE&gt; at the end of &lt;EM&gt;pseudo-block&lt;/EM&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEFREEPV&quot;&gt;SAVEFREEPV(p)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The chunk of memory which is pointed to by &lt;CODE&gt;p&lt;/CODE&gt; is 
+&lt;CODE&gt;Safefree()ed&lt;/CODE&gt; at the end
+of &lt;EM&gt;pseudo-block&lt;/EM&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVECLEARSV&quot;&gt;SAVECLEARSV(SV *sv)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Clears a slot in the current scratchpad which corresponds to &lt;CODE&gt;sv&lt;/CODE&gt; at the end of &lt;EM&gt;pseudo-block&lt;/EM&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEDELETE&quot;&gt;SAVEDELETE(HV *hv, char *key, I32 length)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The key &lt;CODE&gt;key&lt;/CODE&gt; of &lt;CODE&gt;hv&lt;/CODE&gt; is deleted at the end of &lt;EM&gt;pseudo-block&lt;/EM&gt;. The string pointed to by &lt;CODE&gt;key&lt;/CODE&gt; is 
+&lt;CODE&gt;Safefree()ed.&lt;/CODE&gt; If one has
+a &lt;EM&gt;key&lt;/EM&gt; in short-lived storage, the corresponding string may be reallocated like
+this:
+
+&lt;P&gt;
+&lt;PRE&gt;  SAVEDELETE(PL_defstash, savepv(tmpbuf), strlen(tmpbuf));
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVEDESTRUCTOR&quot;&gt;SAVEDESTRUCTOR(f,p)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+At the end of &lt;EM&gt;pseudo-block&lt;/EM&gt; the function &lt;CODE&gt;f&lt;/CODE&gt; is called with the only argument (of type [perlman:perlguts]) &lt;CODE&gt;p&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SAVESTACK_POS&quot;&gt;SAVESTACK_POS()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The current offset on the Perl internal stack (cf. [perlman:perlguts]) is restored at the end of &lt;EM&gt;pseudo-block&lt;/EM&gt;.
+
+&lt;/DL&gt;
+&lt;P&gt;
+The following 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; list contains functions, thus one needs to provide pointers to the modifiable data explicitly (either 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; pointers, or Perlish
+ &lt;CODE&gt;GV *&lt;/CODE&gt;s). Where the above macros take [perlfunc:int|int], a similar function takes [perlfunc:int].
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SV&quot;&gt;SV* save_scalar(GV *gv)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Equivalent to Perl code &lt;CODE&gt;local $gv&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_AV&quot;&gt;AV* save_ary(GV *gv)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_HV&quot;&gt;HV* save_hash(GV *gv)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Similar to &lt;CODE&gt;save_scalar&lt;/CODE&gt;, but localize &lt;CODE&gt;@gv&lt;/CODE&gt; and &lt;CODE&gt;%gv&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_void&quot;&gt;void save_item(SV *item)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Duplicates the current value of [perlman:perlguts], on the exit from the current
+[perlman:perlguts]/[perlman:perlguts]  &lt;EM&gt;pseudo-block&lt;/EM&gt; will restore the value of [perlman:perlguts]
+using the stored value.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;void save_list(SV **sarg, I32 maxsarg)&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; variant of &lt;CODE&gt;save_item&lt;/CODE&gt; which takes multiple arguments via an array
+&lt;CODE&gt;sarg&lt;/CODE&gt; of [perlman:perlguts] of length &lt;CODE&gt;maxsarg&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;SV* save_svref(SV **sptr)&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Similar to &lt;CODE&gt;save_scalar&lt;/CODE&gt;, but will reinstate a [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;void save_aptr(AV **aptr)&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;void save_hptr(HV **hptr)&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Similar to &lt;CODE&gt;save_svref&lt;/CODE&gt;, but localize [perlman:perlguts] and [perlman:perlguts].
+
+&lt;/DL&gt;
+&lt;P&gt;
+The &lt;CODE&gt;Alias&lt;/CODE&gt; module implements localization of the basic types within the
+&lt;EM&gt;caller's scope&lt;/EM&gt;. People who are interested in how to localize things in the containing
+scope should take a look there too.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Subroutines&quot;&gt;Subroutines&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;XSUBs_and_the_Argument_Stack&quot;&gt;XSUBs and the Argument Stack&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; mechanism is a simple way for Perl programs to access 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; subroutines. An 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; routine will have a stack that contains the arguments from the Perl program, and a way to map from the Perl data structures to a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; equivalent.
+
+&lt;P&gt;
+The stack arguments are accessible through the [perlman:perlguts] macro, which returns the &lt;CODE&gt;n&lt;/CODE&gt;'th stack argument. Argument 0 is the first argument passed in the Perl
+subroutine call. These arguments are [perlman:perlguts], and can be used anywhere an [perlman:perlguts] is used.
+
+&lt;P&gt;
+Most of the time, output from the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; routine can be handled through use of the 
+&lt;FONT SIZE=-1&gt;RETVAL&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OUTPUT&lt;/FONT&gt; directives. However, there are some cases where the argument stack is not already long enough to handle all the return values. An example is the 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; 
+&lt;CODE&gt;tzname()&lt;/CODE&gt; call, which takes no arguments, but returns two, the local time zone's standard and summer time abbreviations.
+
+&lt;P&gt;
+To handle this situation, the 
+&lt;FONT SIZE=-1&gt;PPCODE&lt;/FONT&gt; directive is used and the stack is extended
+using the macro:
+
+&lt;P&gt;
+&lt;PRE&gt;    EXTEND(SP, num);
+&lt;/PRE&gt;
+&lt;P&gt;
+where [perlman:perlguts] is the macro that represents the local copy of the stack pointer, and &lt;CODE&gt;num&lt;/CODE&gt; is the number of elements the stack should be extended by.
+
+&lt;P&gt;
+Now that there is room on the stack, values can be pushed on it using the macros to push IVs, doubles, strings, and 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; pointers respectively:
+
+&lt;P&gt;
+&lt;PRE&gt;    PUSHi(IV)
+    PUSHn(double)
+    PUSHp(char*, I32)
+    PUSHs(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+And now the Perl program calling &lt;CODE&gt;tzname&lt;/CODE&gt;, the two values will be assigned as in:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($standard_abbrev, $summer_abbrev) = POSIX::tzname;
+&lt;/PRE&gt;
+&lt;P&gt;
+An alternate (and possibly simpler) method to pushing values on the stack
+is to use the macros:
+
+&lt;P&gt;
+&lt;PRE&gt;    XPUSHi(IV)
+    XPUSHn(double)
+    XPUSHp(char*, I32)
+    XPUSHs(SV*)
+&lt;/PRE&gt;
+&lt;P&gt;
+These macros automatically adjust the stack for you, if needed. Thus, you
+do not need to call [perlman:perlguts] to extend the stack.
+
+&lt;P&gt;
+For more information, consult [perlman:perlxs|the perlxs manpage] and [perlman:perlxstut|the perlxstut manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Calling_Perl_Routines_from_withi&quot;&gt;Calling Perl Routines from within C Programs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There are four routines that can be used to call a Perl subroutine from within a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; program. These four are:
+
+&lt;P&gt;
+&lt;PRE&gt;    I32  perl_call_sv(SV*, I32);
+    I32  perl_call_pv(char*, I32);
+    I32  perl_call_method(char*, I32);
+    I32  perl_call_argv(char*, I32, register char**);
+&lt;/PRE&gt;
+&lt;P&gt;
+The routine most often used is [perlman:perlguts]. The [perlman:perlguts] argument contains either the name of the Perl subroutine to be called, or a
+reference to the subroutine. The second argument consists of flags that
+control the context in which the subroutine is called, whether or not the
+subroutine is being passed arguments, how errors should be trapped, and how
+to treat return values.
+
+&lt;P&gt;
+All four routines return the number of arguments that the subroutine
+returned on the Perl stack.
+
+&lt;P&gt;
+When using any of these routines (except [perlman:perlguts]), the programmer must manipulate the Perl stack. These include the
+following macros and functions:
+
+&lt;P&gt;
+&lt;PRE&gt;    dSP
+    SP
+    PUSHMARK()
+    PUTBACK
+    SPAGAIN
+    ENTER
+    SAVETMPS
+    FREETMPS
+    LEAVE
+    XPUSH*()
+    POP*()
+&lt;/PRE&gt;
+&lt;P&gt;
+For a detailed description of calling conventions from 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; to Perl, consult [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Memory_Allocation&quot;&gt;Memory Allocation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+It is suggested that you use the version of malloc that is distributed with
+Perl. It keeps pools of various sizes of unallocated memory in order to
+satisfy allocation requests more quickly. However, on some platforms, it
+may cause spurious malloc or free errors.
+
+&lt;P&gt;
+&lt;PRE&gt;    New(x, pointer, number, type);
+    Newc(x, pointer, number, type, cast);
+    Newz(x, pointer, number, type);
+&lt;/PRE&gt;
+&lt;P&gt;
+These three macros are used to initially allocate memory.
+
+&lt;P&gt;
+The first argument &lt;CODE&gt;x&lt;/CODE&gt; was a ``magic cookie'' that was used to keep track of who called the macro,
+to help when debugging memory problems. However, the current code makes no
+use of this feature (most Perl developers now use run-time memory
+checkers), so this argument can be any number.
+
+&lt;P&gt;
+The second argument &lt;CODE&gt;pointer&lt;/CODE&gt; should be the name of a variable that will point to the newly allocated
+memory.
+
+&lt;P&gt;
+The third and fourth arguments &lt;CODE&gt;number&lt;/CODE&gt; and &lt;CODE&gt;type&lt;/CODE&gt; specify how many of the specified type of data structure should be
+allocated. The argument
+&lt;CODE&gt;type&lt;/CODE&gt; is passed to &lt;CODE&gt;sizeof&lt;/CODE&gt;. The final argument to [perlman:perlguts], &lt;CODE&gt;cast&lt;/CODE&gt;, should be used if the &lt;CODE&gt;pointer&lt;/CODE&gt; argument is different from the &lt;CODE&gt;type&lt;/CODE&gt;
+argument.
+
+&lt;P&gt;
+Unlike the [perlman:perlguts] and [perlman:perlguts] macros, the [perlman:perlguts] macro calls &lt;CODE&gt;memzero&lt;/CODE&gt;
+to zero out all the newly allocated memory.
+
+&lt;P&gt;
+&lt;PRE&gt;    Renew(pointer, number, type);
+    Renewc(pointer, number, type, cast);
+    Safefree(pointer)
+&lt;/PRE&gt;
+&lt;P&gt;
+These three macros are used to change a memory buffer size or to free a
+piece of memory no longer needed. The arguments to [perlman:perlguts] and [perlman:perlguts]
+match those of [perlman:perlguts] and [perlman:perlguts] with the exception of not needing the ``magic cookie'' argument.
+
+&lt;P&gt;
+&lt;PRE&gt;    Move(source, dest, number, type);
+    Copy(source, dest, number, type);
+    Zero(dest, number, type);
+&lt;/PRE&gt;
+&lt;P&gt;
+These three macros are used to move, copy, or zero out previously allocated
+memory. The &lt;CODE&gt;source&lt;/CODE&gt; and &lt;CODE&gt;dest&lt;/CODE&gt; arguments point to the source and destination starting points. Perl will
+move, copy, or zero out &lt;CODE&gt;number&lt;/CODE&gt;
+instances of the size of the &lt;CODE&gt;type&lt;/CODE&gt; data structure (using the &lt;CODE&gt;sizeof&lt;/CODE&gt;
+function).
+
+&lt;P&gt;
+&lt;BR&gt;[perlman:perlguts2|More...]&lt;BR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>424</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlguts</title>
+  <createtime>1999-08-25 03:29:40</createtime>
+  <nodeupdated>2005-08-11 11:52:20</nodeupdated>
+</node>

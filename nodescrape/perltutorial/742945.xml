@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="742945" title="Scalars: How They Work (about numbers, text strings, and binary strings)" created="2009-02-10 21:30:18" updated="2009-02-10 21:30:18">
+<type id="956">
+perltutorial</type>
+<author id="499790">
+pedagogues</author>
+<data>
+<field name="doctext">
+&lt;!--
+* * * * * * * * * * * * * * * * * * * 
+Note to janitors: PRE tag is used because the
+diagram gets messed up with line wrapping.
+Please DO NOT change it to a code tag!
+* * * * * * * * * * * * * * * * * * * 
+--&gt;
+
+&lt;h1&gt;Scalars: How They Work (about numbers, text strings, and binary strings)&lt;/h1&gt;
+
+&lt;p&gt;&lt;i&gt;This tutorial is based on the meditation [id://645432] by [Juerd].
+Copied with full explicit permission.&lt;/i&gt;&lt;/p&gt;
+
+&lt;p&gt;
+This is a simplified high level view of relations between Perl scalar types.
+&lt;/p&gt;
+
+&lt;pre&gt;&lt;tt&gt;
+                             &amp;#9484;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9488;
+                      &amp;#9484;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472; &amp;#9474; REFERENCE     &amp;#9474; &amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9488;
+                      &amp;#9474;      &amp;#9474; (ROK flag on) &amp;#9474;      &amp;#9474;
+                      &amp;#9474;      &amp;#9492;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9496;      &amp;#9474;
+      numeric context &amp;#9474;                             &amp;#9474; string context
+                      &amp;#9474;                             &amp;#9474;
+                      &amp;#9660;                             &amp;#9660;
+&amp;#9484;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9488;                     &amp;#9484;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9488;
+&amp;#9474; NUMBER                  &amp;#9474;    string context   &amp;#9474; TEXT STRING                  &amp;#9474;
+&amp;#9474; encoded internally      &amp;#9474; &amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9654; &amp;#9474; (POK flag on)                &amp;#9474;
+&amp;#9474; as any of:              &amp;#9474;                     &amp;#9474; encoded internally           &amp;#9474;
+&amp;#9474; * integer (IOK flag on) &amp;#9474;   numeric context   &amp;#9474; as one of:                   &amp;#9474;
+&amp;#9474; * double (NOK flag on)  &amp;#9474; &amp;#9664;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472; &amp;#9474; * iso-8859-1 (UTF8 flag off) &amp;#9474;
+&amp;#9492;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9496;                     &amp;#9474; * utf8 (UTF8 flag on)        &amp;#9474;
+                  &amp;#9474;     &amp;#9650;                       &amp;#9492;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9496;
+                  &amp;#9474;     &amp;#9474;                         &amp;#9650;     &amp;#9474;           &amp;#9650;
+                  &amp;#9474;     &amp;#9474;                         &amp;#9474;     &amp;#9474;           &amp;#9474;
+             pack &amp;#9474;     &amp;#9474; unpack           decode &amp;#9474;     &amp;#9474; encode    &amp;#9474;
+                  &amp;#9474;     &amp;#9474;                         &amp;#9474;     &amp;#9474;           &amp;#9474;
+                  &amp;#9660;     &amp;#9474;                         &amp;#9474;     &amp;#9660;           &amp;#9474; :encoding
+                &amp;#9484;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9488;         &amp;#9474; PerlIO
+                &amp;#9474; BINARY STRING                           &amp;#9474;         &amp;#9474; layer
+                &amp;#9474; (POK flag on)                           &amp;#9474; &amp;#9664;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9496;
+                &amp;#9474; (UTF8 flag off)                         &amp;#9474;
+                &amp;#9492;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9496;
+                        &amp;#9650;  &amp;#9650;  &amp;#9650;
+                        &amp;#9474;  &amp;#9474;  &amp;#9474;
+                        &amp;#9474;  &amp;#9474;  &amp;#9474;
+                        &amp;#9660;  &amp;#9660;  &amp;#9660;
+                  &amp;#9484;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9488;
+                  &amp;#9474; OUTSIDE PERL                &amp;#9474;
+                  &amp;#9474; files, sockets, filenames,  &amp;#9474;
+                  &amp;#9474; environment, system calls   &amp;#9474;
+                  &amp;#9492;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9472;&amp;#9496;
+
+&lt;/font&gt;&lt;/tt&gt;&lt;/pre&gt;
+
+&lt;p&gt;
+(A Perl programmer does not have to know about the internal flags ROK, IOK,
+NOK, POK, and UTF8, but if you're interested, read [doc://perlguts].)
+
+&lt;/p&gt;&lt;p&gt;
+
+Keep text and binary strings/semantics separated! (Good style anyway!)
+
+&lt;/p&gt;&lt;p&gt;
+If you don't keep them separate, and use a binary string as a text string, it
+is assumed to be iso-8859-1 encoded.
+
+&lt;/p&gt;&lt;p&gt;
+If you don't keep them separate, and use a text string as a binary string, one
+of the following things happens, with or without warnings:
+&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt; the internal iso-8859-1 buffer is used (always the case if the internal buffer is not utf8 encoded). &lt;/li&gt;
+&lt;li&gt; the internal utf8 buffer is used. &lt;/li&gt;
+&lt;li&gt; the iso-8859-1 encoded version is used:
+  &lt;ol type="a"&gt;
+  &lt;li&gt; characters above U+00FF are utf8 encoded, while the rest is iso. &lt;/li&gt;
+  &lt;li&gt; characters above U+00FF are modulo'ed 256. &lt;/li&gt;
+  &lt;li&gt; characters above U+00FF are dropped. &lt;/li&gt;
+  &lt;li&gt; characters above U+00FF cause an exception to be thrown. &lt;/li&gt;
+  &lt;/ol&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;
+If you do keep them separate, and always explicitly convert between the two
+types by explicitly decoding and encoding or using the &lt;c&gt;:encoding&lt;/c&gt; layer on a
+filehandle, you stay in control of what happens and your program will behave
+more predictably.
+&lt;/p&gt;
+&lt;h4&gt;About the diagram:&lt;/h4&gt;
+&lt;p&gt;
+The diagram is inside an HTML &lt;c&gt;&lt;PRE&gt;&lt;/c&gt; element, and so normally will get rendered using a monospace font.
+Which exact font is used is normally a browser configuration, and depending on your settings, the diagram may not look perfect.
+In particular, the font selected must have entries for the various graphical characters used in the diagram.
+If it does not, the browser will select the character from some other &amp;ndash; possibly non-monospace &amp;ndash; font,
+thus screwing up the diagram.  Feel free to try different monospace fonts until you get results you like.
+One which is known to work is &lt;c&gt;DejaVu Sans Mono&lt;/c&gt;. Also &lt;c&gt;Lucida Console&lt;/c&gt; seems to be very close.
+&lt;/p&gt;&lt;p&gt;
+See [id://646090|this note] about how the diagram was created.
+&lt;/p&gt;
+
+</field>
+</data>
+</node>

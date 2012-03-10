@@ -1,0 +1,92 @@
+<node>
+  <doctext>&lt;h4&gt;ABOUT THIS TUTORIAL&lt;/h4&gt;
+
+&lt;p&gt;
+Unit testing on object aggregations are usually hard to develop because you may need to instantiate several complex objects, so you may wind up doing &lt;i&gt;integral&lt;/i&gt; testing in order to test some very specific subclass. [mod://Test::MockObject], written by [chromatic] was designed to aid with this situation, nevertheless some things may not be immediately apparent for the novice user. Also, if you are testing OO stuff that uses accessors ([mod://Class::Accessor], [mod://Moose], etc.) you may find it difficult to do so. This tutorial is targeted for example to [mod://Moose] developers, who will frequently encounter accessors and isa validations (see [mod://Moose::Manual::Attributes]).
+&lt;/p&gt;
+&lt;h4&gt;CAVEATS&lt;/h4&gt;
+&lt;p&gt;
+Unit testing does not excuse you from doing integral testing with the real objects. Just as the author of [mod://Test::MockObject] warned me before writing this tutorial: &quot;if you have to mock an accessor, you're probably mocking too much&quot; [node://855358]. So, you have been warned. Please revise the pod for [mod://Test::MockObject] and [mod://Test::MockObject::Extends] before using the techniques explained here.
+&lt;/p&gt;
+&lt;h4&gt;THE METHOD&lt;/h4&gt;
+&lt;p&gt;
+[mod://Test::MockObject] allows you to create objects that mock certain specific functionality, and that don't depend on anything more than the [mod://Test::MockObject] module. It also allows for you to cheat Perl into thinking that a package has already been loaded, preventing Perl from doing so in your test, and forcing it to use your mocked package instead. More so, you can also fiddle with the mocked object's &lt;i&gt;isa&lt;/i&gt; so that your mocked objects may pass [mod://UNIVERSAL]-&gt;isa validations in the target code. What [mod://Test::MockObject] does not currently do, is provide a simple mechanism to emulate accessors.
+&lt;/p&gt;
+&lt;p&gt;
+Here is one method to do it, maybe not the best, but will do the job. The example is mocking an object that uses another object which is also mocked, showing off some of the the powers of [mod://Test::MockObject].
+&lt;/p&gt;
+&lt;code&gt;
+use warnings;
+use strict;
+use Test::More;
+use Test::MockObject;
+
+# should be declared before the BEGIN block (see perlmod)
+my ($mocked_foo, $mocked_bar);
+
+# fake_module is in BEGIN to prevent loading of the actual package
+BEGIN {
+  # create the mocked objects
+  $mocked_foo = Test::MockObject-&gt;new();
+  $mocked_bar = Test::MockObject-&gt;new();
+  # prevent Perl from loading the mocked class
+  $mocked_foo-&gt;fake_module('Class::To::Mock::Foo');
+  $mocked_bar-&gt;fake_module('Class::To::Mock::Bar');
+  # cheat the target code
+  $mocked_foo-&gt;set_isa('Class::To::Mock::Foo');
+  $mocked_bar-&gt;set_isa('Class::To::Mock::Bar');
+  # load the class to test
+  use_ok 'Your::Test::Class';
+}
+
+# set up the mockery for foo
+
+# this scalar will hold the value of the get/get operations 
+# of the fake accessors
+my $accessor_one_scalar = 'init_value';
+$mocked_foo-&gt;mock(
+    'accessor_one', 
+     sub {shift; &amp;mock_accessor_scalar(\$accessor_one_scalar,@_)} 
+);
+
+# now mock foo in bar
+$mocked_bar-&gt;mock('foo', sub { return $mocked_foo });
+
+# use the mocked object in your target code
+my $test_target = Your::Test::Class-&gt;new(
+    bar =&gt; $mocked_bar,
+);
+
+# ==================
+# Actual Tests Here
+# ==================
+
+# use the scalars in your tests for example
+# suppose your target code does something like:
+#  $self-&gt;bar-&gt;foo-&gt;accessor_one('test_value');
+ok($test_target-&gt;mess_with_bar_foo, 
+   'Operation on mocked bar that affects foo');
+cmp_ok($accessor_one_scalar, 'eq', 'test value', 
+       'Result of operation in foo');
+
+# end of tests
+done_testing();
+
+# emulates a simple accessor to a scalar
+sub mock_accessor_scalar {
+  my $var = shift;
+  if(@_){
+    $$var = shift;
+  }
+  else{
+    return $$var;
+  }
+}
+&lt;/code&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>856739</node_id>
+  <author_user>437266</author_user>
+  <title>Mocking accessors with Test::MockObject</title>
+  <createtime>2010-08-23 11:58:36</createtime>
+  <nodeupdated>2010-08-23 11:58:36</nodeupdated>
+</node>

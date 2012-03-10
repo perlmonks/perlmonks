@@ -1,0 +1,738 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlsyn - Perl syntax
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; Perl script consists of a sequence of declarations
+and statements. The only things that need to be declared in Perl are report
+formats and subroutines. See the sections below for more information on
+those declarations. All uninitialized user-created objects are assumed to
+start with a &lt;CODE&gt;null&lt;/CODE&gt; or &lt;CODE&gt;0&lt;/CODE&gt; value until they are defined by some explicit operation such as assignment.
+(Though you can get warnings about the use of undefined values if you
+like.) The sequence of statements is executed just once, unlike in &lt;STRONG&gt;sed&lt;/STRONG&gt; and &lt;STRONG&gt;awk&lt;/STRONG&gt; scripts, where the sequence of statements is executed for each input line.
+While this means that you must explicitly loop over the lines of your input
+file (or files), it also means you have much more control over which files
+and which lines you look at. (Actually, I'm lying--it is possible to do an
+implicit loop with either the &lt;STRONG&gt;-n&lt;/STRONG&gt; or &lt;STRONG&gt;-p&lt;/STRONG&gt; switch. It's just not the mandatory default like it is in &lt;STRONG&gt;sed&lt;/STRONG&gt; and &lt;STRONG&gt;awk&lt;/STRONG&gt;.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Declarations&quot;&gt;Declarations&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl is, for the most part, a free-form language. (The only exception to
+this is format declarations, for obvious reasons.) Comments are indicated
+by the &lt;CODE&gt;&amp;quot;#&amp;quot;&lt;/CODE&gt; character, and extend to the end of the line. If you attempt to use &lt;CODE&gt;/* */&lt;/CODE&gt; C-style comments, it will be interpreted either as division or pattern matching, depending on the context, and 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt;
+
+&lt;CODE&gt;//&lt;/CODE&gt; comments just look like a null regular expression, so don't do that.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; declaration can be put anywhere a statement can, but
+has no effect on the execution of the primary sequence of
+statements--declarations all take effect at compile time. Typically all the
+declarations are put at the beginning or the end of the script. However, if
+you're using lexically-scoped private variables created with [perlfunc:my|my()], you'll have to make sure your format or subroutine definition is within
+the same block scope as the my if you expect to be able to access those
+private variables.
+
+&lt;P&gt;
+Declaring a subroutine allows a subroutine name to be used as if it were a
+list operator from that point forward in the program. You can declare a
+subroutine without defining it by saying &lt;CODE&gt;sub name&lt;/CODE&gt;, thus:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub myname;
+    $me = myname $0             or die &amp;quot;can't get myname&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that it functions as a list operator, not as a unary operator; so be
+careful to use &lt;CODE&gt;or&lt;/CODE&gt; instead of &lt;CODE&gt;||&lt;/CODE&gt; in this case. However, if you were to declare the subroutine as &lt;CODE&gt;sub myname ($)&lt;/CODE&gt;, then
+&lt;CODE&gt;myname&lt;/CODE&gt; would function as a unary operator, so either &lt;CODE&gt;or&lt;/CODE&gt; or
+&lt;CODE&gt;||&lt;/CODE&gt; would work.
+
+&lt;P&gt;
+Subroutines declarations can also be loaded up with the [perlfunc:require|require] statement or both loaded and imported into your namespace with a [perlfunc:use|use] statement. See [perlman:perlmod|the perlmod manpage] for details on this.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; statement sequence may contain declarations of
+lexically-scoped variables, but apart from declaring a variable name, the
+declaration acts like an ordinary statement, and is elaborated within the
+sequence of statements as if it were an ordinary statement. That means it
+actually has both compile-time and run-time effects.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Simple_statements&quot;&gt;Simple statements&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The only kind of simple statement is an expression evaluated for its side effects. Every simple statement must be terminated with a semicolon, unless it is the final statement in a block, in which case the semicolon is optional. 
+&lt;FONT SIZE=-1&gt;(A&lt;/FONT&gt; semicolon is still encouraged there if the block takes up more than one line, because you may eventually add another line.) Note that there are some operators like
+ [perlfunc:eval] and [perlfunc:do] that look like compound statements, but aren't (they're just TERMs in an
+expression), and thus need an explicit termination if used as the last item
+in a statement.
+
+&lt;P&gt;
+Any simple statement may optionally be followed by a &lt;EM&gt;SINGLE&lt;/EM&gt; modifier, just before the terminating semicolon (or block ending). The
+
+possible modifiers are:
+
+&lt;P&gt;
+&lt;PRE&gt;    if EXPR
+    unless EXPR
+    while EXPR
+    until EXPR
+    foreach EXPR
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;if&lt;/CODE&gt; and &lt;CODE&gt;unless&lt;/CODE&gt; modifiers have the expected semantics, presuming you're a speaker of
+English. The &lt;CODE&gt;foreach&lt;/CODE&gt; modifier is an iterator: For each value in 
+&lt;FONT SIZE=-1&gt;EXPR,&lt;/FONT&gt; it aliases &lt;CODE&gt;$_&lt;/CODE&gt; to the value and executes the statement. The &lt;CODE&gt;while&lt;/CODE&gt; and &lt;CODE&gt;until&lt;/CODE&gt; modifiers have the usual ``&lt;CODE&gt;while&lt;/CODE&gt; loop'' semantics (conditional evaluated first), except when applied to a [perlfunc:do|do]
+&lt;FONT SIZE=-1&gt;-BLOCK&lt;/FONT&gt; (or to the now-deprecated [perlfunc:do|do]
+&lt;FONT SIZE=-1&gt;-SUBROUTINE&lt;/FONT&gt; statement), in which case the block
+executes once before the conditional is evaluated. This is so that you can
+write loops like:
+
+&lt;P&gt;
+&lt;PRE&gt;    do {
+        $line = &amp;lt;STDIN&amp;gt;;
+        ...
+    } until $line  eq &amp;quot;.\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+See [perlfunc:do|do]. Note also that the loop control statements described later will &lt;EM&gt;NOT&lt;/EM&gt; work in this construct, because modifiers don't take loop labels. Sorry.
+You can always put another block inside of it (for [perlfunc:next|next]) or around it (for [perlfunc:last|last]) to do that sort of thing. For [perlfunc:next|next], just double the braces:
+
+&lt;P&gt;
+&lt;PRE&gt;    do {{
+        next if $x == $y;
+        # do something here
+    }} until $x++ &amp;gt; $z;
+&lt;/PRE&gt;
+&lt;P&gt;
+For [perlfunc:last|last], you have to be more elaborate:
+
+&lt;P&gt;
+&lt;PRE&gt;    LOOP: { 
+            do {
+                last if $x = $y**2;
+                # do something here
+            } while $x++ &amp;lt;= $z;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Compound_statements&quot;&gt;Compound statements&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In Perl, a sequence of statements that defines a scope is called a block.
+Sometimes a block is delimited by the file containing it (in the case of a
+required file, or the program as a whole), and sometimes a block is
+delimited by the extent of a string (in the case of an eval).
+
+&lt;P&gt;
+But generally, a block is delimited by curly brackets, also known as braces. We will call this syntactic construct a 
+&lt;FONT SIZE=-1&gt;BLOCK.&lt;/FONT&gt;
+
+&lt;P&gt;
+The following compound statements may be used to control flow:
+
+&lt;P&gt;
+&lt;PRE&gt;    if (EXPR) BLOCK
+    if (EXPR) BLOCK else BLOCK
+    if (EXPR) BLOCK elsif (EXPR) BLOCK ... else BLOCK
+    LABEL while (EXPR) BLOCK
+    LABEL while (EXPR) BLOCK continue BLOCK
+    LABEL for (EXPR; EXPR; EXPR) BLOCK
+    LABEL foreach VAR (LIST) BLOCK
+    LABEL BLOCK continue BLOCK
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that, unlike 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; and Pascal, these are defined in terms of BLOCKs,
+not statements. This means that the curly brackets are &lt;EM&gt;required&lt;/EM&gt;--no dangling statements allowed. If you want to write conditionals without
+curly brackets there are several other ways to do it. The following all do
+the same thing:
+
+&lt;P&gt;
+&lt;PRE&gt;    if (!open(FOO)) { die &amp;quot;Can't open $FOO: $!&amp;quot;; }
+    die &amp;quot;Can't open $FOO: $!&amp;quot; unless open(FOO);
+    open(FOO) or die &amp;quot;Can't open $FOO: $!&amp;quot;;     # FOO or bust!
+    open(FOO) ? 'hi mom' : die &amp;quot;Can't open $FOO: $!&amp;quot;;
+                        # a bit exotic, that last one
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;if&lt;/CODE&gt; statement is straightforward. Because BLOCKs are always bounded by curly
+brackets, there is never any ambiguity about which
+&lt;CODE&gt;if&lt;/CODE&gt; an &lt;CODE&gt;else&lt;/CODE&gt; goes with. If you use &lt;CODE&gt;unless&lt;/CODE&gt; in place of &lt;CODE&gt;if&lt;/CODE&gt;, the sense of the test is reversed.
+
+&lt;P&gt;
+The &lt;CODE&gt;while&lt;/CODE&gt; statement executes the block as long as the expression is true (does not
+evaluate to the null string (&lt;CODE&gt;&amp;quot;&amp;quot;&lt;/CODE&gt;) or &lt;CODE&gt;0&lt;/CODE&gt; or &lt;CODE&gt;&amp;quot;0&amp;quot;)&lt;/CODE&gt;. The 
+&lt;FONT SIZE=-1&gt;LABEL&lt;/FONT&gt; is optional, and if present, consists of an identifier followed by a colon. The 
+&lt;FONT SIZE=-1&gt;LABEL&lt;/FONT&gt; identifies the loop for the loop control statements
+ [perlfunc:next|next],
+[perlfunc:last|last], and [perlfunc:redo|redo]. If the 
+&lt;FONT SIZE=-1&gt;LABEL&lt;/FONT&gt; is omitted, the loop control statement refers to the innermost enclosing loop. This may include dynamically looking back your call-stack at run time to find the 
+&lt;FONT SIZE=-1&gt;LABEL.&lt;/FONT&gt; Such desperate behavior triggers a warning if you use the
+ &lt;STRONG&gt;-w&lt;/STRONG&gt; flag.
+
+&lt;P&gt;
+If there is a [perlfunc:continue|continue] 
+&lt;FONT SIZE=-1&gt;BLOCK,&lt;/FONT&gt; it is always executed just before the
+conditional is about to be evaluated again, just like the third part of a
+&lt;CODE&gt;for&lt;/CODE&gt; loop in 
+&lt;FONT SIZE=-1&gt;C.&lt;/FONT&gt; Thus it can be used to increment a loop variable,
+even when the loop has been continued via the [perlfunc:next|next] statement (which is similar to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; [perlfunc:continue|continue] statement).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Loop_Control&quot;&gt;Loop Control&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The [perlfunc:next|next] command is like the [perlfunc:continue|continue] statement in 
+&lt;FONT SIZE=-1&gt;C;&lt;/FONT&gt; it starts the next iteration of the loop:
+
+&lt;P&gt;
+&lt;PRE&gt;    LINE: while (&amp;lt;STDIN&amp;gt;) {
+        next LINE if /^#/;      # discard comments
+        ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The [perlfunc:last|last] command is like the &lt;CODE&gt;break&lt;/CODE&gt; statement in 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; (as used in loops); it immediately exits the loop in
+question. The
+[perlfunc:continue|continue] block, if any, is not executed:
+
+&lt;P&gt;
+&lt;PRE&gt;    LINE: while (&amp;lt;STDIN&amp;gt;) {
+        last LINE if /^$/;      # exit when done with header
+        ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The [perlfunc:redo|redo] command restarts the loop block without evaluating the conditional again.
+The [perlfunc:continue|continue] block, if any, is &lt;EM&gt;not&lt;/EM&gt; executed. This command is normally used by programs that want to lie to
+themselves about what was just input.
+
+&lt;P&gt;
+For example, when processing a file like &lt;EM&gt;/etc/termcap&lt;/EM&gt;. If your input lines might end in backslashes to indicate continuation,
+you want to skip ahead and get the next record.
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;&amp;gt;) {
+        chomp;
+        if (s/\\$//) {
+            $_ .= &amp;lt;&amp;gt;;
+            redo unless eof();
+        }
+        # now process $_
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+which is Perl short-hand for the more explicitly written version:
+
+&lt;P&gt;
+&lt;PRE&gt;    LINE: while (defined($line = &amp;lt;ARGV&amp;gt;)) {
+        chomp($line);
+        if ($line =~ s/\\$//) {
+            $line .= &amp;lt;ARGV&amp;gt;;
+            redo LINE unless eof(); # not eof(ARGV)!
+        }
+        # now process $line
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that if there were a [perlfunc:continue|continue] block on the above code, it would get executed even on discarded lines.
+This is often used to reset line counters or &lt;CODE&gt;?pat?&lt;/CODE&gt; one-time matches.
+
+&lt;P&gt;
+&lt;PRE&gt;    # inspired by :1,$g/fred/s//WILMA/
+    while (&amp;lt;&amp;gt;) {
+        ?(fred)?    &amp;amp;&amp;amp; s//WILMA $1 WILMA/;
+        ?(barney)?  &amp;amp;&amp;amp; s//BETTY $1 BETTY/;
+        ?(homer)?   &amp;amp;&amp;amp; s//MARGE $1 MARGE/;
+    } continue {
+        print &amp;quot;$ARGV $.: $_&amp;quot;;
+        close ARGV  if eof();           # reset $.
+        reset       if eof();           # reset ?pat?
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If the word &lt;CODE&gt;while&lt;/CODE&gt; is replaced by the word &lt;CODE&gt;until&lt;/CODE&gt;, the sense of the test is reversed, but the conditional is still tested
+before the first iteration.
+
+&lt;P&gt;
+The loop control statements don't work in an &lt;CODE&gt;if&lt;/CODE&gt; or &lt;CODE&gt;unless&lt;/CODE&gt;, since they aren't loops. You can double the braces to make them such,
+though.
+
+&lt;P&gt;
+&lt;PRE&gt;    if (/pattern/) {{
+        next if /fred/;
+        next if /barney/;
+        # so something here
+    }}
+&lt;/PRE&gt;
+&lt;P&gt;
+The form &lt;CODE&gt;while/if BLOCK BLOCK&lt;/CODE&gt;, available in Perl 4, is no longer available. Replace any occurrence of &lt;CODE&gt;if BLOCK&lt;/CODE&gt; by &lt;CODE&gt;if (do BLOCK)&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;For_Loops&quot;&gt;For Loops&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl's C-style &lt;CODE&gt;for&lt;/CODE&gt; loop works exactly like the corresponding &lt;CODE&gt;while&lt;/CODE&gt; loop; that means that this:
+
+&lt;P&gt;
+&lt;PRE&gt;    for ($i = 1; $i &amp;lt; 10; $i++) {
+        ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+is the same as this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $i = 1;
+    while ($i &amp;lt; 10) {
+        ...
+    } continue {
+        $i++;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+(There is one minor difference: The first form implies a lexical scope for
+variables declared with [perlfunc:my|my] in the initialization expression.)
+
+&lt;P&gt;
+Besides the normal array index looping, &lt;CODE&gt;for&lt;/CODE&gt; can lend itself to many other interesting applications. Here's one that
+avoids the problem you get into if you explicitly test for end-of-file on
+an interactive file descriptor causing your program to appear to hang.
+
+&lt;P&gt;
+&lt;PRE&gt;    $on_a_tty = -t STDIN &amp;amp;&amp;amp; -t STDOUT;
+    sub prompt { print &amp;quot;yes? &amp;quot; if $on_a_tty }
+    for ( prompt(); &amp;lt;STDIN&amp;gt;; prompt() ) {
+        # do something
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Foreach_Loops&quot;&gt;Foreach Loops&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;foreach&lt;/CODE&gt; loop iterates over a normal list value and sets the variable 
+&lt;FONT SIZE=-1&gt;VAR&lt;/FONT&gt; to be each element of the list in turn. If the
+variable is preceded with the keyword [perlfunc:my|my], then it is lexically scoped, and is therefore visible only within the
+loop. Otherwise, the variable is implicitly local to the loop and regains
+its former value upon exiting the loop. If the variable was previously
+declared with [perlfunc:my|my], it uses that variable instead of the global one, but it's still localized
+to the loop. (Note that a lexically scoped variable can cause problems if
+you have subroutine or format declarations within the loop which refer to
+it.)
+
+&lt;P&gt;
+The &lt;CODE&gt;foreach&lt;/CODE&gt; keyword is actually a synonym for the &lt;CODE&gt;for&lt;/CODE&gt; keyword, so you can use &lt;CODE&gt;foreach&lt;/CODE&gt; for readability or &lt;CODE&gt;for&lt;/CODE&gt; for brevity. (Or because the Bourne shell is more familiar to you than &lt;EM&gt;csh&lt;/EM&gt;, so writing &lt;CODE&gt;for&lt;/CODE&gt;
+comes more naturally.) If 
+&lt;FONT SIZE=-1&gt;VAR&lt;/FONT&gt; is omitted, &lt;CODE&gt;$_&lt;/CODE&gt; is set to each value. If any element of 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; is an lvalue, you can modify it by modifying 
+&lt;FONT SIZE=-1&gt;VAR&lt;/FONT&gt; inside the loop. That's because the
+ &lt;CODE&gt;foreach&lt;/CODE&gt; loop index variable is an implicit alias for each item in the list that
+you're looping over.
+
+&lt;P&gt;
+If any part of 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; is an array, &lt;CODE&gt;foreach&lt;/CODE&gt; will get very confused if you add or remove elements within the loop body,
+for example with
+[perlfunc:splice|splice]. So don't do that.
+
+&lt;P&gt;
+&lt;CODE&gt;foreach&lt;/CODE&gt; probably won't do what you expect if 
+&lt;FONT SIZE=-1&gt;VAR&lt;/FONT&gt; is a tied or other special variable. Don't do that
+either.
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    for (@ary) { s/foo/bar/ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    foreach my $elem (@elements) {
+        $elem *= 2;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    for $count (10,9,8,7,6,5,4,3,2,1,'BOOM') {
+        print $count, &amp;quot;\n&amp;quot;; sleep(1);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    for (1..15) { print &amp;quot;Merry Christmas\n&amp;quot;; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    foreach $item (split(/:&amp;#091;\\\n:&amp;#093;*/, $ENV{TERMCAP})) {
+        print &amp;quot;Item: $item\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Here's how a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; programmer might code up a particular algorithm in
+Perl:
+
+&lt;P&gt;
+&lt;PRE&gt;    for (my $i = 0; $i &amp;lt; @ary1; $i++) {
+        for (my $j = 0; $j &amp;lt; @ary2; $j++) {
+            if ($ary1&amp;#091;$i&amp;#093; &amp;gt; $ary2&amp;#091;$j&amp;#093;) {
+                last; # can't go to outer :-(
+            }
+            $ary1&amp;#091;$i&amp;#093; += $ary2&amp;#091;$j&amp;#093;;
+        }
+        # this is where that last takes me
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Whereas here's how a Perl programmer more comfortable with the idiom might
+do it:
+
+&lt;P&gt;
+&lt;PRE&gt;    OUTER: foreach my $wid (@ary1) {
+    INNER:   foreach my $jet (@ary2) {
+                next OUTER if $wid &amp;gt; $jet;
+                $wid += $jet;
+             }
+          }
+&lt;/PRE&gt;
+&lt;P&gt;
+See how much easier this is? It's cleaner, safer, and faster. It's cleaner
+because it's less noisy. It's safer because if code gets added between the
+inner and outer loops later on, the new code won't be accidentally
+executed. The [perlfunc:next|next] explicitly iterates the other loop rather than merely terminating the inner
+one. And it's faster because Perl executes a &lt;CODE&gt;foreach&lt;/CODE&gt; statement more rapidly than it would the equivalent &lt;CODE&gt;for&lt;/CODE&gt; loop.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Basic_BLOCKs_and_Switch_Statemen&quot;&gt;Basic BLOCKs and Switch Statements&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; by itself (labeled or not) is semantically equivalent to a loop that executes once. Thus you can use any of the loop control statements in it to leave or restart the block. (Note that this is
+
+&lt;EM&gt;NOT&lt;/EM&gt; true in [perlfunc:eval], [perlfunc:sub], or contrary to popular belief
+[perlfunc:do] blocks, which do &lt;EM&gt;NOT&lt;/EM&gt; count as loops.) The [perlfunc:continue|continue]
+block is optional.
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; construct is particularly nice for doing case
+structures.
+
+&lt;P&gt;
+&lt;PRE&gt;    SWITCH: {
+        if (/^abc/) { $abc = 1; last SWITCH; }
+        if (/^def/) { $def = 1; last SWITCH; }
+        if (/^xyz/) { $xyz = 1; last SWITCH; }
+        $nothing = 1;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+There is no official &lt;CODE&gt;switch&lt;/CODE&gt; statement in Perl, because there are already several ways to write the
+equivalent. In addition to the above, you could write
+
+&lt;P&gt;
+&lt;PRE&gt;    SWITCH: {
+        $abc = 1, last SWITCH  if /^abc/;
+        $def = 1, last SWITCH  if /^def/;
+        $xyz = 1, last SWITCH  if /^xyz/;
+        $nothing = 1;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+(That's actually not as strange as it looks once you realize that you can use loop control ``operators'' within an expression, That's just the normal 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; comma operator.)
+
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    SWITCH: {
+        /^abc/ &amp;amp;&amp;amp; do { $abc = 1; last SWITCH; };
+        /^def/ &amp;amp;&amp;amp; do { $def = 1; last SWITCH; };
+        /^xyz/ &amp;amp;&amp;amp; do { $xyz = 1; last SWITCH; };
+        $nothing = 1;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+or formatted so it stands out more as a ``proper'' &lt;CODE&gt;switch&lt;/CODE&gt; statement:
+
+&lt;P&gt;
+&lt;PRE&gt;    SWITCH: {
+        /^abc/      &amp;amp;&amp;amp; do {
+                            $abc = 1;
+                            last SWITCH;
+                       };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /^def/      &amp;amp;&amp;amp; do {
+                            $def = 1;
+                            last SWITCH;
+                       };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        /^xyz/      &amp;amp;&amp;amp; do {
+                            $xyz = 1;
+                            last SWITCH;
+                        };
+        $nothing = 1;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+or
+
+&lt;P&gt;
+&lt;PRE&gt;    SWITCH: {
+        /^abc/ and $abc = 1, last SWITCH;
+        /^def/ and $def = 1, last SWITCH;
+        /^xyz/ and $xyz = 1, last SWITCH;
+        $nothing = 1;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+or even, horrors,
+
+&lt;P&gt;
+&lt;PRE&gt;    if (/^abc/)
+        { $abc = 1 }
+    elsif (/^def/)
+        { $def = 1 }
+    elsif (/^xyz/)
+        { $xyz = 1 }
+    else
+        { $nothing = 1 }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; common idiom for a &lt;CODE&gt;switch&lt;/CODE&gt; statement is to use &lt;CODE&gt;foreach&lt;/CODE&gt;'s aliasing to make a temporary assignment to &lt;CODE&gt;$_&lt;/CODE&gt; for convenient matching:
+
+&lt;P&gt;
+&lt;PRE&gt;    SWITCH: for ($where) {
+                /In Card Names/     &amp;amp;&amp;amp; do { push @flags, '-e'; last; };
+                /Anywhere/          &amp;amp;&amp;amp; do { push @flags, '-h'; last; };
+                /In Rulings/        &amp;amp;&amp;amp; do {                    last; };
+                die &amp;quot;unknown value for form variable where: `$where'&amp;quot;;
+            }
+&lt;/PRE&gt;
+&lt;P&gt;
+Another interesting approach to a switch statement is arrange for a [perlfunc:do|do] block to return the proper value:
+
+&lt;P&gt;
+&lt;PRE&gt;    $amode = do {
+        if     ($flag &amp;amp; O_RDONLY) { &amp;quot;r&amp;quot; }       # XXX: isn't this 0?
+        elsif  ($flag &amp;amp; O_WRONLY) { ($flag &amp;amp; O_APPEND) ? &amp;quot;a&amp;quot; : &amp;quot;w&amp;quot; }
+        elsif  ($flag &amp;amp; O_RDWR)   {
+            if ($flag &amp;amp; O_CREAT)  { &amp;quot;w+&amp;quot; }
+            else                  { ($flag &amp;amp; O_APPEND) ? &amp;quot;a+&amp;quot; : &amp;quot;r+&amp;quot; }
+        }
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+Or 
+
+&lt;P&gt;
+&lt;PRE&gt;        print do {
+            ($flags &amp;amp; O_WRONLY) ? &amp;quot;write-only&amp;quot;          :
+            ($flags &amp;amp; O_RDWR)   ? &amp;quot;read-write&amp;quot;          :
+                                  &amp;quot;read-only&amp;quot;;
+        };
+&lt;/PRE&gt;
+&lt;P&gt;
+Or if you are certainly that all the &lt;CODE&gt;&amp;amp;&amp;amp;&lt;/CODE&gt; clauses are true, you can use something like this, which ``switches'' on
+the value of the
+&lt;CODE&gt;HTTP_USER_AGENT&lt;/CODE&gt; envariable.
+
+&lt;P&gt;
+&lt;PRE&gt;    #!/usr/bin/perl 
+    # pick out jargon file page based on browser
+    $dir = '&lt;A HREF=&quot;http://www.wins.uva.nl/~mes/jargon&quot;&gt;http://www.wins.uva.nl/~mes/jargon&lt;/A&gt;';
+    for ($ENV{HTTP_USER_AGENT}) { 
+        $page  =    /Mac/            &amp;amp;&amp;amp; 'm/Macintrash.html'
+                 || /Win(dows )?NT/  &amp;amp;&amp;amp; 'e/evilandrude.html'
+                 || /Win|MSIE|WebTV/ &amp;amp;&amp;amp; 'm/MicroslothWindows.html'
+                 || /Linux/          &amp;amp;&amp;amp; 'l/Linux.html'
+                 || /HP-UX/          &amp;amp;&amp;amp; 'h/HP-SUX.html'
+                 || /SunOS/          &amp;amp;&amp;amp; 's/ScumOS.html'
+                 ||                     'a/AppendixB.html';
+    }
+    print &amp;quot;Location: $dir/$page\015\012\015\012&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+That kind of switch statement only works when you know the &lt;CODE&gt;&amp;amp;&amp;amp;&lt;/CODE&gt; clauses will be true. If you don't, the previous &lt;CODE&gt;?:&lt;/CODE&gt; example should be used.
+
+&lt;P&gt;
+You might also consider writing a hash instead of synthesizing a &lt;CODE&gt;switch&lt;/CODE&gt;
+statement.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Goto&quot;&gt;Goto&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Although not for the faint of heart, Perl does support a [perlfunc:goto|goto] statement. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; loop's 
+&lt;FONT SIZE=-1&gt;LABEL&lt;/FONT&gt; is not actually a valid target for a
+ [perlfunc:goto|goto]; it's just the name of the loop. There are three forms: [perlfunc:goto|goto]
+&lt;FONT SIZE=-1&gt;-LABEL,&lt;/FONT&gt;
+[perlfunc:goto|goto]
+&lt;FONT SIZE=-1&gt;-EXPR,&lt;/FONT&gt; and [perlfunc:goto|goto]
+&lt;FONT SIZE=-1&gt;-&amp;amp;NAME.&lt;/FONT&gt;
+
+&lt;P&gt;
+The [perlfunc:goto|goto]
+&lt;FONT SIZE=-1&gt;-LABEL&lt;/FONT&gt; form finds the statement labeled with 
+&lt;FONT SIZE=-1&gt;LABEL&lt;/FONT&gt; and resumes execution there. It may not be used to go into any construct that requires initialization, such as a subroutine or a
+ &lt;CODE&gt;foreach&lt;/CODE&gt; loop. It also can't be used to go into a construct that is optimized away.
+It can be used to go almost anywhere else within the dynamic scope,
+including out of subroutines, but it's usually better to use some other
+construct such as [perlfunc:last|last] or [perlfunc:die|die]. The author of Perl has never felt the need to use this form of [perlfunc:goto|goto] (in Perl, that is--C is another matter).
+
+&lt;P&gt;
+The [perlfunc:goto|goto]
+&lt;FONT SIZE=-1&gt;-EXPR&lt;/FONT&gt; form expects a label name, whose scope will be
+resolved dynamically. This allows for computed [perlfunc:goto|goto]s per 
+&lt;FONT SIZE=-1&gt;FORTRAN,&lt;/FONT&gt; but isn't necessarily recommended if you're
+optimizing for maintainability:
+
+&lt;P&gt;
+&lt;PRE&gt;    goto (&amp;quot;FOO&amp;quot;, &amp;quot;BAR&amp;quot;, &amp;quot;GLARCH&amp;quot;)&amp;#091;$i&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+The [perlfunc:goto|goto]
+&lt;FONT SIZE=-1&gt;-&amp;amp;NAME&lt;/FONT&gt; form is highly magical, and substitutes a
+call to the named subroutine for the currently running subroutine. This is
+used by
+&lt;CODE&gt;AUTOLOAD()&lt;/CODE&gt; subroutines that wish to load another subroutine and then pretend that the
+other subroutine had been called in the first place (except that any
+modifications to &lt;CODE&gt;@_&lt;/CODE&gt; in the current subroutine are propagated to the other subroutine.) After
+the [perlfunc:goto|goto], not even [perlfunc:caller|caller()]
+will be able to tell that this routine was called first.
+
+&lt;P&gt;
+In almost all cases like this, it's usually a far, far better idea to use
+the structured control flow mechanisms of [perlfunc:next|next], [perlfunc:last|last], or [perlfunc:redo|redo] instead of resorting to a [perlfunc:goto|goto]. For certain applications, the catch and throw pair of
+[perlfunc:eval] and 
+&lt;CODE&gt;die()&lt;/CODE&gt; for exception processing
+can also be a prudent approach.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;PODs_Embedded_Documentation&quot;&gt;PODs: Embedded Documentation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl has a mechanism for intermixing documentation with source code. While
+it's expecting the beginning of a new statement, if the compiler encounters
+a line that begins with an equal sign and a word, like this
+
+&lt;P&gt;
+&lt;PRE&gt;    =head1 Here There Be Pods!
+&lt;/PRE&gt;
+&lt;P&gt;
+Then that text and all remaining text up through and including a line
+beginning with &lt;CODE&gt;=cut&lt;/CODE&gt; will be ignored. The format of the intervening text is described in [perlman:perlpod|the perlpod manpage].
+
+&lt;P&gt;
+This allows you to intermix your source code and your documentation text
+freely, as in
+
+&lt;P&gt;
+&lt;PRE&gt;    =item snazzle($)
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    The snazzle() function will behave in the most spectacular
+    form that you can possibly imagine, not even excepting
+    cybernetic pyrotechnics.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    =cut back to the compiler, nuff of this pod stuff!
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub snazzle($) {
+        my $thingie = shift;
+        .........
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that pod translators should look at only paragraphs beginning with a
+pod directive (it makes parsing easier), whereas the compiler actually
+knows to look for pod escapes even in the middle of a paragraph. This means
+that the following secret stuff will be ignored by both the compiler and
+the translators.
+
+&lt;P&gt;
+&lt;PRE&gt;    $a=3;
+    =secret stuff
+     warn &amp;quot;Neither POD nor CODE!?&amp;quot;
+    =cut back
+    print &amp;quot;got $a\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+You probably shouldn't rely upon the [perlman:perlguts] being podded out forever. Not all pod translators are well-behaved in this
+regard, and perhaps the compiler will become pickier.
+
+&lt;P&gt;
+One may also use pod directives to quickly comment out a section of code.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Plain_Old_Comments_Not_&quot;&gt;Plain Old Comments (Not!)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Much like the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; preprocessor, Perl can process line directives.
+Using this, one can control Perl's idea of filenames and line numbers in
+error or warning messages (especially for strings that are processed with [perlfunc:eval|eval()]). The syntax for this mechanism is the same as for most 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; preprocessors: it matches the regular expression
+&lt;CODE&gt;/^#\s*line\s+(\d+)\s*(?:\s&amp;quot;(&amp;#091;^&amp;quot;&amp;#093;*)&amp;quot;)?/&lt;/CODE&gt; with &lt;CODE&gt;$1&lt;/CODE&gt; being the line number for the next line, and &lt;CODE&gt;$2&lt;/CODE&gt; being the optional filename (specified within quotes).
+
+&lt;P&gt;
+Here are some examples that you should be able to type into your command
+shell:
+
+&lt;P&gt;
+&lt;PRE&gt;    % perl
+    # line 200 &amp;quot;bzzzt&amp;quot;
+    # the `#' on the previous line must be the first char on line
+    die 'foo';
+    __END__
+    foo at bzzzt line 201.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    % perl
+    # line 200 &amp;quot;bzzzt&amp;quot;
+    eval qq&amp;#091;\n#line 2001 &amp;quot;&amp;quot;\ndie 'foo'&amp;#093;; print $@;
+    __END__
+    foo at - line 2001.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    % perl
+    eval qq&amp;#091;\n#line 200 &amp;quot;foo bar&amp;quot;\ndie 'foo'&amp;#093;; print $@;
+    __END__
+    foo at foo bar line 200.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    % perl
+    # line 345 &amp;quot;goop&amp;quot;
+    eval &amp;quot;\n#line &amp;quot; . __LINE__ . ' &amp;quot;' . __FILE__ .&amp;quot;\&amp;quot;\ndie 'foo'&amp;quot;;
+    print $@;
+    __END__
+    foo at goop line 345.
+&lt;/PRE&gt;
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>395</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlsyn</title>
+  <createtime>1999-08-25 02:35:59</createtime>
+  <nodeupdated>2005-08-15 10:42:53</nodeupdated>
+</node>

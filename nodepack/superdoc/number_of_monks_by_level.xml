@@ -1,0 +1,90 @@
+<node>
+  <doctext>#!perl
+use strict;
+use warnings;
+my $exp= getVars( getNode('Level experience','setting') );
+
+my $img = $THEME-&gt;{pollImage};
+$img ||= &quot;redbox.gif&quot;;
+
+my $CASE=join(&quot; &quot;,
+    &quot;CASE&quot;,&quot;WHEN experience &lt; 0 THEN 0&quot;,
+    (
+        map { &quot;WHEN experience &lt; $exp-&gt;{$_+1} THEN $_&quot; }
+        ( 1 .. keys(%$exp) - 1 )
+    ),
+    &quot;ELSE &quot;.( 0 + keys %$exp ),
+    &quot;END&quot;
+);
+
+my @html;
+for my $tuple ( [
+      &quot; who have logged in over the past 24 hours&quot;,
+      &quot; and date_sub(now(),interval 1 day) &lt; lasttime&quot;
+    ], [&quot;&quot;,&quot;&quot;]
+) {
+    my ($title,$and_inlastday)=@$tuple;
+    $title=&quot;&lt;br /&gt;$title&quot; if $title;
+    push @html,
+       qq[&lt;center&gt;&lt;h3&gt;Breakdown by level of ]
+      .qq[Registered Monks$title&lt;/h3&gt;\n];
+
+    my $query_str= qq[
+        SELECT
+            $CASE as Level,
+            COUNT(user_id) as NumUsers,
+            ROUND(AVG(experience)) as AvgExp,
+            MAX(experience) as MaxExp,
+            MIN(experience) as MinExp
+        FROM user, node
+        where user_id=node_id
+        and user_id!=100000
+        and type_nodetype=15
+        $and_inlastday
+        GROUP BY Level
+        ORDER BY Level
+    ];
+    $query_str=~s/\s+/ /g; # make tye happy
+
+    my $level_ref= $DB-&gt;getDatabaseHandle
+                      -&gt;selectall_arrayref($query_str,{Slice=&gt;{}});
+    my $maxheight= 1;
+    my $maxlevel= 1;
+    my %level_hash;
+    my $Max=sub { $_[0]=$_[1] if $_[0] &lt; $_[1] };
+    foreach my $lvl (@$level_ref) {
+        $level_hash{$lvl-&gt;{Level}}=$lvl;
+        $Max-&gt;($maxlevel,$lvl-&gt;{Level});
+        $Max-&gt;($maxheight,$lvl-&gt;{NumUsers});
+    }
+    for(  $level_ref-&gt;[0]{MinExp},  ) {
+      $_= sprintf &quot;%.1e&quot;, $_   if  $_ &lt; -10000;
+      s/[eE]\+?0*/e/;
+    }
+    push @html,qq[&lt;table&gt;&lt;tr&gt;&lt;td valign=&quot;bottom&quot;&gt;&lt;small&gt;]
+          .  join(&quot;&lt;br /&gt;&quot;,&quot;Level:&quot;,&quot;Users:&quot;,&quot;MinXP:&quot;,&quot;AvgXP:&quot;,&quot;MaxXP:&quot;)
+          .  qq[&lt;/small&gt;&lt;/td&gt;];
+    for my $lvl (  @$level_ref  ) {
+        my $height= 1 + int( $lvl-&gt;{NumUsers} / $maxheight * 300 );
+        push @html, join (&quot;&lt;br /&gt;&quot;,
+                 qq[&lt;td align=&quot;right&quot; valign=&quot;bottom&quot;&gt;&lt;small&gt;]
+              .  qq[&lt;img src=&quot;/images/$img&quot; alt=&quot;box height $height&quot;]
+              .  qq[ width=&quot;20&quot; height=&quot;$height&quot;&gt;],
+                 qq[#&amp;nbsp;$lvl-&gt;{Level}],
+                 $lvl-&gt;{NumUsers},
+                 $lvl-&gt;{MinExp},
+                 $lvl-&gt;{AvgExp},
+                 $lvl-&gt;{MaxExp}
+            ).qq[&lt;/small&gt;&lt;/td&gt;];
+    }
+    push @html, qq[&lt;/tr&gt;&lt;/table&gt;&lt;/center&gt;&lt;br /&gt;&lt;br /&gt;];
+}
+return join &quot;\n&quot;,@html;
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>17245</node_id>
+  <author_user>485628</author_user>
+  <title>Number of Monks by Level</title>
+  <createtime>2000-06-08 23:50:18</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

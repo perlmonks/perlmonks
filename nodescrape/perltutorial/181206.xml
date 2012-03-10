@@ -1,0 +1,741 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="181206" title="XML::Generator::DBI Tutorial" created="2002-07-11 23:52:36" updated="2005-08-15 11:47:28">
+<type id="956">
+perltutorial</type>
+<author id="18800">
+jeffa</author>
+<data>
+<field name="doctext">
+&lt;p&gt;[kobe://XML::Generator::DBI] is the replacement for 
+[kobe://DBIx::XML_RDB], which allowed you to convert a 
+database query into 'on the fly' XML. XML::Generator::DBI 
+does a lot more than just that, it generates SAX events 
+and relies upon a SAX handler to handle them in some manner. This 
+adds more complexity to the process, but it also adds more 
+flexibility, allowing you to do more than simply create a 
+string or XML file. This tutorial aims to showcase the 
+features of XML::Generator::DBI while providing concrete 
+examples of sample usage.&lt;/p&gt;
+
+&lt;readmore&gt;
+
+&lt;p&gt;You can download each example individually, or download 
+them all via 
+[http://jeffa.perlmonk.org/xmlgen_tut/examples.tar.gz|tar ball]&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;Table of Contents&lt;/h2&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="#ex1"&gt;Example 1: DBI toXML&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#ex2"&gt;Example 2: Working with XPath&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#ex3"&gt;Example 3: DBI to XML to HTML&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#ex4"&gt;Example 4: DBI to XML to HTML (revisited)&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#ex5"&gt;Example 5: A Dynamic CGI Script&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href="#credits"&gt;Credits&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a name="ex1"&gt;Example 1: DBI to XML&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&amp;#91;download [http://jeffa.perlmonk.org/xmlgen_tut/example1|example 1]&amp;#93;&lt;/p&gt;
+
+&lt;p&gt;Say you want to simply convert a database query into an 
+XML document and your database table, &lt;i&gt;foo&lt;/i&gt;, looks like this:&lt;/p&gt;
+
+&lt;pre&gt;
+  +-------+------+
+  | bar   | baz  |
+  +-------+------+
+  | one   |    1 |
+  | two   |    2 |
+  | three |    3 |
+  +-------+------+
+&lt;/pre&gt;
+
+&lt;p&gt;The following code will convert the results of the SQL statement
+'select bar,baz from foo' into an XML document,
+&lt;i&gt;foo.xml&lt;/i&gt;.&lt;/p&gt;
+
+&lt;p&gt;First we use the appropriate modules. XML::Generator::DBI 
+needs a SAX handler to create the file, a handler such as 
+[kobe://XML::Handler::YAWriter]:&lt;/p&gt;
+
+&lt;code&gt;
+use strict;
+use DBI;
+use XML::Generator::DBI;
+use XML::Handler::YAWriter;
+&lt;/code&gt;
+
+&lt;p&gt;Next we connect to the database, you will need to replace 
+&lt;i&gt;vendor&lt;/i&gt;, &lt;i&gt;database&lt;/i&gt;, &lt;i&gt;host&lt;/i&gt;, &lt;i&gt;user&lt;/i&gt;, and 
+&lt;i&gt;pass&lt;/i&gt;; with your credentials:&lt;/p&gt;
+
+&lt;code&gt;
+my $dbh = DBI-&gt;connect(
+   qw(DBI:vendor:database:host user pass),
+   {RaiseError=&gt;1},
+);
+&lt;/code&gt;
+
+&lt;p&gt;Next we instantiate the SAX handler with the &lt;b&gt;AsFile&lt;/b&gt; 
+argument set the name of the file we wish to create:&lt;/p&gt;
+
+&lt;code&gt;
+my $handler = XML::Handler::YAWriter-&gt;new(AsFile =&gt; 'foo.xml');
+&lt;/code&gt;
+
+&lt;p&gt;Next we instantiate the generator. We pass our database 
+handle and our SAX handler to the constructor, and specify 
+that we want indentation turned on via the &lt;b&gt;Indent&lt;/b&gt; 
+argument (if you know that humans will not need to see the 
+XML, then save some bytes and don't indent):&lt;/p&gt;
+
+&lt;code&gt;
+my $generator = XML::Generator::DBI-&gt;new(
+   Handler =&gt; $handler,
+   dbh     =&gt; $dbh,
+   Indent  =&gt; 1,
+);
+&lt;/code&gt;
+
+&lt;p&gt;Finally, we execute our SQL query with the generator's 
+execute() method:&lt;/p&gt;
+
+&lt;code&gt;
+$generator-&gt;execute('select bar,baz from foo');
+&lt;/code&gt;
+
+&lt;p&gt;And that's it. Providing that we properly connected to the 
+database, had no errors in our SQL statement, and results 
+were actually returned from the query, the file 
+&lt;i&gt;foo.xml&lt;/i&gt; will be created and it will contain 
+the query results wrapped in XML elements. Here is what my 
+results looked like:&lt;/p&gt;
+
+&lt;pre&gt;
+&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;&amp;lt;database&amp;gt;
+ &amp;lt;select query="select bar,baz from foo"&amp;gt;
+  &amp;lt;row&amp;gt;
+   &amp;lt;bar&amp;gt;one&amp;lt;/bar&amp;gt;
+   &amp;lt;baz&amp;gt;1&amp;lt;/baz&amp;gt;
+  &amp;lt;/row&amp;gt;
+  &amp;lt;row&amp;gt;
+   &amp;lt;bar&amp;gt;two&amp;lt;/bar&amp;gt;
+   &amp;lt;baz&amp;gt;2&amp;lt;/baz&amp;gt;
+  &amp;lt;/row&amp;gt;
+  &amp;lt;row&amp;gt;
+   &amp;lt;bar&amp;gt;three&amp;lt;/bar&amp;gt;
+   &amp;lt;baz&amp;gt;3&amp;lt;/baz&amp;gt;
+  &amp;lt;/row&amp;gt;
+ &amp;lt;/select&amp;gt;
+&amp;lt;/database&amp;gt;
+&lt;/pre&gt;
+
+&lt;p&gt;There is a lot of magic going on behind the scenes. Here  
+is an illustration of the pipeline through which the data  
+flows and is transformed:&lt;/p&gt;
+
+&lt;pre&gt;
+  XML::Generator::DBI
+   -&amp;gt; XML::Handler::YAWriter
+&lt;/pre&gt;
+
+&lt;p&gt;XML::Generator::DBI fetches the query results from the 
+database and generates SAX events. These SAX events are 
+handled by XML::Handler::YAWriter, which writes them out to 
+the appropriate destination as XML elements.&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a name="ex2"&gt;Example 2: Working with XPath&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&amp;#91;download [http://jeffa.perlmonk.org/xmlgen_tut/example2|example 2]&amp;#93;&lt;/p&gt;
+
+&lt;p&gt;A powerful feature of DBI::Generator::XML is it's ability 
+to work with any SAX Level 1 handler. Instead of writing to 
+file, you can instead pass the XML to a handler such as 
+[kobe://XML::XPath]'s XML::XPath::Builder for further 
+processing. Let's give it a try, first we import the 
+necessary modules:&lt;/p&gt;
+
+&lt;code&gt;
+use strict;
+use DBI;
+use XML::Generator::DBI;
+use XML::XPath;
+use XML::XPath::Builder;
+&lt;/code&gt;
+
+&lt;p&gt;Next, we connect to the database and fetch a handle:&lt;/p&gt;
+
+&lt;code&gt;
+my $dbh = DBI-&gt;connect(
+   qw(DBI:vendor:database:host user pass),
+   {RaiseError=&gt;1},
+);
+&lt;/code&gt;
+
+&lt;p&gt;Next, we instantiate our SAX handler:&lt;/p&gt;
+
+&lt;code&gt;
+my $handler = XML::XPath::Builder-&gt;new();
+&lt;/code&gt;
+
+&lt;p&gt;Next, we instatiate the generator and pass it the handler 
+(and notice that Indenting is not turned on - 
+XML::XPath::Builder does not need it):&lt;/p&gt;
+
+&lt;code&gt;
+my $generator = XML::Generator::DBI-&gt;new(
+   Handler =&gt; $handler,
+   dbh     =&gt; $dbh,
+);
+&lt;/code&gt;
+
+&lt;p&gt;Next, we call the &lt;i&gt;execute()&lt;/i&gt; method from the 
+generator - just like Example 1, but this time we actually 
+receive an l-value from the &lt;i&gt;generator()&lt;/i&gt; method, 
+an XML::XPath::Node::Element object:&lt;/p&gt;
+
+&lt;code&gt;
+my $xp = $generator-&gt;execute('select bar,baz from foo');
+&lt;/code&gt;
+
+&lt;p&gt;Finally, we use this object to obtain a list of the nodes 
+we want (consult the docs for XML::XPath and 
+XML::XPath::Builder for more info on those modules):&lt;/p&gt;
+
+&lt;code&gt;
+my $nodeset = $xp-&gt;find('/database/select/row/bar');
+
+print $_-&gt;string_value, "\n" for $nodeset-&gt;get_nodelist;
+&lt;/code&gt;
+
+&lt;p&gt;This will yield the following output (to STDOUT):&lt;/p&gt;
+
+&lt;pre&gt;
+one
+two
+three
+&lt;/pre&gt;
+
+&lt;p&gt;Our pipeline for this example looks like:&lt;/p&gt;
+
+&lt;pre&gt;
+  XML::Generator::DBI
+   -&amp;gt; XML::XPath::Builder
+&lt;/pre&gt;
+
+&lt;p&gt;Now, of course we could have achieved roughly the same 
+results with a simple database query, but the point of this 
+example is to show that XML::Generator::DBI will work with 
+any SAX1 handler. It even works with SAX2 handlers via 
+[kobe://XML::Filter::SAX1toSAX2], as we shall see in the next 
+example.&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a name="ex3"&gt;Example 3: DBI to XML to HTML&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&amp;#91;download [http://jeffa.perlmonk.org/xmlgen_tut/example3|example 3]&amp;#93;&lt;/p&gt;
+
+&lt;p&gt;Let's try a SAX2 handler such as 
+[kobe://XML::Handler::HTMLWriter], which transforms SAX 
+events into HTML elements. In order for XML::Generator::DBI's 
+SAX1 events to be processed by XML::Handler::HTMLWriter, they 
+will have to first be converted to SAX2 events. This is 
+accomplished with [kobe://XML::Filter::SAX1toSAX2]. Let's 
+take a look at the pipeline first:&lt;/p&gt;
+
+&lt;pre&gt;
+  XML::Generator::DBI
+   -&amp;gt; XML::Filter::SAX1toSAX2
+     -&amp;gt; XML::Handler::HTMLWriter
+&lt;/pre&gt;
+
+&lt;p&gt;In a moment, you will see that we instantiate the 
+XML::Handler::HTMLWriter object, attach it to an 
+XML::Filter::SAX1toSAX2 object, and pass the filter to 
+XML::Generator::DBI. This chain of events might give the 
+incorrect impression that XML::Handler::HTMLWriter is SAX1 
+and XML::Generator::DBI is SAX2 (it had me confused at 
+first). Visualize the flow of events like the pipeline 
+illustrates, not in the order that the objects are 
+instantiated.&lt;/p&gt;
+
+&lt;p&gt;First, we import the necessary modules, and connect to the
+database:&lt;/p&gt;
+
+&lt;code&gt;
+use strict;
+use DBI;
+use XML::Generator::DBI;
+use XML::Filter::SAX1toSAX2;
+use XML::Handler::HTMLWriter;
+
+my $dbh = DBI-&gt;connect(
+   qw(DBI:vendor:database:host user pass),
+   {RaiseError=&gt;1},
+);
+&lt;/code&gt;
+
+&lt;p&gt;Next, we instatiate an XML::Handler::HTMLWriter handler, 
+which outputs to STDOUT by default:&lt;/p&gt;
+
+&lt;code&gt;
+my $handler = XML::Handler::HTMLWriter-&gt;new();
+&lt;/code&gt;
+
+&lt;p&gt;Next, we will need to filter this handler:&lt;/p&gt;
+
+&lt;code&gt;
+my $filter = XML::Filter::SAX1toSAX2-&gt;new(Handler =&gt; $handler);
+&lt;/code&gt;
+
+&lt;p&gt;Next, a trick - XML::Handler::HTMLWriter expects the first 
+element it encounters to be &amp;lt;html&amp;gt;, but 
+XML::Generator::DBI's first element is &amp;lt;database&amp;gt;. No 
+problem - we can override the name of the first element with 
+the &lt;strong&gt;RootElement&lt;/strong&gt; argument. The next pitfall 
+is that instead of our tabular XML data being wrapped in 
+&amp;lt;table&amp;gt; elements, they are wrapped in &amp;lt;select&amp;gt; 
+elements - we can override this with the 
+&lt;strong&gt;QueryElement&lt;/strong&gt; argument. Yet another pitfall 
+is that rows are wrapped in &amp;lt;row&amp;gt; elements, not 
+&amp;lt;tr&amp;gt; elements - this is remedied by overriing the 
+&lt;strong&gt;RowElement&lt;/strong&gt; argument. And finally, the last 
+pitfall is that the elements that make up each column name 
+are the column names, not &amp;lt;td&amp;gt;. XML::Generator::DBI 
+does have a &lt;strong&gt;ColumnElement&lt;/strong&gt;, but we can't 
+touch it. We can, however, change the name of each column 
+name within SQL, via the AS keyword. Yes, this really 
+works:&lt;/p&gt;
+
+&lt;code&gt;
+my $generator = XML::Generator::DBI-&gt;new(
+   Handler      =&gt; $filter,
+   dbh          =&gt; $dbh,
+   RootElement  =&gt; 'html',
+   QueryElement =&gt; 'table',
+   RowElement   =&gt; 'tr',
+   Indent       =&gt; 1,
+);
+
+$generator-&gt;execute('select foo as td,bar as td from baz');
+&lt;/code&gt;
+
+&lt;p&gt;And the results are:&lt;/p&gt;
+
+&lt;pre&gt;
+&amp;lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd"&amp;gt;
+&amp;lt;html&amp;gt;
+ &amp;lt;table query="select foo as td,bar as td from baz"&amp;gt;
+  &amp;lt;tr&amp;gt;
+   &amp;lt;td&amp;gt;foo&amp;lt;/td&amp;gt;
+   &amp;lt;td&amp;gt;1&amp;lt;/td&amp;gt;
+  &amp;lt;/tr&amp;gt;
+  &amp;lt;tr&amp;gt;
+   &amp;lt;td&amp;gt;bar&amp;lt;/td&amp;gt;
+   &amp;lt;td&amp;gt;2&amp;lt;/td&amp;gt;
+  &amp;lt;/tr&amp;gt;
+  &amp;lt;tr&amp;gt;
+   &amp;lt;td&amp;gt;baz&amp;lt;/td&amp;gt;
+   &amp;lt;td&amp;gt;3&amp;lt;/td&amp;gt;
+  &amp;lt;/tr&amp;gt;
+ &amp;lt;/table&amp;gt;
+&amp;lt;/html&amp;gt;
+&lt;/pre&gt;
+
+&lt;p&gt;While this works, it is no doubt not the correct procedure 
+- there is no 'query' attribute for a &amp;lt;table&amp;gt; element. 
+Also, it would be nice to show the names of each column as 
+table headings (&amp;lt;th&amp;gt; tags). There has to be a better 
+way ...&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a name="ex4"&gt;Example 4: DBI to XML to HTML (revisited)&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&amp;#91;download [http://jeffa.perlmonk.org/xmlgen_tut/example4|example 4], download [http://jeffa.perlmonk.org/xmlgen_tut/foo.xsl|foo.xsl]&amp;#93;&lt;/p&gt;
+
+&lt;p&gt;This time, we utilize the power of XSLT to transform an 
+XML document to an HTML document. Discussing XSLT is beyond 
+the scope of this review, but in a nutshell, XSL is a 
+language for expressing style sheets (XSLT stands for XSL 
+Transformations), and just so happens that it does a good job 
+of generating HTML from XML. You can read more about XSL and 
+XSLT at [http://www.w3.org/Style/XSL].&lt;/p&gt;
+
+&lt;p&gt;The SAX Level 2 [kobe://XML::Filter::XSLT] module can be 
+used with [kobe://XML::SAX::Writer] to apply a stylesheet to 
+the XML content. Our pipeline looks like this:&lt;/p&gt;
+
+&lt;pre&gt;
+  XML::Generator::DBI
+   -&amp;gt; XML::Filter::SAX1toSAX2
+     -&amp;gt; XML::Filter::XSLT
+       -&amp;gt; XML::SAX::Writer
+&lt;/pre&gt;
+
+&lt;p&gt;Here we go. First, import the modules and connect to the database:&lt;/p&gt;
+
+&lt;code&gt;
+use strict;
+use DBI;
+use XML::Generator::DBI;
+use XML::Filter::SAX1toSAX2;
+use XML::Filter::XSLT;
+use XML::SAX::Writer;
+
+my $dbh = DBI-&gt;connect(
+   qw(DBI:vendor:database:host user pass),
+   {RaiseError=&gt;1},
+);
+&lt;/code&gt;
+
+&lt;p&gt;Next, create the pipeline:&lt;/p&gt;
+
+&lt;code&gt;
+my $writer    = XML::SAX::Writer-&gt;new();
+my $xsl_filt  = XML::Filter::XSLT-&gt;new(Handler =&gt; $writer);
+my $sax_filt  = XML::Filter::SAX1toSAX2-&gt;new(Handler =&gt; $xsl_filt);
+my $generator = XML::Generator::DBI-&gt;new(
+   Handler =&gt; $sax_filt,
+   dbh     =&gt; $dbh,
+);
+&lt;/code&gt;
+
+&lt;p&gt;Because XML::SAX::Writer is at the end of the chain, it 
+will override XML::Generator::DBI's indenting, so there is no 
+need to turn it on.&lt;/p&gt;
+
+&lt;p&gt;Finally, supply the stylesheet (given below) to the 
+XML::Filter::XSLT object and generate the output:&lt;/p&gt;
+
+&lt;code&gt;
+$xsl_filt-&gt;set_stylesheet_uri('foo.xsl');
+
+$generator-&gt;execute('select bar,baz from foo');
+&lt;/code&gt;
+
+&lt;p&gt;XML::SAX::Writer currently does not indent it's output, so 
+i piped it through a Perl one-liner:&lt;/p&gt;
+
+&lt;pre&gt;
+./example4.pl | perl -pe "s/&amp;gt;&amp;lt;/&amp;gt;\n&amp;lt;/g"
+&amp;lt;?xml version='1.0'?&amp;gt;
+&amp;lt;html&amp;gt;
+&amp;lt;body&amp;gt;
+&amp;lt;table&amp;gt;
+&amp;lt;tr&amp;gt;
+&amp;lt;th&amp;gt;Bar&amp;lt;/th&amp;gt;
+&amp;lt;th&amp;gt;Baz&amp;lt;/th&amp;gt;
+&amp;lt;/tr&amp;gt;
+&amp;lt;tr&amp;gt;
+&amp;lt;td&amp;gt;one&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;1&amp;lt;/td&amp;gt;
+&amp;lt;/tr&amp;gt;
+&amp;lt;tr&amp;gt;
+&amp;lt;td&amp;gt;two&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;2&amp;lt;/td&amp;gt;
+&amp;lt;/tr&amp;gt;
+&amp;lt;tr&amp;gt;
+&amp;lt;td&amp;gt;three&amp;lt;/td&amp;gt;
+&amp;lt;td&amp;gt;3&amp;lt;/td&amp;gt;
+&amp;lt;/tr&amp;gt;
+&amp;lt;/table&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+&lt;/pre&gt;
+
+&lt;p&gt;And finally, here is the XSL stylesheet - save this as the 
+file &lt;strong&gt;foo.xsl&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;pre&gt;
+&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
+&amp;lt;xsl:stylesheet version="1.0"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&amp;gt;
+&amp;lt;xsl:template match="/"&amp;gt;
+&amp;lt;html&amp;gt;
+&amp;lt;body&amp;gt;
+&amp;lt;table&amp;gt;
+  &amp;lt;tr&amp;gt;
+    &amp;lt;th&amp;gt;Bar&amp;lt;/th&amp;gt;
+    &amp;lt;th&amp;gt;Baz&amp;lt;/th&amp;gt;
+  &amp;lt;/tr&amp;gt;
+  &amp;lt;xsl:for-each select="database/select/row"&amp;gt;
+    &amp;lt;tr&amp;gt;
+      &amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="bar"/&amp;gt;&amp;lt;/td&amp;gt;
+      &amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="baz"/&amp;gt;&amp;lt;/td&amp;gt;
+    &amp;lt;/tr&amp;gt;
+  &amp;lt;/xsl:for-each&amp;gt;
+&amp;lt;/table&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+&amp;lt;/xsl:template&amp;gt;
+&amp;lt;/xsl:stylesheet&amp;gt;
+&lt;/pre&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a name="ex5"&gt;Example 5: A Dynamic CGI Script&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;&amp;#91;download [http://jeffa.perlmonk.org/xmlgen_tut/example5|example 5], download [http://jeffa.perlmonk.org/xmlgen_tut/dynamic.xsl|dynamic.xsl]&amp;#93;&lt;/p&gt;
+
+&lt;p&gt;Example 4 presented XSLT, but did so in fairly inflexible 
+manner. The stylesheet used 'hard-coded' values: not only did 
+we hard code the names of each row, we also hard coded the 
+table headings. What if we don't know ahead of time what the 
+names of the database columns will be? Is there a way 
+abstract this information? You bet - it's called XPath, which 
+was used in the stylesheet from example 4. But this time we 
+use the power of XPath's * wildcard and &lt;i&gt;text()&lt;/i&gt; 
+function to accept any database column name. In order to 
+provide dynamic column headers, we will utilize the 
+XML::Generator::DBI constructor's 
+&lt;strong&gt;ShowColumns&lt;/strong&gt; argument.&lt;/p&gt;
+
+&lt;p&gt;Let's first take a peak at what the XML looks like for our 
+sample database when we specify the 
+&lt;strong&gt;ShowColumns&lt;/strong&gt; argument:&lt;/p&gt;
+
+&lt;pre&gt;
+&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;&amp;lt;database&amp;gt;
+ &amp;lt;select query="select bar,baz from foo"&amp;gt;
+  &amp;lt;columns&amp;gt;
+   &amp;lt;column&amp;gt;
+    &amp;lt;name&amp;gt;bar&amp;lt;/name&amp;gt;
+    &amp;lt;type&amp;gt;varchar&amp;lt;/type&amp;gt;
+    &amp;lt;size&amp;gt;255&amp;lt;/size&amp;gt;
+    &amp;lt;precision&amp;gt;32&amp;lt;/precision&amp;gt;
+    &amp;lt;scale&amp;gt;0&amp;lt;/scale&amp;gt;
+    &amp;lt;nullable&amp;gt;NULL&amp;lt;/nullable&amp;gt;
+   &amp;lt;/column&amp;gt;
+   &amp;lt;column&amp;gt;
+    &amp;lt;name&amp;gt;baz&amp;lt;/name&amp;gt;
+    &amp;lt;type&amp;gt;integer&amp;lt;/type&amp;gt;
+    &amp;lt;size&amp;gt;10&amp;lt;/size&amp;gt;
+    &amp;lt;precision&amp;gt;8&amp;lt;/precision&amp;gt;
+    &amp;lt;scale&amp;gt;0&amp;lt;/scale&amp;gt;
+    &amp;lt;nullable&amp;gt;NULL&amp;lt;/nullable&amp;gt;
+   &amp;lt;/column&amp;gt;
+  &amp;lt;/columns&amp;gt;
+  &amp;lt;row&amp;gt;
+   &amp;lt;bar&amp;gt;one&amp;lt;/bar&amp;gt;
+   &amp;lt;baz&amp;gt;1&amp;lt;/baz&amp;gt;
+  &amp;lt;/row&amp;gt;
+  .....  etc.
+&lt;/pre&gt;
+
+&lt;p&gt;With this information we can dynamically build our column 
+headings for our table. And here is the new stylesheet, 
+&lt;i&gt;dynamic.xsl&lt;/i&gt;. It very similar to the last 
+one, but will work with any SQL select query:&lt;/p&gt;
+
+&lt;pre&gt;
+&amp;lt;?xml version="1.0" encoding="UTF-8"?&amp;gt;
+&amp;lt;xsl:stylesheet version="1.0"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"&amp;gt;
+&amp;lt;xsl:template match="/"&amp;gt;
+&amp;lt;html&amp;gt;
+&amp;lt;body&amp;gt;
+&amp;lt;table&amp;gt;
+  &amp;lt;tr&amp;gt;
+&lt;/pre&gt;
+
+&lt;p&gt;This time, instead of hard coding the field names we loop 
+through the &amp;lt;name&amp;gt; elements provided by 
+XML::Generator::DBI. We obtain the contents of those elements 
+with the &lt;i&gt;text()&lt;/i&gt; function:&lt;/p&gt;
+
+&lt;pre&gt;
+  &amp;lt;xsl:for-each select="database/select/columns/column/name"&amp;gt;
+    &amp;lt;th&amp;gt;&amp;lt;xsl:value-of select="text()"/&amp;gt;&amp;lt;/th&amp;gt;
+  &amp;lt;/xsl:for-each&amp;gt;
+  &amp;lt;/tr&amp;gt;
+  &amp;lt;xsl:for-each select="database/select/row"&amp;gt;
+    &amp;lt;tr&amp;gt;
+&lt;/pre&gt;
+
+&lt;p&gt;Here, instead of relying upon hard-coded field names, we
+utiltize the * wildcard to match any element, and obtain it's
+content again with &lt;i&gt;text()&lt;/i&gt; function:&lt;/p&gt;
+
+&lt;pre&gt;
+        &amp;lt;xsl:for-each select="*"&amp;gt;
+      &amp;lt;td&amp;gt;&amp;lt;xsl:value-of select="text()"/&amp;gt;&amp;lt;/td&amp;gt;
+        &amp;lt;/xsl:for-each&amp;gt;
+    &amp;lt;/tr&amp;gt;
+  &amp;lt;/xsl:for-each&amp;gt;
+&amp;lt;/table&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;/html&amp;gt;
+&amp;lt;/xsl:template&amp;gt;
+&amp;lt;/xsl:stylesheet&amp;gt;
+&lt;/pre&gt;
+
+&lt;p&gt;For our CGI script we will offer the end user a checkbox 
+group of columns from a database table we designate. We could 
+let them chose the table and the columns, but this way is 
+more secure. We will still have to make sure that column 
+names the end user supplies provides are valid, as a web bot 
+does not need to use our interface to interact with the 
+script. I chose to use my MP3 collection database, feel free 
+to use whatever database you desire. First we import the 
+necessary modules:&lt;/p&gt;
+
+&lt;code&gt;
+use strict;
+
+use DBI;
+use CGI qw(:standard);
+use CGI::Carp qw(fatalsToBrowser);
+use XML::SAX::Writer;
+use XML::Generator::DBI;
+use XML::Filter::SAX1toSAX2;
+use XML::Filter::XSLT;
+&lt;/code&gt;
+
+&lt;p&gt;Next, we specify the name of our stylesheet and the 
+columns we will allow the end user to select:&lt;/p&gt;
+
+&lt;code&gt;
+my $style = 'dynamic.xsl';
+my %field = (
+   name  =&gt; 'artist.name as Artist',
+   album =&gt; 'album.title as Album',
+   title =&gt; 'song.title as Song',
+   year  =&gt; 'album.year as Year',
+);
+&lt;/code&gt;
+
+&lt;p&gt;Next, we print the header and our form:&lt;/p&gt;
+
+&lt;code&gt;
+print header, start_html, start_form,
+   checkbox_group(
+      -name   =&gt; 'fields',
+      -values =&gt; [ keys %field ],
+   ),
+   submit('go'), end_form,
+;
+&lt;/code&gt;
+
+&lt;p&gt;Next, we check to see if the user has submitted the 
+form:&lt;/p&gt;
+
+&lt;code&gt;
+if (param('go')) {
+&lt;/code&gt;
+
+&lt;p&gt;The next line only accepts those column names that we are 
+allowing the user to select. If the user doesn't select any 
+or provides invalid column names, then the array @ok will be 
+empty:&lt;/p&gt;
+
+&lt;code&gt;
+   my @ok = map { $field{$_} } grep $field{$_}, param('fields');
+&lt;/code&gt;
+
+&lt;p&gt;If @ok is empty, we issue a &lt;strong&gt;die&lt;/strong&gt;, which 
+will be intercepted by CGI::Carp. Otherwise we continue by 
+joining the valid column names with commas:&lt;/p&gt;
+
+&lt;code&gt;
+   die 'no valid fields selected' unless @ok;
+   my $select = join(',', @ok);
+&lt;/code&gt;
+
+&lt;p&gt;Connect to the database. This time i specify the database 
+&lt;i&gt;mp3&lt;/i&gt;. Your milleage will vary:&lt;/p&gt;
+
+&lt;code&gt;
+   my $dbh = DBI-&gt;connect(
+      qw(DBI:vendor:mp3:host user pass),
+      {RaiseError=&gt;1},
+   );
+&lt;/code&gt;
+
+&lt;p&gt;Next, create the pipeline - notice that 
+&lt;strong&gt;ShowColumns&lt;/strong&gt; is turned on:&lt;/p&gt;
+
+&lt;code&gt;
+   my $writer    = XML::SAX::Writer-&gt;new();
+   my $xsl_filt  = XML::Filter::XSLT-&gt;new(Handler =&gt; $writer);
+   my $sax_filt  = XML::Filter::SAX1toSAX2-&gt;new(Handler =&gt; $xsl_filt);
+   my $generator = XML::Generator::DBI-&gt;new(
+      Handler     =&gt; $sax_filt,
+      dbh         =&gt; $dbh,
+      ShowColumns =&gt; 1,
+   );
+&lt;/code&gt;
+
+&lt;p&gt;Next, check that the stylesheet exists and is readable by 
+the web server and die if it is not. If all is well, process 
+the stylesheet:&lt;/p&gt;
+
+&lt;code&gt;
+   die "could not open file $style" unless -r $style;
+
+   $xsl_filt-&gt;set_stylesheet_uri($style);
+&lt;/code&gt;
+
+&lt;p&gt;Finally, execute our SQL statement and send the results to 
+the browser:&lt;/p&gt;
+
+&lt;code&gt;
+   $generator-&gt;execute("
+      select $select
+      from song 
+      inner join album on song.album_id=album.id 
+      inner join artist on album.artist_id=artist.id
+      order by artist.name,album.year,album.title
+   ");
+}
+&lt;/code&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a id="credits" name="credits"&gt;Credits&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;Big thanks to author of XML::Generator::DBI, Matt Sergeant 
+([Matts]). Without his help, guidance, corrections and 
+patches this  tutorial could not have been written. Thanks 
+once again Matt. :)&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a id="bugs" name="bugs"&gt;Bugs&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;While working with example 5, i discovered that CGI::Carp 
+did not play well with XML::SAX::Writer. I found that i had 
+older versions of both modules, so i installed the latest 
+versions for both. This fixed the CGI::Carp issue, but it 
+also broke example 3 - XML::Handler::HTMLWriter inherits from 
+XML::SAX::Writer and tries to call XML::SAX::Writer's 
+&lt;i&gt;start_document()&lt;/i&gt; and &lt;i&gt;end_document()&lt;/i&gt; 
+methods, which no longer exist in v0.41. These methods do 
+exist in v0.39, however, so i installed XML::SAX::Writer 
+v0.39 and both examples 3 and 5 worked for me. This leads me to suspect that you will need to install the latest CGI::Carp 
+in order for example 5 to work with it.&lt;/p&gt;
+
+&lt;p&gt;Also, example 5 has a couple of known bugs: an XML header 
+is printed when one is not needed. Also, opening and close 
+&amp;lt;html&amp;gt; and &amp;lt;body&amp;gt; tags are generated when they 
+too are not needed. Either i am missing an API call or two, 
+or the funtionality to omit these has not yet been 
+implemented. While most (if not all) browsers will accept 
+this, it surely is not valid XHTML. Also, i do not know of a 
+way to attach a Cascading Style Sheet to the final example - 
+this would be nice. Please /msg [jeffa] or post a reply if 
+you have any information about these issues.&lt;/p&gt;
+
+&lt;p&gt;(Hopefully, this entire 'Bugs' secion will disappear 
+soon.)&lt;/p&gt;
+
+&lt;hr /&gt;
+&lt;h2&gt;&lt;a id="todo" name="todo"&gt;TODO&lt;/a&gt;&lt;/h2&gt;
+
+&lt;p&gt;Do you have a favorite SAX handler that you would like to 
+include? Then this is your chance to add to this tutorial. 
+Feel free to post additional examples with 
+XML::Generator::DBI.&lt;/p&gt;</field>
+</data>
+</node>

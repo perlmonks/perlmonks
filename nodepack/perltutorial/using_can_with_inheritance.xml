@@ -1,0 +1,103 @@
+<node>
+  <doctext>&lt;h1&gt;Using can With Inheritance&lt;/h1&gt;
+
+This started out as a Q &amp; A on using can, so that's how
+it'll start.&lt;p&gt;
+
+If you asked, &quot;How can I determine whether a particular
+object has a particular method?&quot;, an answer would be:&lt;p&gt;
+
+Use the [can] method on your object. From [perlobj]:
+
+&lt;code&gt;
+    can(METHOD)
+
+    can checks to see if its object has a method called METHOD. If it does
+    then a reference to the sub is returned; if it does not then undef is
+    returned.
+&lt;/code&gt;
+
+&lt;h2&gt;A Scenario&lt;/h2&gt;
+
+This is relatively simple and straightforward. I found a
+rather interesting use for it the other day, though.
+Here was the scenario:&lt;p&gt;
+
+I had created (basically) an abstract base class for
+holding a tree-like data structure. The base class
+contained all of the methods necessary to interact with
+the data structure--to get data out, to put data in, etc.&lt;p&gt;
+
+But the base class didn't have any notion of how to read
+the data in from an external source; that was to be
+provided by the subclasses.&lt;p&gt;
+
+So I also defined two subclasses: one for processing XML
+data and one for processing a different format.&lt;p&gt;
+
+The base class also had a recurse method--supplied with a
+callback method, it would recurse into the data structure
+and call the callback for each node found in the tree. I
+had defined some simple callbacks: one to pretty-print the
+data to the screen; one to dump the data in HTML format
+using unordered lists; and one to write the file to disk
+in either XML or this other format. These callbacks were
+&quot;private&quot; functions, though, so I also provided accessor
+methods to return sub references to the callbacks.&lt;p&gt;
+
+&lt;h2&gt;A Problem&lt;/h2&gt;
+
+The problem, though, was that these accessor methods were
+defined in my base class, and I wanted to allow for my
+subclasses to override the callback methods. However, I
+(obviously) wouldn't know whether or not they overrode
+the methods until run-time, so I couldn't hard-code the
+subclass name into my accessor functions.&lt;p&gt;
+
+&lt;h2&gt;A Solution&lt;/h2&gt;
+
+So I used can. When I defined a new object, it was blessed
+into one of my subclasses; so, in my accessor methods,
+I realized that I could call can with the callback method
+name as the argument, and I'd get back the &quot;correct&quot;
+version of the callback method.&lt;p&gt;
+
+So, for example, here's a stripped-down version of my
+base class:
+
+&lt;code&gt;
+    package A;
+
+    # stuff taken out
+
+    sub get_write_file_func {
+        my $self = shift;
+        return $self-&gt;can(&quot;_write_file&quot;);
+    }
+&lt;/code&gt;
+
+The method &quot;_write_file&quot; is defined in my subclasses, so
+here's an example one of those:
+
+&lt;code&gt;
+    package A::B;
+    use A;
+
+    use vars qw/@ISA/;
+    @ISA = qw/A/;
+
+    # stuff taken out
+
+    sub _write_file {
+        my($path, $val, $start) = @_;
+        # ...
+    }
+&lt;/code&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>7940</node_id>
+  <reputation>42</reputation>
+  <author_user>2675</author_user>
+  <title>Using can With Inheritance</title>
+  <createtime>2000-04-18 18:07:47</createtime>
+  <nodeupdated>2005-08-15 12:11:26</nodeupdated>
+</node>

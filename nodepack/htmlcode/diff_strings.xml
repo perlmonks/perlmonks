@@ -1,0 +1,343 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>362923</node_id>
+  <author_user>357600</author_user>
+  <title>diff_strings</title>
+  <createtime>2004-06-09 18:48:45</createtime>
+  <code>require Algorithm::Diff;
+
+my ( $old, $new, $opts ) = @_;
+
+$old=~s/\r\n/\n/g;
+$new=~s/\r\n/\n/g;
+
+my @html;
+$opts-&gt;{use_query}= 1 unless exists $opts-&gt;{use_query};
+
+if ($opts-&gt;{use_query}) {
+    $opts-&gt;{'reverse'}     = $q-&gt;param('reverse');
+    $opts-&gt;{'regex_diff'}  = $q-&gt;param('regex_diff')||'';
+    $opts-&gt;{'split_diff'}  = $q-&gt;param('split_diff')||'';
+    $opts-&gt;{'diff_mode'}   = $q-&gt;param('diff_mode')||'';
+    $opts-&gt;{'diff_show'}   = $q-&gt;param('diff_show');
+    $opts-&gt;{'diff_number'} = $q-&gt;param('diff_number');
+}
+
+# any query params that we need to preserve will end up in here.
+# by default we only worry about 'displaytype' but the caller can
+# provide any that they choose
+
+my @extraopts;
+
+foreach my $optname ('displaytype',@{$opts-&gt;{preserve}}) {
+  my $optval=$opts-&gt;{$optname} || $q-&gt;param($optname);
+  push @extraopts,$optname,$optval
+     if $optval;
+}
+
+
+$opts-&gt;{'diff_show'}||=$VARS-&gt;{diff_show}||='MDI';
+#diff_number should be -1 to disable it always, 0 or 1 to do it when it makes sense
+$opts-&gt;{'diff_number'}||=$VARS-&gt;{diff_number}||=1;
+$opts-&gt;{'diff_mode'}||=$VARS-&gt;{diff_mode}||='line';
+
+
+$opts-&gt;{'diff_number'}=0
+  if $opts-&gt;{'diff_show'}!~/M/ or
+    ($opts-&gt;{'diff_show'}=~/D/ and $opts-&gt;{'diff_show'}=~/I/);
+$opts-&gt;{'diff_number'}||=$opts-&gt;{'diff_show'}=~/C/;
+
+# default mechanism
+unless ($opts-&gt;{'split_diff'} or $opts-&gt;{'regex_diff'}) {
+    $opts-&gt;{'diff_mode'}='line'
+        if !$opts-&gt;{'diff_mode'} or
+           $opts-&gt;{'diff_mode'}!~/^(user|token|line|word)$/;
+
+    $VARS-&gt;{'split_diff'}||='\n'
+        unless $VARS-&gt;{'regex_diff'};
+
+    if ($opts-&gt;{'diff_mode'} eq 'user') {
+        $opts-&gt;{'regex_diff'}=$VARS-&gt;{'regex_diff'};
+        $opts-&gt;{'split_diff'}=$VARS-&gt;{'split_diff'};
+    } elsif ($opts-&gt;{'diff_mode'} eq 'token') {
+        $opts-&gt;{'regex_diff'}=qr/\s+
+                                 |&lt; \/? [\s\w]+ &gt;?
+                                 |[&quot;']?[\w\&amp;\$\@\%\{\[\}\]]+
+                                 |[^\s\w\&amp;\$\@\%\{\[\}\]]+
+                               /x
+    } elsif ($opts-&gt;{'diff_mode'} eq 'line') {
+        $opts-&gt;{'split_diff'}='\n';
+    } elsif ($opts-&gt;{'diff_mode'} eq 'word') {
+        $opts-&gt;{'regex_diff'}= qr/\n|[^\S\n]+|\w+|./;
+    }
+} else {
+    $opts-&gt;{'diff_mode'}='query';
+}
+
+# just for cleaner urls.
+$opts-&gt;{'reverse'}=$opts-&gt;{'reverse'} ? 1 : 0;
+# option links.
+$opts-&gt;{modelinks}||=[
+                       (map {
+                         $opts-&gt;{'diff_mode'} eq lc($_)
+                             ? &quot;&lt;b&gt;$_&lt;/b&gt;&quot;
+                             : linkNode( $NODE, &quot;$_&quot; ,
+                                   { reverse=&gt;$opts-&gt;{'reverse'},
+                                     diff_mode=&gt; lc($_),
+                                     diff_show=&gt; $opts-&gt;{diff_show},
+                                     diff_against=&gt;($opts-&gt;{diff_against}||0),
+                                     @extraopts
+                                   } )
+                       } qw(Token Line Word User)),
+                       (map {
+                             my ($title,$flags)=@$_;
+                             $opts-&gt;{diff_show} eq $flags
+                               ? &quot;&lt;b&gt;&lt;!-- --&gt;$title&lt;/b&gt;&quot;
+                               : '&lt;!-- --&gt;'.linkNode( $NODE, $title ,
+                                   { reverse=&gt;$opts-&gt;{'reverse'},
+                                     diff_show=&gt;$flags,
+                                     diff_mode=&gt;$opts-&gt;{'diff_mode'},
+                                     diff_against=&gt;($opts-&gt;{diff_against}||0),
+                                     @extraopts
+                                   } )
+                       } ([&quot;Ins&quot;,'MI'],[&quot;Del&quot;,'MD'],[&quot;Ctx&quot;,'MDIC'],[&quot;All&quot;,'MDI'])),
+                     ];
+
+unless ($opts-&gt;{'reverse'}) {
+    #$opts-&gt;{title}='&lt;b&gt;Normal Difference&lt;/b&gt;';
+    $opts-&gt;{revstatus}='&lt;b&gt;Normal&lt;/b&gt;';
+    $opts-&gt;{revlink}||=linkNode( $NODE, &quot;Reversed&quot;,
+                                 {
+                                   reverse=&gt;1,
+                                   diff_show=&gt;$opts-&gt;{diff_show},
+                                   diff_against=&gt;($opts-&gt;{diff_against}||0),
+                                   @extraopts
+                                 }, );
+} else {
+    #$opts-&gt;{title}='&lt;b&gt;Reversed Difference&lt;/b&gt;';
+    $opts-&gt;{revstatus}='&lt;b&gt;Reverse&lt;/b&gt;';
+    $opts-&gt;{revlink}||=linkNode( $NODE, &quot;Normal&quot;,
+                                 {
+                                   reverse=&gt;0,
+                                   diff_show=&gt;$opts-&gt;{diff_show},
+                                   diff_against=&gt;($opts-&gt;{diff_against}||0),
+                                   @extraopts
+                                 }, );    ($old,$new)=($new,$old);
+}
+
+my $is_diff=0;
+
+my @recs;
+
+#push @html,&quot;&lt;!--\nregex=/$opts-&gt;{regex_diff}/ : split=/$opts-&gt;{split_diff}/\n--&gt;&quot;;
+
+for my $rec ($old,$new) {
+    my @parts;
+    if ($opts-&gt;{regex_diff}) {
+         @parts=$rec=~/$opts-&gt;{regex_diff}/xgs;
+    } else {
+         @parts=split /$opts-&gt;{split_diff}/x,$rec;
+    }
+    use Data::Dumper;
+    push @html,&quot;&lt;!--\nParts:&quot;.scalar(@parts).&quot;\n&quot;.Dumper(\@parts).&quot;\n--&gt;&quot;
+        if $q-&gt;param('diff_debug');
+
+    @parts=map {
+        my $html=$q-&gt;escapeHTML($_);
+        $html=~s/\t/'&amp;nbsp;' x 8/ge;
+        $html=~s/ /&amp;nbsp;/g;
+        (my $clean=$_)=~s/^\s+|\s+$//g;
+        [ $_, $html, $clean ]
+    } @parts;
+    push @recs,\@parts;
+}
+
+$opts-&gt;{diff_deleted_style}||=($VARS-&gt;{diff_deleted_style}||=&quot;color: red&quot;);
+$opts-&gt;{diff_inserted_style}||=($VARS-&gt;{diff_inserted_style}||=&quot;color: blue&quot;);
+
+
+my $matched  = '&lt;span class=&quot;diff_match&quot;&gt;';
+
+my $inserted = qq[&lt;span class=&quot;diff_inserted&quot;].
+               qq[ style=&quot;$opts-&gt;{diff_inserted_style}&quot; &gt;];
+
+my $deleted  = qq[&lt;span class=&quot;diff_deleted&quot;].
+               qq[ style=&quot;$opts-&gt;{diff_deleted_style}&quot; &gt;];
+
+$deleted.='&lt;s&gt;' if $VARS-&gt;{strike_deleted_in_diff};
+my $lnt=sub {
+  local $_=shift;
+  s/&amp;nbsp;/ /g;
+  linkNodeTitle($_,shift);
+};
+my %subs;
+my $last='';
+my $i_line=1;
+my $d_line=1;
+
+my $is_ctx=$opts-&gt;{diff_show}=~/C/;
+my $ctx_state='before';
+my @ctx;
+my $ctx_count;
+my $last_line=0;
+my $context_size=($VARS-&gt;{diff_context_lines}||=5);
+foreach my $set (
+                 [ MATCH    =&gt;$matched ,1,0,'&amp;nbsp;', $opts-&gt;{diff_show}=~&quot;M&quot; ],
+                 [ DISCARD_A=&gt;$deleted ,0,1,'-',      $opts-&gt;{diff_show}=~&quot;D&quot; ],
+                 [ DISCARD_B=&gt;$inserted,1,1,'+'  ,    $opts-&gt;{diff_show}=~&quot;I&quot; ],
+                )
+{
+  my ($sub,$tag,$idx,$do_isdiff,$char,$include)=@$set;
+  $subs{$sub}=
+  sub {
+    $is_diff=1 if $do_isdiff;
+    return unless $include;
+
+    my $token=$recs[$idx][$_[$idx]][1];
+    my @token;
+
+    if ($opts-&gt;{'diff_mode'} ne 'line') {
+            @token=([$token,$tag]);
+    } else {
+       my $s=qr/\s|&amp;nbsp;/;
+       # Search for [{text}] and replace the text with a link:
+       $token =~ s!\&amp;#91;{(.*?)(:|}\&amp;#93;)!
+                   &quot;&amp;#91;{&quot;
+                   . $lnt-&gt;( $1, {type=&gt;'htmlcode'} )
+                   . &quot;$2&quot;
+                  !egs;
+
+       # Search for 'getNode(&quot;text&quot;, &quot;text&quot; )' and replace
+       # the text with a link to the appropriate node:
+       # printLog($token) if $token=~/getNode/;
+       $token =~ s@getNode
+                   ($s*[(]$s*)      # 1
+                   ([&quot;']|&amp;quot;)    # 2
+                   ((?:[^'&quot;\&amp;]+|&amp;nbsp;)+) # 3
+                   \2
+                   ($s*,$s*)        # 4
+                   ([&quot;']|&amp;quot;)    # 5
+                   ((?:[^'&quot;\&amp;]+|&amp;nbsp;)+) # 6
+                   \5
+                   ($s*[)])         # 7
+                 @
+         &quot;getNode$1$2&quot;
+         . $lnt-&gt;( $3, {type=&gt;$6} )
+         . &quot;$2$4$5&quot;
+         . $lnt-&gt;( $6, {type=&gt;'nodetype'} )
+         . &quot;$5$7&quot;
+       @xegs;
+
+       # Search for 'htmlcode(&quot;text&quot;, params...)' and replace
+       #            'getNode(&quot;text&quot;, params...)'
+       #            'getType(&quot;text&quot;)'
+       # the text with a link to the htmlcode:
+       $token =~ s@(htmlcode|getNode|getType)
+                  ($s*[(]$s*)
+                  ([&quot;']|&amp;quot;)
+                  ((?:[^'&quot;\&amp;]+|&amp;nbsp;)+)
+                  \3
+                  ($s*[,)])
+                 @
+         &quot;$1$2$3&quot;
+         . $lnt-&gt;( $4, {type=&gt;$1 eq 'htmlcode' 
+                              ? 'htmlcode' 
+                              : $1 eq 'getType' 
+                                ? 'nodetype' 
+                                : ''} )
+         . &quot;$3$5&quot;
+       @xegs;
+    
+
+
+       my $line;
+       if ($sub eq 'DISCARD_A') {
+          $line=$d_line++;
+       } elsif ($sub eq 'DISCARD_B') {
+          $line=$i_line++;
+       } else {
+          $line=$i_line++;
+          $d_line++;
+       }
+       if ($opts-&gt;{diff_number}&gt;0) {
+         $token=sprintf &quot;%s&amp;nbsp;%3d:&amp;nbsp;%s\n&quot;, $char, $line, $token;
+       } else {
+         $token=&quot;$char&amp;nbsp;$token\n&quot;;
+       }
+       if ($is_ctx) {
+          shift @ctx if @ctx&gt;$context_size;
+          push @ctx,[$token,$tag,$line];
+          if ($sub ne 'MATCH') {
+            $ctx_state='after';
+            @token=splice @ctx,0,@ctx;
+            $ctx_count=$context_size;
+          } elsif ($ctx_state eq 'after') {
+            $ctx_state='before' unless --$ctx_count;
+            @token=splice @ctx,0,@ctx unless $ctx_count;
+          }
+       } else {
+            @token=([$token,$tag,$line]);
+       }
+    }
+    foreach my $trec (@token) {
+      my ($token,$tag,$line)=@$trec;
+
+      if ($last eq $tag) {
+        if (defined $line and $line-1 != $last_line) {
+          $html[-1].=&quot;\n\n&quot;;
+        }
+        $html[-1].=$token;
+      } else {
+        if (@html) {
+            push @html,&quot;&lt;/s&gt;&quot; if $last=~/&lt;s&gt;/;
+            my ($type)=$last=~/^&lt;(\w+)/ ;
+            push @html,&quot;&lt;/$type&gt;&quot;;
+        }
+        $last=$tag;
+        push @html,$last,$token;
+      }
+      $last_line=$line;
+    }
+  };
+}
+Algorithm::Diff::traverse_sequences( @recs,\%subs,sub{$_[0]-&gt;[-1]});
+if ($last) {
+    push @html,&quot;&lt;/s&gt;&quot; if $last=~/&lt;s&gt;/;
+    my ($type)=$last=~/^&lt;(\w+)/ ;
+    push @html,&quot;&lt;/$type&gt;&quot;;
+}
+
+my $same = $is_diff ? &quot;Different&quot;
+                     : $opts-&gt;{'diff_against'} ? &quot;Not Different&quot;
+                                                 : 'Current' ;
+
+my @extra=('&lt;strong&gt;',
+       ($opts-&gt;{title}||'The Patch Is'),
+       $same,'&lt;/strong&gt;',
+       '&lt;font size=&quot;2pt&quot;&gt;',
+       ($opts-&gt;{no_links} ? () : (
+       &quot;&amp;lt;&quot;,
+            join(
+                 &quot; | &quot;,(sort { $b cmp $a } $opts-&gt;{revstatus},
+                     @{$opts-&gt;{modelinks}}),
+                       $opts-&gt;{revlink}
+                ),
+       &quot;&amp;gt;&quot;)),
+       '&lt;/font&gt;');
+my $html=join(&quot;&quot;,@html);
+$html=&quot;&lt;pre&gt;&quot;.$html.&quot;&lt;/pre&gt;&quot; unless $opts-&gt;{no_pre};
+$html=&quot;&lt;div class='diff_strings'&gt;$html&lt;/div&gt;&quot;;
+
+return $opts-&gt;{inline_html} ? $html : join &quot; &quot;,
+       &quot;&lt;p&gt;&quot;,
+       #(!$opts-&gt;{extra_at_bottom} ? @extra : ()),
+       @extra,
+       &quot;&lt;hr /&gt;&quot;,
+       $html,
+       &quot;&lt;hr /&gt;&quot;,
+       ($opts-&gt;{extra_at_bottom} ? @extra : ()),
+       &quot;&lt;/p&gt;&quot;,
+       ;
+</code>
+  <nodeupdated>2004-11-14 11:06:19</nodeupdated>
+</node>

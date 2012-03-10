@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="505973" title="add_public_chatter" created="2005-11-05 06:59:05" updated="2005-11-05 01:59:05">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my( $author, $message, $you )= @_;
+
+$message= substr( $message, 0, 255 ); # Truncate to match what DB will store
+$you ||= 'you';
+
+return
+    if  htmlcode(
+            'repeatedchatter','',
+            $author, $message, 0, ucfirst($you) );
+
+require XML::Fling;
+
+if(  $q-&gt;cookie('userpass') =~ /%(?:u00)?7C(.)$/i  &amp;&amp;  $1  ) {
+    my( $lasttime )= $DB-&gt;getDatabaseHandle()-&gt;selectrow_array(qq[select now()]);
+    if(  $lasttime  ) {
+        $USER-&gt;{lasttime}= $lasttime;
+        updateNode($USER,$USER);
+    }
+}
+
+$DB-&gt;sqlInsert(
+    "chatter",
+    {
+        msgtext =&gt; $message,
+        author_user =&gt; $author,
+        -epoch =&gt; 'unix_timestamp(now())',
+    },
+);
+
+my $insertid= $DB-&gt;getDatabaseHandle()-&gt;{'mysql_insertid'};
+return   if  ! $insertid;
+
+my $msg= $DB-&gt;sqlSelectHashref(
+    qq[ *, DATE_FORMAT(tstamp, '%Y-%m-%d %T') as date ],
+    'chatter',
+    "id=$insertid",
+);
+$msg-&gt;{message_id}= $msg-&gt;{id}; # maintain back compat.
+local( $AUTHOR )= getNodeById( $author, 'light' );
+my $close= "&lt;!-- --&gt;&lt;/b&gt;&lt;/i&gt;&lt;/u&gt;&lt;/tt&gt;&lt;/em&gt;&lt;/strong&gt;";
+
+
+#### HTML 'split' and 'unsplit' ####
+
+my $text= $message;
+my $me_parsed;
+my $is_me;
+if(  $text =~ m~^/(?:me|em)(?![a-z&lt;\[]|&amp;zw|&amp;#?820[45]\b)(.*)~i  ) {
+    my $rest= join '', '&lt;i&gt;', $1, '&lt;/i&gt;', $close;
+    local $USER= {};
+    $me_parsed= htmlcode( 'parselinksinchatter','', $rest, 0 );
+    $is_me= 1;
+}
+
+{
+    my $msg_type;
+    my $sq_br_open= "&lt;span class='cb_sq_br'&gt;&amp;#91;&lt;/span&gt;";
+    my $sq_br_close= "&lt;span class='cb_sq_br'&gt;&amp;#93;&lt;/span&gt;";
+    my $cb_sep= "&lt;span class='cb_sep'&gt;:&lt;/span&gt;";
+    my $auth_span_open= "&lt;span class='cb_author'&gt;";
+    my $auth_span_close= "&lt;/span&gt;";
+    my $title='%%titletext%%'; # for now
+
+    # Careful, avoid possible impersonation.
+    if(  $is_me  ) {
+        $msg_type= "cb_me";
+        $text= sprintf "&lt;i&gt;%s%s%s&lt;/i&gt;&lt;span class='content'&gt;%s&lt;/span&gt;",
+            $auth_span_open,
+            linkNode(
+                $author, undef,
+                { $title ? (-title =&gt; $title) : () }, { trusted =&gt; 'yes' } ),
+            $auth_span_close,
+            $me_parsed;
+    } else {
+        $msg_type= "cb_msg";
+        my $rest= $text . $close;
+        {
+            local $USER= {};
+            $text= htmlcode( 'parselinksinchatter','', $rest, 0 );
+        }
+
+        $text= sprintf "%s%s%s%s &lt;span class='content'&gt;%s&lt;/span&gt;",
+            $sq_br_open . $auth_span_open,
+            linkNode(
+                $author, undef,
+                { $title ? (-title =&gt; $title) : () }, { trusted =&gt; 'yes' } ),
+            $auth_span_close . $sq_br_close,
+            $cb_sep,
+            $text;
+    }
+
+    # Extra whitespace here causes some browsers to mis-wrap
+    # when it happens at the end of a line.
+
+    $text= join '', $msg_type, "\t", qq[&lt;span class="chat"&gt;],
+        qq[&lt;span class="chatfrom_$author"&gt;$text&lt;/span&gt;],
+        qq[&lt;/span&gt;];
+}
+
+#### The XML from the original CB XML ticker ####
+
+my $old_xml= do {
+    my @data;
+    my $xml= XML::Fling-&gt;new( \@data, ("&lt;","&gt;\n")x3 );
+
+    $xml-&gt;element(
+        "message",
+        user_id =&gt; $msg-&gt;{author_user},
+        author  =&gt; $AUTHOR-&gt;{title},
+        time    =&gt; $msg-&gt;{tstamp},
+        $msg-&gt;{msgtext}
+    );
+    join "", @data;
+};
+
+#### The XML from Petruchios XML ticker ####
+
+my $new_xml= do {
+    my( $date, $time )= split / /, $msg-&gt;{date}, 2;
+    my $msg= {
+        text =&gt; $msg-&gt;{msgtext},
+        user_id =&gt; $msg-&gt;{author_user},
+        date =&gt; $date,
+        time =&gt; $time,
+        epoch =&gt; $msg-&gt;{epoch},
+        message_id =&gt; $msg-&gt;{message_id},
+    };
+    my @data;
+    my $xml= XML::Fling-&gt;new( \@data );
+
+    $msg-&gt;{author}= $AUTHOR-&gt;{title};
+    $xml-&gt;start('message');
+    push @data, "\n";
+    for(  @{$msg}{qw/ author text /}  ) {
+        tr/\x00-\x1f//d;
+        tr/\x7F//d;
+        s/&amp;/&amp;amp;/g;
+        s/&lt;/&amp;lt;/g;
+        s/&gt;/&amp;gt;/g;
+    }
+    for(  qw/ author user_id date time epoch message_id text/  ) {
+        $xml-&gt;start($_);
+        push @data, $msg-&gt;{$_};
+        $xml-&gt;end();
+        push @data, "\n";
+    }
+    $xml-&gt;end();
+    join "", @data;
+};
+
+#### And a totally new XML format ####
+
+my $modern_xml= do {
+    my @data;
+    my $xml= XML::Fling-&gt;new( \@data );
+    my $txt=$msg-&gt;{msgtext};
+    my $parsed;
+    if(  $is_me  ) {
+        $parsed= "/me $me_parsed";
+    } else {
+        $parsed=htmlcode( 'parselinksinchatter','',$txt.$close, 0 );
+    }
+
+    my $msg= {
+        %$msg,
+        createdgmtime =&gt;
+            POSIX::strftime( '%Y-%m-%d %H:%M:%S', gmtime($msg-&gt;{epoch}) ),
+        createdepoch =&gt; $msg-&gt;{epoch},
+        author =&gt; $AUTHOR-&gt;{title},
+        parsed =&gt; $parsed,
+    };
+
+    $xml-&gt;start('message');
+    push @data,"\n";
+    foreach my $field (qw(
+        message_id  createdgmtime createdepoch
+        author author_user
+        msgtext parsed
+    )) {
+        $xml-&gt;element( $field, $msg-&gt;{$field} );
+        push @data, "\n";
+    }
+    $xml-&gt;end( 'message' );
+    join "", @data;
+};
+
+#cachekey  updateinterval  lastupdate  code_id  cachedata
+
+my $ok= 1;
+foreach my $tuple (
+    [ $text, 'public_chatter_cache_code_id' ],
+    [ $old_xml, 'xml_chatter_cache_code_id_old' ],
+    [ $new_xml, 'xml_chatter_cache_code_id_new' ],
+    [ $modern_xml, 'xml_chatter_cache_code_id_modern' ],
+) {
+    my $is_ok=$DB-&gt;sqlInsert(
+        "cachedinfo",
+        {
+            cachekey =&gt; sprintf('%08d',$insertid),
+            updateinterval =&gt; $author, #yes its ugly
+            lastupdate =&gt; $msg-&gt;{date},
+            code_id =&gt; $HTMLVARS{$tuple-&gt;[1]},
+            cachedata =&gt; $tuple-&gt;[0],
+        },
+    );
+    if(  ! $is_ok  ) {
+        Everything::printLog( join '',
+            "Failed cached CB write: $tuple-&gt;[1]. ",
+            "Message id: $msg-&gt;{message_id}. ",
+            "Author: $AUTHOR-&gt;title\n",
+        );
+        $ok= 0;
+    }
+
+    if(  0 == $insertid % 20   ) {
+        $DB-&gt;sqlDelete(
+            'cachedinfo',
+            join "",
+                'code_id=', $HTMLVARS{$tuple-&gt;[1]}, " and ",
+                'subdate( now(), INTERVAL 1800 SECOND ) &gt; lastupdate',
+        );
+    }
+}
+
+return $ok;
+</field>
+</data>
+</node>

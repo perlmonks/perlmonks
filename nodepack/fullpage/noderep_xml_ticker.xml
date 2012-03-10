@@ -1,0 +1,60 @@
+<node>
+  <doctext>[%
+
+return &quot;&lt;error&gt;This feed isn't available to Anonymous Monk. You must log in.&lt;/error&gt;&quot;
+  if $USER-&gt;{node_id}==$HTMLVARS{guest_user};
+my $min=600;
+my $free=50;
+my ($lasttime,$count)=split /,/, $VARS-&gt;{last_rep_fetch};
+$lasttime=0  if $q-&gt;param('clear') and 
+                ($count&lt;$free or isGod($USER) or $USER-&gt;{title}=~/merphq/);
+$lasttime=time-(24*60*60) if $lasttime &lt; time-(24*60*60);
+my ($limit)=$q-&gt;param('limit')=~/^(\d+)$/;
+htmlcode('log_ticker','','',&quot;Lt:'$lasttime' C:'$count'&quot;) 
+   or Everything::printLog(&quot;NRXT: $USER-&gt;{title} Lt:'$lasttime' C:'$count'&quot;);
+
+my $secs=time-$lasttime;
+my $wait=$min-$secs;
+return qq[&lt;error errorcode=&quot;EFETCHTOOSOON&quot; waitfor=&quot;$wait&quot;&gt;Cannot fetch again] 
+      .qq[ until $wait seconds have elapsed&lt;/error&gt;]
+  if ++$count&gt;$free &amp;&amp; $secs&lt;$min;
+
+require POSIX;
+$lasttime=POSIX::strftime('&quot;%Y-%m-%d %H:%M:%S&quot;',localtime($lasttime));
+my %xmlstyle= ( clean =&gt; 1 );
+
+return qq[&lt;error errorcode=&quot;EINTERNAL&quot;&gt;Error creatng fling object&lt;/error&gt;]
+     unless htmlcode('new_xml_fling','',\my($xml,@data),\%xmlstyle,&quot;add_header&quot;);
+
+htmlcode('xml_info_tag','',$xml,\%xmlstyle,'noderep',
+  delta_since=&gt;htmlcode('ParseTimeInString','',$lasttime,0,0,'ISO'),
+  fetch_num =&gt; $count,
+  min_poll_seconds=&gt;$min,
+  $count&lt;$free ? (free_remaining=&gt;$free-$count) : (),
+);
+$limit=$limit ? &quot;limit $limit&quot; : &quot;&quot;;
+my $csr=$DB-&gt;sqlSelectMany(
+  &quot;node_id,title,reputation,sum(weight) as delta&quot;,
+  &quot;vote,node&quot;,
+  &quot;vote_id=node_id&quot; .
+  &quot; and votetime &gt; $lasttime&quot; .
+  &quot; and voted_user=$USER-&gt;{node_id}&quot;,
+  &quot;group by node_id order by node_id desc $limit&quot;
+);
+while ($csr and my $rec=$csr-&gt;fetchrow_hashref() ) {
+  $xml-&gt;element('node',(map{ $_ =&gt; $rec-&gt;{$_} } 
+                        qw(node_id reputation delta)),
+                $rec-&gt;{title});
+}
+$xml-&gt;end();
+$VARS-&gt;{last_rep_fetch}=time().&quot;,$count&quot;;
+return join &quot;&quot;,@data;
+%]</doctext>
+  <type_nodetype>122</type_nodetype>
+  <node_id>507310</node_id>
+  <reputation>0</reputation>
+  <author_user>485628</author_user>
+  <title>noderep xml ticker</title>
+  <createtime>2005-11-10 02:54:34</createtime>
+  <nodeupdated>2005-11-09 21:54:35</nodeupdated>
+</node>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="893" title="displaytable" created="1999-11-02 20:58:59" updated="2004-11-18 16:48:42">
+<type id="4">
+htmlcode</type>
+<author id="113">
+root</author>
+<data>
+<field name="code">
+# This generates an HTML table that contains the fields
+# of a database table.  The output is similar to what
+# you get when 'show columns from $table' is executed.
+my ($table, $edit) = @_;
+my @cols = qw( Field Type Null Default Key Extra );
+my @fields = $DB-&gt;getFieldsHash($table);
+my $field;
+my $fieldname;
+my $value;
+my $str = "";
+
+$edit = 0 if(not defined $edit);
+
+$str .= "&lt;table border=1&gt;\n";
+
+$field = $fields[0];
+
+  $str .= " &lt;tr&gt;\n";
+foreach $fieldname (  @cols  ) #(keys %$field)
+{
+  $str .= qq[  &lt;th&gt;$fieldname&lt;/th&gt;\n];
+}
+
+$str .= "  &lt;th&gt;Remove Field?&lt;/th&gt;\n" if($edit);
+$str .= " &lt;/tr&gt;\n";
+
+foreach $field (@fields)
+{
+  $str .= " &lt;tr&gt;\n";
+  foreach $value (  @{$field}{@cols}  ) #(values %$field)
+  {
+    $value = "&amp;nbsp;" if $value eq ""; # fill in the blanks
+    $str .= "  &lt;td&gt;$value&lt;/td&gt;\n";
+  }
+  $str .= "  &lt;td&gt;" .
+    $query-&gt;checkbox(-name =&gt; $$field{Field} . "REMOVE",
+        -value =&gt; 'REMOVE',
+        -label =&gt; 'Remove?') .
+    "  &lt;/td&gt;\n" if($edit);
+  $str .= " &lt;/tr&gt;\n";
+}
+
+$str .= "&lt;/table&gt;\n";
+
+if($edit)
+{
+  $str .= "&lt;br&gt;\n";
+  $str .= "Add new field:&lt;br&gt;";
+  $str .= "Field Name: ";
+  $str .= $query-&gt;textfield( -name =&gt; "fieldname_new",
+      -default =&gt; "",
+      -size =&gt; 30,
+      -maxlength =&gt; 50);
+  $str .= "&lt;br&gt;Field type: ";
+  $str .= $query-&gt;textfield( -name =&gt; "fieldtype_new",
+      -default =&gt; "",
+      -size =&gt; 10,
+      -maxlength =&gt; 20);
+  $str .= " (i.e. int(11), char(32), text, etc.)";
+  $str .= "&lt;br&gt;Default value: ";
+  $str .= $query-&gt;textfield( -name =&gt; "fielddefault_new",
+      -default =&gt; "",
+      -size =&gt; 50,
+      -maxlength =&gt; 50);
+  $str .= "&lt;br&gt;\n";
+  $str .= $query-&gt;checkbox(-name =&gt; "fieldprimary_new",
+      -value =&gt; "primary",
+      -label =&gt; "Primary Key?");
+  $str .= "&lt;br&gt;\n";
+}
+
+return $str;
+</field>
+</data>
+</node>

@@ -1,0 +1,98 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>366345</node_id>
+  <author_user>357600</author_user>
+  <title>handle_scratch_pad_viewer</title>
+  <createtime>2004-06-13 16:53:54</createtime>
+  <code>my $is_xml  = $q-&gt;param('displaytype') eq 'xml';
+
+return '' if $is_xml and !$q-&gt;param('user');
+
+my $return=join &quot;&quot;,
+           htmlcode('openform'),
+           &quot;Username: &quot;,
+           $q-&gt;textfield( -name=&gt;&quot;user&quot;, -size=&gt;30 ),
+           htmlcode('closeform','View scratchpad'),
+           '&lt;br /&gt;';
+
+return $is_xml ? qq[&lt;xml_error node_id=&quot;$NODE-&gt;{node_id}&quot; code=&quot;1&quot;&gt;].
+                 qq[No User Selected&lt;/xml_error&gt;]
+               : $return.'&lt;i&gt;Choose whose scratchpad you want to view.&lt;/i&gt;'
+  unless my $user = $q-&gt;param('user');
+
+
+return $is_xml
+        ? qq[&lt;xml_error node_id=&quot;$NODE-&gt;{node_id}&quot; code=&quot;2&quot;&gt;].
+          qq[No User Found&lt;user&gt;$user&lt;/user&gt;&lt;/xml_error&gt;]
+        : $return.'&lt;b&gt;No user by that name was found.&lt;/b&gt;'
+  unless my $U = getNode( $user, 'user' );
+
+my $pad_id=htmlcode('scratchpad_link','',$U-&gt;{node_id},'',{},1);
+
+unless ($pad_id) {
+  # bail out with appropriate message if not updating
+  # or wrong user or AM
+  if ( !defined $q-&gt;param('scratchpad_privatetext') &amp;&amp;
+       !defined $q-&gt;param('scratchpad_doctext') ||
+       $USER-&gt;{node_id} != $U-&gt;{node_id} ||
+       $USER-&gt;{node_id} == $HTMLVARS{guest_user} )
+  {
+     if ($is_xml) {
+        return qq[&lt;xml_error node_id=&quot;$NODE-&gt;{node_id}&quot; code=&quot;3&quot;&gt;].
+               qq[User has no scratchpad&lt;user&gt;$user&lt;/user&gt;&lt;/xml_error&gt;]
+     } elsif ( $USER-&gt;{node_id} != $U-&gt;{node_id} ||
+               $USER-&gt;{node_id} == $HTMLVARS{guest_user} )
+     {
+        return $return.'&lt;b&gt;'.linkNode($U).&quot; hasn't set up a scratchpad yet.&lt;/b&gt;&quot;;
+     }
+  }
+  # we only get here if the user would the node.
+  # this actually forces the creation of the scratchpad object
+  $pad_id=htmlcode('scratchpad_link','',$U-&gt;{node_id},'',{},1,1);
+  htmlcode('log_ticker','','',&quot;$U-&gt;{title} - $U-&gt;{user_scratchpad}&quot;) or
+    Everything::printLog(&quot;hspv: $U-&gt;{title} - $U-&gt;{user_scratchpad}\n&quot;);
+}
+
+return $is_xml
+        ? qq[&lt;xml_error node_id=&quot;$NODE-&gt;{node_id}&quot; code=&quot;4&quot;&gt;].
+          qq[Failed to create scratchpad.&lt;user&gt;$user&lt;/user&gt;&lt;/xml_error&gt;]
+        : $return.'&lt;b&gt;Failed to create Scratchpad!&lt;/b&gt;'
+   unless $pad_id;
+
+my $pad=getNodeById($pad_id,'force');
+
+#use Data::Dumper;
+#printLog(&quot;Got pad: $pad-&gt;{scratchpad_id}&quot;.Dumper($pad,[$q-&gt;param()]));
+
+if ((getId($USER) == $pad-&gt;{author_user} and  
+     getId($USER) != $HTMLVARS{guest_user}) 
+     or isGod($USER))
+{
+  #printLog(&quot;Updating&quot;);
+  my $was_updated=0;
+  foreach my $field (qw(privatetext doctext)) {
+    if (defined $q-&gt;param(&quot;scratchpad_$field&quot;)) {
+      $pad-&gt;{$field}=$q-&gt;param(&quot;scratchpad_$field&quot;);
+      $was_updated=1;
+    }
+  }
+  if ($was_updated) {
+    updateNode($pad,$USER);
+  }
+}
+
+if ($is_xml) {
+   my $as_xml=htmlcode('handle_xml_view','',$pad,$USER);
+   return $as_xml || qq[&lt;xml_error node_id=&quot;$NODE-&gt;{node_id}&quot; code=&quot;5&quot;&gt;].
+          qq[Failed to fetch xml version of scratchpad!&lt;user&gt;$user&lt;/user&gt;&lt;/xml_error&gt;];
+}
+
+if ($q-&gt;param('svmode') eq 'edit') {
+   return $return .
+          htmlcode('handle_scratchpad_edit','',$pad)
+} else {
+   return $return .
+          htmlcode('handle_scratchpad_display','',$pad)
+}</code>
+  <nodeupdated>2005-04-22 11:20:19</nodeupdated>
+</node>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="36663" title="Sorting lists of lists (or arrays of arrays or thingies of thingies)" created="2000-10-13 21:02:08" updated="2005-08-08 06:17:23">
+<type id="121">
+perlcraft</type>
+<author id="36507">
+jynx</author>
+<data>
+<field name="doctext">
+# Have you ever had to sort a list of lists by a value in the middle of the lower lists?
+# The Shwartzian transform will do this, but i was concerned about the speed of the operation.
+# This module came about from implementing such a sort on the different possible groups on a
+# unix system so that the sysadmin can choose which group to put a new user into (using
+# a tk menu if he/she so desires).  The end result is an n log n sort technique that doesn't
+# have to look at all of the values of the array it's sorting (relatively)...
+# In fact, the `sort' call takes the most time of anything
+#
+# jynx
+
+# Formats:                                              #
+#       AnonSort(\@array, $val_to_sort_by, $is_string)  #
+#   where $is_string is either 1 or 0.  1 if it is.     #
+#                                                       #
+#       binsrch(\@array, $val_to_sort_by, $is_string)   #
+#                                                       #
+#        -or if you want just a portion organized-      #
+#                                                       #
+#  binsrch(\@ar, $val, $is_string, $hi_mark, $lo_mark)  #
+#                                                       #
+#   NOTE: The value to sort by is the index NUMBER in   #
+#         the anonymous arrays that you want to be the  #
+#         pivotal position for sorting.  So for instance#
+#         if you want the 3rd position to be sorted by, #
+#         put 3.                                        #
+
+
+package AnonSort;
+use strict;
+require Exporter;
+our @ISA       = qw(Exporter);
+our @EXPORT    = qw(AnonSort);
+our @EXPORT_OK = qw(binsrch);
+our $VERSION   = 1.0;
+
+sub AnonSort {
+   my ($anon, $val, $str);
+   ($anon, $val, $str) = @_;
+
+# pull out the values to sort by and sort
+   my (@st, @temp);
+   foreach (@{ $anon }) { push @st, $_-&gt;[$val] }
+   @st = sort @st;
+
+# now arrange the original array of arrays...
+#
+# a little note:  since this is a closed set we can sift through until we get
+#   the first spot into where it's supposed to be because we don't have to
+#   worry about accidently not having an element.  also, as opposed to the
+#   bubble sort, we have a secondary list that's already sorted, so we binary
+#   search on that until we have the right entry for a spot.  THEN and only
+#   then step to the next spot.  then find the right entry for that spot and
+#   so on and so forth...
+#
+   for (my $i = 0; $i &lt;= $#{ $anon }; $i++) {
+   until (($str)?($anon-&gt;[$i][$val] eq $st[$i]):($anon-&gt;[$i][$val] == $st[$i]) ){
+      my $j = &amp;binsrch(\@st, $anon-&gt;[$i][$val], $str);
+      if ($i != $j) {
+         @temp = @{ $anon-&gt;[$j] };
+         @{ $anon-&gt;[$j] } = @{ $anon-&gt;[$i] };
+         @{ $anon-&gt;[$i] } = @temp;
+      }
+   }		## end while loop.
+   }		## end of for loop
+
+# return the (now sorted) reference to the original array
+return $anon;
+}
+         
+#
+# i have to define these for the use strict...
+my ($s, $val, $str, $hi, $lo, $mid);
+
+#
+# this is a binary search through arrays.  it returns -1 if not found
+#   or the palce where the value is.
+#
+sub binsrch {
+   ($s, $val, $str, $hi, $lo, $mid) = @_;
+
+# because of a bug, return the last element if val's in the last element...
+# Also, the trinary operator makes the if statement bail.  Don't even think
+# about it (i don't know why it bails, but it does)
+   if ($str) {
+      return $#{ $s } if ($val eq $s-&gt;[$#{ $s }]);
+   } else {
+      return $#{ $s } if ($val == $s-&gt;[$#{ $s }]);
+   }
+
+# if $hi and $lo aren't defined (read: first iteration), define them
+   $hi = $#{ $s } unless defined $hi;
+   $lo = 0   unless defined $lo;
+   return -1 if ($lo == $hi);
+
+# set mid and do the search.  recursion's ok, i'm throwing around references...
+   $mid = int ( ($hi + $lo) / 2 );
+   if ($str) {
+    return $mid if ($s-&gt;[$mid] eq $val);
+    ($hi = $mid and binsrch($s, $val, $str, $hi, $lo) ) if ($s-&gt;[$mid] gt $val);
+    ($lo = $mid and binsrch($s, $val, $str, $hi, $lo) ) if ($s-&gt;[$mid] lt $val);
+   } else {
+    return $mid if ($s-&gt;[$mid] == $val);
+    ($hi = $mid and binsrch($s, $val, $str, $hi, $lo) ) if ($s-&gt;[$mid] &gt; $val);
+    ($lo = $mid and binsrch($s, $val, $str, $hi, $lo) ) if ($s-&gt;[$mid] &lt; $val);
+   }
+
+# return -1 if the value we're looking for isn't where it's supposed to be
+# The trinary operator makes this if statement bail as well.  By bail i mean it
+# won't even compile!
+   if ($str) {
+      return -1 if ($val ne $s-&gt;[$mid]);
+   } else {
+      return -1 if ($val != $s-&gt;[$mid]);
+   }
+
+# otherwise return the value (to previous level)
+   return $mid;
+}
+
+
+1;
+
+
+# stop scolling, isn't that enough work?
+#
+# Sorry if this double posts, but the line wrapping got screwed up on the
+# first one so this version is better for the cut and paste</field>
+</data>
+</node>

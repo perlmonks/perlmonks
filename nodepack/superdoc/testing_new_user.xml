@@ -1,0 +1,182 @@
+<node>
+  <doctext>[%
+  my $str;
+
+  local *generateLogin = sub
+  {
+    return &lt;&lt;&quot;END&quot;;
+    &lt;form action=&quot;?&quot; method=&quot;post&quot;&gt;
+      &lt;input type=&quot;hidden&quot; name=&quot;node_id&quot; value=&quot;@{[ getId($NODE) ]}&quot; /&gt;
+      &lt;input type=&quot;hidden&quot; name=&quot;op&quot; value=&quot;newuser&quot; /&gt;
+
+      &lt;table&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Preferred username:&lt;/td&gt;
+          &lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;nu_name&quot; size=&quot;20&quot; maxlength=&quot;20&quot; /&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Real&amp;#153; Name:&lt;/td&gt;
+          &lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;nu_realname&quot; size=&quot;20&quot; maxlength=&quot;40&quot; /&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;Email Address&lt;/td&gt;
+          &lt;td&gt;&lt;input type=&quot;text&quot; name=&quot;nu_email&quot; size=&quot;20&quot; maxlength=&quot;255&quot; /&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td&gt;&lt;/td&gt;
+          &lt;td&gt;&lt;input type=&quot;submit&quot; name=&quot;sexisgood&quot; value=&quot;submit&quot; /&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+
+    &lt;/form&gt;
+END
+  };
+
+  unless ( $query-&gt;param('op') eq 'newuser' ) {
+    return &lt;&lt;&quot;END&quot;;
+    &lt;p&gt;
+      To create a new user on PerlMonks, we need a smattering of information:
+    &lt;/p&gt;
+    @{[ generateLogin() ]}
+    &lt;p&gt;
+      &lt;b&gt;Please note:&lt;/b&gt;
+    &lt;/p&gt;
+    &lt;p&gt;
+      We are not going to send you junk email &quot;member updates&quot;, sell your
+      address to spammers, or display your email address for people to see.
+      This email exists so that you can recieve your password, and/or retrieve
+      it if you forget.  There may be future email functionality, which
+      you will have the option to turn on from your user settings page.
+    &lt;/p&gt;
+END
+  }
+
+  my $realname  = $query-&gt;param(&quot;nu_realname&quot;);
+  my $email     = $query-&gt;param(&quot;nu_email&quot;);
+  my $name      = $query-&gt;param(&quot;nu_name&quot;);
+
+
+  if ( my ($olduser) = $DB-&gt;getNodeWhere({ title =&gt; $name }, $DB-&gt;getType('user')) ) {
+    return sprintf &lt;&lt;'END',
+    &lt;p&gt;
+      Sorry, %s already exists.  Try another name...
+    &lt;/p&gt;
+    %s
+END
+
+    linkNode($olduser), generateLogin();
+  }
+
+  # Check if we have any '_' vs ' ' clashing
+  # that could lead to chatterbox conflicts.
+
+  my $match = lc($name);
+  $match=~s/([a-zA-Z])/'['.$1.uc($1).']'/eg;
+  $match=~s/[_ ]/[_ ]/g;
+  $match=&quot;^$match\$&quot;;
+
+  my ($closeuser) = $DB-&gt;sqlSelect(
+                    &quot;node_id,title&quot;,
+                    &quot;node&quot;, &quot;title regexp \&quot;$match\&quot; and type_nodetype in(&quot;.getId(getType('user')).&quot;,&quot;.getId(getType('usergroup')).&quot;)&quot;);
+  if($closeuser) {
+    return &quot;Sorry, your username clashes with &quot;.linkNode($closeuser)
+    .&quot; which already exists.  Pick a variation, or try another name...&lt;p&gt;\n&quot;.generateLogin();
+  }
+
+  # Deny people the power of _ and ' ' at the beginning of usernames
+  if ( $name =~ /^[_ ]/ ) {
+
+    return &lt;&lt;&quot;END&quot;;
+    &lt;p&gt;
+      Sorry, ' ' and '_' are not allowed at the beginning of usernames.
+      Try again, do not pass Go, and do not collect \$200.
+    &lt;/p&gt;
+    @{[ generateLogin() ]}
+END
+
+  }
+
+  if( $name =~ /[\[\]&lt;&gt;]/ ) {
+
+    return &lt;&lt;&quot;END&quot;;
+    &lt;p&gt;
+      Sorry &amp;lt;, &amp;gt;, &amp;#091; and &amp;#093; are not allowed in usernames.  Try again.
+    &lt;/p&gt;
+    @{[ generateLogin() ]}
+END
+
+  }
+
+  if( getNode($name,'superdoc') || getNode($name,'perlman') || getNode($name,'perlfunc')  || getNode($name,'usergroup') ) {
+
+    return &lt;&lt;&quot;END&quot;;
+    &lt;p&gt;
+      Sorry there is already a system document or usergroup with that name.
+      Pick a name that doesn't clash with important system documents.
+    &lt;/p&gt;
+    @{[ generateLogin() ]}
+END
+
+  }
+
+
+  # Generate the passwd and send it out on email.
+  my @chars = ( 'A'..'Z', 'a'..'k', 2..9 );
+  my $passwd = join('', @chars[ map { rand @chars } 1 .. 8 ]);
+
+
+  my $NEWUSER = {
+                  realname  =&gt; $realname,
+                  email     =&gt; $email,
+                  passwd    =&gt; $passwd,
+                  title     =&gt; $name,
+                  lastupdate =&gt; undef,
+  };
+
+  $DB-&gt;sqlInsert('newuser', $NEWUSER );
+
+  # Send some email;
+  my $msg = getNode('New User Mail', 'mail');
+  local $msg-&gt;{doctext} = $msg-&gt;{doctext};
+  $msg-&gt;{doctext} =~ s/&lt;name&gt;/$NEWUSER-&gt;{realname}/;
+  $msg-&gt;{doctext} =~ s/&lt;user&gt;/$NEWUSER-&gt;{title}/;
+  $msg-&gt;{doctext} =~ s/&lt;passwd&gt;/$NEWUSER-&gt;{passwd}/;
+  $msg-&gt;{doctext} =~ s/&lt;site_name&gt;/$HTMLVARS{site_name}/;
+  $msg-&gt;{doctext} =~ s/&lt;homenode&gt;/$HTMLVARS{site_url}index\.pl\?node=$NEWUSER-&gt;{title}\&amp;type=user/;
+  $msg-&gt;{doctext} =~ s/&lt;site_url&gt;/$HTMLVARS{site_url}/;
+  $msg-&gt;{doctext} =~ s/&lt;login&gt;/$HTMLVARS{site_url}index\.pl\?node_id=$HTMLVARS{login_node}/;
+
+  use Everything::MAIL;
+  node2mail($NEWUSER-&gt;{email}, $msg);
+  $HTMLVARS{mailsent} = 1;
+
+  # Record sign-up information for later reference.
+  # $DB-&gt;sqlInsert('emailpwd', { user_id =&gt; getId($NEWUSER), ip =&gt; $ENV{REMOTE_ADDR}, email =&gt; $email, reason =&gt; 'New user' });
+
+
+  return sprintf &lt;&lt;'END',
+  &lt;p&gt;
+    Your new user account (%s) has been created.  You (%s)
+    should be getting an email soon telling you your generated
+    password.
+  &lt;/p&gt;
+END
+
+  $NEWUSER-&gt;{title}, $NEWUSER-&gt;{email};
+%]
+[%
+  return unless exists $HTMLVARS{newuser}
+          and not exists $HTMLVARS{mailsent};
+
+  my $NU = getNodeById $HTMLVARS{newuser};
+
+  return &quot;Our mail server isn't working right now.  Sorry.  You get your password now: $NU-&gt;{passwd}&quot;;
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>158182</node_id>
+  <author_user>485628</author_user>
+  <title>testing new user</title>
+  <createtime>2002-04-10 20:57:35</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

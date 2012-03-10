@@ -1,0 +1,94 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>81035</node_id>
+  <author_user>929</author_user>
+  <title>editor_vote</title>
+  <createtime>2001-05-16 19:15:55</createtime>
+  <code>{
+  return '';
+}
+__END__
+    unless $DB-&gt;isApproved($USER, getNode('editors', 'usergroup'));
+
+  my ($node_id, %types) = @_;
+
+  my $NNS = getVars getNode('Newest Nodes Setting','setting');
+
+  my %oktypes = map { $_ =&gt; 1 } split /,/, $NNS-&gt;{canedit_nodetypes};
+
+  return
+    unless exists $oktypes{$NODE-&gt;{type}{title}};
+
+  my $nid = getId($NODE);
+  my $uid = getId($USER);
+
+  foreach my $type (keys %types) {
+    next unless $query-&gt;param(&quot;ev_${type}_${nid}&quot;);
+
+    my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare('
+      REPLACE INTO editorvote
+        (editorvote_id, voter_user, votetype)
+      VALUES (?, ?, ?)
+    ');
+
+    return 'Ack!  Something is broken...'
+      unless $sth-&gt;execute($nid, $uid, $type);
+
+    if ($type eq 'd') {
+      my $count = $DB-&gt;sqlSelect(
+        'COUNT(*)',
+        'editorvote',
+        sprintf 'editorvote_id = %d AND votetype = %s',
+          $nid, 
+          $DB-&gt;quote($type)
+      );
+
+      $DB-&gt;nukeNode($NODE, -1)
+        if $count &gt;= 3;
+    }
+  }
+
+  my $sth = $DB-&gt;sqlSelectMany(
+    'votetype',
+    'editorvote',
+    sprintf 'editorvote_id = %d AND voter_user = %d',
+      $nid,
+      $uid
+  );
+
+  my %voted;
+  {
+    my $rec;
+    while(  $rec= $sth-&gt;fetchrow_hashref  ) {
+      $voted{$rec-&gt;{votetype}} = 1;
+    }
+  }
+
+  my $str = '';
+
+  foreach my $type (keys %types) {
+    my $count = $DB-&gt;sqlSelect(
+      'COUNT(*)',
+      'editorvote',
+      sprintf 'editorvote_id = %d AND votetype = %s',
+        $nid,
+        $DB-&gt;quote($type)
+    );
+
+    if ($voted{$type}) {
+      $str .= &quot;Delete ($count)&quot;;
+    } else {
+      $str .=
+        htmlcode('openform') .
+        $query-&gt;checkbox(
+          -name   =&gt; &quot;ev_${type}_$nid&quot;,
+          -label  =&gt; &quot;$types{$type} ($count)&quot;,
+        ) .
+        htmlcode('closeform');
+    }
+  }
+
+  return $str;
+}</code>
+  <nodeupdated>2005-07-08 07:55:22</nodeupdated>
+</node>

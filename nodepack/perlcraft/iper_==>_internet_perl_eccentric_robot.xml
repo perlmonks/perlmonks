@@ -1,0 +1,227 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+use Net::IRC;
+use strict;
+
+my $irc = new Net::IRC;
+
+my $conn = $irc-&gt;newconn(	
+
+	Server 		=&gt; shift || 'irc.azzurra.org',		
+	Port		=&gt; shift || '6667', 	
+	Nick		=&gt; 'Iper_',	
+	Ircname		=&gt; 'Only an IRC roBOT',	
+	Username	=&gt; 'Mr. Iper');
+	$conn-&gt;{channel} = shift || '#prova' or die &quot;Error: connection refused\n&quot;;
+
+
+my @sentences = (
+
+&quot;Grembiule nero e fiocco azzurro: per un bambino milanista il 1^ giorno di scuola &#232; un trauma!&quot;,
+&quot;Sai cos'&#232; che odio nel primo giorno di scuola? Che &#232; troppo lontano dall'ultimo!&quot;,
+&quot;Ho l'orologio che va avanti di 3 ore, ma non sono mai riuscito ad aggiustarlo. Cos&#236; da New York mi sono trasferito a Los Angeles!&quot;,
+&quot;Se la conoscenza non viene messa in azione &#232; peggio dell'ignoranza...&quot;,
+&quot;Il significato di un uomo non va ricercato in ci&#242; che egli raggiunge, ma in ci&#242; che vorrebbe raggiungere.&quot;,
+&quot;Possiamo essere grandi solo quanto le nostre occasioni.&quot;,
+&quot;Carpe diem!&quot;,
+&quot;I giovani cercano l'impossibile e , generazione dopo generazione, lo conseguono.&quot;,
+&quot;Quando il gioco si fa duro, i duri entrano in gioco.&quot;,
+&quot;Ci sono due modi per uscire da questo edificio, il primo e' passando per il tetto usando il pontile, il secondo e' in stato di arresto ... corri comunque un rischio sta a te decidere&quot;,
+&quot;Ti ho mostrato la soglia, ora tocca a te attraversarla...&quot;,
+&quot;What God taxi driver! - Che Dio t'assista!&quot;,
+&quot;I tre anni pi&#249; duri per Totti? Quelli della prima elementare!&quot;,
+&quot;Totti: la fidanzata gli ha regalato un libro. Lui lo apre e legge: &lt;&lt;Sommario... Piacere, so' Francesco!&gt;&gt;.&quot;,
+&quot;L'unico modo per non far conoscere agli altri i propri limiti, &#232; di non oltrepassarli mai.&quot;,
+&quot;Niente &#232; impossibile: l'impossibile &#232; solo poco pi&#249; difficile del possibile...&quot;,
+&quot;E' ricercando l'impossibile che l'uomo ha sempre realizzato il possibile. Coloro che si sono saggiamente limitati a cio' che appariva loro come possibile, non hanno mai avanzato di un solo passo. - Michail Bakunin (1814 - 1876)&quot;,
+&quot;But make me the pleasure! - Ma fammi il piacere!&quot;,
+&quot;But of what! - Ma di che!&quot;,
+&quot;I'm tired dead! - Sono stanco morto!&quot;,
+&quot;L'eterno mistero del mondo &#232; la sua comprensibilit&#224;&quot;,
+&quot;Cogito ergo sum&quot;,
+&quot;Ratio in medio stat&quot;,
+&quot;Fatti non foste viver come bruti ma per seguir virtute e canoscenza&quot;,
+&quot;How many people can read hex if only you and dead people can read it?&quot;,
+&quot;There are only 10 types of peole in the world, those who understand binary and those who don't&quot;,
+&quot;If one fights me than he will become zero, I am the only one in a croud of zeroes. - AndreaGeddon (9000 (sta troppo avanti!) - +infinito (ed oltre!) )&quot;,
+
+);
+
+
+sub on_connect {
+
+	my $conn = shift;
+	$conn-&gt;join($conn-&gt;{channel});
+	$conn-&gt;privmsg($conn-&gt;{channel}, &quot;Ladies and gentlemen, giulia_1 is here!&quot;);
+	$conn-&gt;{connected} = 1;
+}
+
+sub on_join {
+
+	my ($conn, $event) = @_;
+	my $nick = $event-&gt;{nick};
+	if($nick ne 'Iper_') {($conn-&gt;privmsg($conn-&gt;{channel}, &quot;Hi, $nick!&quot;));}
+}	
+
+sub on_invite {
+
+	my ($conn, $event) = @_;
+	my $nick = $event-&gt;{nick};
+	$conn-&gt;privmsg($nick, &quot;$nick, tnx for inviting me on your chan but now I'm very busy. See you later.&quot;);
+}
+
+sub on_part {
+
+	my ($conn, $event) = @_;
+	my $nick = $event-&gt;{nick};
+	$conn-&gt;privmsg($conn-&gt;{channel}, &quot;Bye, $nick!&quot;);
+}
+
+   
+
+sub on_ping {
+
+    my ($conn, $event) = @_;
+    my $nick = $event-&gt;nick;
+    $conn-&gt;ctcp_reply($nick, join (' ', ($event-&gt;args)));
+    print &quot;*** CTCP PING request from $nick received\n&quot;;
+}
+
+sub on_version {
+
+    my ($conn, $event) = @_;
+    my $nick = $event-&gt;nick;
+    my $reply = &quot;VERSION Binary os, Binary client, Athlon xp +infinite&quot;;
+    $conn-&gt;ctcp_reply($nick, $reply);
+    print &quot;*** CTCP VERSION request from $nick received\n&quot;;
+}
+
+sub on_source {
+
+    my ($conn, $event) = @_;
+    my $nick = $event-&gt;nick;
+    my $reply = &quot;SOURCE ./query giulia_1 (or giulia_0 if she's away) or type !source&quot;;
+    $conn-&gt;ctcp_reply($nick, $reply);
+    print &quot;*** CTCP SOURCE request from $nick received\n&quot;;
+}
+
+sub on_dcc {
+
+    my ($conn, $event) = @_;
+    my $nick = $event-&gt;nick;
+    my $reply = &quot;DCC no dcc, tnx&quot;;
+    $conn-&gt;ctcp_reply($nick, $reply);
+    $conn-&gt;privmsg($nick, &quot;Hi $nick, I'm sorry but my client doesn't support dcc.&quot;);
+    print &quot;*** CTCP DCC request from $nick received\n&quot;;
+}
+
+sub on_msg {
+
+	my ($conn, $event) = @_;
+        my $nick = $event-&gt;nick;
+        my $text = $event-&gt;{args}[0];
+
+ 	if ($text =~ /^\!(.+)$/) {
+
+        if ($text =~ &quot;source&quot;) {
+        $conn-&gt;privmsg($nick, &quot;$nick, I'm sending to you my source code &quot;);
+        $conn-&gt;schedule(10, \&amp;Net::IRC::Connection::new_send, $nick, &quot;iper.pl&quot;);
+        print &quot;*** Iper's source has been requested by $nick \n&quot;;}
+
+        if ($text =~ &quot;hi&quot;){
+        $conn-&gt;privmsg($nick, &quot;Hi, $nick!&quot;);}
+
+        if ($text =~ &quot;quote&quot;){
+        $conn-&gt;privmsg($nick, &amp;rand());}
+      
+        if ($text =~ &quot;about&quot;){
+        $conn-&gt;privmsg($nick, &quot;Internet Perl Eccentric Robot, a Giulia's project ==&gt; Mr. Iper r0x! published on perlmonks.org&quot;);}
+
+        if ($text =~ &quot;help&quot;) {
+
+        $conn-&gt;privmsg($nick, &quot;My commands are: !hi, !quote, !about !source, !zena (on msg) or !quote, !go_out and !source (on public). I also say &lt;&lt;Hi, nick!&gt;&gt; or &lt;&lt;Bye, nick!&gt;&gt; (on join &amp; on part), I reply to ping, version, source, dcc and invite. If the language  used is bad I say &lt;&lt;Nick, moderate the language plese&gt;&gt; and before exiting I says &lt;&lt;Bye...&gt;&gt; to the channel ...I'm a great bot :)&quot;);}
+
+        if ($text =~ &quot;zena&quot;) {
+
+        $conn-&gt;privmsg($conn-&gt;{channel}, chr(3).&quot;12,4FORZA&quot;.chr(3).&quot;4,12GENOA&quot;); }
+
+                              }        
+
+        else {
+
+        $conn-&gt;privmsg($event-&gt;{nick}, &quot;Don't anybody /msg IperBot in this way, contact giulia_1 for more informations or type !help for the  commands' list&quot;);
+
+            }
+
+}
+
+sub on_public {
+
+	my ($conn, $event) = @_;
+        my $nick = $event-&gt;nick;
+        my $text = $event-&gt;{args}[0];
+        my ($arg) = ($event-&gt;args);
+
+ 	if ($text =~ /^\!(.+)$/) {
+
+        if ($text =~ &quot;source&quot;) {
+        $conn-&gt;privmsg($nick, &quot;$nick, I'm sending to you my source code &quot;);
+        $conn-&gt;schedule(10, \&amp;Net::IRC::Connection::new_send, $nick, &quot;iper.pl&quot;);
+        print &quot;*** Iper's source has been requested by $nick \n&quot;;}
+
+        if ($text =~ &quot;go_out&quot;) {
+	$conn-&gt;privmsg($conn-&gt;{channel}, &quot;Ok, $nick, I'm only a bot&quot;);
+	$conn-&gt;quit(&quot;Quitted by $nick&quot;);
+	exit 0;}
+
+        if ($text =~ &quot;quote&quot;){
+        $conn-&gt;privmsg($conn-&gt;{channel}, &amp;rand());}
+
+                             }
+
+        if ($arg =~ /azz/i){
+	
+        $conn-&gt;privmsg($conn-&gt;{channel}, &quot;$nick, moderate the language please!&quot;);
+
+        }
+
+   
+              }
+
+sub on_leaving {
+
+	my ($conn, $event) = @_;
+	$conn-&gt;privmsg($conn-&gt;{channel}, &quot;Bye all! =&gt; RETN =&gt; C3 =&gt; 11000011&quot;);
+}        
+
+sub rand {
+
+       return $sentences[ rand scalar @sentences ];
+}
+
+
+$conn-&gt;add_handler('join', \&amp;on_join);
+$conn-&gt;add_handler('invite', \&amp;on_invite);
+$conn-&gt;add_handler('part', \&amp;on_part);
+$conn-&gt;add_handler('cping', \&amp;on_ping);
+$conn-&gt;add_handler('cversion', \&amp;on_version);
+$conn-&gt;add_handler('csource', \&amp;on_source);
+$conn-&gt;add_handler('cdcc', \&amp;on_dcc);
+$conn-&gt;add_handler('msg',    \&amp;on_msg);
+$conn-&gt;add_handler('public', \&amp;on_public);
+$conn-&gt;add_handler('leaving', \&amp;on_leaving);
+$conn-&gt;add_handler('376', \&amp;on_connect);
+
+$irc-&gt;start();
+
+
+# iper ==&gt; Internet Perl Eccentric Robot coded by giulia_1\0 (giulia@olografix.org)
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>368976</node_id>
+  <author_user>302098</author_user>
+  <title>Iper ==&gt; Internet Perl Eccentric Robot</title>
+  <createtime>2004-06-23 04:41:13</createtime>
+  <nodeupdated>2005-08-12 20:44:38</nodeupdated>
+</node>

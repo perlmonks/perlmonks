@@ -1,0 +1,36 @@
+<node>
+  <type_nodetype>868</type_nodetype>
+  <node_id>10758</node_id>
+  <author_user>929</author_user>
+  <title>note maintenance delete</title>
+  <createtime>1999-11-02 20:58:56</createtime>
+  <code>my( $NODE )= @_;
+getRef( $NODE );
+my $nodeid= getId($NODE);
+
+my $dbh= $DB-&gt;getDatabaseHandle();
+my $parent= $NODE-&gt;{parent_node};
+my $root= $NODE-&gt;{root_node};
+
+# TODO: reparent children to parent?
+
+# adjust counts of immediate parent
+$dbh-&gt;do( join ' ',
+    &quot;update repliesinfo set&quot;,
+    &quot;directreplies=directreplies-1&quot;,
+    &quot;where parent=$parent&quot;,
+);
+$dbh-&gt;do( join ' ',
+    &quot;update repliesinfo set&quot;,
+    &quot;repliesbelow=repliesbelow-1&quot;,
+    &quot;where parent=$root&quot;,
+);
+
+my $AUTHOR= $NODE-&gt;{author_user};
+getRef( $AUTHOR );
+my $V= getVars($AUTHOR);
+$V-&gt;{numwriteups}--;
+setVars( $AUTHOR, $V );
+</code>
+  <nodeupdated>2005-05-04 12:36:05</nodeupdated>
+</node>

@@ -1,0 +1,201 @@
+<node>
+  <doctext>&lt;p&gt;OK so you have learnt a bit of perl and have a great idea for a module. Here is how you go about making a distribution fit to go on CPAN. For background see [Simple Module Tutorial] and [A Guide to Installing Modules] Simon Cozens has a good overview  of the process at &lt;a href=&quot;http://www.perldoc.com/perl5.6.1/pod/perlnewmod.html&quot;&gt;perlnewmod&lt;/a&gt;. This tutorial is more hands on nitty gritty.
+&lt;p&gt;So you're all fired up to make your new widget module. Before you start it may be worthwhile to have a look at what already exists. You have many options open to you:
+&lt;readmore&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;http://cpan.org&quot;&gt;http://cpan.org&lt;/a&gt;
+&lt;li&gt;&lt;a href=&quot;http://cpan.org/misc/cpan-faq.html&quot;&gt;CPAN FAQ&lt;/a&gt;
+&lt;li&gt;&lt;a href=&quot;http://search.cpan.org&quot;&gt;http://search.cpan.org&lt;/a&gt;
+&lt;li&gt;the newsgroups comp.lang.perl.misc et al
+&lt;li&gt;Post here on [Meditations]
+&lt;/ul&gt;
+&lt;p&gt;It should be pretty simple to see if it has already been done. If it has you can reinvent the wheel, modify the existing codebase, or add functionality to the existing modules. Alright your mind is made up, so let's get stuck into it.
+&lt;h3&gt;Building a single module distribution Foo::Bar&lt;/h3&gt;
+&lt;p&gt;Generally speaking you will be writting a module that fits below one of the base CPAN descriptions so lets presume you want to make a distro called &lt;tt&gt;Foo::Bar&lt;/tt&gt; Typically you will start like this:
+&lt;code&gt;
+$ h2xs -AX Foo::Bar
+&lt;/code&gt; 
+&lt;p&gt;&lt;tt&gt;h2xs&lt;/tt&gt; should be available if you have perl on *nix or Win32. This will write module stubs for you automatically. You will get the following dir/files written into your current directory:
+&lt;code&gt;
+Foo/Bar/Makefile.PL
+Foo/Bar/Bar.pm
+Foo/Bar/Changes
+Foo/Bar/test.pl
+Foo/Bar/MANIFEST
+Foo/Bar/README
+&lt;/code&gt;
+&lt;p&gt;&lt;tt&gt;h2xs&lt;/tt&gt; even writes you the stubs of your code which you can then just edit (a lot!). Once you have your basic structure you should then rename the Bar directory Foo-Bar-0.01 if you want to follow the accepted norms. 
+&lt;code&gt;
+$ mv Bar Foo-Bar-0.01
+&lt;/code&gt;
+&lt;p&gt;By default the syntax in this tute is for *nix. On Win32 you will need to read and use \ instead of /. The Win32 equivalent of &lt;tt&gt;mv&lt;/tt&gt; is &lt;tt&gt;rn&lt;/tt&gt; or &lt;tt&gt;rename&lt;/tt&gt;. If you are unfamiliar with shell commands see &lt;a href=&quot;http://tachyon.perlmonk.org/tutorials/behind_the_gui_lives_the_shell.htm&quot;&gt;Behind the GUI lives the Shell&lt;/a&gt; for a just the facts overview.
+&lt;p&gt;Note that you just throw away the Foo dir :-) To avoid generating the extra directory you just &lt;tt&gt;h2xs -AX Bar&lt;/tt&gt; but you will have to edit your Makefile.PL After this command it will have:
+&lt;code&gt;
+    'NAME' =&gt; 'Bar'
+
+    # but you need
+  
+    'NAME' =&gt; 'Foo::Bar'
+
+    # so fix it!
+&lt;/code&gt;
+&lt;p&gt;You should now have a proto-distro that looks like this:
+&lt;code&gt;
+Foo-Bar-0.01/Bar.pm
+Foo-Bar-0.01/Makefile.PL
+Foo-Bar-0.01/MANIFEST
+Foo-Bar-0.01/Changes
+Foo-Bar-0.01/test.pl
+Foo-Bar-0.01/README
+&lt;/code&gt;
+&lt;h3&gt;Building a multi-module distribution&lt;/h3&gt;
+&lt;p&gt;If you want to build a distribution that contains two modules like:
+&lt;code&gt;
+Foo::Bar         # will install in Foo/Bar.pm
+Foo::Bar::Baz    # will install in Foo/Bar/Baz.pm
+&lt;/code&gt;
+&lt;p&gt;Then all you need is this structure (which you can't instantly get from h2xs):
+&lt;code&gt;
+Foo-Bar-0.01/Bar.pm
+Foo-Bar-0.01/Makefile.PL
+Foo-Bar-0.01/MANIFEST
+Foo-Bar-0.01/Changes
+Foo-Bar-0.01/test.pl
+Foo-Bar-0.01/README
+Foo-Bar-0.01/Bar/Baz.pm
+
+# in Bar.pm
+package Foo::Bar;
+
+# in Baz.pm
+package Foo::Bar::Baz;
+
+# in Makefile.PL
+WriteMakefile(
+    'NAME' =&gt; 'Foo::Bar',
+&lt;/code&gt;
+&lt;p&gt;So as you can see all you need to do is  make a &lt;tt&gt;Bar/&lt;/tt&gt; directory in your root dir and place &lt;tt&gt;Baz.pm&lt;/tt&gt; in this. If you want &lt;tt&gt;h2xs&lt;/tt&gt; to write the &lt;tt&gt;Baz.pm&lt;/tt&gt; stub.....don't bother! Simply do this:
+&lt;code&gt;
+$ cd Foo-Bar-0.01
+$ mkdir Bar
+$ cp Bar.pm ./Bar/Baz.pm
+$ cd Bar
+$ perl -pi.bak -e 's/Foo::Bar/Foo::Bar::Baz/g' Baz.pm
+$ rm Baz.pm.bak
+&lt;/code&gt;
+&lt;p&gt;As you can see all we have done is make a new directory called &lt;tt&gt;Bar/&lt;/tt&gt; then copy Bar.pm into it renaming it on the fly to Baz.pm. We then use perl to do a quick inplace edit of the package name and voila. Of course you could use an editor but you do know perl right? On Win32 use &lt;tt&gt;mkdir&lt;/tt&gt; and &lt;tt&gt;copy&lt;/tt&gt;  and &lt;tt&gt;del&lt;/tt&gt; You also need to use &quot; instead of ' for command line perl under Win32 which is a right royal pain as you have to \ your &quot; if you want them in the script.
+&lt;h3&gt;[cpan://ExtUtils::ModuleMaker] or [cpan://Module::Starter] can replace h2xs&lt;/h3&gt;
+These modules can replace the use of [h2xs] for pure perl modules and do a lot of the 'hard' work for you. See a review of [ExtUtils::ModuleMaker] by [simonflk] for details and a rather nifty script. [cpan://Module::Starter] installs a script that you use like:
+&lt;code&gt;
+    module-starter --module=Foo::Bar,Foo::Bat \
+        --author=&quot;Andy Lester&quot; --email=andy@petdance.com
+&lt;/code&gt;
+&lt;p&gt;See its docs for more details.
+&lt;h3&gt;Tests&lt;/h3&gt;
+&lt;p&gt;OK so you have written your modules. What about some unit tests. Tests are great because every time you modify you module you may break something ;-) If you write some good tests for the API then all you have to do after each edit is run the tests - if you have not broken anything all should be well. If you have broken something you can fix it before you embarass yourself publicly!. I find [Test] is quite adequate. If you want you can bundle a copy of [Test::More] or even [Test::Lincoln::Stein] in your distro to avoid this problem. Asking permission for [Test::More] would be politic. See the [CGI] distribution to see Lincoln Stein roll his own test suite and include it. If you want complex tests you can still have them just using [Test] (which is part of the standard distro so you don't have to bundle it):
+&lt;code&gt;
+use Test;
+BEGIN { plan tests =&gt; 42 }
+use Widget;
+
+ok(1) # module loaded OK
+
+my $w = new Widget;
+
+$reply = $w-&gt;method;
+@reply = $w-&gt;method;
+ok( $reply );
+ok( @reply );
+ok( $reply =~ m/something/ );
+ok( $reply eq 'some string' );
+ok( scalar @reply == 42 );
+ok( join '', @reply eq 'some list of stuff' );
+&lt;/code&gt;
+&lt;p&gt;You have two choices with tests. You can have all the tests in one file called &lt;tt&gt;test.pl&lt;/tt&gt; in the root dir of your package (the h2xs default) or you can place test in the &lt;tt&gt;t/&lt;/tt&gt; dir. These test need to be called &lt;tt&gt;*.t&lt;/tt&gt; for example you might have:
+&lt;code&gt;
+Foo-Bar-0.01/t/some_test.t
+Foo-Bar-0.01/t/test_this.t
+Foo-Bar-0.01/t/test_that.t
+&lt;/code&gt;
+&lt;p&gt;You can make this structure from the standard &lt;tt&gt;h2xs&lt;/tt&gt; output like this:
+&lt;code&gt;
+$ cd Foo-Bar-0.01
+$ md t
+$ cp test.pl ./t/some_test.t
+$ cp test.pl ./t/other_test.t
+$ rm test.pl
+&lt;/code&gt;
+&lt;p&gt;On Win32 you use &lt;tt&gt;del&lt;/tt&gt; instead of &lt;tt&gt;rm&lt;/tt&gt;.
+&lt;h3&gt;Packaging your Masterpiece&lt;/h3&gt;
+&lt;p&gt;You will need a tar(1) prgram and gzip(1). You should have them on *nix. On Win32 the &lt;a href=&quot;http://cygwin.com/&quot;&gt;CYGWIN&lt;/a&gt; distribution effectively gives you a UNIX console window (like the MSDOS console windows) with all the standard unix tools like tar and gzip. You package your distro like this:
+&lt;code&gt;
+$ tar -czf Foo-Bar-0.01.tar.gz Foo-Bar-0.01
+
+# using CYGWIN you need to do it in two steps as the tar -z
+# option (which uses the tar gzip) produces broken distros
+# at least with my version of CYGWIN
+
+$ tar -cf Foo-Bar-0.01.tar Foo-Bar-0.01
+$ gzip Foo-Bar-0.01.tar
+&lt;/code&gt;
+&lt;p&gt;You can also &lt;tt&gt;make clean&lt;/tt&gt; &lt;tt&gt;make distcheck&lt;/tt&gt; &lt;tt&gt;make manifest&lt;/tt&gt; and &lt;tt&gt;make dist&lt;/tt&gt; to achieve a similar result. See &lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/lib/ExtUtils/MakeMaker.html#Distribution-Support&quot;&gt;ExtUtils::MakeMaker Distribution Support&lt;/A&gt; for more details. I have problems with these under Win32 and &lt;tt&gt;nmake&lt;/tt&gt; Anyway you are now the proud owner of &lt;tt&gt;Foo-Bar-0.01.tar.gz&lt;/tt&gt; Test that all is ok like this:
+&lt;code&gt;
+$ tar -xzvf Foo-Bar-0.01.tar.gz
+$ cd Foo-Bar-0.01
+$ perl Makefile.PL
+$ make
+$ make test
+$ make install
+&lt;/code&gt;
+&lt;p&gt;When you call &lt;tt&gt;make test&lt;/tt&gt; (or nmake on Win32) make looks for any tests to run. Both &lt;tt&gt;test.pl&lt;/tt&gt; and all the &lt;tt&gt;t/*.t&lt;/tt&gt; tests will run. Generally you have one or the other. [Test::Harness] is called by &lt;tt&gt;make&lt;/tt&gt; to run all the &lt;tt&gt;t/*.t&lt;/tt&gt; tests.
+&lt;h3&gt;make_manifest.pl&lt;/h3&gt;
+&lt;p&gt;You will find that when you are playing with your distro you will repeat a number of steps over and over. I have a little custom script called &lt;tt&gt;make_manifest.pl&lt;/tt&gt; which does a whole lot of things like:
+&lt;ul&gt;
+&lt;li&gt;clean out blib/ and all the other Makefile and make crap
+&lt;li&gt;remove any temp files like .bak files (or any other extensions like .pbp ~ etc)
+&lt;li&gt;cleans Win32 line endings to *nix standard (otherwise you will have install nightmares)
+&lt;li&gt;writes HTML files into html/ for all the pod (with CSS support) using Pod::HTML
+&lt;li&gt;writes a current MANIFEST
+&lt;/ul&gt;You can get a copy of the script from the [cpan://CGI::Simple] distro (it expects to be in the &lt;tt&gt;misc/&lt;/tt&gt; dir which is where you will find it. Don't forget the CSS if you use this script.
+&lt;h3&gt;Win32&lt;/h3&gt;
+&lt;p&gt;I do most of my work on Win32 (some on Redhat and FreeBSD).  You will need tar and gzip from somewhere to make your distributions. As noted the &lt;a href=&quot;http://cygwin.com/&quot;&gt;CYGWIN&lt;/a&gt; distribution effectively gives you a UNIX console window (like the MSDOS console windows) with all the standard unix tools like tar and gzip. 
+&lt;p&gt;Windows line endings and perl distributions are a bad combination. You will need to ensure that all the files in your distro have regular \n line endings not \r\n. I use my make_manifest.pl script to do this but you could write a little [File::Find] script to process your dirs.
+&lt;p&gt;&lt;tt&gt;nmake()&lt;/tt&gt; can be replaced by [cpan://Make.pm] which is a pure perl version of &lt;tt&gt;make()&lt;/tt&gt;. I have not used this personally. You can install it &lt;tt&gt;ppm install make&lt;/tt&gt; and [RTFM] if you want.
+&lt;h3&gt;Notes&lt;/h3&gt;
+&lt;p&gt;Finally there are a few practical points.
+&lt;ul&gt;
+&lt;li&gt;If no one knows how to use it no one will. If there are no docs then I will have to RTFS to work out how to use it. Most people probably won't bother
+&lt;li&gt;Don't contaminate your user's namspace by Exporting ANYTHING by default (without good reason). Let them ask for the functions they want. Better still go OO.
+&lt;li&gt;Do write some decent tests
+&lt;li&gt;Do use some sort of CVS system to keep track of your distro as it develops. You may end up with Foo::Bar packages everywhere and have trouble finding the latest one. Worse you may patch old versions, etc, etc. Just zipping the distro up periodically with the date in the name can be invaluable ie Foo-Bar-0.01-01012002.tar.gz
+&lt;li&gt;&lt;tt&gt;use Carp;&lt;/tt&gt; [Carp|see Carp for why] and use the &lt;tt&gt;carp()&lt;/tt&gt; and &lt;tt&gt;croak()&lt;/tt&gt; methods instead of &lt;tt&gt;warn()&lt;/tt&gt; and &lt;tt&gt;die()&lt;/tt&gt; which will put these messages in the perspective of the caller rather than the module.
+&lt;li&gt;&lt;tt&gt;use strict;&lt;/tt&gt; and test with warnings &lt;tt&gt;use warnings; # 5.6 and up&lt;/tt&gt; or &lt;tt&gt;$^W = 1&lt;/tt&gt;. Don't leave $^W = 1 in you distro (your users may not appreciate your module telling them how bad their code is via its activation of gloabal warnings)
+&lt;li&gt;Remember to update $VERSION
+&lt;li&gt;Do write some pod. When you write the module Even you may forget how the API works given a little time
+&lt;/ul&gt;
+&lt;h3&gt;Please sir, can I have some more&lt;/h3&gt;
+&lt;p&gt;Sure Oliver, here you go:
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;http://www.perldoc.com/perl5.6.1/pod/perlnewmod.html&quot;&gt;perlnewmod&lt;/a&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/pod/perlmod.html&quot;&gt;perlmod&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/pod/perlmodlib.html&quot;&gt;perlmodlib&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/pod/perlmodinstall.html&quot;&gt;perlmodinstall&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/bin/h2xs.html&quot;&gt;h2xs&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/lib/strict.html&quot;&gt;strict&lt;/A&gt;,
+&lt;A HREF=&quot;Carp.html&quot;&gt;Carp&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/lib/Exporter.html&quot;&gt;Exporter&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/pod/perlpod.html&quot;&gt;perlpod&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/lib/Test.html&quot;&gt;Test&lt;/A&gt;
+&lt;li&gt;&lt;A HREF=&quot;http://www.perldoc.com/perl5.6.1/lib/ExtUtils/MakeMaker.html&quot;&gt;ExtUtils::MakeMaker&lt;/A&gt;
+&lt;/ul&gt;
+&lt;p&gt;Good luck, enjoy and share.
+&lt;p&gt;Thanks to [Juerd] for correcting a Win32 error &lt;tt&gt;s/md/mkdir/g&lt;/tt&gt; and noting my CYGWIN tar -czf workaround. Added &lt;tt&gt;make dist&lt;/tt&gt; thanks to [jmcnamara]. Added note on research at start thanks to [ybiC] Added [perlnewmod] thanks to [simonflk] (I had forgotten what it was called). R&amp;D links from [perlnewmod] in true web style :-)
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>158999</node_id>
+  <reputation>170</reputation>
+  <author_user>80749</author_user>
+  <title>How to make a CPAN Module Distribution</title>
+  <createtime>2002-04-14 16:24:40</createtime>
+  <nodeupdated>2005-08-15 17:08:13</nodeupdated>
+</node>

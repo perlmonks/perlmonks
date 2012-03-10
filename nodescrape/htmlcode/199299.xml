@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="199299" title="toInbox" created="2002-09-19 16:54:43" updated="2005-01-07 21:14:44">
+<type id="4">
+htmlcode</type>
+<author id="142755">
+tye&amp;nbsp;</author>
+<data>
+<field name="code">
+#   toInbox( recipient, title, flag );
+#       Accepts:
+#           recipient: name of ID of inbox recipient. Default: error
+#           title: link text. Default: recipient.' inbox'
+#           flag: format for text if new messages. Default: ''
+#       Returns: HTML with link
+#   For flag:
+#       "%d" becomes message count, "%%" becomes "%"
+#   Examples:
+#       htmlcode( 'toInbox','', 'pmdev' )
+#       htmlcode( 'toInbox','', 'pmdev', 'PmDev' )
+#       htmlcode( 'toInbox','', 'pmdev', 'PmDev', '&lt;i&gt;(%d)&lt;/i&gt;' )
+#       htmlcode( 'toInbox','', 'pmdev',  undef,  '&lt;i&gt;(%d)&lt;/i&gt;' )
+#   Note that the flag is completely suppressed if no new messages
+#   are found; and new messages are not found if the flag doesn't
+#   contain "%d". Ergo, any given flag which does not contain "%d"
+#   will *never* be displayed.
+
+my( $recv, $title, $flag )= @_;
+
+return "(toInbox: no user/group given)"
+    if  ! $recv;
+
+$title ||= "$recv inbox";
+
+my $RECV= $recv =~ /\D/
+    ?   getNode($recv,'usergroup')  ||  getNode($recv,'user')
+    :   getNodeById($recv);
+return "(inbox: no such user/group as " . $q-&gt;escapeHTML($recv) . ")"
+    if  ! $RECV
+    ||  $RECV-&gt;{type}-&gt;{title} !~ /^user(group)?$/;
+return "&lt;u&gt;inbox://$RECV-&gt;{title}&lt;/u&gt;"
+    if  $RECV-&gt;{node_id} != $USER-&gt;{node_id}
+    &amp;&amp;  ! Everything::isApproved( $USER, $RECV );
+
+$recv= getId($RECV);
+my $last= $VARS-&gt;{ "inbox$recv" } ||= 0;
+my $new_msgs = 0;
+if ( $flag &amp;&amp; $flag =~ /%d/ ) {
+    ( $new_msgs )= $DB-&gt;sqlSelect(
+        "count( * )",
+        "message",
+        "$last &lt; message_id AND for_user=$recv",
+    );
+}
+
+my $link = genLink(
+  $title,
+  {
+    node =&gt; 'message inbox',
+    type =&gt; 'strangedoc',
+    recipient =&gt; $recv,
+  },
+);
+
+my $class = 'inboxlink';
+  
+if ( $new_msgs ) {
+    $flag =~ s/%(d|(%))/ $2 || $new_msgs /ge;
+    $link .= $q-&gt;span( { class =&gt; 'inboxupdate' }, $flag );
+    $class .= ' updated';
+}
+
+return qq(&lt;span class="$class"&gt;$link&lt;/span&gt;);
+</field>
+</data>
+</node>

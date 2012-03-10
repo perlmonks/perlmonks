@@ -1,0 +1,1662 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="425" title="perlman:perlguts2" created="1999-08-25 03:31:04" updated="2005-07-27 15:06:30">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="PerlIO"&gt;PerlIO&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The most recent development releases of Perl has been experimenting with removing Perl's dependency on the ``normal'' standard 
+&lt;FONT SIZE=-1&gt;I/O&lt;/FONT&gt; suite and allowing other stdio implementations to be used. This involves creating a new abstraction layer that then calls whichever implementation of stdio Perl was compiled with. All XSUBs should now use the functions in the PerlIO abstraction layer and not make any assumptions about what kind of stdio is being used.
+
+&lt;P&gt;
+For a complete description of the PerlIO abstraction, consult [perlman:perlapio|the perlapio manpage].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Putting_a_C_value_on_Perl_stack"&gt;Putting a C value on Perl stack&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; lot of opcodes (this is an elementary operation in the internal perl stack machine) put an 
+&lt;FONT SIZE=-1&gt;SV*&lt;/FONT&gt; on the stack. However, as an optimization the corresponding 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is (usually) not recreated each time. The opcodes reuse specially assigned SVs (
+&lt;EM&gt;target&lt;/EM&gt;s) which are (as a corollary) not constantly freed/created.
+
+&lt;P&gt;
+Each of the targets is created only once (but see
+&lt;A HREF="#Scratchpads_and_recursion"&gt;Scratchpads and recursion&lt;/A&gt; below), and when an opcode needs to put an integer, a double, or a string
+on stack, it just sets the corresponding parts of its &lt;EM&gt;target&lt;/EM&gt; and puts the &lt;EM&gt;target&lt;/EM&gt; on stack.
+
+&lt;P&gt;
+The macro to put this target on stack is &lt;CODE&gt;PUSHTARG&lt;/CODE&gt;, and it is directly used in some opcodes, as well as indirectly in
+zillions of others, which use it via &lt;CODE&gt;(X)PUSH&amp;#091;pni&amp;#093;&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Scratchpads"&gt;Scratchpads&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The question remains on when the SVs which are &lt;EM&gt;target&lt;/EM&gt;s for opcodes are created. The answer is that they are created when the
+current unit -- a subroutine or a file (for opcodes for statements outside
+of subroutines) -- is compiled. During this time a special anonymous Perl
+array is created, which is called a scratchpad for the current unit.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; scratchpad keeps SVs which are lexicals for the current unit and are targets for opcodes. One can deduce that an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; lives on a scratchpad by looking on its flags: lexicals have
+ &lt;CODE&gt;SVs_PADMY&lt;/CODE&gt; set, and
+&lt;EM&gt;target&lt;/EM&gt;s have &lt;CODE&gt;SVs_PADTMP&lt;/CODE&gt; set.
+
+&lt;P&gt;
+The correspondence between OPs and &lt;EM&gt;target&lt;/EM&gt;s is not 1-to-1. Different OPs in the compile tree of the unit can use the
+same target, if this would not conflict with the expected life of the
+temporary.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Scratchpads_and_recursion"&gt;Scratchpads and recursion&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In fact it is not 100% true that a compiled unit contains a pointer to the scratchpad 
+&lt;FONT SIZE=-1&gt;AV.&lt;/FONT&gt; In fact it contains a pointer to an 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; of (initially) one element, and this element is the scratchpad 
+&lt;FONT SIZE=-1&gt;AV.&lt;/FONT&gt; Why do we need an extra level of indirection?
+
+&lt;P&gt;
+The answer is &lt;STRONG&gt;recursion&lt;/STRONG&gt;, and maybe (sometime soon) &lt;STRONG&gt;threads&lt;/STRONG&gt;. Both these can create several execution pointers going into the same
+subroutine. For the subroutine-child not write over the temporaries for the
+subroutine-parent (lifespan of which covers the call to the child), the
+parent and the child should have different scratchpads. (&lt;EM&gt;And&lt;/EM&gt; the lexicals should be separate anyway!)
+
+&lt;P&gt;
+So each subroutine is born with an array of scratchpads (of length 1). On
+each entry to the subroutine it is checked that the current depth of the
+recursion is not more than the length of this array, and if it is, new
+scratchpad is created and pushed into the array.
+
+&lt;P&gt;
+The &lt;EM&gt;target&lt;/EM&gt;s on this scratchpad are [perlfunc:undef|undef]s, but they are already marked with correct flags.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="Compiled_code"&gt;Compiled code&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Code_tree"&gt;Code tree&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Here we describe the internal form your code is converted to by Perl. Start
+with a simple example:
+
+&lt;P&gt;
+&lt;PRE&gt;  $a = $b + $c;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is converted to a tree similar to this one:
+
+&lt;P&gt;
+&lt;PRE&gt;             assign-to
+           /           \
+          +             $a
+        /   \
+      $b     $c
+&lt;/PRE&gt;
+&lt;P&gt;
+(but slightly more complicated). This tree reflects the way Perl parsed
+your code, but has nothing to do with the execution order. There is an
+additional ``thread'' going through the nodes of the tree which shows the
+order of execution of the nodes. In our simplified example above it looks
+like:
+
+&lt;P&gt;
+&lt;PRE&gt;     $b ---&amp;gt; $c ---&amp;gt; + ---&amp;gt; $a ---&amp;gt; assign-to
+&lt;/PRE&gt;
+&lt;P&gt;
+But with the actual compile tree for &lt;CODE&gt;$a = $b + $c&lt;/CODE&gt; it is different: some nodes &lt;EM&gt;optimized away&lt;/EM&gt;. As a corollary, though the actual tree contains more nodes than our
+simplified example, the execution order is the same as in our example.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Examining_the_tree"&gt;Examining the tree&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you have your perl compiled for debugging (usually done with &lt;CODE&gt;-D
+optimize=-g&lt;/CODE&gt; on &lt;CODE&gt;Configure&lt;/CODE&gt; command line), you may examine the compiled tree by specifying &lt;CODE&gt;-Dx&lt;/CODE&gt; on the Perl command line. The output takes several lines per node, and for &lt;CODE&gt;$b+$c&lt;/CODE&gt; it looks like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    5           TYPE = add  ===&amp;gt; 6
+                TARG = 1
+                FLAGS = (SCALAR,KIDS)
+                {
+                    TYPE = null  ===&amp;gt; (4)
+                      (was rv2sv)
+                    FLAGS = (SCALAR,KIDS)
+                    {
+    3                   TYPE = gvsv  ===&amp;gt; 4
+                        FLAGS = (SCALAR)
+                        GV = main::b
+                    }
+                }
+                {
+                    TYPE = null  ===&amp;gt; (5)
+                      (was rv2sv)
+                    FLAGS = (SCALAR,KIDS)
+                    {
+    4                   TYPE = gvsv  ===&amp;gt; 5
+                        FLAGS = (SCALAR)
+                        GV = main::c
+                    }
+                }
+&lt;/PRE&gt;
+&lt;P&gt;
+This tree has 5 nodes (one per &lt;CODE&gt;TYPE&lt;/CODE&gt; specifier), only 3 of them are not optimized away (one per number in the
+left column). The immediate children of the given node correspond to &lt;CODE&gt;{}&lt;/CODE&gt; pairs on the same level of indentation, thus this listing corresponds to
+the tree:
+
+&lt;P&gt;
+&lt;PRE&gt;                   add
+                 /     \
+               null    null
+                |       |
+               gvsv    gvsv
+&lt;/PRE&gt;
+&lt;P&gt;
+The execution order is indicated by &lt;CODE&gt;===&amp;gt;&lt;/CODE&gt; marks, thus it is &lt;CODE&gt;3
+4 5 6&lt;/CODE&gt; (node &lt;CODE&gt;6&lt;/CODE&gt; is not included into above listing), i.e.,
+&lt;CODE&gt;gvsv gvsv add whatever&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Compile_pass_1_check_routines"&gt;Compile pass 1: check routines&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The tree is created by the &lt;EM&gt;pseudo-compiler&lt;/EM&gt; while yacc code feeds it the constructions it recognizes. Since yacc works
+bottom-up, so does the first pass of perl compilation.
+
+&lt;P&gt;
+What makes this pass interesting for perl developers is that some
+optimization may be performed on this pass. This is optimization by
+so-called &lt;EM&gt;check routines&lt;/EM&gt;. The correspondence between node names and corresponding check routines is
+described in &lt;EM&gt;opcode.pl&lt;/EM&gt; (do not forget to run &lt;CODE&gt;make regen_headers&lt;/CODE&gt; if you modify this file).
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; check routine is called when the node is fully
+constructed except for the execution-order thread. Since at this time there
+are no back-links to the currently constructed node, one can do most any
+operation to the top-level node, including freeing it and/or creating new
+nodes above/below it.
+
+&lt;P&gt;
+The check routine returns the node which should be inserted into the tree
+(if the top-level node was not modified, check routine returns its
+argument).
+
+&lt;P&gt;
+By convention, check routines have names &lt;CODE&gt;ck_*&lt;/CODE&gt;. They are usually called from &lt;CODE&gt;new*OP&lt;/CODE&gt; subroutines (or &lt;CODE&gt;convert&lt;/CODE&gt;) (which in turn are called from &lt;EM&gt;perly.y&lt;/EM&gt;).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Compile_pass_1a_constant_foldin"&gt;Compile pass 1a: constant folding&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Immediately after the check routine is called the returned node is checked
+for being compile-time executable. If it is (the value is judged to be
+constant) it is immediately executed, and a &lt;EM&gt;constant&lt;/EM&gt;
+node with the ``return value'' of the corresponding subtree is substituted
+instead. The subtree is deleted.
+
+&lt;P&gt;
+If constant folding was not performed, the execution-order thread is
+created.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Compile_pass_2_context_propagat"&gt;Compile pass 2: context propagation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+When a context for a part of compile tree is known, it is propagated down
+through the tree. At this time the context can have 5 values (instead of 2
+for runtime context): void, boolean, scalar, list, and lvalue. In contrast
+with the pass 1 this pass is processed from top to bottom: a node's context
+determines the context for its children.
+
+&lt;P&gt;
+Additional context-dependent optimizations are performed at this time. Since at this moment the compile tree contains back-references (via ``thread'' pointers), nodes cannot be 
+&lt;CODE&gt;free()d&lt;/CODE&gt; now. To allow optimized-away nodes at this stage, such nodes are 
+&lt;CODE&gt;null()ified&lt;/CODE&gt; instead of 
+&lt;CODE&gt;free()ing&lt;/CODE&gt; (i.e. their type is changed to 
+&lt;FONT SIZE=-1&gt;OP_NULL).&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Compile_pass_3_peephole_optimiz"&gt;Compile pass 3: peephole optimization&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+After the compile tree for a subroutine (or for an [perlfunc:eval|eval] or a file) is created, an additional pass over the code is performed. This pass is neither top-down or bottom-up, but in the execution order (with additional complications for conditionals). These optimizations are done in the subroutine 
+&lt;CODE&gt;peep().&lt;/CODE&gt; Optimizations performed at this stage are subject to the same restrictions as in the pass 2.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="API_LISTING"&gt;API LISTING&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This is a listing of functions, macros, flags, and variables that may be
+useful to extension writers or that may be found while reading other
+extensions.
+
+&lt;P&gt;
+Note that all Perl 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; global variables must be referenced with the &lt;CODE&gt;PL_&lt;/CODE&gt;
+prefix. Some macros are provided for compatibility with the older,
+unadorned names, but this support will be removed in a future release.
+
+&lt;P&gt;
+It is strongly recommended that all Perl 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; functions that don't begin with &lt;CODE&gt;perl&lt;/CODE&gt; be referenced with an explicit &lt;CODE&gt;Perl_&lt;/CODE&gt; prefix.
+
+&lt;P&gt;
+The sort order of the listing is case insensitive, with any occurrences of
+'_' ignored for the the purpose of sorting.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_clear"&gt;av_clear&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Clears an array, making it empty. Does not free the memory used by the
+array itself.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    av_clear (AV* ar)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_extend"&gt;av_extend&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pre-extend an array. The &lt;CODE&gt;key&lt;/CODE&gt; is the index to which the array should be extended.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    av_extend (AV* ar, I32 key)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_fetch"&gt;av_fetch&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; at the specified index in the array. The &lt;CODE&gt;key&lt;/CODE&gt; is the index. If &lt;CODE&gt;lval&lt;/CODE&gt; is set then the fetch will be part of a store. Check that the return value
+is non-null before dereferencing it to a [perlman:perlguts].
+
+&lt;P&gt;
+See &lt;A HREF="#Understanding_the_Magic_of_Tied_"&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use this function on tied arrays.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV**    av_fetch (AV* ar, I32 key, I32 lval)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_AvFILL"&gt;AvFILL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Same as [perlman:perlguts]. Deprecated, use [perlman:perlguts] instead.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_len"&gt;av_len&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the highest index in the array. Returns -1 if the array is empty.
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     av_len (AV* ar)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_make"&gt;av_make&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; and populates it with a list of SVs. The SVs are copied into the array, so they may be freed after the call to av_make. The new 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; will have a reference count of 1.
+
+&lt;P&gt;
+&lt;PRE&gt;        AV*     av_make (I32 size, SV** svp)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_pop"&gt;av_pop&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pops an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; off the end of the array. Returns [perlman:perlguts] if the array is empty.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     av_pop (AV* ar)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_push"&gt;av_push&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pushes an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; onto the end of the array. The array will grow
+automatically to accommodate the addition.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    av_push (AV* ar, SV* val)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_shift"&gt;av_shift&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Shifts an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; off the beginning of the array.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     av_shift (AV* ar)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_store"&gt;av_store&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Stores an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; in an array. The array index is specified as &lt;CODE&gt;key&lt;/CODE&gt;. The return value will be 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if the operation failed or if the value did not
+need to be actually stored within the array (as in the case of tied
+arrays). Otherwise it can be dereferenced to get the original [perlman:perlguts]. Note that the caller is responsible for suitably incrementing the
+reference count of &lt;CODE&gt;val&lt;/CODE&gt;
+before the call, and decrementing it if the function returned 
+&lt;FONT SIZE=-1&gt;NULL.&lt;/FONT&gt;
+
+&lt;P&gt;
+See &lt;A HREF="#Understanding_the_Magic_of_Tied_"&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use this function on tied arrays.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV**    av_store (AV* ar, I32 key, SV* val)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_undef"&gt;av_undef&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Undefines the array. Frees the memory used by the array itself.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    av_undef (AV* ar)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_av_unshift"&gt;av_unshift&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Unshift the given number of [perlfunc:undef|undef] values onto the beginning of the array. The array will grow automatically
+to accommodate the addition. You must then use [perlman:perlguts] to assign values to these new elements.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    av_unshift (AV* ar, I32 num)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_CLASS"&gt;CLASS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Variable which is setup by &lt;CODE&gt;xsubpp&lt;/CODE&gt; to indicate the class name for a 
+&lt;FONT SIZE=-1&gt;C++&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; constructor. This is always a
+ &lt;CODE&gt;char*&lt;/CODE&gt;. See [perlman:perlguts] and
+[perlman:perlxs].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Copy"&gt;Copy&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;memcpy&lt;/CODE&gt; function. The [perlman:perlop] is the source, &lt;CODE&gt;d&lt;/CODE&gt; is the destination, &lt;CODE&gt;n&lt;/CODE&gt; is the number of items, and &lt;CODE&gt;t&lt;/CODE&gt; is the type. May fail on overlapping copies. See also [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    Copy( s, d, n, t )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_croak"&gt;croak&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This is the XSUB-writer's interface to Perl's [perlfunc:die|die] function. Use this function the same way you use the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; [perlfunc:printf|printf] function. See [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_CvSTASH"&gt;CvSTASH&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the stash of the 
+&lt;FONT SIZE=-1&gt;CV.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        HV*     CvSTASH( SV* sv )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PL_DBsingle"&gt;PL_DBsingle&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+When Perl is run in debugging mode, with the &lt;STRONG&gt;-d&lt;/STRONG&gt; switch, this 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is a boolean which indicates whether subs are being single-stepped. Single-stepping is automatically turned on after every step. This is the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable which corresponds to Perl's $DB::single variable. See
+ [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PL_DBsub"&gt;PL_DBsub&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+When Perl is run in debugging mode, with the &lt;STRONG&gt;-d&lt;/STRONG&gt; switch, this 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; contains the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; which holds the name of the sub being debugged. This is the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable which corresponds to Perl's $DB::sub variable. See
+ [perlman:perlguts]. The sub name can be found by
+
+&lt;P&gt;
+&lt;PRE&gt;        SvPV( GvSV( PL_DBsub ), PL_na )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PL_DBtrace"&gt;PL_DBtrace&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Trace variable used when Perl is run in debugging mode, with the &lt;STRONG&gt;-d&lt;/STRONG&gt;
+switch. This is the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable which corresponds to Perl's $DB::trace
+variable. See [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dMARK"&gt;dMARK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Declare a stack marker variable, &lt;CODE&gt;mark&lt;/CODE&gt;, for the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; See [perlman:perlguts] and
+[perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dORIGMARK"&gt;dORIGMARK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Saves the original stack mark for the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PL_dowarn"&gt;PL_dowarn&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable which corresponds to Perl's 
+&lt;FONT SIZE=-1&gt;$^W&lt;/FONT&gt; warning variable.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dSP"&gt;dSP&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Declares a local copy of perl's stack pointer for the 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; available via the [perlman:perlguts] macro. See [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dXSARGS"&gt;dXSARGS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Sets up stack and mark pointers for an 
+&lt;FONT SIZE=-1&gt;XSUB,&lt;/FONT&gt; calling dSP and dMARK. This is usually handled
+automatically by &lt;CODE&gt;xsubpp&lt;/CODE&gt;. Declares the [perlman:perlguts] variable to indicate the number of items on the stack.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_dXSI32"&gt;dXSI32&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Sets up the [perlman:perlguts] variable for an 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; which has aliases. This is usually handled
+automatically by &lt;CODE&gt;xsubpp&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_do_binmode"&gt;do_binmode&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Switches filehandle to binmode.  &lt;CODE&gt;iotype&lt;/CODE&gt; is what &lt;CODE&gt;IoTYPE(io)&lt;/CODE&gt; would contain.
+
+&lt;P&gt;
+&lt;PRE&gt;        do_binmode(fp, iotype, TRUE);
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_ENTER"&gt;ENTER&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Opening bracket on a callback. See [perlman:perlguts] and [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        ENTER;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_EXTEND"&gt;EXTEND&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used to extend the argument stack for an XSUB's return values.
+
+&lt;P&gt;
+&lt;PRE&gt;        EXTEND( sp, int x )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_fbm_compile"&gt;fbm_compile&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Analyses the string in order to make fast searches on it using 
+&lt;CODE&gt;fbm_instr()&lt;/CODE&gt; -- the
+Boyer-Moore algorithm.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    fbm_compile(SV* sv, U32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_fbm_instr"&gt;fbm_instr&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the location of the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; in the string delimited by &lt;CODE&gt;str&lt;/CODE&gt; and
+&lt;CODE&gt;strend&lt;/CODE&gt;. It returns [perlman:perlguts] if the string can't be found. The
+&lt;CODE&gt;sv&lt;/CODE&gt; does not have to be fbm_compiled, but the search will not be as fast then.
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   fbm_instr(char *str, char *strend, SV *sv, U32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_FREETMPS"&gt;FREETMPS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Closing bracket for temporaries on a callback. See [perlman:perlguts] and
+[perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        FREETMPS;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_G_ARRAY"&gt;G_ARRAY&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used to indicate array context. See [perlman:perlguts], [perlman:perlguts] and [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_G_DISCARD"&gt;G_DISCARD&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Indicates that arguments returned from a callback should be discarded. See
+[perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_G_EVAL"&gt;G_EVAL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used to force a Perl [perlfunc:eval|eval] wrapper around a callback. See [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_GIMME"&gt;GIMME&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; backward-compatible version of [perlman:perlguts] which can only return
+[perlman:perlguts] or [perlman:perlguts]; in a void context, it returns [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_GIMME_V"&gt;GIMME_V&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's equivalent to Perl's [perlfunc:wantarray|wantarray]. Returns
+[perlman:perlguts], [perlman:perlguts] or [perlman:perlguts] for void, scalar or array context, respectively.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_G_NOARGS"&gt;G_NOARGS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Indicates that no arguments are being sent to a callback. See [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_G_SCALAR"&gt;G_SCALAR&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used to indicate scalar context. See [perlman:perlguts], [perlman:perlguts], and [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_gv_fetchmeth"&gt;gv_fetchmeth&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the glob with the given &lt;CODE&gt;name&lt;/CODE&gt; and a defined subroutine or
+&lt;CODE&gt;NULL&lt;/CODE&gt;. The glob lives in the given &lt;CODE&gt;stash&lt;/CODE&gt;, or in the stashes accessible via &lt;CODE&gt;@ISA&lt;/CODE&gt; and 
+&lt;FONT SIZE=-1&gt;@UNIVERSAL.&lt;/FONT&gt;
+
+&lt;P&gt;
+The argument &lt;CODE&gt;level&lt;/CODE&gt; should be either 0 or -1. If &lt;CODE&gt;level==0&lt;/CODE&gt;, as a side-effect creates a glob with the given &lt;CODE&gt;name&lt;/CODE&gt; in the given
+&lt;CODE&gt;stash&lt;/CODE&gt; which in the case of success contains an alias for the subroutine, and sets
+up caching info for this glob. Similarly for all the searched stashes.
+
+&lt;P&gt;
+This function grants &lt;CODE&gt;&amp;quot;SUPER&amp;quot;&lt;/CODE&gt; token as a postfix of the stash name.
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; returned from [perlman:perlguts] may be a method cache entry, which is not visible to Perl code. So when
+calling [perlman:perlguts], you should not use the 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; directly; instead, you should use the method's 
+&lt;FONT SIZE=-1&gt;CV,&lt;/FONT&gt; which can be obtained from the 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; with the
+ &lt;CODE&gt;GvCV&lt;/CODE&gt; macro.
+
+&lt;P&gt;
+&lt;PRE&gt;        GV*     gv_fetchmeth (HV* stash, char* name, STRLEN len, I32 level)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_gv_fetchmethod"&gt;gv_fetchmethod&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_gv_fetchmethod_autoload"&gt;gv_fetchmethod_autoload&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the glob which contains the subroutine to call to invoke the method
+on the &lt;CODE&gt;stash&lt;/CODE&gt;. In fact in the presense of autoloading this may be the glob for 
+&lt;FONT SIZE=-1&gt;``AUTOLOAD''.&lt;/FONT&gt; In this case the corresponding variable
+&lt;CODE&gt;$AUTOLOAD&lt;/CODE&gt; is already setup.
+
+&lt;P&gt;
+The third parameter of [perlman:perlguts] determines whether 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; lookup is performed if the given method is not present: non-zero means yes, look for 
+&lt;FONT SIZE=-1&gt;AUTOLOAD;&lt;/FONT&gt; zero means no, don't look for 
+&lt;FONT SIZE=-1&gt;AUTOLOAD.&lt;/FONT&gt; Calling
+
+[perlman:perlguts] is equivalent to calling [perlman:perlguts] with a non-zero &lt;CODE&gt;autoload&lt;/CODE&gt; parameter.
+
+&lt;P&gt;
+These functions grant &lt;CODE&gt;&amp;quot;SUPER&amp;quot;&lt;/CODE&gt; token as a prefix of the method name.
+
+&lt;P&gt;
+Note that if you want to keep the returned glob for a long time, you need to check for it being 
+&lt;FONT SIZE=-1&gt;``AUTOLOAD'',&lt;/FONT&gt; since at the later time the call may load a different subroutine due to &lt;CODE&gt;$AUTOLOAD&lt;/CODE&gt; changing its value. Use the glob created via a side effect to do this.
+
+&lt;P&gt;
+These functions have the same side-effects and as [perlman:perlguts] with
+&lt;CODE&gt;level==0&lt;/CODE&gt;.  &lt;CODE&gt;name&lt;/CODE&gt; should be writable if contains &lt;CODE&gt;':'&lt;/CODE&gt; or &lt;CODE&gt;'\''&lt;/CODE&gt;. The warning against passing the 
+&lt;FONT SIZE=-1&gt;GV&lt;/FONT&gt; returned by [perlman:perlguts] to
+[perlman:perlguts] apply equally to these functions.
+
+&lt;P&gt;
+&lt;PRE&gt;        GV*     gv_fetchmethod (HV* stash, char* name)
+        GV*     gv_fetchmethod_autoload (HV* stash, char* name, I32 autoload)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_G_VOID"&gt;G_VOID&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used to indicate void context. See [perlman:perlguts] and [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_gv_stashpv"&gt;gv_stashpv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a pointer to the stash for a specified package. If &lt;CODE&gt;create&lt;/CODE&gt; is set then the package will be created if it does not already exist. If &lt;CODE&gt;create&lt;/CODE&gt;
+is not set and the package does not exist then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; is returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        HV*     gv_stashpv (char* name, I32 create)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_gv_stashsv"&gt;gv_stashsv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a pointer to the stash for a specified package. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        HV*     gv_stashsv (SV* sv, I32 create)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_GvSV"&gt;GvSV&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; from the 
+&lt;FONT SIZE=-1&gt;GV.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HEf_SVKEY"&gt;HEf_SVKEY&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This flag, used in the length slot of hash entries and magic structures,
+specifies the structure contains a [perlman:perlguts] pointer where a
+&lt;CODE&gt;char*&lt;/CODE&gt; pointer is to be expected. (For information only--not to be used).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeHASH"&gt;HeHASH&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the computed hash stored in the hash entry.
+
+&lt;P&gt;
+&lt;PRE&gt;        U32     HeHASH(HE* he)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeKEY"&gt;HeKEY&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the actual pointer stored in the key slot of the hash entry. The
+pointer may be either &lt;CODE&gt;char*&lt;/CODE&gt; or [perlman:perlguts], depending on the value of
+[perlman:perlguts]. Can be assigned to. The [perlman:perlguts] or [perlman:perlguts] macros are usually preferable for finding the value of a key.
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   HeKEY(HE* he)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeKLEN"&gt;HeKLEN&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If this is negative, and amounts to [perlman:perlguts], it indicates the entry holds an [perlman:perlguts] key. Otherwise, holds the actual length of the key. Can be assigned to. The [perlman:perlguts] macro is usually preferable for finding key lengths.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     HeKLEN(HE* he)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HePV"&gt;HePV&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the key slot of the hash entry as a &lt;CODE&gt;char*&lt;/CODE&gt; value, doing any necessary dereferencing of possibly [perlman:perlguts] keys. The length of the string is placed in &lt;CODE&gt;len&lt;/CODE&gt; (this is a macro, so do &lt;EM&gt;not&lt;/EM&gt; use
+&lt;CODE&gt;&amp;amp;len&lt;/CODE&gt;). If you do not care about what the length of the key is, you may use the
+global variable [perlman:perlguts]. Remember though, that hash keys in perl are free to contain embedded
+nulls, so using &lt;CODE&gt;strlen()&lt;/CODE&gt;
+or similar is not a good way to find the length of hash keys. This is very
+similar to the [perlman:perlguts] macro described elsewhere in this document.
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   HePV(HE* he, STRLEN len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeSVKEY"&gt;HeSVKEY&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the key as an [perlman:perlguts], or [perlman:perlguts] if the hash entry does not contain an [perlman:perlguts] key.
+
+&lt;P&gt;
+&lt;PRE&gt;        HeSVKEY(HE* he)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeSVKEY_force"&gt;HeSVKEY_force&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the key as an [perlman:perlguts]. Will create and return a temporary mortal [perlman:perlguts] if the hash entry contains only a &lt;CODE&gt;char*&lt;/CODE&gt; key.
+
+&lt;P&gt;
+&lt;PRE&gt;        HeSVKEY_force(HE* he)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeSVKEY_set"&gt;HeSVKEY_set&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Sets the key to a given [perlman:perlguts], taking care to set the appropriate flags to indicate the presence of an [perlman:perlguts] key, and returns the same [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        HeSVKEY_set(HE* he, SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HeVAL"&gt;HeVAL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the value slot (type [perlman:perlguts]) stored in the hash entry.
+
+&lt;P&gt;
+&lt;PRE&gt;        HeVAL(HE* he)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_clear"&gt;hv_clear&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Clears a hash, making it empty.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    hv_clear (HV* tb)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_delayfree_ent"&gt;hv_delayfree_ent&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Releases a hash entry, such as while iterating though the hash, but delays
+actual freeing of key and value until the end of the current statement (or
+thereabouts) with [perlman:perlguts]. See [perlman:perlguts]
+and [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    hv_delayfree_ent (HV* hv, HE* entry)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_delete"&gt;hv_delete&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Deletes a key/value pair in the hash. The value 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is removed from the hash and returned to the
+caller. The &lt;CODE&gt;klen&lt;/CODE&gt; is the length of the key. The
+&lt;CODE&gt;flags&lt;/CODE&gt; value will normally be zero; if set to 
+&lt;FONT SIZE=-1&gt;G_DISCARD&lt;/FONT&gt; then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; will be returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     hv_delete (HV* tb, char* key, U32 klen, I32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_delete_ent"&gt;hv_delete_ent&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Deletes a key/value pair in the hash. The value 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is removed from the hash and returned to the
+caller. The &lt;CODE&gt;flags&lt;/CODE&gt; value will normally be zero; if set to 
+&lt;FONT SIZE=-1&gt;G_DISCARD&lt;/FONT&gt; then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; will be returned.
+  &lt;CODE&gt;hash&lt;/CODE&gt; can be a valid precomputed hash value, or 0 to ask for it to be computed.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     hv_delete_ent (HV* tb, SV* key, I32 flags, U32 hash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_exists"&gt;hv_exists&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the specified hash key exists. The
+&lt;CODE&gt;klen&lt;/CODE&gt; is the length of the key.
+
+&lt;P&gt;
+&lt;PRE&gt;        bool    hv_exists (HV* tb, char* key, U32 klen)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_exists_ent"&gt;hv_exists_ent&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the specified hash key exists. &lt;CODE&gt;hash&lt;/CODE&gt;
+can be a valid precomputed hash value, or 0 to ask for it to be computed.
+
+&lt;P&gt;
+&lt;PRE&gt;        bool    hv_exists_ent (HV* tb, SV* key, U32 hash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_fetch"&gt;hv_fetch&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; which corresponds to the specified key in the hash.
+The
+&lt;CODE&gt;klen&lt;/CODE&gt; is the length of the key. If &lt;CODE&gt;lval&lt;/CODE&gt; is set then the fetch will be part of a store. Check that the return value
+is non-null before dereferencing it to a [perlman:perlguts].
+
+&lt;P&gt;
+See &lt;A HREF="#Understanding_the_Magic_of_Tied_"&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use this function on tied hashes.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV**    hv_fetch (HV* tb, char* key, U32 klen, I32 lval)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_fetch_ent"&gt;hv_fetch_ent&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the hash entry which corresponds to the specified key in the hash.
+&lt;CODE&gt;hash&lt;/CODE&gt; must be a valid precomputed hash number for the given &lt;CODE&gt;key&lt;/CODE&gt;, or 0 if you want the function to compute it. 
+&lt;FONT SIZE=-1&gt;IF&lt;/FONT&gt; &lt;CODE&gt;lval&lt;/CODE&gt; is set then the fetch will be part of a store. Make sure the return value
+is non-null before accessing it. The return value when &lt;CODE&gt;tb&lt;/CODE&gt; is a tied hash is a pointer to a static location, so be sure to make a copy
+of the structure if you need to store it somewhere.
+
+&lt;P&gt;
+See &lt;A HREF="#Understanding_the_Magic_of_Tied_"&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use this function on tied hashes.
+
+&lt;P&gt;
+&lt;PRE&gt;        HE*     hv_fetch_ent  (HV* tb, SV* key, I32 lval, U32 hash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_free_ent"&gt;hv_free_ent&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Releases a hash entry, such as while iterating though the hash. See
+[perlman:perlguts] and [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    hv_free_ent (HV* hv, HE* entry)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_iterinit"&gt;hv_iterinit&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Prepares a starting point to traverse a hash table.
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     hv_iterinit (HV* tb)
+&lt;/PRE&gt;
+&lt;P&gt;
+Returns the number of keys in the hash (i.e. the same as &lt;CODE&gt;HvKEYS(tb)&lt;/CODE&gt;). The return value is currently only meaningful for hashes without tie
+magic.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NOTE:&lt;/FONT&gt; Before version 5.004_65, [perlman:perlguts] used to return the number of hash buckets that happen to be in use. If you
+still need that esoteric value, you can get it through the macro &lt;CODE&gt;HvFILL(tb)&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_iterkey"&gt;hv_iterkey&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the key from the current position of the hash iterator. See
+[perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   hv_iterkey (HE* entry, I32* retlen)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_iterkeysv"&gt;hv_iterkeysv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the key as an [perlman:perlguts] from the current position of the hash iterator. The return value will
+always be a mortal copy of the key. Also see [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     hv_iterkeysv  (HE* entry)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_iternext"&gt;hv_iternext&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns entries from a hash iterator. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        HE*     hv_iternext (HV* tb)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_iternextsv"&gt;hv_iternextsv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Performs an [perlman:perlguts], [perlman:perlguts], and [perlman:perlguts] in one operation.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     hv_iternextsv (HV* hv, char** key, I32* retlen)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_iterval"&gt;hv_iterval&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the value from the current position of the hash iterator. See
+[perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     hv_iterval (HV* tb, HE* entry)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_magic"&gt;hv_magic&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Adds magic to a hash. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    hv_magic (HV* hv, GV* gv, int how)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_HvNAME"&gt;HvNAME&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the package name of a stash. See [perlman:perlguts], [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   HvNAME (HV* stash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_store"&gt;hv_store&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Stores an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; in a hash. The hash key is specified as &lt;CODE&gt;key&lt;/CODE&gt; and &lt;CODE&gt;klen&lt;/CODE&gt; is the length of the key. The &lt;CODE&gt;hash&lt;/CODE&gt; parameter is the precomputed hash value; if it is zero then Perl will compute it. The return value will be 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if the operation failed or if the value did not need to be actually stored within the hash (as in the case of tied hashes). Otherwise it can be dereferenced to get the original
+ [perlman:perlguts]. Note that the caller is responsible for suitably incrementing the
+reference count of &lt;CODE&gt;val&lt;/CODE&gt;
+before the call, and decrementing it if the function returned 
+&lt;FONT SIZE=-1&gt;NULL.&lt;/FONT&gt;
+
+&lt;P&gt;
+See &lt;A HREF="#Understanding_the_Magic_of_Tied_"&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use this function on tied hashes.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV**    hv_store (HV* tb, char* key, U32 klen, SV* val, U32 hash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_store_ent"&gt;hv_store_ent&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Stores &lt;CODE&gt;val&lt;/CODE&gt; in a hash. The hash key is specified as &lt;CODE&gt;key&lt;/CODE&gt;. The &lt;CODE&gt;hash&lt;/CODE&gt;
+parameter is the precomputed hash value; if it is zero then Perl will compute it. The return value is the new hash entry so created. It will be 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; if the operation failed or if the value did not need to be actually stored within the hash (as in the case of tied hashes). Otherwise the contents of the return value can be accessed using the
+ &lt;CODE&gt;He???&lt;/CODE&gt; macros described here. Note that the caller is responsible for suitably
+incrementing the reference count of &lt;CODE&gt;val&lt;/CODE&gt; before the call, and decrementing it if the function returned 
+&lt;FONT SIZE=-1&gt;NULL.&lt;/FONT&gt;
+
+&lt;P&gt;
+See &lt;A HREF="#Understanding_the_Magic_of_Tied_"&gt;Understanding the Magic of Tied Hashes and Arrays&lt;/A&gt; for more information on how to use this function on tied hashes.
+
+&lt;P&gt;
+&lt;PRE&gt;        HE*     hv_store_ent  (HV* tb, SV* key, SV* val, U32 hash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_hv_undef"&gt;hv_undef&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Undefines the hash.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    hv_undef (HV* tb)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_isALNUM"&gt;isALNUM&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;char&lt;/CODE&gt; is an ascii alphanumeric character or digit.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     isALNUM (char c)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_isALPHA"&gt;isALPHA&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;char&lt;/CODE&gt; is an ascii alphabetic character.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     isALPHA (char c)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_isDIGIT"&gt;isDIGIT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;char&lt;/CODE&gt; is an ascii digit.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     isDIGIT (char c)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_isLOWER"&gt;isLOWER&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;char&lt;/CODE&gt; is a lowercase character.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     isLOWER (char c)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_isSPACE"&gt;isSPACE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;char&lt;/CODE&gt; is whitespace.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     isSPACE (char c)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_isUPPER"&gt;isUPPER&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a boolean indicating whether the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;char&lt;/CODE&gt; is an uppercase character.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     isUPPER (char c)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_items"&gt;items&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Variable which is setup by &lt;CODE&gt;xsubpp&lt;/CODE&gt; to indicate the number of items on the stack. See [perlman:perlxs].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_ix"&gt;ix&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Variable which is setup by &lt;CODE&gt;xsubpp&lt;/CODE&gt; to indicate which of an XSUB's aliases was used to invoke it. See [perlman:perlxs].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_LEAVE"&gt;LEAVE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Closing bracket on a callback. See [perlman:perlguts] and [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        LEAVE;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_looks_like_number"&gt;looks_like_number&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test if an the content of an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; looks like a number (or is a number).
+
+&lt;P&gt;
+&lt;PRE&gt;        int     looks_like_number(SV*)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_MARK"&gt;MARK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Stack marker variable for the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_clear"&gt;mg_clear&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Clear something magical that the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; represents. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        int     mg_clear (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_copy"&gt;mg_copy&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Copies the magic from one 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; to another. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        int     mg_copy (SV *, SV *, char *, STRLEN)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_find"&gt;mg_find&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Finds the magic pointer for type matching the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        MAGIC*  mg_find (SV* sv, int type)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_free"&gt;mg_free&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Free any magic storage used by the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        int     mg_free (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_get"&gt;mg_get&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Do magic after a value is retrieved from the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        int     mg_get (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_len"&gt;mg_len&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Report on the SV's length. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        U32     mg_len (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_magical"&gt;mg_magical&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Turns on the magical status of an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    mg_magical (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_mg_set"&gt;mg_set&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Do magic after a value is assigned to the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        int     mg_set (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Move"&gt;Move&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;memmove&lt;/CODE&gt; function. The [perlman:perlop] is the source, &lt;CODE&gt;d&lt;/CODE&gt; is the destination, &lt;CODE&gt;n&lt;/CODE&gt; is the number of items, and &lt;CODE&gt;t&lt;/CODE&gt; is the type. Can do overlapping moves. See also [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    Move( s, d, n, t )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PL_na"&gt;PL_na&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; variable which may be used with [perlman:perlguts] to tell Perl to calculate the string length.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_New"&gt;New&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;malloc&lt;/CODE&gt; function.
+
+&lt;P&gt;
+&lt;PRE&gt;        void*   New( x, void *ptr, int size, type )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newAV"&gt;newAV&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;AV.&lt;/FONT&gt; The reference count is set to 1.
+
+&lt;P&gt;
+&lt;PRE&gt;        AV*     newAV (void)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Newc"&gt;Newc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;malloc&lt;/CODE&gt; function, with cast.
+
+&lt;P&gt;
+&lt;PRE&gt;        void*   Newc( x, void *ptr, int size, type, cast )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newCONSTSUB"&gt;newCONSTSUB&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a constant sub equivalent to Perl &lt;CODE&gt;sub FOO () { 123 }&lt;/CODE&gt;
+which is eligible for inlining at compile-time.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    newCONSTSUB(HV* stash, char* name, SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newHV"&gt;newHV&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;HV.&lt;/FONT&gt; The reference count is set to 1.
+
+&lt;P&gt;
+&lt;PRE&gt;        HV*     newHV (void)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newRV_inc"&gt;newRV_inc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates an 
+&lt;FONT SIZE=-1&gt;RV&lt;/FONT&gt; wrapper for an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; The reference count for the original 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is incremented.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newRV_inc (SV* ref)
+&lt;/PRE&gt;
+&lt;P&gt;
+For historical reasons, ``newRV'' is a synonym for ``newRV_inc''.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newRV_noinc"&gt;newRV_noinc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates an 
+&lt;FONT SIZE=-1&gt;RV&lt;/FONT&gt; wrapper for an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; The reference count for the original 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is
+ &lt;STRONG&gt;not&lt;/STRONG&gt; incremented.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newRV_noinc (SV* ref)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_NEWSV"&gt;NEWSV&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; non-zero &lt;CODE&gt;len&lt;/CODE&gt; parameter indicates the number of bytes of preallocated string space the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; should have. An extra byte for a tailing 
+&lt;FONT SIZE=-1&gt;NUL&lt;/FONT&gt; is also reserved. (SvPOK is not set for the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; even if string space is allocated.) The reference count for the new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is set to 1.
+  &lt;CODE&gt;id&lt;/CODE&gt; is an integer id between 0 and 1299 (used to identify leaks).
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     NEWSV (int id, STRLEN len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSViv"&gt;newSViv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and copies an integer into it. The reference count for the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is set to 1.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSViv (IV i)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSVnv"&gt;newSVnv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and copies a double into it. The reference count for the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is set to 1.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSVnv (NV i)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSVpv"&gt;newSVpv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and copies a string into it. The reference count for the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is set to 1. If
+ &lt;CODE&gt;len&lt;/CODE&gt; is zero then Perl will compute the length.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSVpv (char* s, STRLEN len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSVpvf"&gt;newSVpvf&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; an initialize it with the string formatted like
+[perlfunc:sprintf|sprintf].
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSVpvf(const char* pat, ...);
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSVpvn"&gt;newSVpvn&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and copies a string into it. The reference count for the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is set to 1. If
+ &lt;CODE&gt;len&lt;/CODE&gt; is zero then Perl will create a zero length string.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSVpvn (char* s, STRLEN len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSVrv"&gt;newSVrv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; for the 
+&lt;FONT SIZE=-1&gt;RV,&lt;/FONT&gt; &lt;CODE&gt;rv&lt;/CODE&gt;, to point to. If &lt;CODE&gt;rv&lt;/CODE&gt; is not an 
+&lt;FONT SIZE=-1&gt;RV&lt;/FONT&gt; then it will be upgraded to one. If &lt;CODE&gt;classname&lt;/CODE&gt; is non-null then the new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; will be blessed in the specified package. The new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is returned and its reference count is 1.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSVrv (SV* rv, char* classname)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newSVsv"&gt;newSVsv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Creates a new 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; which is an exact duplicate of the original 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     newSVsv (SV* old)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newXS"&gt;newXS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by &lt;CODE&gt;xsubpp&lt;/CODE&gt; to hook up XSUBs as Perl subs.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_newXSproto"&gt;newXSproto&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used by &lt;CODE&gt;xsubpp&lt;/CODE&gt; to hook up XSUBs as Perl subs. Adds Perl prototypes to the subs.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Newz"&gt;Newz&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;malloc&lt;/CODE&gt; function. The allocated memory is zeroed with &lt;CODE&gt;memzero&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;PRE&gt;        void*   Newz( x, void *ptr, int size, type )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Nullav"&gt;Nullav&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Null 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; pointer.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Nullch"&gt;Nullch&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Null character pointer.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Nullcv"&gt;Nullcv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Null 
+&lt;FONT SIZE=-1&gt;CV&lt;/FONT&gt; pointer.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Nullhv"&gt;Nullhv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Null 
+&lt;FONT SIZE=-1&gt;HV&lt;/FONT&gt; pointer.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Nullsv"&gt;Nullsv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Null 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; pointer.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_ORIGMARK"&gt;ORIGMARK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The original stack mark for the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; See [perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_alloc"&gt;perl_alloc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Allocates a new Perl interpreter. See [perlman:perlembed|the perlembed manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_call_argv"&gt;perl_call_argv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Performs a callback to the specified Perl sub. See [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     perl_call_argv (char* subname, I32 flags, char** argv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_call_method"&gt;perl_call_method&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Performs a callback to the specified Perl method. The blessed object must
+be on the stack. See [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     perl_call_method (char* methname, I32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_call_pv"&gt;perl_call_pv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Performs a callback to the specified Perl sub. See [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     perl_call_pv (char* subname, I32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_call_sv"&gt;perl_call_sv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Performs a callback to the Perl sub whose name is in the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; See
+[perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     perl_call_sv (SV* sv, I32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_construct"&gt;perl_construct&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Initializes a new Perl interpreter. See [perlman:perlembed|the perlembed manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_destruct"&gt;perl_destruct&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Shuts down a Perl interpreter. See [perlman:perlembed|the perlembed manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_eval_sv"&gt;perl_eval_sv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tells Perl to [perlfunc:eval|eval] the string in the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        I32     perl_eval_sv (SV* sv, I32 flags)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_eval_pv"&gt;perl_eval_pv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tells Perl to [perlfunc:eval|eval] the given string and return an 
+&lt;FONT SIZE=-1&gt;SV*&lt;/FONT&gt; result.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     perl_eval_pv (char* p, I32 croak_on_error)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_free"&gt;perl_free&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Releases a Perl interpreter. See [perlman:perlembed|the perlembed manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_get_av"&gt;perl_get_av&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; of the specified Perl array. If &lt;CODE&gt;create&lt;/CODE&gt; is set and the Perl variable does not exist then it will be created. If &lt;CODE&gt;create&lt;/CODE&gt; is not set and the variable does not exist then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; is returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        AV*     perl_get_av (char* name, I32 create)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_get_cv"&gt;perl_get_cv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;CV&lt;/FONT&gt; of the specified Perl sub. If &lt;CODE&gt;create&lt;/CODE&gt; is set and the Perl variable does not exist then it will be created. If &lt;CODE&gt;create&lt;/CODE&gt; is not set and the variable does not exist then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; is returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        CV*     perl_get_cv (char* name, I32 create)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_get_hv"&gt;perl_get_hv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;HV&lt;/FONT&gt; of the specified Perl hash. If &lt;CODE&gt;create&lt;/CODE&gt; is set and the Perl variable does not exist then it will be created. If &lt;CODE&gt;create&lt;/CODE&gt; is not set and the variable does not exist then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; is returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        HV*     perl_get_hv (char* name, I32 create)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_get_sv"&gt;perl_get_sv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; of the specified Perl scalar. If &lt;CODE&gt;create&lt;/CODE&gt; is set and the Perl variable does not exist then it will be created. If &lt;CODE&gt;create&lt;/CODE&gt; is not set and the variable does not exist then 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; is returned.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     perl_get_sv (char* name, I32 create)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_parse"&gt;perl_parse&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tells a Perl interpreter to parse a Perl script. See [perlman:perlembed|the perlembed manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_require_pv"&gt;perl_require_pv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tells Perl to [perlfunc:require|require] a module.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    perl_require_pv (char* pv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_perl_run"&gt;perl_run&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tells a Perl interpreter to run. See [perlman:perlembed|the perlembed manpage].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_POPi"&gt;POPi&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pops an integer off the stack.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     POPi()
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_POPl"&gt;POPl&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pops a long off the stack.
+
+&lt;P&gt;
+&lt;PRE&gt;        long    POPl()
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_POPp"&gt;POPp&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pops a string off the stack.
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   POPp()
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_POPn"&gt;POPn&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pops a double off the stack.
+
+&lt;P&gt;
+&lt;PRE&gt;        double  POPn()
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_POPs"&gt;POPs&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pops an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; off the stack.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     POPs()
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUSHMARK"&gt;PUSHMARK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Opening bracket for arguments on a callback. See [perlman:perlguts] and [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        PUSHMARK(p)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUSHi"&gt;PUSHi&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Push an integer onto the stack. The stack must have room for this element.
+Handles 'set' magic. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    PUSHi(int d)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUSHn"&gt;PUSHn&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Push a double onto the stack. The stack must have room for this element.
+Handles 'set' magic. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    PUSHn(double d)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUSHp"&gt;PUSHp&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Push a string onto the stack. The stack must have room for this element.
+The &lt;CODE&gt;len&lt;/CODE&gt; indicates the length of the string. Handles 'set' magic. See
+[perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    PUSHp(char *c, int len )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUSHs"&gt;PUSHs&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Push an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; onto the stack. The stack must have room for this
+element. Does not handle 'set' magic. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    PUSHs(sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUSHu"&gt;PUSHu&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Push an unsigned integer onto the stack. The stack must have room for this
+element. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    PUSHu(unsigned int d)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_PUTBACK"&gt;PUTBACK&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Closing bracket for 
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; arguments. This is usually handled by &lt;CODE&gt;xsubpp&lt;/CODE&gt;. See [perlman:perlguts] and [perlman:perlcall|the perlcall manpage] for other uses.
+
+&lt;P&gt;
+&lt;PRE&gt;        PUTBACK;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Renew"&gt;Renew&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;realloc&lt;/CODE&gt; function.
+
+&lt;P&gt;
+&lt;PRE&gt;        void*   Renew( void *ptr, int size, type )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Renewc"&gt;Renewc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;realloc&lt;/CODE&gt; function, with cast.
+
+&lt;P&gt;
+&lt;PRE&gt;        void*   Renewc( void *ptr, int size, type, cast )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_RETVAL"&gt;RETVAL&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Variable which is setup by &lt;CODE&gt;xsubpp&lt;/CODE&gt; to hold the return value for an 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; This is always the proper type for the 
+&lt;FONT SIZE=-1&gt;XSUB.&lt;/FONT&gt; See
+ [perlman:perlxs].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_safefree"&gt;safefree&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;free&lt;/CODE&gt; function.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_safemalloc"&gt;safemalloc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;malloc&lt;/CODE&gt; function.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_saferealloc"&gt;saferealloc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The XSUB-writer's interface to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; &lt;CODE&gt;realloc&lt;/CODE&gt; function.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_savepv"&gt;savepv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Copy a string to a safe spot. This does not use an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   savepv (char* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_savepvn"&gt;savepvn&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Copy a string to a safe spot. The &lt;CODE&gt;len&lt;/CODE&gt; indicates number of bytes to copy. This does not use an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        char*   savepvn (char* sv, I32 len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_SAVETMPS"&gt;SAVETMPS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Opening bracket for temporaries on a callback. See [perlman:perlguts] and
+[perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        SAVETMPS;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_SP"&gt;SP&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Stack pointer. This is usually handled by &lt;CODE&gt;xsubpp&lt;/CODE&gt;. See [perlman:perlguts] and
+[perlman:perlguts].
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_SPAGAIN"&gt;SPAGAIN&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Refetch the stack pointer. Used after a callback. See [perlman:perlcall|the perlcall manpage].
+
+&lt;P&gt;
+&lt;PRE&gt;        SPAGAIN;
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_ST"&gt;ST&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Used to access elements on the XSUB's stack.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     ST(int x)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strEQ"&gt;strEQ&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if they are equal. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strEQ( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strGE"&gt;strGE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if the first, &lt;CODE&gt;s1&lt;/CODE&gt;, is greater than or equal to the second, &lt;CODE&gt;s2&lt;/CODE&gt;. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strGE( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strGT"&gt;strGT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if the first, &lt;CODE&gt;s1&lt;/CODE&gt;, is greater than the second,
+&lt;CODE&gt;s2&lt;/CODE&gt;. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strGT( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strLE"&gt;strLE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if the first, &lt;CODE&gt;s1&lt;/CODE&gt;, is less than or equal to the second, &lt;CODE&gt;s2&lt;/CODE&gt;. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strLE( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strLT"&gt;strLT&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if the first, &lt;CODE&gt;s1&lt;/CODE&gt;, is less than the second,
+&lt;CODE&gt;s2&lt;/CODE&gt;. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strLT( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strNE"&gt;strNE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if they are different. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strNE( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strnEQ"&gt;strnEQ&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if they are equal. The &lt;CODE&gt;len&lt;/CODE&gt; parameter indicates the number of bytes to compare. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strnEQ( char *s1, char *s2 )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_strnNE"&gt;strnNE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Test two strings to see if they are different. The &lt;CODE&gt;len&lt;/CODE&gt; parameter indicates the number of bytes to compare. Returns true or false.
+
+&lt;P&gt;
+&lt;PRE&gt;        int     strnNE( char *s1, char *s2, int len )
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_2mortal"&gt;sv_2mortal&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Marks an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; as mortal. The 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; will be destroyed when the current context ends.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     sv_2mortal (SV* sv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_bless"&gt;sv_bless&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Blesses an 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; into a specified package. The 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; must be an 
+&lt;FONT SIZE=-1&gt;RV.&lt;/FONT&gt; The package must be designated by its stash (see
+ [perlman:perlguts]). The reference count of the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; is unaffected.
+
+&lt;P&gt;
+&lt;PRE&gt;        SV*     sv_bless (SV* sv, HV* stash)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catpv"&gt;sv_catpv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Concatenates the string onto the end of the string which is in the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; Handles 'get' magic, but not 'set' magic. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catpv (SV* sv, char* ptr)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catpv_mg"&gt;sv_catpv_mg&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Like [perlman:perlguts], but also handles 'set' magic.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catpvn (SV* sv, char* ptr)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catpvn"&gt;sv_catpvn&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Concatenates the string onto the end of the string which is in the 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; The
+&lt;CODE&gt;len&lt;/CODE&gt; indicates number of bytes to copy. Handles 'get' magic, but not 'set'
+magic. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catpvn (SV* sv, char* ptr, STRLEN len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catpvn_mg"&gt;sv_catpvn_mg&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Like [perlman:perlguts], but also handles 'set' magic.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catpvn_mg (SV* sv, char* ptr, STRLEN len)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catpvf"&gt;sv_catpvf&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Processes its arguments like [perlfunc:sprintf|sprintf] and appends the formatted output to an 
+&lt;FONT SIZE=-1&gt;SV.&lt;/FONT&gt; Handles 'get' magic, but not 'set' magic.  [perlman:perlguts] must typically be called after calling this function to handle 'set' magic.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catpvf (SV* sv, const char* pat, ...)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catpvf_mg"&gt;sv_catpvf_mg&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Like [perlman:perlguts], but also handles 'set' magic.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catpvf_mg (SV* sv, const char* pat, ...)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catsv"&gt;sv_catsv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Concatenates the string from 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; &lt;CODE&gt;ssv&lt;/CODE&gt; onto the end of the string in 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt;
+&lt;CODE&gt;dsv&lt;/CODE&gt;. Handles 'get' magic, but not 'set' magic. See [perlman:perlguts].
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catsv (SV* dsv, SV* ssv)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_sv_catsv_mg"&gt;sv_catsv_mg&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Like [perlman:perlguts], but also handles 'set' magic.
+
+&lt;P&gt;
+&lt;PRE&gt;        void    sv_catsv_mg (SV* dsv, SV* ssv)
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;BR&gt;[perlman:perlguts3|More...]&lt;BR&gt;
+&lt;BR&gt;Return to the [Library]</field>
+</data>
+</node>

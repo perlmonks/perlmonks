@@ -1,0 +1,66 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>7483</node_id>
+  <author_user>929</author_user>
+  <title>questinfo</title>
+  <createtime>2000-04-13 16:46:16</createtime>
+  <code>my $str;
+my $N;
+my $num=0;
+my $type=getId(getType('quest'));
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare( join ' ',
+   'select * from node,quest',
+   &quot;where type_nodetype=$type and node_id=quest_id&quot;,
+   'and now() between starttime and endtime',
+);
+$csr-&gt;execute or return &quot;SHIT&quot;;
+
+local* timeleft=sub{ 
+   my ($timestamp)=@_;
+   my $curtime=time;
+   my ($date,$time)=split(/ /,$timestamp);
+   my ($hrs, $min, $sec) = split /:/, $time;
+   my ($yy, $mm, $dd) = split /-/, $date;
+   use Time::Local;
+   my $secsleft=timelocal( $sec, $min, $hrs, $dd, $mm-1, $yy)-$curtime;
+   my $days=int($secsleft/(24*60*60));
+   $secsleft-=(24*60*60)*$days;
+   my $hours=int($secsleft/3600);
+   $secsleft-=3600*$hours;
+   my $min=int($secsleft/60);
+   my $secs=$secsleft%60;
+   my $timeleft;
+   if($days&gt;365){
+      return &quot;Don't worry; you've got plenty of time.&quot;;
+   }
+   if($days){
+      $timeleft.=&quot;$days&quot;;
+      $timeleft.=$days&gt;1? &quot; days remain&quot;: &quot; day remains&quot;;
+   }
+   elsif($hours){
+      $timeleft.=&quot;$hours&quot;;
+      $timeleft.=$hours&gt;1? &quot; hours remain&quot;: &quot; hour remains&quot;;
+   }
+   elsif($min){
+      $timeleft.=&quot;$min&quot;;
+      $timeleft.=$min&gt;1? &quot; minutes remain&quot;: &quot; minute remains&quot;;
+   }
+   elsif($secs){
+      $timeleft.=&quot;$secs&quot;;
+      $timeleft.=$secs&gt;1? &quot; seconds remain&quot;: &quot; second remains&quot;;
+   }
+   return $timeleft;
+};
+while($N = $csr-&gt;fetchrow_hashref){
+   $str.=&quot; &lt;B&gt;&quot;.linkNode($N).&quot;&lt;/B&gt;&amp;nbsp;&amp;nbsp;(&quot;.timeleft($$N{endtime}).&quot;),&quot;;
+   $num++;
+}
+$str =~ s/,$//;
+return if $num==0;
+$str= &quot;&lt;font size='2'&gt;$str&lt;/font&gt;&quot;; # Ugh?
+return &quot;Want Mega XP? Prepare to have your hopes dashed, join in on the: $str&quot;
+   if $num==1;
+return &quot;The following quests are now active: $str&quot;
+   if $num&gt;1;</code>
+  <nodeupdated>2005-07-21 05:50:53</nodeupdated>
+</node>

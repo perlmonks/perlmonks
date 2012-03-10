@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="8344" title="Tie: Creating Special Objects" created="2000-04-21 06:46:27" updated="2005-08-15 11:48:32">
+<type id="956">
+perltutorial</type>
+<author id="2675">
+btrott</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Tie: Creating Special Objects&lt;/h1&gt;
+
+By using tie, we can create some really neat objects--
+you can hide a complex object behind a simple scalar
+variable, which makes for some pretty nifty tricks.
+
+&lt;h2&gt;Introduction&lt;/h2&gt;
+
+Here's a fun use of [tie]. It lets you tie a variable
+to your system's uptime command; it parses uptime's
+output and stores the results in a nice little object
+that you can use.&lt;p&gt;
+
+What's neat about this is that, on
+each access to your scalar variable (or rather, to
+the scalar variable's methods), the data fields are
+automatically updated by the magic of [tie]. We don't
+want to slow down our application too much, though,
+so we'll put in a cache so that we only update our
+uptime values if it's been more than 5 seconds since
+we last looked at the output.&lt;p&gt;
+
+Users of our class, then, have it easy: they can
+just do something like this to use the class:
+
+&lt;code&gt;
+    use Sys::uptime;
+    my $uptime;
+    tie $uptime, 'Sys::uptime';
+
+    printf "Load average over the last minute: %s\n",
+        $uptime-&gt;load('one');
+&lt;/code&gt;
+
+So let's start on our implementation.
+
+&lt;h2&gt;Starting Out&lt;/h2&gt;
+
+We'll start by declaring our class. We'll call it
+Sys::uptime, since that seems like a relatively
+fitting name. We're going to base our underlying
+object on Class::Struct, so we pull that in, as well.
+Then we pull in Carp and strict for errors and error
+checking, respectively.&lt;p&gt;
+
+&lt;code&gt;
+    package Sys::uptime;
+    use Class::Struct;
+    use Carp;
+    use strict;
+&lt;/code&gt;
+
+Next we need some way to know whether we should update
+our uptime cache. The $WAIT_CACHE variable will be the
+number of seconds to wait before we run uptime again.
+
+&lt;code&gt;
+    my $WAIT_CACHE = 5;
+&lt;/code&gt;
+
+As mentioned above, we're going to be using a
+Class::Struct object to hold the data that we parse
+out of uptime. Class::Struct is a neat class; you
+give it some class specifications (the data fields
+that you'll be storing, and their data types), and
+it creates a class for you.&lt;p&gt;
+
+We need four fields: uptime, where we'll store the
+"up X days, Y min" string; users, where we'll store
+the number of users currently logged in; load, a
+hash where we'll store the load averages from the
+last one, five, and fifteen minutes (as given to
+us by uptime); and as_string, the uptime output
+(just in case we want it).
+
+&lt;code&gt;
+    struct 'Uptime' =&gt; [
+        'uptime'    =&gt; '$',
+        'users'     =&gt; '$',
+        'load'      =&gt; '%',
+        'as_string' =&gt; '$',
+    ];
+&lt;/code&gt;
+
+&lt;h2&gt;The Special Tie Methods&lt;/h2&gt;
+
+Now that we've set everything up, we can move on
+to creating the class into which we'll tie our
+scalar.&lt;p&gt;
+
+To create a tied object, you need to define several
+special methods (documented extensively in
+[perltie]). The routines used for tying scalars
+are TIESCALAR (called when you use the [tie] function),
+FETCH (called when you try to fetch something
+from your scalar), STORE (called when you store
+something in the scalar), and DESTROY (called when
+your object is to be destroyed). We don't need
+STORE, because uptime is read-only; and we don't
+need to worry about DESTROY, either (because we don't
+have any memory to deallocate, any circular references
+to dispose of, etc.).&lt;p&gt;
+
+So let's define our TIESCALAR routine. It takes a
+class name into which we're going to bless our
+tied object. We'll create an anonymous hash
+where we'll place a new Uptime object (as defined
+above), and a last_update field; we'll update this
+with the [time] function every time we update our
+uptime cache. Then we can check against this value
+to see if we need to update the cache again.&lt;p&gt;
+
+So we create $self, bless $self into $class (our
+tie class), then return $self; $self is a reference,
+so it's a scalar. So we're fine.
+
+&lt;code&gt;
+    sub TIESCALAR {
+        my $class = shift;
+        my $self = {
+            up          =&gt; new Uptime,
+            last_update =&gt; 0
+        };
+        bless $self, $class;
+        $self;
+    }
+&lt;/code&gt;
+
+Now we need to define the FETCH function. This
+will be called every time the user uses the scalar
+object, so this is quite important: on each access,
+we need to check if we should update the cache; if
+we need to, we update it and the last_update time.
+get_uptime parses the uptime output and returns
+to us the relevant pieces of information (relevant
+to us, at least :); then we simply use the accessor
+methods of the Uptime object to update our data.&lt;p&gt;
+
+First, though, we need to take care of something
+important. This is an interesting tied scalar,
+because it's a scalar holding a bunch of other
+stuff inside of it--an Uptime object, for instance.
+FETCH needs to return a value: but what should it
+return?&lt;p&gt;
+
+Well, we wrote above how we wanted users of our
+class to use it. For example, they could write:
+
+&lt;code&gt;
+    printf "Load average over the last minute: %s\n",
+        $uptime-&gt;load('one');
+&lt;/code&gt;
+
+This makes it look like "load" is a method of our
+tied scalar--but it's not. It's a method of
+our Uptime object (it was created automatically
+for us by Class::Struct). So our FETCH routine
+needs to return our Uptime object so that we can
+then invoke the "load" method (in this example)
+on that object.&lt;p&gt;
+
+So we'll return the Uptime object ($self-&gt;{up})
+from our FETCH method.
+
+&lt;code&gt;
+    sub FETCH {
+        my $self = shift;
+        if (time - $self-&gt;{last_update} &gt; $WAIT_CACHE) {
+            $self-&gt;{last_update} = time;
+            my($str, $upt, $users, $one, $five, $fifteen) =
+                get_uptime();
+
+            my $up = $self-&gt;{up};
+            $up-&gt;as_string($str);
+            $up-&gt;uptime($upt);
+            $up-&gt;users($users);
+            $up-&gt;load('one', $one);
+            $up-&gt;load('five', $five);
+            $up-&gt;load('fifteen', $fifteen);
+        }
+        return $self-&gt;{up};
+    }
+&lt;/code&gt;
+
+&lt;h2&gt;Parsing Uptime Output&lt;/h2&gt;
+
+So we're done with our special tie methods.
+Now we just need to write the function to get
+and parse the uptime output. This basically
+entails crafting a regular expression to find
+the relevant bits of information and extract
+them.&lt;p&gt;
+
+We'll make this function general--in particular,
+we won't make it a method of our tied class,
+because that would make it less easily reusable
+in the future, if need be. It should have one
+simple purpose: to parse the output of uptime
+and return the information we need.&lt;p&gt;
+
+And it does so, using the regular expression
+documented in the code.&lt;p&gt;
+
+&lt;b&gt;NOTE:&lt;/b&gt;: regex updated on April 27, 2001, courtesy
+of Alistair Mills.
+
+&lt;code&gt;
+    sub get_uptime {
+        local $_ = `uptime`;
+        chomp;
+        if (/^\s+\S+\s+                   # opening cruft
+            up\s+(.+?(,)?.+?),             # uptime
+            \s+(\d+)\s+users?,          # number of users
+            \s+load\s+averages?:\s+     # load average...
+            (.+?),\s+(.+?),\s+(.+?)\s*  # ...and values
+            $/x) {
+            return($_, $1, $2, $3, $4, $5);
+        }
+        else {
+            croak "What was that? Bad uptime.";
+        }
+    }
+&lt;/code&gt;
+
+And that's it! We've completed our tie class,
+and now all that's left is to figure out how we
+can use it.
+
+&lt;h2&gt;The Whole Thing&lt;/h2&gt;
+
+Here's the whole thing all at once, just so you don't have
+to paste bits and pieces out:
+
+&lt;code&gt;
+    package Sys::uptime;
+    use Class::Struct;
+    use Carp;
+    use strict;
+
+    my $WAIT_CACHE = 5;
+
+    struct 'Uptime' =&gt; [
+        'uptime'    =&gt; '$',
+        'users'     =&gt; '$',
+        'load'      =&gt; '%',
+        'as_string' =&gt; '$',
+    ];
+
+    sub TIESCALAR {
+        my $class = shift;
+        my $self = {
+            up          =&gt; new Uptime,
+            last_update =&gt; 0
+        };
+        bless $self, $class;
+        $self;
+    }
+
+    sub FETCH {
+        my $self = shift;
+        if (time - $self-&gt;{last_update} &gt; $WAIT_CACHE) {
+            $self-&gt;{last_update} = time;
+            my($str, $upt, $users, $one, $five, $fifteen) =
+                get_uptime();
+
+            my $up = $self-&gt;{up};
+            $up-&gt;as_string($str);
+            $up-&gt;uptime($upt);
+            $up-&gt;users($users);
+            $up-&gt;load('one', $one);
+            $up-&gt;load('five', $five);
+            $up-&gt;load('fifteen', $fifteen);
+        }
+        return $self-&gt;{up};
+    }
+
+    sub get_uptime {
+        local $_ = `uptime`;
+        chomp;
+        if (/^\s+\S+\s+                   # opening cruft
+            up\s+(.+?,?.+?),             # uptime
+            \s+(\d+)\s+users?,          # number of users
+            \s+load\s+averages?:\s+     # load average...
+            (.+?),\s+(.+?),\s+(.+?)\s*  # ...and values
+            $/x) {
+            return($_, $1, $2, $3, $4, $5);
+        }
+        else {
+            croak "What was that? Bad uptime.";
+        }
+    }
+
+    1;
+&lt;/code&gt;
+
+&lt;h2&gt;A Sample Program&lt;/h2&gt;
+
+Here's a small sample program that dumps out
+the information given to us (and updated)
+by our Sys::uptime class.
+
+&lt;code&gt;
+    use Sys::uptime;
+
+    my $uptime;
+    tie $uptime, 'Sys::uptime';
+
+    while (1) {
+        print $uptime-&gt;uptime, "\n";
+        print $uptime-&gt;users, "\n";
+        print $uptime-&gt;load('one'), "\n";
+        print $uptime-&gt;load('five'), "\n";
+        print $uptime-&gt;load('fifteen'), "\n";
+        print $uptime-&gt;as_string, "\n";
+
+        sleep 3;
+    }
+&lt;/code&gt;
+
+&lt;h1&gt;POSSIBLE CAVEATS&lt;/h1&gt;
+
+It's possible that your uptime output differs slightly
+from mine. The regular expression used to parse it isn't
+extremely robust, so it may not parse correctly, which
+will give you an error message. If so, post the output
+of your uptime command in response to this, and I'll
+update the regexp until everyone's happy, if possible. :)
+
+&lt;h1&gt;SEE ALSO&lt;/h1&gt;
+
+You should definitely take a look at [perltie],
+which has some other great examples of using [tie].&lt;p&gt;
+
+&lt;b&gt;Update 7.6.2001&lt;/b&gt;: thanks to [blueflashlight] for pointing
+out the incorrect FETCH method in the section where I had the
+entire module all together (rather than in pieces). I was assigning
+to five,ten,fifteen rather than one,five,fifteen.</field>
+<field name="reputation">
+56</field>
+</data>
+</node>

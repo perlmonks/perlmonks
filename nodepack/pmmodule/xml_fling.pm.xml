@@ -1,0 +1,544 @@
+<node>
+  <filetext>use strict;
+
+package XML::Fling;
+
+#use warnings;
+# I'd really like to just include the above but that makes this module
+# not work on older versions of Perl for no particularly good reason.
+# I'd include the above only conditionally but Perl doesn't allow for
+# conditional compile-time magic without also introducing an extra layer
+# of scope which defeats much of the purpose.  This is one of the many
+# reasons why Perl needs a statement modifier form of BEGIN:
+#     use warnings   if  5.006 &lt;= $[   BEGIN;
+# So I'll uncomment that line during my testing and you should feel free
+# to uncomment it yourself.
+
+use vars qw( $VERSION );
+BEGIN {
+    $VERSION= &quot;1.001&quot;;
+}
+
+use UNIVERSAL qw( isa );
+
+use vars qw( @_default );
+BEGIN {
+    @_default= ( &quot;&lt;&quot;, &quot;&gt;&quot; ) x 3;
+}
+
+sub new {
+    my $class= shift(@_);
+    my( $base )= @_;
+    my @delims= ( 7 == @_ ) ? @_[1..6] : @_default;
+    unless(  1 == @_  ||  7 == @_  ) {
+        ##require XML::Fling::Array;
+        ##return XML::Fling::Array( [ [], @delims ] );
+    } elsif(  ! ref($base)  ) {
+        ##require XML::Fling::String;
+        ##return bless [\$base,@delims], &quot;XML::Fling::String&quot;;
+    } elsif(  isa($base,'SCALAR')  ) {
+        require XML::Fling::String;
+        return bless _mkRef( $$base, @delims ), &quot;XML::Fling::String&quot;;
+    } elsif(  isa($base,'ARRAY')  ) {
+        require XML::Fling::Array;
+        return bless [$base,@delims],  &quot;XML::Fling::Array&quot;;
+    } elsif(  isa($base,'IO::Handle')  ||  isa($base,'GLOB')  ) {
+        require XML::Fling::Handle;
+        return bless [$base,@delims],  &quot;XML::Fling::Handle&quot;;
+    }
+    require Carp;
+    Carp::croak( &quot;Usage: XML::Fling-&gt;new( \\DESTINATION [, \@delims ] )&quot; );
+}
+
+sub _mkRef {
+    return \@_;
+}
+
+
+package XML::Fling::Export;
+
+use vars qw( @EXPORT_OK );
+BEGIN {
+    @EXPORT_OK= qw(
+        xml_header      xml_quote       xml_escape
+        xml_element     xml_start       xml_end         xml_empty
+    );
+}
+
+
+package XML::Fling::_Shared;
+
+sub _lt { 0 }
+sub _gt { 1 }
+sub _head() { 1 }
+sub _open() { 3 }
+sub _close()  { 5 }
+sub _attrCount() { 6 }
+
+sub _delims {
+    my $self= shift( @_ );
+    if(  ! @_  ) {
+        return @{$self}[1.._attrCount()];
+    } elsif(  6 == @_  ) {
+        @{$self}[1.._attrCount()]= @_;
+    } else {
+        require Carp;
+        Carp::croak( 'Usage: @delims= $xml-&gt;delims()' . $/ . '   or  $xml-&gt;' .
+          'delims( head_lt, head_gt, start_lt, start_gt, end_lt, end_gt )' );
+    }
+}
+
+sub XML::Fling::import {
+    require Exporter;
+    my $from= shift(@_);
+    require XML::Fling::Export;
+    unshift @_, &quot;XML::Fling::Export&quot;;
+    goto &amp;Exporter::import;
+}
+
+
+use vars qw( %_entity );
+BEGIN {
+    %_entity= (
+        '&amp;'=&gt;'&amp;amp;',
+        '&lt;'=&gt;'&amp;lt;',
+        '&gt;'=&gt;'&amp;gt;',
+        '&quot;'=&gt;'&amp;quot;',
+    );
+}
+
+sub _quote {
+    $_[0] =~ s/([&lt;&amp;&gt;&quot;])/$_entity{$1}/ge;
+}
+
+sub _escape {
+    $_[0] =~ s/([&lt;&amp;&gt;])/$_entity{$1}/ge;
+}
+
+1;
+__END__
+=head1 NAME
+
+XML::Fling - Bare-bones producer of XML, designed mostly for speed
+
+=head1 SYNOPSIS
+
+    require XML::Fling;
+
+    # To write XML directly to a file handle:
+    my $xml= XML::Fling-&gt;new( \*STDOUT, (&quot;&lt;&quot;,&quot;&gt;\n&quot;)x3 );
+
+    # To push() the generated XML strings onto an array:
+    my @value;
+    my $xml= XML::Fling-&gt;new( \@value, (&quot;&lt;&quot;,&quot;&gt;\n&quot;)x3 );
+    # ...
+    print @value;
+
+    # To append the generated XML to a string (scalar) variable:
+    my $string;
+    my $xml= XML::Fling-&gt;new( \$string, (&quot;&lt;&quot;,&quot;&gt;\n&quot;)x3 );
+
+    my @msgs= getSomeMessagesToConvertToXML();
+    $xml-&gt;
+        header()-&gt;
+        start( &quot;CHATTER&quot; )-&gt;
+            element( &quot;INFO&quot;,
+                    site=&gt;&quot;http://www.perlmonks.org/&quot;,
+                    sitename=&gt;&quot;Perl Monks&quot;,
+                &quot;Rendered by the Chatterbox XML Ticker&quot;
+            );
+            for my $msg (  @msgs  ) {
+                $xml-&gt;
+                    element( &quot;message&quot;,
+                            user_id=&gt;$msg-&gt;{author_id},
+                            author=&gt;$msg-&gt;{author_name},
+                            time=&gt;$msg-&gt;{tstamp},
+                        $msg-&gt;{msgtext}
+                    );
+            }
+        $xml-&gt;end();
+    return $string;
+
+    # or
+
+    use XML::Fling qw( xml_header xml_element xml_start xml_end xml_escape );
+
+    print xml_header();
+    print
+        xml_start( &quot;CHATTER&quot; ),
+            xml_element( &quot;INFO&quot;,
+                    site=&gt;&quot;http://www.perlmonks.org/&quot;,
+                    sitename=&gt;&quot;Perl Monks&quot;,
+                xml_escape( &quot;Rendered by the Chatterbox XML Ticker&quot; )
+            );
+            for my $msg (  @msgs  ) {
+                print xml_element( &quot;message&quot;,
+                        user_id=&gt;$msg-&gt;{author_id},
+                        author=&gt;$msg-&gt;{author_name},
+                        time=&gt;$msg-&gt;{tstamp},
+                    xml_escape( $msg-&gt;{msgtext} )
+                );
+            }
+        print xml_end( &quot;CHATTER&quot; );
+    return;
+
+=head1 DESCRIPTION
+
+XML::Fling should I&lt;NOT&gt; be your first choice for generating XML.  It is
+specialized for generating very simple XML with no validation as quickly
+as possible.  It I&lt;DOES&gt; know how to correctly encode data and so makes it
+easier to generate correct XML for the simple cases.  It does not prevent
+you from using it incorrectly.  It tries to make it easy to generate correct
+XML, but stops when that help would likely have a non-trivial impact on
+speed.
+
+XML::Fling was written for a web site that was spending too much time
+generating lots of very simple XML feeds.  For us, it ran around 4 times
+faster than XML::Generator or XML::Writer.  But unless you have an extremely
+time-sensitive situation, this difference is probably not enough of a reason
+to forego the extra features and safeties of a more robust XML-generating
+module.
+
+XML::Fling requires no other modules (it optionally uses Exporter which
+is included with Perl).  It offers 4 choices of interfaces.  The code for
+each interface is quite small and is only loaded the first time you actually
+use that interface.
+
+There is no validation.  For example, we assume that you are only going
+to use valid tag names and attribute names.  We don't spend any time
+verifying this.  If you aren't using hard-coded tags/attributes names,
+then you need to provide your own way to ensure that only valid names are
+used.  If you use the procedural interface's xml_start() and xml_end(),
+then proper nesting of tags is not enforced.
+
+Attribute values are properly encoded.  However, if you don't generate a
+header or override the header's &quot;encoding&quot; attribute, then you have to
+encode any characters that aren't covered by that character set.  The
+default header uses encoding=&quot;ISO-8859-1&quot; so that all 8-bit values are
+valid characters.  Without this header, only 7-bit values would be valid.
+With the default header, if your data is not using ISO-8859-1
+(&quot;Latin-1&quot;), then you should be converting and/or encoding characters.
+
+A routine to properly encode element data is provided, but with the
+procedural interface it is strictly your responsiblity to use it.  The
+above caveats about character encodings also apply here.
+
+=head1 Object-oriented interfaces
+
+There are three object-oriented interfaces provided.  They are all very
+similar.
+
+=over
+
+=item File handle
+
+Each method in this interface writes the generated XML strings directly to
+a file handle that you specify in the constructor.  For example:
+
+    require XML::Fling;
+
+    my $xml= XML::Fling-&gt;new( \*STDOUT );
+
+This is probably the best (fastest and simplest) interface if you want
+to write XML to a file (or some other I/O handle).
+
+=item String
+
+Each method in this interface appends generated XML to the string (scalar)
+variable you specify in the constructor.  For example:
+
+    require XML::Fling;
+
+    sub convertStuffToXML {
+        # ...
+        my $string= &quot;&quot;;
+        my $xml= XML::Fling-&gt;new(\$string);
+        # ... generate XML via $xml-&gt; ...
+        return $string;
+    }
+
+This is a good method to use when generating fairly small amounts of
+XML that you don't want to write directly to a file (or other I/O handle).
+
+As the string grows, Perl will have to realloc()ate the buffer that
+holds the string.  Each realloc()ation will likely have to copy the
+current value of the string to a new location.  This recopying and the
+potential for memory fragmentation probably make this interface
+inappropriate for generating very large XML text.
+
+You can preallocate space into the string in order to prevent
+realloc()ations and the likely copying that results.  For example,
+if you expect to generate about 32KB of XML, you might try:
+
+    my $string= &quot;&quot;;
+    length( $string )= 32*1024;
+    my $xml= XML::Fling-&gt;new( \$string );
+    # ... generate XML via $xml-&gt; ...
+
+=item Array
+
+Each method in this interface pushes one or more strings of generated XML
+onto an array you specify in the constructor.  For example:
+
+    require XML::Fling;
+
+    my @value;
+    my $xml= XML::Fling-&gt;new( \@value );
+    # ... generate XML via $xml-&gt; ...
+    print @value;
+    @value= ();
+    # ... generate more XML via $xml-&gt; ...
+    print @value;
+
+This may be the best interface to use if you are generating potentially
+very large XML text that you don't want to write directly to a file.
+For example, let us say you need to generate a Content-Length: header
+for the XML that you are going to send and expect to have plenty of
+free RAM available:
+
+    my @xml;
+    my $xml= XML::Fling-&gt;new( \@value );
+    # ... generate XML via $xml-&gt; ...
+    my $length= 0;
+    $length += length   for @xml;
+    print &quot;Content-Length: $length\n\n&quot;, @xml;
+
+Don't use, for example:
+
+    print &quot;Content-Length: $length\n\n@xml&quot;;
+
+as $&quot; defaults to &quot; &quot; so that the last line above would output lots of
+extra spaces which would likely cause problems.
+
+Unfortunately, many of the individual strings are likely to be rather short.
+
+=back
+
+=head2 Extra arguments to constructors
+
+You can optionally specify 6 strings in each of the above constructors.
+The strings are, in order:
+
+    What to use as &quot;&lt;&quot; for headers.
+    What to use as &quot;&gt;&quot; for headers.
+    What to use as &quot;&lt;&quot; for start (and empty) tags.
+    What to use as &quot;&gt;&quot; for start tags.
+    What to use as &quot;&lt;&quot; for end tags.
+    What to use as &quot;&gt;&quot; for end (and empty) tags.
+
+For example:
+
+    my @xml;
+    my $xml= XML::Fling-&gt;new( \@xml, (&quot;&lt;&quot;,&quot;\n&gt;&quot;)x2 );
+
+would put a newline in front of each &quot;E&lt;gt&gt;;&quot; of the generated XML.
+
+=head2 Methods
+
+Unless otherwise indicated, each method returns the invoking object (usually
+called $self but shown as $xml in all of our example code) so that you
+can chain method invocations together as shown in the SYNOPSIS.
+
+=over
+
+=item $xml-&gt;header( [ $XMLencoding [, $XMLversion ] ] )
+
+Add an XML header.
+
+Currently simply appends the following string to the XML destination:
+
+    qq{&lt;?xml version=&quot;$XMLversion&quot; encoding=&quot;$XMLencoding&quot;?&gt;}
+
+$XMLencoding defaults to &quot;ISO-8859-1&quot; which indicates &quot;Latin-1&quot; characters.
+$XMLversion defaults to &quot;1.0&quot;.
+
+=item $xml-&gt;quote( $string )
+
+Add an XML string suitable for inclusion in a quoted attribute value.
+You will probably never call this method directly.
+
+Copies $string, replaces any occurances of E&lt;LT&gt;, &amp;, E&lt;GT&gt;, and &quot; (in
+the copy) with &amp;lt;, &amp;amp;, &amp;gt;, and &amp;quot; (respectively)
+then appends the result to the XML destination.
+
+=item $xml-&gt;escape( $string )
+
+Add an XML string suitable for inclusion as an element's data.
+You may never need to call this method directly.
+
+Copies $string, replaces any occurances of E&lt;LT&gt;, &amp;, and E&lt;GT&gt; (in
+the copy) with &amp;lt;, &amp;amp;, and &amp;gt; (respectively) then appends the
+result to the XML destination.
+
+=item $xml-&gt;start( $tagName [, $attribName=&gt;$attribValue [, ...] ] [, $text ] )
+
+Add an XML string representing the start of an element (the
+opening tag), optionally with element data (escaped).  You will
+usually use this method for starting an element that will contain
+other XML elements.
+
+Appends something like
+
+    qq[&lt;$tagName $attribName=&quot;$quotedValue&quot;&gt;$encodedText]
+
+to the XML destination.  Note that
+
+    $quotedValue eq xml_quote($attribValue)  and
+    $encodedText eq xml_escape($text)
+
+Also pushes $tagName onto the list of the open tags.
+
+Note that the presence of $text is detected by whether the number of
+arguments is odd or even.
+
+=item $xml-&gt;end()
+
+Pops the last $tagName from the list of open tags and appends something like:
+
+    qq[&lt;/$tagName&gt;]
+
+to the XML destination.
+
+=item $xml-&gt;element( $tagName [, $attribName=&gt;$attribValue [, ...] ] [, $text ] )
+
+Same as:
+
+    $xml-&gt;start( $tagName [, ... ] )-&gt;end();
+
+=item $xml-&gt;empty( $tagName [, $attribName=&gt;$attribValue [, ...] ] )
+
+Appends something like
+
+    qq[&lt;$tagName $attribName=&quot;$quotedValue&quot; /&gt;]
+
+to the XML destination.  Note that
+
+    $quotedValue eq xml_quote($attribValue)
+
+=item $xml-&gt;done()
+
+Simply calls
+
+    $xml-&gt;end();
+
+as many times as is needed to close out any tags that were previously
+opened via
+
+    $xml-&gt;start( ... );
+
+=item $xml-&gt;get()
+
+Returns the reference that was used to create this object.
+
+=back
+
+=head1 The procedural interface
+
+To use the procedural interface, import the desire function via code
+something like:
+
+    use XML::Fling qw( xml_header xml_empty xml_element xml_escape );
+
+Note that you can I&lt;NOT&gt; skip importing the functions and then call them
+like C&lt;XML::Fling::xml_header()&gt;.
+
+=head2 Functions
+
+=over
+
+=item xml_header( [ $XMLencoding [, $XMLversion ] ] )
+
+Returns an XML header.
+
+Currently simply returns the following string:
+
+    qq{&lt;?xml version=&quot;$XMLversion&quot; encoding=&quot;$XMLencoding&quot;?&gt;}
+
+$XMLencoding defaults to &quot;ISO-8859-1&quot; which indicates &quot;Latin-1&quot; characters.
+$XMLversion defaults to &quot;1.0&quot;.
+
+=item xml_quote( $string )
+
+Returns an XML string suitable for inclusion in a quoted attribute value.
+You will probably never call this routine directly.
+
+Copies $string, replaces any occurances of E&lt;LT&gt;, &amp;, E&lt;GT&gt;, and &quot; (in
+the copy) with &amp;lt;, &amp;amp;, &amp;gt;, and &amp;quot; (respectively)
+then returns the result.
+
+=item xml_escape( $string )
+
+Return an XML string suitable for inclusion as an element's data.
+It is your responsibility to call this routine!  The procedural
+interface never calls xml_escape() for you.
+
+Copies $string, replaces any occurances of E&lt;LT&gt;, &amp;, and E&lt;GT&gt; (in
+the copy) with &amp;lt;, &amp;amp;, and &amp;gt; (respectively) then returns the
+result.
+
+=item xml_start( $tagName [, $attribName=&gt;$attribValue [, ...] ] [, $text ] )
+
+Returns an XML string representing the start of an element (the
+opening tag), optionally with element data (I&lt;UN&gt;escaped!) or a I&lt;SINGLE&gt;
+string of nested XML elements returned from other routines.  You will
+usually use this method for starting an element where the contained
+data or nested elements are not simple to compute.
+
+Returns something like
+
+    qq[&lt;$tagName $attribName=&quot;$quotedValue&quot;&gt;$text]
+
+to the XML destination.  Note that
+
+    $quotedValue eq xml_quote($attribValue)
+
+and that $text is not encoded!
+
+Note that the presence of $text is detected by whether the number of
+arguments is odd or even.
+
+=item xml_end( $tagName )
+
+Returns something like:
+
+    qq[&lt;/$tagName&gt;]
+
+=item xml_element( $tagName [, $attribName=&gt;$attribValue [, ...] ] [, $text ] )
+
+Same as:
+
+    xml_start( $tagName [, ... ] ) . xml_end( $tagName )
+
+=item xml_empty( $tagName [, $attribName=&gt;$attribValue [, ...] ] )
+
+Appends something like
+
+    qq[&lt;$tagName $attribName=&quot;$quotedValue&quot; /&gt;]
+
+to the XML destination.  Note that
+
+    $quotedValue eq xml_quote($attribValue)
+
+=back
+
+=head1 AUTHOR
+
+Tye McQueen, tye@metronet.com, http://www.metronet.com/~tye/
+
+=head1 SEE ALSO
+
+Rustler's Rhapsody -- And I I&lt;really&gt; mean that.
+
+=cut
+
+# !!! e-mail jaybonci@everything2.com
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-05-10 12:14:31</createtime>
+  <node_id>165689</node_id>
+  <filerequired></filerequired>
+  <title>XML/Fling.pm</title>
+  <nodeupdated>2005-08-13 05:26:31</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

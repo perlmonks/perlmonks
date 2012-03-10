@@ -1,0 +1,91 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>929</author_user>
+  <createtime>2000-06-12 19:28:09</createtime>
+  <node_id>17759</node_id>
+  <title>Keyword Nodelet</title>
+  <nlcode>[{openform}]
+[%
+    return   if  getId($USER) == $HTMLVARS{default_user};
+    use Everything::Experience;
+
+    my $canRemoveKeyword=
+            getId($USER) == $NODE-&gt;{author_user}
+        ||  $DB-&gt;isApproved( $USER, getNode('editors','usergroup') );
+
+    if(  $canRemoveKeyword  ) {
+        foreach(  grep /^rk_$NODE-&gt;{node_id}_/, $q-&gt;param()  ) {
+            my( $word )= /^rk_$NODE-&gt;{node_id}_(.*)/;
+            Everything::printLog(&quot;removing keyword $word&quot;);
+            $DB-&gt;sqlDelete(
+                &quot;keywords&quot;,
+                &quot;node_id=$NODE-&gt;{node_id} and word=&quot; . $DB-&gt;quote($word),
+            );
+        }
+    }
+
+    my $level= getLevel($USER); # can`t accessrule
+    my $rating= int( 2*log($level) + 1 );
+    my $nodeid= $NODE-&gt;{node_id};
+    my $html= '';
+
+    if(  $q-&gt;param(&quot;addkeywords&quot;)  ) {
+        my $temptext= join ' ', $q-&gt;param('addkeywords');
+        my @words;
+        $temptext =~ s{\&quot;(.*?)\&quot;}{
+            push @words, $1;
+            ' ';
+        }ge;
+        push @words, split( ' ', $temptext );
+        foreach my $word (  @words  ) {
+            my $count= $DB-&gt;sqlUpdate(
+                &quot;keywords&quot;,
+                { -rating =&gt; &quot;rating + $rating&quot; },
+                &quot;node_id=$nodeid and word=&quot; . $DB-&gt;quote($word),
+            );
+            if(  0 == $count  ) {
+                $DB-&gt;sqlInsert(
+                    &quot;keywords&quot;,
+                    {
+                        word    =&gt; $word,
+                        node_id =&gt; $nodeid,
+                        rating  =&gt; $rating,
+                    },
+                );
+            }
+        }
+    }
+
+    my $csr= $DB-&gt;sqlSelectMany(
+        &quot;word&quot;,
+        &quot;keywords&quot;,
+        &quot;node_id=$nodeid&quot;,
+        &quot;order by rating desc&quot;,
+    );
+    if(  $csr  ) {
+        my $numshown= 0;
+        my $topkeywords= &quot;Top keywords for this node:&lt;ul&gt;&quot;;
+        while(  my $C= $csr-&gt;fetchrow_hashref()  ) {
+            $numshown++;
+            $topkeywords .= &quot;&lt;li&gt;&quot;;
+            $topkeywords .= $q-&gt;checkbox(
+                -name  =&gt; &quot;rk_$NODE-&gt;{node_id}_$C-&gt;{word}&quot;,
+                -label =&gt; &quot;&quot;,
+            )
+                if  $canRemoveKeyword;
+            $topkeywords .= $q-&gt;escapeHTML( $C-&gt;{word} ) . &quot;\n&quot;;
+        }
+        $topkeywords .= &quot;&lt;/ul&gt;&quot;;
+        $html .= $topkeywords   if  $numshown;
+    }
+
+    $html .= '&lt;input type=&quot;text&quot; name=&quot;addkeywords&quot; size=&quot;15&quot; maxlength=&quot;20&quot;&gt;';
+    return $html;
+%]
+[{closeform}]
+[% linkNode(590092,'help') %]
+
+</nlcode>
+  <nodeupdated>1126636447</nodeupdated>
+</node>

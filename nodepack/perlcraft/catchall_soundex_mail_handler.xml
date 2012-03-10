@@ -1,0 +1,116 @@
+<node>
+  <doctext>#!/usr/bin/perl
+
+#This code is designed to be used in mail handling on a catch all account
+#It basically uses a list of Soundex checksums to match the actual recipient
+#header.txt is the header part
+#footer.txt is teh footer part
+#soundex.txt is the list of soundex checksums
+
+#This was a project for OS Class
+#This is dirty enough :)
+#Note: This app written for local names.
+#For example: Jean-Pierre Van Den Bossche
+#I translasted variable names from dutch, so if I made a typo... :)
+
+use Mail::Header;
+use Mail::Mailer;
+use Text::Soundex;
+use strict;
+#Yihaaa
+
+my $domain = 'foo.bar'; #Domain
+my $type = 'sendmail';
+#Mail::Mailer types:   sendmail, mail, smtp, qmail, test
+my $mailprog = Mail::Mailer-&gt;new($type);
+
+my $head = new Mail::Header \*STDIN;
+my $subject = $head-&gt;get(&quot;subject&quot;);
+my $from = $head-&gt;get(&quot;from&quot;);
+my $to = $head-&gt;get(&quot;delivered-to&quot;) || $head-&gt;get(&quot;to&quot;);
+chomp $subject,$from,$to;
+
+my %headers = (
+  'To' =&gt; $from,
+  'From' =&gt; &quot;Dolly\@$domain&quot;,
+  #the original script I based this on was named Debby
+  'Subject' =&gt; 'Reply to: '.$subject
+);
+
+$mailprog-&gt;open(\%headers);
+my @email = qw();
+my ($name) = $to =~ /^([\w\.]*)\@$domain$/;
+my ($firstname,$lastname) = split(/\./,$name,2);
+my ($sfirstname,$slastname) = soundex($firstname,$lastname);
+open(SOUNDEX,&quot;&lt;soundex.txt&quot;) || die &quot;Oops: $!&quot;;
+while(&lt;SOUNDEX&gt;)
+{ chomp;
+  my ($checksum,$email) = split(/\=\&gt;/,$_,2);
+  my (@list) = split(/ /,$email);
+  my ($sfname,$slname) = split(/\./,$checksum,2);
+  if ($sfname eq $sfirstname &amp;&amp; $slname eq $slastname)
+  { push(@email,@list); }
+
+}
+close(SOUNDEX);
+
+open(HEADER,&quot;&lt;header.txt&quot;) || die &quot;Oops: $!&quot;;
+open(FOOTER,&quot;&lt;footer.txt&quot;) || die &quot;Oops: $!&quot;;
+my ($header,$footer);
+{ local $/; $header = &lt;HEADER&gt;; $footer = &lt;FOOTER&gt;; }
+#Magic
+#To my professor anyway
+
+my (@firstnames) = split(/\-/,$firstname);
+for (@firstnames) { $_ = ucfirst $_ }
+$firstname = join(&quot; &quot;,@firstnames);
+my (@lastnames) = split(/\./,$lastname);
+for (@lastnames) { $_ = ucfirst $_ }
+$lastname = join(&quot; &quot;,@lastnames);
+
+for my $wanted (@email)
+{ print $mailprog $header;
+  print $mailprog &quot;For: $firstname $lastname I found the following e-mail addresses:\n\n&quot;;
+  print $mailprog &quot;$wanted\n&quot;;
+  print $mailprog $footer;
+}
+
+$mailprog-&gt;close;
+
+#The program to generate checksums
+#!/usr/bin/perl
+
+#use Text::Soundex;
+#use strict;
+#Yihaaa
+
+#my %Soundex;
+
+#open(NAMES,&quot;&lt;names.txt&quot;) || die &quot;Oops: $!&quot;;
+#names.txt contains a list of names in the firstname:lastname format
+#while(&lt;NAMES&gt;)
+#{ chomp;
+#  my ($firstname,$lastname) = split(/\:/,$_,2);
+#  my ($sfirstname,$slastname) = ($firstname,$lastname);
+
+#  $sfirstname =~ s/\s+//g; $slastname =~ s/\s+//g;
+#  $sfirstname =~ s/\-+//g; $slastname =~ s/\-+//g;
+#  $sfirstname =~ s/\.+//g; $slastname =~ s/\.+//g; 
+#  my $key = join(&quot;.&quot;,soundex($sfirstname), #soundex($slastname));
+#  if (exists $Soundex{$key})
+#  { $Soundex{$key} .=&quot; &quot;; }
+#  $Soundex{$key} = join(&quot;.&quot;,$firstname, $lastname);
+#}
+#close(NAMES);
+#open(SOUNDEX,&quot;&gt;soundex.txt&quot;) || die &quot;Oops: $!&quot;;
+#foreach ( sort keys %Soundex ) 
+#{ print SOUNDEX $_,&quot;=&gt;&quot;,$Soundex{$_},&quot;\n&quot; if $_ ne &quot;.&quot; }
+#close(SOUNDEX);
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>174696</node_id>
+  <author_user>5993</author_user>
+  <title>Catchall Soundex mail handler</title>
+  <createtime>2002-06-14 15:13:00</createtime>
+  <nodeupdated>2005-07-21 01:31:46</nodeupdated>
+</node>

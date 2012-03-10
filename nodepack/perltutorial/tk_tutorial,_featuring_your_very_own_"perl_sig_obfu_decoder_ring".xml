@@ -1,0 +1,483 @@
+<node>
+  <doctext>&lt;table border=&quot;0&quot; width=&quot;100%&quot; cellpadding=&quot;5&quot; bgcolor=&quot;#000000&quot;&gt;
+&lt;tr&gt;&lt;td bgcolor=&quot;#c0c0c0&quot;&gt;
+&lt;strong&gt;This tutorial presents a cool Perl/Tk mini-application that
+you can use and modify to fit your needs.  It is simple and versatile!
+Consider the &quot;sigeval.pl&quot; script your very own &quot;Perl Sig/OBFU Decoder
+Ring&quot; and don't just read through this tutorial, download the code,
+run it, change it, run it again, and make it your own.&lt;/strong&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;P&gt;
+&lt;strong&gt;Update:&lt;/strong&gt; Check out [183718|this code] for an example of drag and drop (DND). --[hiseldl]
+&lt;P&gt;
+
+The &lt;a href=&quot;http://phaseit.net/claird/comp.lang.perl.tk/ptkFAQ.html&quot;&gt;
+Perl/Tk FAQ&lt;/a&gt; is a great source of answers for most of your
+questions about where to get it, how to install it,
+what is Tk, what widgets are available, some simple &quot;Hello, World&quot;
+scripts, answers to some common problems, some OS specific topics, and
+much more than I can mention here.
+&lt;P&gt;
+
+&lt;h3&gt;Table of Contents&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;http://www.hisel.com/perl/TkTutorial/TkTutorial.zip&quot;&gt;Download 
+this Tutorial&lt;/a&gt;&lt;/li&gt;
+&lt;P&gt;
+&lt;li&gt;&lt;a href=&quot;#basics&quot;&gt;The Basics&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;#application&quot;&gt;The Perl Eval-uator&lt;/a&gt;, 
+Your Very Own &quot;Perl Sig/OBFU Decoder Ring&quot;&lt;/li&gt;
+&lt;P&gt;
+&lt;li&gt;&lt;a href=&quot;#reasons&quot;&gt;Why Should I Use Tk?&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;#credits&quot;&gt;Acknowledgements&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;#further&quot;&gt;Further Reading&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;readmore&gt;
+
+&lt;h3&gt;&lt;a name=&quot;basics&quot;&gt;The Basics&lt;/a&gt;&lt;/h3&gt;
+Copy and paste this script to a file &quot;hello.pl&quot; and run it.  This
+little application will give you a feel for how Tk will look and give
+you a taste of the structure for a Tk application.
+
+&lt;CODE&gt;
+#!/usr/local/bin/perl -w
+
+use strict;
+use Tk;
+
+my $mw = new MainWindow;
+$mw-&gt;Label(-text =&gt; 'Hello World!')-&gt;pack;
+$mw-&gt;Button(-text =&gt; 'Quit',
+	    -command =&gt; sub{exit} )-&gt;pack;
+MainLoop;
+&lt;/CODE&gt;
+
+&lt;strong&gt;use strict;&lt;/strong&gt; and the &lt;strong&gt;-w switch&lt;/strong&gt; ensure
+the program is working without common errors.
+&lt;P&gt;
+
+&lt;strong&gt;use Tk;&lt;/strong&gt; imports the Tk module, and sets up your
+script to use the Tk widgets.
+&lt;P&gt;
+
+All Tk applications start by creating the Tk main window. You then
+create items inside the main window, or create new windows, before
+starting the main loop; You can also create more items and windows
+while you're running. The items will be shown on the display after you
+pack them.  Then you will start the GUI with
+&lt;strong&gt;MainLoop;&lt;/strong&gt; which handles all events.
+&lt;P&gt;
+
+The basic steps:
+&lt;ol&gt;
+&lt;li&gt;use Tk;                  # this is mandatory&lt;/li&gt;
+&lt;li&gt;my $mw = new MainWindow; # create a main window&lt;/li&gt;
+&lt;li&gt;# add frames, buttons, labels, etc. and &lt;strong&gt;pack&lt;/strong&gt;
+them.&lt;/li&gt;
+&lt;li&gt;MainLoop;                # or &amp;Tk::MainLoop();
+&lt;li&gt;# add your sub's for the buttons, menus, etc. to call.
+&lt;/ol&gt;
+
+
+
+Now, on to something more useful...
+
+&lt;h3&gt;&lt;a name=&quot;application&quot;&gt;The Perl Eval-uator&lt;/a&gt;&lt;/h3&gt;
+&lt;h5&gt;Your Very Own &quot;Perl Sig/OBFU Decoder Ring&quot;&lt;/h5&gt;
+
+Have you ever wanted to see the output of a JAPH
+from someone's sig?  Well, this script not only shows the basics of
+Perl/Tk, it is actually fun to use!  I like to copy/paste the OBFU
+from the PerlMonks Obfuscation section, or whenever I run accross an
+interesting signature in a post, and I want to see what it prints out,
+I run my &lt;strong&gt;sigeval.pl&lt;/strong&gt; script.
+&lt;P&gt;
+&lt;strong&gt;Update:&lt;/strong&gt; The crux of this section is in the comments of the following code, so please read through the comments. --[hiseldl]
+&lt;P&gt;
+&lt;CODE&gt;
+#!perl -w
+
+# sigeval.pl
+
+# This application demonstrates how to put a basic Perl/Tk application
+# together.
+
+use strict;
+use Tk 800.000;
+
+# These are all the modules that we are using in this script.
+use Tk::Frame;
+use Tk::TextUndo;
+use Tk::Text;
+use Tk::Scrollbar;
+use Tk::Menu;
+use Tk::Menubutton;
+use Tk::Adjuster;
+use Tk::DialogBox;
+
+# Main Window
+my $mw = new MainWindow;
+$mw-&gt;geometry('400x300');
+
+# We need to split our application into three frames:
+# 1.  A widget to contain a list of files from the current directory
+# 2.  A widget that we can load a text file into, or copy/paste text into
+# 3.  A widget to display the output of our Perl code created by
+#     'eval'ing the Perl code in the top text widget.
+
+# Frames
+
+# The Adjuster provides a splitter between the frames on the left and
+# the right so we can resize the frames vertically
+my $lf = $mw-&gt;Frame; # Left Frame;
+my $aj = $mw-&gt;Adjuster(-widget =&gt; $lf, -side =&gt; 'left');
+my $rf = $mw-&gt;Frame; # Right Frame;
+
+
+# Menu Bar 
+
+# This is the Tk 800.00 way to create a menu bar.  The
+# menubar_menuitems() method returns an anonymous array containing all
+# the information that is needed to create a menu.
+
+my $mb = $mw-&gt;Menu(-menuitems =&gt; &amp;menubar_menuitems() );
+
+# The configure command tells the main window to use this menubar;
+# several menubars could be created and swapped in and out, if you
+# wanted to.
+$mw-&gt;configure(-menu =&gt; $mb);
+
+
+# Use the &quot;Scrolled&quot; Method to create widgets with scrollbars.
+
+# The listbox is our filename container.
+my($ListBox) = $lf-&gt;Scrolled('Listbox',
+			     -height =&gt; '0',
+			     -width =&gt; '0',
+			     -scrollbars =&gt; 'e',
+			     );
+
+# The default key-bindings for the Text widgets and its derivatives
+# TextUndo, and ROText are emacs-ish, e.g. ctrl-a cursor to beginning
+# of line, ctrl-e, cursor to end of line, etc.
+
+# The 'o' in 'osoe' means optionally, so when the widget fills up, the
+# scrollbar will appear, otherwise we are binding the scrollbars to
+# the 'south' side and to the 'east' side of the frame.
+
+my($InputText) = $rf-&gt;Scrolled('TextUndo',
+			       -height =&gt; '1',
+			       -width =&gt; '1',
+			       -scrollbars =&gt; 'osoe',
+			       );
+
+# We use the 'Text' widget here because we do not need to edit
+# anything in the widget.  We could have used 'ROText' here as well
+# (Read Only Text Widget).
+
+my($OutputText) = $rf-&gt;Scrolled('Text',
+				-height =&gt; '1',
+				-width =&gt; '1',
+				-scrollbars =&gt; 'osoe',
+				);
+
+# Load filenames into the listbox. 
+opendir DIR, &quot;.&quot;;
+$ListBox-&gt;insert('end', grep { -f $_ } readdir DIR);
+close DIR;
+
+# Binding subs to events
+
+# Every widget that is created in the Perl/Tk application either
+# creates events or reacts to events.  
+
+# Callbacks are subs that are used to react to events.  A callback is
+# nothing more than a sub that is bound to a widget.
+
+# The most common ways to bind a sub to an event are by using an
+# anonymous sub with a call to your method inside it, such as in the
+# following 'Key' bindings, or with a reference to the callback sub,
+# as in the 'ButtonRelease' binding.
+
+# Left mouse button loads file and eval's if .pl suffix.  See the
+# OnLoad sub for more details.
+$ListBox-&gt;bind('&lt;ButtonRelease-1&gt;', [\&amp;OnLoad] );
+
+# CTRL-L, eval text widget contents 
+$mw-&gt;bind('Tk::TextUndo', '&lt;Control-Key-l&gt;',
+	  sub { OnEval(); } 
+	  );
+
+# CTRL-O, load a text file into the text widget 
+$mw-&gt;bind('Tk::TextUndo', '&lt;Control-Key-o&gt;',
+	  sub { OnFileOpen(); } 
+	  );
+
+# CTRL-S, save text as with file dialog
+$mw-&gt;bind('Tk::TextUndo', '&lt;Control-Key-s&gt;',
+	  sub { OnFileSave(); } 
+	  );
+
+# CTRL-Q, quit this application
+$mw-&gt;bind('Tk::TextUndo', '&lt;Control-Key-q&gt;',
+	  sub { OnExit(); } 
+	  );
+
+
+# Pack everything
+
+# IMPORTANT: if you don't pack it, it probably won't show the way you
+# want it to, or even not show up at all!
+
+# some things to try:
+# 1. change the order of $lf, $aj, and $rf
+# 2. add -expand 1 to ListBox
+# 3. comment out this section so widgets are not packed
+$lf-&gt;pack(qw/-side left -fill y/);
+$aj-&gt;pack(qw/-side left -fill y/);
+$rf-&gt;pack(qw/-side right -fill both -expand 1/);
+
+$ListBox   -&gt;pack(qw/-side left -fill both -expand 1/);
+$InputText -&gt;pack(qw/-side top -fill both -expand 1/);
+$OutputText-&gt;pack(qw/-side bottom -fill both -expand 1/);
+
+# Start the main event loop
+MainLoop;
+
+exit 0;
+
+# return an anonymous list of lists describing the menubar menu items
+sub menubar_menuitems
+{
+    return 
+	[ map 
+	  ['cascade', $_-&gt;[0], -tearoff=&gt; 0,
+	   -menuitems =&gt; $_-&gt;[1]],
+
+	  # make sure you put the parens here because we want to
+	  # evaluate and not just store a reference
+	  ['~File', &amp;file_menuitems()],
+	  ['~Help', &amp;help_menuitems()],
+	];
+}
+
+sub file_menuitems
+{
+
+# 'command', tells the menubar that this is not a label for a sub
+# menu, but a binding to a callback; the alternate here is 'cascade'
+# Try uncommenting the following code to create an 'Operations' sub
+# menu in the main 'File' menu.
+
+    return
+	[
+# 	 [qw/cascade Operations -tearoff 0 -menuitems/ =&gt;
+# 	  [
+# 	   [qw/command ~Open  -accelerator Ctrl-o/,
+# 	    -command=&gt;[\&amp;OnFileOpen]],
+# 	   [qw/command ~Save  -accelerator Ctrl-s/,
+# 	    -command=&gt;[\&amp;OnFileSave]],
+# 	   ]
+# 	 ],
+	 [qw/command ~Open  -accelerator Ctrl-o/,
+	  -command=&gt;[\&amp;OnFileOpen]],
+	 [qw/command ~Save  -accelerator Ctrl-s/,
+	  -command=&gt;[\&amp;OnFileSave]],
+	 '',
+	 [qw/command E~xit  -accelerator Ctrl-q/,
+	  -command=&gt;[\&amp;OnExit]],
+	 ];
+}
+
+sub help_menuitems
+{
+    return
+	[
+	 ['command', 'About', -command =&gt; [\&amp;OnAbout]]
+	];
+}
+
+# Here is our &quot;Exit The Application&quot; callback method. :-)
+sub OnExit { 
+    exit 0; 
+}
+
+# The TextUndo widget has a file load dialog box method built-in!
+sub OnFileOpen {
+    $InputText-&gt;FileLoadPopup(); 
+}
+
+# The TextUndo widget has a file save dialog box method built-in!
+sub OnFileSave {
+    $InputText-&gt;FileSaveAsPopup();
+    # refresh the list box
+    &amp;LoadListBox();
+}
+
+sub LoadListBox {
+    # Remove current contents otherwise we would just append the
+    # filenames to the end, and this is not what we want.
+    $ListBox-&gt;delete('0.1', 'end');
+
+    # Just use a plain old grep readdir pipeline to create a list of
+    # filenames for our listbox.
+    opendir DIR, &quot;.&quot;;
+    $ListBox-&gt;insert('end', grep { -f $_ &amp;&amp; -r $_ } readdir DIR);
+    close DIR;
+}
+
+# Show the Help-&gt;About Dialog Box
+sub OnAbout {
+    # Construct the DialogBox
+    my $about = $mw-&gt;DialogBox(
+		   -title=&gt;&quot;About Jack&quot;,
+		   -buttons=&gt;[&quot;OK&quot;]
+		   );
+
+    # Now we need to add a Label widget so we can show some text.  The
+    # DialogBox is essentially an empty frame with no widgets in it.
+    # You can images, buttons, text widgets, listboxes, etc.
+    $about-&gt;add('Label',
+		-anchor =&gt; 'w',
+		-justify =&gt; 'left',
+		-text =&gt; qq(
+Perl Eval-uator v1.0 by David Hisel
+
+-Click on a filename to view it, and if it has  a 
+ &quot;.pl&quot; suffix, it will be evaluated automatically, or
+-Copy and paste Perl code to the top window, then
+-Hit CTRL-L to evaluate the code and 
+ display the output in the bottom text widget.
+)
+		)-&gt;pack;
+
+    $about-&gt;Show();
+}
+
+# Load a file into the $InputText widget
+sub OnLoad {
+    # Getting the text of the selected item in a listbox is a two step
+    # process, first you get the index and then, using the index,
+    my ($index) = $ListBox-&gt;curselection();
+
+    # fetch the contents from the listbox.
+    my $filename = $ListBox-&gt;get($index);
+
+    # TextUndo widget has a built-in Load sub!
+    $InputText-&gt;Load( $filename  );
+
+    # we need to make sure we don't eval ourself otherwise we crash
+    (my $script = $0) =~ s,.*(\/|\\),,;
+
+    # If it ends in &quot;.pl&quot; automatically eval the code
+    &amp;OnEval() if $filename =~ /\.pl$/ &amp;&amp; $filename !~ /$script/;
+}
+
+#evaluates code in the entry text pane
+sub OnEval{
+    # The Text widget has a TIEHANDLE module implemented so that you
+    # can tie the text widget to STDOUT for print and printf; note, if
+    # you used the &quot;Scrolled&quot; method to create your text widget, you
+    # will have to get a reference to it and pass that to &quot;tie&quot;,
+    # otherwise it won't work.
+    my $widget = $OutputText-&gt;Subwidget(&quot;text&quot;);
+    tie *STDOUT, ref $widget, $widget;
+
+    # need &quot;no strict;&quot; otherwise we can't run obfu nor other japh's
+    eval (&quot;no strict;&quot;.$InputText-&gt;get(0.1, 'end'));
+
+    # be polite and output an error if something goes wrong.
+    print &quot;ERROR:$@&quot; if $@;
+    print &quot;\n&quot;;
+}
+&lt;/CODE&gt;
+
+&lt;h3&gt;Some Cool Exercises&lt;/h3&gt;
+
+After you run the script, copy and paste the following to the top text
+widget:&lt;BR&gt;
+&lt;PRE&gt;
+(tkinit)-&gt;Scrolled('TextUndo',-scrollbars=&gt;'se')-&gt;pack;MainLoop;
+&lt;/PRE&gt;
+
+To test it out hit &lt;strong&gt;CTRL-L&lt;/strong&gt; and a new frame with a
+TextUndo widget should appear. Wait, there's more, right click on the
+Text area!  You get a fully functional text editor!
+&lt;P&gt;
+
+Hold on, we're not done yet, now hit &lt;strong&gt;CTRL-S&lt;/strong&gt; and
+save the snippet as &lt;strong&gt;tkedit.pl&lt;/strong&gt; and don't forget the
+&quot;.pl&quot; suffix.  Now click on the &lt;strong&gt;tkedit.pl&lt;/strong&gt; in the
+listbox on the left!
+&lt;P&gt;
+
+Now this is really cool, go to &lt;a
+href=&quot;http://www.perlmonks.org/index.pl?node=Obfuscated%20Code&quot;&gt;PerlMonks
+Obfuscated Code&lt;/a&gt; copy and paste the &lt;strong&gt;non&lt;/strong&gt; screen
+oriented obfu i.e. the rotating camel won't work; there's lot's of
+japh lying around at the monastery, and &lt;strong&gt;sigeval.pl&lt;/strong&gt; is
+&lt;em&gt;my&lt;/em&gt; secret decoder ring.
+
+&lt;P&gt;
+&lt;h3&gt;&lt;a name=&quot;reasons&quot;&gt;Why should I use Tk? Why not Win32::GUI or wxPerl?&lt;/a&gt;&lt;/h3&gt;
+&lt;UL&gt;
+
+&lt;LI&gt;&lt;strong&gt;Maturity&lt;/strong&gt;, Tk has been ported to perl for quite
+some time and is fairly stable.  Also, there are several applications
+that are already written using Perl/Tk such as &lt;a
+href=&quot;http://www.perlmonks.org/index.pl?node_id=22273&quot;&gt; PerlMonks
+Perl/Tk Chatterbox Client.&lt;/a&gt; I have written a few scripts using
+wxPerl, but I kept going back to Tk because there were more examples,
+and more documentation.  Maybe when &lt;a
+href=&quot;http://wxperl.sourceforge.net/&quot;&gt;wxPerl&lt;/a&gt; matures and offers as
+much as Tk, I will reconsider using it.  wxPerl is based on the &lt;a
+href=&quot;http://www.wxwindows.org/&quot;&gt;wxWindows Cross Platform GUI
+Library&lt;/a&gt;, so it can be used on multiple platforms whereas
+Win32::GUI is based on the Win32 API, leading to my next reason...&lt;/LI&gt;
+
+&lt;LI&gt;&lt;strong&gt;Cross platform&lt;/strong&gt;, Tk will run on Linux and Win32
+platforms with no code changes, or, at least no changes in the Tk
+code.  Note, however, that I haven't tested every
+detail of every widget under Tk on both platforms, but I have
+successfully used most of the widgets, and I did not have to change
+any code to get the scripts to run on Linux and Win2k.&lt;/LI&gt;
+
+&lt;/UL&gt;
+
+
+
+&lt;h3&gt;&lt;a name=&quot;credits&quot;&gt;Acknowledgements&lt;/a&gt;&lt;/h3&gt;
+&lt;UL&gt;
+&lt;li&gt;&lt;a href=&quot;http://www.ni-s.u-net.com/&quot;&gt;Nick Ing-Simmons&lt;/a&gt;, who
+wrote Perl/Tk.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;UserGuide.pod&lt;/strong&gt;, see below.
+The Hello World example in this tutorial is based on the one in the
+&quot;First Requirements&quot; section.
+&lt;/UL&gt;
+
+
+&lt;h3&gt;&lt;a name=&quot;further&quot;&gt;Further Reading&lt;/a&gt;&lt;/h3&gt;
+&lt;UL&gt;
+&lt;LI&gt;&lt;a href=&quot;http://www.cpan.org/authors/id/C/CL/CLAIRD/ptkFAQ.html&quot;&gt;
+Perl/Tk FAQ&lt;/a&gt;&lt;/LI&gt;
+&lt;LI&gt;&lt;A HREF=&quot;news:comp.lang.perl.tk&quot;&gt;comp.lang.perl.tk&lt;/A&gt;&lt;/LI&gt;
+&lt;LI&gt;&lt;A
+HREF=&quot;http://search.cpan.org/doc/NI-S/Tk-800.024/pod/UserGuide.pod&quot;&gt;
+UserGuide.pod&lt;/A&gt; is a good starting place.&lt;/LI&gt;
+&lt;LI&gt;Here are a couple books to consider looking through too:
+&lt;UL&gt;
+&lt;LI&gt;&quot;Mastering Perl/Tk&quot; by Steve Lidie &amp;amp; Nancy Walsh.&lt;BR&gt;
+&lt;/LI&gt;
+&lt;LI&gt;&quot;Advanced Perl Programming&quot; by Sriram Srinivasan&lt;/LI&gt;
+&lt;/UL&gt;
+&lt;/LI&gt;
+&lt;/UL&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>181977</node_id>
+  <author_user>178658</author_user>
+  <title>Tk Tutorial, Featuring Your Very Own &quot;Perl Sig/OBFU Decoder Ring&quot;</title>
+  <createtime>2002-07-15 21:34:40</createtime>
+  <nodeupdated>2005-08-15 11:46:55</nodeupdated>
+</node>

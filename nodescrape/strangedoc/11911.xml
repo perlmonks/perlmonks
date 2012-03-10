@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="11911" title="preview page" created="2000-02-29 20:52:06" updated="2005-08-15 17:21:24">
+<type id="4693">
+strangedoc</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="doctext">
+[%
+   my $type= $q-&gt;param( 'preview_type' );
+   my $temp= $q-&gt;param( 'preview_'.$type.'_doctext' );
+   my @params= $q-&gt;param();
+   my $SETTING= getNode( 'preview settings', 'setting' );
+   my $PS= getVars( $SETTING );
+   my $displaycode= $PS-&gt;{"displayHtmlcodeForType_"."$type"}
+      || $PS-&gt;{defaultDisplayHtmlcode};
+   foreach my $param (  @params  ) {
+      my $value= $q-&gt;param( $param );
+      if(  $param =~ s/^preview_//  ) {
+         $q-&gt;param( $param, $value );
+      }
+   }
+   my $title= $q-&gt;param('node');
+   $q-&gt;param( htmlerror =&gt; $VARS-&gt;{htmlpreview} || 3 )
+      if  ! $q-&gt;param('htmlerror');
+   $HTMLVARS{embed_node}{doctext}=
+      $q-&gt;param( "preview_".$type."_doctext" );
+   my $str= qq[
+      &lt;hr /&gt;&lt;h3&gt;] . $q-&gt;escapeHTML( $q-&gt;param("preview_node") ) . qq[&lt;/h3&gt;
+      ] . htmlcode($displaycode) . qq[
+      &lt;hr /&gt;&lt;p&gt;
+         If something looked unlike you expected
+         it to you might need to check out
+      ] . linkNodeTitle('Writeup Formatting Tips') . qq[&lt;p /&gt;
+      ];
+   if ( getId($USER) == $HTMLVARS{guest_user} ) {
+       $str .= qq[&lt;h2&gt;You aren't logged in.&lt;/h2&gt; &lt;p&gt;] . 
+               linkNodeTitle('Login') . 
+               qq[, ] .
+               linkNodeTitle('Create a new user') .
+               qq[, or hit "Create" to proceed in ] .
+               qq[ posting your node.&lt;/p&gt; ];
+   }
+   my $PFS= getVars( getNode('preview form settings','setting') );
+   my $type= $q-&gt;param('preview_type');
+   my $lookuptype= $type;
+   $lookuptype =~ s/ /_/g;
+   my $formcode= $PFS-&gt;{$lookuptype};
+
+   # handle note inheritance. this could be a lot smarter.
+   $formcode||='addnewnoteform' 
+         if $lookuptype=~/note/;
+
+   {
+     # blech. there must be a better way.
+     local $HTMLVARS{__ADD_SIG_WARNING}=1;
+     if(  $formcode  ) {
+        $str .= htmlcode( $formcode, 0 );
+     } else {
+        $str .= htmlcode( 'addnewform', '', $type, 'Add it', 'Add this' );
+     }
+   }
+   return $str;
+%]</field>
+</data>
+</node>

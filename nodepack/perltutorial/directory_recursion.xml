@@ -1,0 +1,220 @@
+<node>
+  <doctext>&lt;STRONG&gt;Overview&lt;/strong&gt;&lt;BR&gt;
+&lt;BR&gt;
+Often times you find yourself in a situation where
+you need to delve deep into directories, their
+subdirectories, the subdirectories' subdirectories,
+and so on and so forth.&lt;br&gt;
+&lt;br&gt;
+This is a great example of where recursion comes into play.  It allows
+you to write a single routine which can call itself
+again and again, as many times as needed.&lt;br&gt;
+&lt;br&gt;
+There is a very notable module that helps with
+this task, and that is [File::Find].  This is an incredibly
+useful module and should &lt;i&gt;always be used for any production
+code.&lt;/i&gt;  It takes care of many of the nuances in file processing,
+such as the handling of symbolic links, hard-link counts, and so on.&lt;br&gt;
+&lt;br&gt;
+This tutorial, on the other hand, is designed
+to give you a basic understanding of recursion in Perl,
+and should hopefully be beneficial to you for more than
+just file and directory processing (though that will be
+the focus).  After reading this, I hope that you will be
+able to look at a recursive file processing routine (be it with File::Find or otherwise), and have a very clear understanding of what it does, and how it does it.&lt;br&gt;
+&lt;br&gt;
+
+&lt;STRONG&gt;Some Conventions&lt;/strong&gt;&lt;BR&gt;
+&lt;BR&gt;
+For the sake of clarity, here are a few conventions used
+in this tutorial:&lt;br&gt;
+&lt;ul&gt;&lt;li&gt;'path' - Refers to the filesystem path of a file.
+                 For example, the path to
+                 '/home/count0/filename' would be '/home/count0'.
+&lt;li&gt;'file' - Any type of file, including directories.
+&lt;/ul&gt;
+&lt;br&gt;
+
+&lt;STRONG&gt;The (pseudo-code) Algorithm&lt;/strong&gt;&lt;BR&gt;
+&lt;BR&gt;
+For recursive processing, where a returned list of files
+is not needed:&lt;br&gt;
+(One example may be to rename all or certain files)&lt;br&gt;
+&lt;code&gt;
+    process_files() with the base path as 'path'
+
+    process_files():
+        get a list of all files in 'path'
+        for each of the files
+            if it is not a directory and it needs processing
+                process it
+            if it is a directory
+                process_files() with this dir as 'path'
+&lt;/code&gt;
+&lt;br&gt;
+If a returned list of files is needed:&lt;br&gt;
+(Note that this can be made to do processing as well)&lt;br&gt;
+&lt;code&gt;
+    list_of_all_files = process_files() with the base path as 'path'
+
+    process_files():
+        get a list of all files in 'path'
+        for each of the files
+            if it is not a directory
+                process it if necessary
+                add it to our list of files
+            if it is a directory
+                process_files() with this dir as 'path'
+                add the files returned from process_files() to our list of files
+        return our list of files
+&lt;/code&gt;
+&lt;br&gt;
+
+&lt;STRONG&gt;The Code&lt;/strong&gt;&lt;BR&gt;
+&lt;BR&gt;
+First, we'll make a very basic example.  In it, we will not be
+returning any lists of files, but simply doing processing on each.&lt;br&gt;
+&lt;br&gt;
+&lt;code&gt;
+process_files ($base_path);
+
+# Accepts one argument: the full path to a directory.
+# Returns: nothing.
+sub process_files {
+    my $path = shift;
+
+    # Open the directory.
+    opendir (DIR, $path)
+        or die &quot;Unable to open $path: $!&quot;;
+
+    # Read in the files.
+    # You will not generally want to process the '.' and '..' files,
+    # so we will use grep() to take them out.
+    # See any basic Unix filesystem tutorial for an explanation of them.
+    my @files = grep { !/^\.{1,2}$/ } readdir (DIR);
+
+    # Close the directory.
+    closedir (DIR);
+
+    # At this point you will have a list of filenames
+    #  without full paths ('filename' rather than
+    #  '/home/count0/filename', for example)
+    # You will probably have a much easier time if you make
+    #  sure all of these files include the full path,
+    #  so here we will use map() to tack it on.
+    #  (note that this could also be chained with the grep
+    #   mentioned above, during the readdir() ).
+    @files = map { $path . '/' . $_ } @files;
+
+    for (@files) {
+
+        # If the file is a directory
+        if (-d $_) {
+            # Here is where we recurse.
+            # This makes a new call to process_files()
+            # using a new directory we just found.
+            process_files ($_);
+
+        # If it isn't a directory, lets just do some
+        # processing on it.
+        } else { 
+            # Do whatever you want here =) 
+            # A common example might be to rename the file.
+        }
+    }
+}
+&lt;/code&gt;
+&lt;br&gt; 
+That was a bare-bones template for how you will process files
+recursively.&lt;br&gt;
+But what if you want to return a list of all files in a directory
+and all of its subdirectories?&lt;br&gt;
+&lt;br&gt;
+Building on the previous one, this example will go through a
+directory and each of its subdirectories and compile a list of
+all the files in them.
+
+&lt;code&gt;
+process_files ($base_path);
+
+# Accepts one argument: the full path to a directory.
+# Returns: A list of files that reside in that path.
+sub process_files {
+    my $path = shift;
+
+    opendir (DIR, $path)
+        or die &quot;Unable to open $path: $!&quot;;
+
+    # We are just chaining the grep and map from
+    # the previous example.
+    # You'll see this often, so pay attention ;)
+    # This is the same as:
+    # LIST = map(EXP, grep(EXP, readdir()))
+    my @files =
+        # Third: Prepend the full path
+        map { $path . '/' . $_ }
+        # Second: take out '.' and '..'
+        grep { !/^\.{1,2}$/ }
+        # First: get all files
+        readdir (DIR);
+
+    closedir (DIR);
+
+    for (@files) {
+        if (-d $_) {
+            # Add all of the new files from this directory
+            # (and its subdirectories, and so on... if any)
+            push @files, process_files ($_);
+
+        } else {
+            # Do whatever you want here =) .. if anything.
+        }
+    }
+    # NOTE: we're returning the list of files
+    return @files;
+}
+&lt;/code&gt;
+&lt;BR&gt;
+
+&lt;STRONG&gt;Real Example&lt;/strong&gt;&lt;BR&gt;
+&lt;BR&gt;
+Just for the sake of completeness, and to help you get
+started writing recursive routines to suit your needs,
+here is an example of a recursive function that actually does something.  As you'll see, I have used a few common shortcuts and idioms which make it look different than the above examples.. but hopefully you will now be able to read this with confidence.&lt;br&gt;
+&lt;code&gt;
+# Accepts one argument: the full path to a directory.
+# Returns: A list of files that end in '.html' and have been
+#          modified in less than one day.
+sub get_new_htmls {
+    my $path    = shift;
+    my $ONE_DAY = 86400; # seconds
+
+    opendir (DIR, $path)
+        or die &quot;Unable to open $path: $!&quot;;
+
+    my @files =
+        map { $path . '/' . $_ }
+        grep { !/^\.{1,2}$/ }
+        readdir (DIR);
+
+    # Rather than using a for() loop, we can just
+    # return a directly filtered list.
+    return
+        grep { (/\.html$/) &amp;&amp; 
+               (time - (stat $_)[9] &lt; $ONE_DAY) &amp;&amp;
+               (! -l $_) }
+        map { -d $_ ? get_new_htmls ($_) : $_ }
+        @files;
+}
+&lt;/code&gt;
+&lt;BR&gt;
+&lt;B&gt;UPDATE&lt;/B&gt; Per [merlyn]'s comments, made it even more clear that this is not intended to be used as production code.&lt;br&gt;
+Added symlink ignoring to real example.
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>136482</node_id>
+  <author_user>102451</author_user>
+  <title>Directory Recursion</title>
+  <createtime>2002-01-05 04:19:16</createtime>
+  <nodeupdated>2005-08-14 22:00:54</nodeupdated>
+</node>

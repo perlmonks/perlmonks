@@ -1,0 +1,183 @@
+<node>
+  <filetext>package Everything::Diff;
+#use strict;
+use Everything;
+use Algorithm::Diff qw(diff traverse_sequences);
+use Storable qw(freeze thaw);
+use Digest::MD5 qw(md5_base64);
+
+
+
+sub BEGIN
+{
+	use Exporter ();
+	use vars       qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+        $VERSION= &quot;1.00302&quot;;
+	@ISA=qw(Exporter);
+	@EXPORT=qw(
+	    getDiff
+	    getFrozenDiff
+	    getChecksum
+	    showDiff
+	    applyChange
+	);
+}
+
+sub textToRef{
+   my($text)=@_;
+   # [ $text =~ /(\s+|\w+|[^\s\w]+)/g ];
+   [ split /(?&lt;=\n)/, $text ];
+}
+
+sub refToText{
+   my($ref)=@_;
+   join('',@$ref);
+}
+
+sub getChecksum{
+   my ($text)=@_;
+   md5_base64($text);
+}
+
+sub getFrozenDiff{
+    freeze getDiff(@_);
+}
+
+
+sub stringHash{ 
+   my $str=shift;
+   return $str=~/^\s*$/ ? &quot; &quot; : $str;
+}
+
+
+sub getDiff{
+   my ($source,$destination)=@_;
+   my $src=textToRef($source);
+   my $dest=textToRef($destination);
+   my $diff=diff($src,$dest,\&amp;stringHash);
+   $diff;
+}
+
+
+sub stateshow{
+  my ($state,$prevstate,$string,$escape)=@_;
+  my %close= (
+    &quot;deleted&quot;=&gt;&quot;&lt;/font&gt;&lt;/s&gt;&quot;,
+    &quot;new&quot;    =&gt;&quot;&lt;/font&gt;&quot;,
+  );
+  my %open= (
+    &quot;deleted&quot;=&gt;qq[&lt;s&gt;&lt;font color=&quot;red&quot; class=&quot;deleted&quot;&gt;],
+    &quot;new&quot;    =&gt;qq[&lt;font color=&quot;#00ff00&quot; class=&quot;inserted&quot;&gt;],
+  );
+  my $str;
+  if($escape){
+     $string=~s/&amp;/&amp;amp;/g;
+     $string=~s/&lt;/&amp;lt;/g;
+     $string=~s/&gt;/&amp;gt;/g;
+  }
+  if($state ne $$prevstate){
+    $str.=$close{$$prevstate}.$open{$state};
+  }
+  $str.=$string; 
+  $$prevstate=$state;
+  $str;
+}
+
+
+sub recordchunk
+{
+  my( $state, $sv, $text )= @_;
+  if(  ! $sv  ) {
+    $$sv= { deleted=&gt;&quot;&quot;, new=&gt;&quot;&quot;, &quot;&quot;=&gt;&quot;&quot;, prev=&gt;&quot;&quot; };
+  }
+  my $out= '';
+  if(   &quot;&quot; eq $text # Ending flush request
+    or       &quot;&quot; ne $state
+         &amp;&amp;  3 &lt; length($$sv-&gt;{&quot;&quot;})  &amp;&amp;  $$sv-&gt;{&quot;&quot;} =~ /\S/
+  ) { # Flush what we've collected so far:
+    for my $type (  qw( deleted new ), &quot;&quot;  ) {
+      $out .= stateshow( $type, \$$sv-&gt;{prev}, $$sv-&gt;{$type}, 1 )
+        if  &quot;&quot; ne $$sv-&gt;{$type};
+      $$sv-&gt;{$type}= '';
+    }
+  }
+  if(  &quot;&quot; ne $state  &amp;&amp;  &quot;&quot; ne $$sv-&gt;{&quot;&quot;}  ) {
+    $$sv-&gt;{deleted} .= $$sv-&gt;{&quot;&quot;};
+    $$sv-&gt;{new} .= $$sv-&gt;{&quot;&quot;};
+    $$sv-&gt;{&quot;&quot;}= &quot;&quot;;
+  }
+  $$sv-&gt;{$state} .= $text;
+  return $out;
+}
+
+
+sub showDiff
+{
+   my( $source, $dest )= @_;
+   my $old= textToRef($source);
+   my $new= textToRef($dest);
+   my $context;
+   my $out= '';
+   traverse_sequences( $old, $new, {
+      MATCH =&gt; sub {
+         $out .= recordchunk( &quot;&quot;, \$context, $old-&gt;[shift] ) },
+      DISCARD_A =&gt; sub {
+         $out .= recordchunk( &quot;deleted&quot;, \$context, $old-&gt;[shift] ) },
+      DISCARD_B =&gt; sub {
+         $out .= recordchunk( &quot;new&quot;, \$context, $new-&gt;[shift,shift] ) },
+   } );
+   $out .= recordchunk( &quot;&quot;, \$context, &quot;&quot; );
+
+   return $out;
+}
+
+
+sub handleActions{
+   my($ref,$action,$offset)=@_;
+   if($action-&gt;[0] eq &quot;+&quot;){
+      splice(@$ref, $action-&gt;[1], 0, $action-&gt;[2]);
+      --$$offset;
+   } elsif($action-&gt;[0] eq &quot;-&quot;){
+      splice(@$ref, $action-&gt;[1]-$$offset,1);
+      ++$$offset
+   }
+}
+
+sub processDiffArray{
+   my($item,$ref,$offset)=@_;
+   my @actions;
+   foreach my $el(@$item){
+      if(ref ($el) eq &quot;ARRAY&quot;){
+         processDiffArray($el,$ref,$offset);
+      } else {
+         push @actions,$el;
+      }
+   }
+   if(@actions){
+      handleActions($ref,\@actions,$offset);
+   }
+}
+
+
+sub applyChange{
+   my($text,$diff)=@_;
+   my $ref=textToRef($text);
+   #patch($diff,$ref); 
+   my $offset=0;
+   if(ref ($diff) eq &quot;ARRAY&quot;){
+       processDiffArray($diff,$ref,\$offset);
+   }
+   refToText($ref);
+}
+
+1;
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-06-26 12:01:54</createtime>
+  <node_id>177417</node_id>
+  <filerequired>1</filerequired>
+  <title>Everything/Diff.pm</title>
+  <nodeupdated>2005-08-13 05:26:16</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

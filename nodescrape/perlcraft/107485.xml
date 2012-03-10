@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="107485" title="Breaking double-xor encryption" created="2001-08-23 19:37:25" updated="2005-07-21 01:28:05">
+<type id="121">
+perlcraft</type>
+<author id="78006">
+no_slogan</author>
+<data>
+<field name="doctext">
+# Simple-xor encryption (which is very insecure) works like
+# this:
+#   $cipher[$i] = chr(ord($plain[$i]) ^ $key[$i%@key])
+# Double-xor has an extra key, like this:
+#   $cipher[$i] = chr(ord($plain[$i]) ^ $key1[$i%@key1]
+#                     ^ $key2[$i%@key2])
+# The claim has been made that double-xor encryption has an
+# effective key length equal to the product of the lengths
+# of the two keys, making it much more secure than
+# simple-xor.  This is not true.  Below is a very
+# efficient known plaintext attack that recovers the two
+# xor keys, given a number of known bytes about equal to
+# the sum (not the product) of the key lengths.  This is
+# done using base-2 linear algebra -- I thought the matrix
+# reduction step was kind of cool.  This attack is easily
+# generalized to triple-xor or higher.
+
+# Note: If you xor every element in the two keys by a
+# constant value, the constant will cancel out when you do
+# the encryption.  The keys determined by the method
+# presented here might therefore be off by a constant, but
+# it doesn't matter because they will encrypt and decrypt
+# just the same.
+
+# Getting the known plaintext is surprisingly easy.  The
+# upper bits of ASCII text are very nonrandom (for
+# instance, since lower case letters are most common, bits
+# 5 and 6 are usually 1).  This makes it possible to work
+# out the upper bits of the xor keys using other
+# techniques.  Once that is done, you can guess which
+# ciphertext characters correspond to spaces in the
+# plaintext.  A little more guesswork is often needed -
+# try common words that are the right length.  I've been
+# able to successfully attack messages of length about 3
+# times the total length of the keys.  A skilled
+# cryptanalyst could probably break an even shorter
+# message.
+
+# Input:
+#   $keylen1, $keylen2: Length of the two xor keys
+#   $cipher: The enciphered message
+#   %plain: Known (or guessed) plaintext bytes.  Hash keys
+#           are the position in the message
+
+# Build the coefficient matrix.  Since it's very sparse,
+# the rows are stored as hashes rather than arrays
+my $columns = $keylen1 + $keylen2;
+my @matrix;
+while (my ($pos, $ch) = each %plain) {
+  my $i = $pos % $keylen1;
+  my $j = $pos % $keylen2 + $keylen1;
+  my $val = ord($ch) ^ ord(substr $cipher, $pos, 1);
+  push @matrix, { $i=&gt;1, $j=&gt;1, val=&gt;$val, "pos$pos"=&gt;1 };
+}
+
+# Row-reduce the matrix
+my $rank = 0;
+foreach my $col (0..$columns-1) {
+  # choose a pivot row which depends on $col
+  my $i;
+  for ($i = $rank; $i &lt; $columns; $i++) {
+    last if $matrix[$i]-&gt;{$col};
+  }
+  next if $i &gt;= $columns;
+  my $pivot = $matrix[$i];
+  @matrix[$rank, $i] = @matrix[$i, $rank]
+      unless $i == $rank;
+  $rank++;
+  # remove the dependence on $col from the other rows
+  foreach my $row (@matrix) {
+    next if $row == $pivot || !$row-&gt;{$col};
+    $row-&gt;{$_} ^= $pivot-&gt;{$_} or delete $row-&gt;{$_}
+        for keys %$pivot;
+  }
+}
+
+# Interpret results
+if ($rank &lt; $columns-1) {
+  # Matrix is underdetermined
+  print "Not enough information - guess more plaintext\n";
+}
+foreach my $row (@matrix[$rank .. $columns-1]) {
+  # The rows above $rank provide a check that the guessed
+  # plaintext is consistent
+  if ($row-&gt;{val}) {
+    print "Inconsistent plaintext given\n";
+    # Examining the "posN" entries would give information
+    # about which guesses were wrong
+    last;
+  }
+}
+# Even if the matrix is underdetermined or inconsistent,
+# decrypting with the inferred key values may help improve
+# the guesses
+my @key = (0) x $columns;
+foreach my $row (@matrix[0 .. $rank-1]) {
+  my $i;
+  for ($i = 0; $i &lt; $columns; $i++) {
+    last if $row-&gt;{$i};
+  }
+  $key[$i] = $row-&gt;{val} || 0;
+}
+print "Key: @key\n";</field>
+</data>
+</node>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="180958" title="node print page" created="2002-07-11 02:34:15" updated="2004-09-21 15:00:50">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;
+      [%
+        if ( my $custom = $VARS-&gt;{titledef} ) {
+          my %sub = (
+                      T =&gt; $q-&gt;escapeHTML( $NODE-&gt;{title} ),
+                  N =&gt; $NODE-&gt;{node_id},
+                  D =&gt; $NODE-&gt;{createtime},
+                  S =&gt; $NODE-&gt;{type}{title},
+                );
+
+         $custom =~ s/\%$_/$sub{$_}/g for keys %sub;
+         $custom =~ s/&lt;/&amp;lt;/gs;
+         $custom =~ s/&gt;/&amp;gt;/gs;
+
+          return $custom;
+        } else {
+          return $NODE-&gt;{title}
+        }
+      %]
+    &lt;/title&gt;
+  &lt;/head&gt;
+  &lt;link rel="stylesheet" type="text/css" href="[%
+    $VARS-&gt;{printcss} || urlGen({ node =&gt; 'print displaytype stylesheet' }, -1)
+  %]" /&gt;
+  &lt;body&gt;
+    &lt;div id="header"&gt;
+      &lt;div class="title"&gt;
+        [% $q-&gt;escapeHTML( $NODE-&gt;{title} ) %]
+      &lt;/div&gt;
+      &lt;div class="subtitle"&gt;
+        by &lt;span id="author"&gt;[%
+          $q-&gt;escapeHTML( (
+            getNodeById($NODE-&gt;{author_user}) || { title =&gt; 'unknown' }
+          )-&gt;{title} )
+        %]&lt;/span&gt; on &lt;span id="created"&gt;[%
+          htmlcode('parsetime', 'createtime')
+        %]&lt;/span&gt;[%
+          $q-&gt;param('replies') ? '' : ' ('
+          . linkNode( $NODE, "replies", {replies=&gt;1,displaytype=&gt;'print'} )
+          . ')'
+        %]
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div id="url"&gt;
+        [%
+          'http://' . $ENV{HTTP_HOST} . urlGen({ node_id =&gt; getId($NODE) }, -1)
+        %]
+    &lt;/div&gt;
+
+    &lt;div id="content"&gt;
+      [%
+        # Quick hack so dark themes don't mess up
+        # the display.
+        {
+          local( $VARS-&gt;{preferred_theme} )= $HTMLVARS{default_theme};
+          getTheme();
+        }
+        my $d = getPage($NODE, 'display');
+        my $page = parseCode($d-&gt;{page}, $NODE);
+        getTheme();
+        return $page;
+      %]
+    &lt;/div&gt;
+  &lt;/body&gt;
+&lt;/html&gt;</field>
+<field name="displaytype">
+print</field>
+</data>
+</node>

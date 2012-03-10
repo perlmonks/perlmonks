@@ -1,0 +1,41 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>474174</author_user>
+  <createtime>2005-08-25 19:04:00</createtime>
+  <node_id>486752</node_id>
+  <title>Reaper Nodelet</title>
+  <nlcode>[%
+   my @N;
+   {
+      # select nodes in danger of being reaped
+      my $csr=$DB-&gt;sqlSelectMany(
+         &quot;*&quot;, &quot;considernodes&quot;, &quot;del&gt;0 and 2*keep+edit&lt;4&quot;, &quot;order by considertime desc&quot; );
+      my $N;
+      while(  $N= $csr-&gt;fetchrow_hashref()  ) {
+         push @N, $N;
+      }
+      $csr-&gt;finish();
+   }
+
+   my $reaps = htmlcode( 'toInbox', 'root', '(un)reaps/borgs:', '%d' );
+   $reaps=''  unless $reaps =~ /inboxupdate/;
+   $reaps .= &quot;&lt;br/&gt;\n&quot; if $reaps;
+
+   my $msgs = htmlcode( 'toInbox', 'NodeReaper', 'msgs:', '%d' );
+   $msgs=''  unless $msgs =~ /inboxupdate/;
+   $msgs .= &quot;&lt;br/&gt;\n&quot; if $msgs;
+
+   my $str = join &quot;&quot;,
+      $reaps,
+      $msgs,
+      map {
+         sprintf &quot;%s K/E/D:%d/%d/%d&lt;br /&gt;\n&quot;,
+            linkNode( $_-&gt;{considernodes_id} ),
+            @$_{ qw/keep edit del/ }
+      } @N;
+
+   $str;
+%]</nlcode>
+  <nodeupdated>2005-08-25 15:04:00</nodeupdated>
+</node>

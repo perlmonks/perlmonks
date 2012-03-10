@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="190497" title="Managing your IP space with Perl" created="2002-08-15 15:02:50" updated="2005-08-15 11:45:38">
+<type id="956">
+perltutorial</type>
+<author id="107541">
+fokat</author>
+<data>
+<field name="doctext">
+&lt;a name="about"&gt;&lt;h2&gt;What this tutorial is all about...&lt;/h2&gt;&lt;/a&gt;
+
+&lt;p&gt;Some of us, monks who love Perl, also have to deal with the
+complexities of IP addresses, subnets and such. A while ago, I wrote &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+to help me work out tedious tasks such as finding out which addresses
+fell within a certain subnet or allocating IP space to network
+devices.
+
+&lt;p&gt;This tutorial discusses many common tasks along with solutions
+using &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;.
+Since Perl lacks a native type to represent either an IP address or an
+IP subnet, I feel this module has been quite helpful for fellow monks
+who like me, need to work in this area.
+&lt;READMORE&gt;
+&lt;p&gt;Note however that neither the module itself nor this tutorials are
+intended as replacements to your knowledge about how to work with
+chunks of IP space. The module was written as a tool to help with the
+boring tasks (after all, we're plentiful with good laziness, aren't
+we?) and this tutorial, was written to help answer the most common
+questions I get. Both the module and this tutorial expect you to be
+fluent in basic networking and somewhat fluent in Perl. You should not
+writing Perl code to manage your subnetting otherwise.
+
+&lt;hr&gt;
+
+&lt;a name="new"&gt;&lt;h2&gt;Specifying an IP Address or a subnet&lt;/h2&gt;&lt;/a&gt;
+
+&lt;p&gt;A &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+object represents a subnet. This involves storing an IP address
+&lt;b&gt;within&lt;/b&gt; the subnet along with the subnet's netmask. Of course,
+using a host netmask (&lt;tt&gt;/32&lt;/tt&gt; or in decimal notation, &lt;tt&gt;255.255.255.255&lt;/tt&gt;)
+allows for the specification of a single IP address.
+
+&lt;p&gt;You can create a &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+object with an incantation like the following:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+my $ip = new NetAddr::IP '127.0.0.1';
+&lt;/CODE&gt;
+
+&lt;p&gt;which will create an object representing the 'address'
+&lt;tt&gt;127.0.0.1&lt;/tt&gt; or the 'subnet' &lt;tt&gt;127.0.0.1/32&lt;/tt&gt;.
+
+&lt;p&gt;Creating a subnet is equally easy. Just specify the address and
+netmask in almost any common notation, as in the following examples:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+my $loopback = new NetAddr::IP '127.0.0.1', '255.0.0.0';
+my $rfc1918 = new NetAddr::IP '10.0.0.0/8';
+my $another = new NetAddr::IP '1.2.0.0/255.255.0.0';
+my $loopback2 = new NetAddr::IP 'loopback';
+&lt;/CODE&gt;
+
+&lt;p&gt;The following is a list of the acceptable arguments to
+&lt;tt&gt;-&gt;new()&lt;/tt&gt; and their meanings:
+
+&lt;ul&gt;
+&lt;li&gt;&lt;tt&gt;-&gt;new('broadcast')&lt;/tt&gt;
+
+&lt;p&gt;Equivalent to the address &lt;tt&gt;255.255.255.255/32&lt;/tt&gt; which is often
+used to denote a broadcast address.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('default')&lt;/tt&gt;
+
+&lt;p&gt;Synonym to the address &lt;tt&gt;0.0.0.0/0&lt;/tt&gt; which is universally used
+to represent a default route. This subnet is guaranteed to
+&lt;tt&gt;-&gt;contains()&lt;/tt&gt; any other subnet. More on that later.
+
+&lt;p&gt;For the benefit of many Cisco users out there, &lt;tt&gt;any&lt;/tt&gt; is
+considered a synonym of &lt;tt&gt;default&lt;/tt&gt;.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('loopback')&lt;/tt&gt;
+
+&lt;p&gt;The same as the address &lt;tt&gt;127.0.0.1/8&lt;/tt&gt; which is the standard
+&lt;tt&gt;loopback&lt;/tt&gt; address.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('10.10.10.10')&lt;/tt&gt; or &lt;tt&gt;-&gt;new('foo.bar.com')&lt;/tt&gt;
+
+&lt;p&gt;This represents a single host. When no netmask is supplied, a netmask
+of &lt;tt&gt;/32&lt;/tt&gt; is assumed. When supplying a name, the host name will
+be looked up using &lt;a
+href="http://www.perldoc.com/perl5.6.1/pod/perlfunc.html"&gt;gethostbyname()&lt;/a&gt;,
+which will in turn use whatever name resolution is configured in your
+system to obtain the IP address associated with the supplied name.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('10.10.1')&lt;/tt&gt;
+
+&lt;p&gt;An ancient notation that allows the &lt;em&gt;middle zeroes&lt;/em&gt; to be
+skipped. The example is equivalent to &lt;tt&gt;-&gt;new('10.10.0.1')&lt;/tt&gt;.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('10.10.1.')&lt;/tt&gt;
+
+&lt;p&gt;Note the trailing dot. This format allows the omission of the
+netmask for classful subnets. The example is equivalent to
+&lt;tt&gt;-&gt;new('10.10.1.0/24')&lt;/tt&gt;.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('10.10.10.0 - 10.10.10.255')&lt;/tt&gt;
+
+&lt;p&gt;This is also known as &lt;em&gt;range notation&lt;/em&gt;. Both ends of an
+address range are specified. Note that this notation is only supported
+if the specified subnet can be represented in valid CIDR notation.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new('10.10.10.0-255')&lt;/tt&gt;
+
+&lt;p&gt;This notation is a shorthand for the &lt;em&gt;range notation&lt;/em&gt;
+discussed above. It provides for the specification of an address range
+where both of its ends share the first octets. This notation is only
+supported when the specified range of hosts defined a proper CIDR
+subnet.
+
+&lt;li&gt;&lt;tt&gt;-&gt;new(1024)&lt;/tt&gt;
+
+&lt;p&gt;Whenever the address is specified as a numeric value greater than
+255, it is assumed to contain an IP address encoded as an unsigned int.
+
+
+&lt;li&gt;&lt;tt&gt;-&gt;new()&lt;/tt&gt; with two arguments
+
+&lt;p&gt;Whenever two arguments are specified to &lt;tt&gt;-&gt;new()&lt;/tt&gt;, the first
+is always going to be interpreted as the IP address and the second
+will always be the netmask, in any of the formats discussed so far.
+
+&lt;p&gt;Netmasks can be specified in dotted-quad notation, as the number of
+one-bits or as the equivalent unsigned int. Also, special keywords
+such as &lt;tt&gt;broadcast&lt;/tt&gt;, &lt;tt&gt;default&lt;/tt&gt; or &lt;tt&gt;host&lt;/tt&gt; can be
+used as netmasks.
+
+&lt;/ul&gt;
+
+&lt;p&gt;The semantics and notations depicted above, are supposed to comply
+strictly with the DWIM approach which is so popular with Perl. The
+general idea is that you should be able to stick almost anything
+resembling an IP address or a subnet specification into the
+&lt;tt&gt;-&gt;new()&lt;/tt&gt; method to get an equivalent object. However, if you
+can find another notation that is not included in the above list,
+please by all means let me know.
+
+&lt;hr&gt;
+
+&lt;a name="overloading"&gt;&lt;h2&gt;Simple operations with subnets&lt;/h2&gt;&lt;/a&gt;
+
+&lt;P&gt;There is a number of operations that have been simplified along the
+different versions of the module. The current version, as of this
+writing, provides support for the following operations:
+
+&lt;ul&gt;
+&lt;li&gt;Scalarization
+
+&lt;p&gt;A &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+object will become its CIDR representation whenever a scalar
+representation for it is required. For instance, you can very well do
+something like &lt;tt&gt;print "My object contains $ip\n";&lt;/tt&gt;.
+
+&lt;li&gt;Numerical comparison
+
+&lt;p&gt;Two objects can be compared using any of the numerical comparison
+operators. Only the address part of the subnet is compared. The
+netmask is ignored in the comparison.
+
+&lt;li&gt;Increments and decrements
+
+&lt;p&gt;Adding or substracting a scalar from an object will change the
+address in the subnet, but always keeping it within the subnet. This
+is very useful to write loops, like the following:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+my $ip = new NetAddr::IP('10.0.0.0/30');
+while ($ip &lt; $ip-&gt;broadcast) {
+  print "ip = $ip\n";
+  $ip ++;
+}
+&lt;/CODE&gt;
+
+&lt;p&gt;which will produce the following output:
+
+&lt;CODE&gt;
+ip = 10.0.0.0/30
+ip = 10.0.0.1/30
+ip = 10.0.0.2/30
+&lt;/CODE&gt;
+
+&lt;li&gt;List expansion
+
+&lt;p&gt;When required, a &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+will expand automatically to a list containing all the addresses
+within a subnet, conveniently leaving the subnet and the broadcast
+addresses out. The following code shows this:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+my $ip = new NetAddr::IP('10.0.0.0/30');
+print join(' ', @$ip), "\n";
+&lt;/CODE&gt;
+
+&lt;p&gt;And the output would be
+
+&lt;CODE&gt;
+10.0.0.1/32 10.0.0.2/32
+&lt;/CODE&gt;
+
+&lt;/ul&gt;
+
+&lt;hr&gt;
+
+&lt;a name="common"&gt;&lt;h2&gt;Common (and not so common) tasks&lt;/h2&gt;&lt;/a&gt;
+
+&lt;p&gt;Below I will try to provide an example for each major feature of &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;,
+along with a description of what is being done, where appropiate.
+
+&lt;a name="compact"&gt;&lt;h3&gt;Optimising the address space&lt;/h3&gt;&lt;/a&gt;
+
+&lt;p&gt;This is one of the reason for writing &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+in the first place. Let's say you have a few chunks of IP space and
+you want to find the &lt;em&gt;optimum&lt;/em&gt; CIDR representation for
+them. By optimum, I mean the least amount of CIDR subnets that exactly
+represent the given IP address space. The code below is an example of
+this:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+push @addresses, NetAddr::IP-&gt;new($_) for &amp;lt;DATA&gt;;
+print join(", ", NetAddr::IP::compact(@addresses)), "\n";
+__DATA__
+10.0.0.0/18
+10.0.64.0/18
+10.0.192.0/18
+10.0.160.0/19
+&lt;/CODE&gt;
+
+&lt;p&gt;Which will, of course, output &lt;tt&gt;10.0.0.0/17, 10.0.160.0/19,
+10.0.192.0/18&lt;/tt&gt;. Let's see how this is done...
+
+&lt;p&gt;First, the line starting with &lt;tt&gt;push ...&lt;/tt&gt; creates a list of
+objects representing all the subnets read in via the
+&lt;tt&gt;&amp;lt;DATA&amp;gt;&lt;/tt&gt; filehandle. There should be no surprises here.
+
+&lt;p&gt;Then, we call &lt;tt&gt;NetAddr::IP::compact&lt;/tt&gt; with the list of
+subnets build earlier. This function accepts a list of subnets as its
+input (actually, an array of objects). It processes them internally
+and outputs another array of objects, as summarized as possible.
+
+&lt;p&gt;Using &lt;tt&gt;compact()&lt;/tt&gt; as in the example is fine when you're
+dealing with a few subnets or are writing a throw-away one-liner. If
+you think your script will be handling more than a few tens of
+subnets, you might find &lt;tt&gt;compactref()&lt;/tt&gt; useful. It works exactly
+as shown before, but takes (and returns) references to arrays. I've
+seen 10x speed improvements when working with huge lists of subnets.
+
+&lt;p&gt;Something that gets asked quite frequently is &lt;em&gt;"why not
+&lt;tt&gt;@EXPORT&lt;/tt&gt; or at least, &lt;tt&gt;@EXPORT_OK&lt;/tt&gt; methods such as
+&lt;tt&gt;compact()&lt;/tt&gt;?"&lt;/em&gt;. The answer is that I believe
+&lt;tt&gt;compact()&lt;/tt&gt; to be a very generic name, for an operation that
+is not always used. I think fully qualifying it, adds to the mnemonics
+of what's being done while not polluting the namespace innecesarilly.
+
+&lt;hr&gt;
+
+&lt;a name="split"&gt;&lt;h3&gt;Assigning address space&lt;/h3&gt;&lt;/a&gt;
+
+&lt;p&gt;This problem can be tought as the complement to the prior
+one. Let's say a couple of network segments need to be connected to
+your network. You can carve slices out of your address space easily,
+such as in the following code:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+print "My address space contains the following /24s:\n", 
+	join("\n", NetAddr::IP-&gt;new('10.0.0.0/22')-&gt;split(24)), "\n";
+&lt;/CODE&gt;
+
+&lt;p&gt;Which will divide your precious address space (the one specified in
+the &lt;tt&gt;NetAddr::IP-&gt;new()&lt;/tt&gt;) in subnets with a netmask of 24
+bytes. This magic is accomplished by the &lt;tt&gt;-&gt;split()&lt;/tt&gt; method,
+which takes the number of bits in the mask as its only parameter. It
+returns a list of subnets contained in the original object.
+
+&lt;p&gt;Again, in situations where the split might return a large number of
+subnets, you might prefer the use of &lt;tt&gt;-&gt;splitref()&lt;/tt&gt;, which
+returns a reference to an array instead.
+
+&lt;p&gt;Returning to our example, you might assign a /24 to each new
+subnet. Ok, perhaps assigning a /24 is not that good an example, as
+this falls on an octet boundary but trust me, when you have to split a
+/16 in /20s, to be allocated in chunks of /22s in a network spanning
+the whole country, it's nice to know your subnetting is well done.
+
+&lt;hr&gt;
+
+&lt;a name="wildcard"&gt;&lt;h3&gt;Cisco's wildcard notation (and other dialects)&lt;/h3&gt;&lt;/a&gt;
+
+&lt;p&gt;Those of you who have had to write an ACL in a Cisco router, know
+about the joys of this peculiar format in which the netmask works the
+opposite of what custom says.
+
+&lt;p&gt;An easy way to convert between traditional notation and Cisco's
+wildcard notation, is to use the eloquently named
+&lt;tt&gt;-&gt;wildcard()&lt;/tt&gt; method, as this example shows:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+print join(' ', NetAddr::IP-&gt;new('10.0.0.0/25')-&gt;wildcard());
+&lt;/CODE&gt;
+
+&lt;p&gt;As you might have guessed, &lt;tt&gt;-&gt;wildcard()&lt;/tt&gt; returns an array
+whose first element is the address and its second element is the
+netmask, in wildcard notation. If scalar context is forced using
+&lt;tt&gt;scalar&lt;/tt&gt;, only the netmask will be returned, as this is most
+likely what you want.
+
+&lt;p&gt;In case you wonder, the example outputs &lt;tt&gt;10.0.0.0
+0.0.0.127&lt;/tt&gt;.
+
+&lt;p&gt;Just for the record, below is a number of outputs from different
+methods for the above example:
+
+&lt;ul&gt;
+&lt;li&gt;Range (The &lt;tt&gt;-&gt;range()&lt;/tt&gt; method)
+
+&lt;p&gt;Outputs &lt;tt&gt;10.0.0.0 - 10.0.0.127&lt;/tt&gt;. Note that this range goes
+from the &lt;em&gt;network address&lt;/em&gt; to the &lt;em&gt;broadcast
+address&lt;/em&gt;.
+
+&lt;li&gt;CIDR notation (The &lt;tt&gt;-&gt;cidr()&lt;/tt&gt; method)
+
+&lt;p&gt;As expected, it outputs &lt;tt&gt;10.0.0.0/25&lt;/tt&gt;. 
+
+&lt;li&gt;Prefix notation (The &lt;tt&gt;-&gt;prefix()&lt;/tt&gt; method)
+
+&lt;p&gt;Similar to &lt;tt&gt;-&gt;range()&lt;/tt&gt;, this method produces
+&lt;tt&gt;10.0.0.1-127&lt;/tt&gt;. However, note that the first address is
+&lt;b&gt;not&lt;/b&gt; the network address but the first host address. 
+
+&lt;li&gt;&lt;em&gt;n&lt;/em&gt;-Prefix notation (The &lt;tt&gt;-&gt;nprefix()&lt;/tt&gt; method)
+
+&lt;p&gt;Produces &lt;tt&gt;10.0.0.1-126&lt;/tt&gt;. Note how the broadcast address is
+not within the range. 
+
+&lt;li&gt;Numeric (The &lt;tt&gt;-&gt;numeric()&lt;/tt&gt; method)
+
+&lt;p&gt;In scalar context, produces and unsigned int that represents the
+address in the subnet. In array context, both the address and netmask
+are returned. For the example, the array output is &lt;tt&gt;(167772160,
+4294967168)&lt;/tt&gt;. This is very useful when serializing the object for
+storage. You can pass those two numbers back to &lt;tt&gt;-&gt;new()&lt;/tt&gt; and
+get your object back. 
+
+&lt;li&gt;Just the IP address (The &lt;tt&gt;-&gt;addr()&lt;/tt&gt; method)
+
+&lt;li&gt;Just the netmask as a dotted quad (The &lt;tt&gt;-&gt;mask()&lt;/tt&gt; method)
+
+&lt;li&gt;The length in bits of the netmask (The &lt;tt&gt;-&gt;masklen()&lt;/tt&gt; method)
+
+&lt;/ul&gt;
+&lt;hr&gt;
+
+&lt;a name="contains"&gt;&lt;h3&gt;Matching against your address space&lt;/h3&gt;&lt;/a&gt;
+
+&lt;p&gt;Let's say you have a log full of IP addresses and you want to know
+which ones belong to your IP space. A simple way to achieve this is
+shown below:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+my $space = new NetAddr::IP-&gt;new('10.128.0.0/17');
+
+for my $ip (map { new NetAddr::IP-&gt;new($_) } &amp;lt;DATA&gt;)
+{
+    print $ip, "\n"
+        if $space-&gt;contains($ip);
+}
+
+__DATA__
+172.16.1.1
+172.16.1.5
+172.16.1.11
+172.16.1.10
+172.16.1.9
+172.16.1.3
+172.16.1.2
+172.16.1.7
+172.16.1.4
+172.16.1.1
+10.128.0.1
+10.128.0.12
+10.128.0.13
+10.128.0.41
+10.128.0.17
+10.128.0.19
+&lt;/CODE&gt;
+
+&lt;p&gt;This code will output only the addresses belonging to your address
+space, represented by &lt;tt&gt;$space&lt;/tt&gt;. The only interesting thing here
+is the use of the &lt;tt&gt;-&gt;contains()&lt;/tt&gt; method. As used in our
+example, it returns a true value if &lt;tt&gt;$ip&lt;/tt&gt; is completely contained within
+the &lt;tt&gt;$space&lt;/tt&gt; subnet.
+
+&lt;p&gt;Alternatively, the condition could have been written as
+&lt;tt&gt;$ip-&gt;within($space)&lt;/tt&gt;. Remember that TIMTOWTDI.
+
+&lt;hr&gt;
+
+&lt;a name="iteration"&gt;&lt;h3&gt;Walking through the network without leaving
+the office&lt;/h3&gt;&lt;/a&gt;
+
+&lt;p&gt;Some of the nicest features of &lt;a
+href="http://search.cpan.org/search?mode=module&amp;query=NetAddr%3A%3AIP"&gt;NetAddr::IP&lt;/a&gt;
+can be better put to use when you want to perform actions with your
+address space. Some of them are discussed below.
+
+&lt;p&gt;One of the most efficient ways to walk your address space is
+building a &lt;tt&gt;for&lt;/tt&gt; loop, as this example shows:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+push @space, new NetAddr::IP-&gt;new($_) for &amp;lt;DATA&gt;;
+
+for my $netblock (NetAddr::IP::compact @space) 
+{
+    for (my $ip = $netblock-&gt;first;
+         $ip &lt;= $netblock-&gt;last;
+         $ip++)
+    {
+         # Do something with $ip
+    }
+}
+__DATA__
+10.0.0.0/16
+172.16.0.0/24
+&lt;/CODE&gt;
+
+&lt;p&gt;The nicest thing about this way of walking your IP space, is that
+even if you are lucky enough to have lots of it, you won't eat all
+your memory by generating a huge list of objects. In this example,
+only one object is created in every iteration of the loop.
+
+&lt;p&gt;Everything up to the inner loop should be pretty clear by now, so
+we just ignore it. Since a couple of new friends were introduced in
+the inner loop of our example, an explanation is in order.
+
+&lt;p&gt;This C-like &lt;tt&gt;for&lt;/tt&gt; loop uses the &lt;tt&gt;-&gt;first()&lt;/tt&gt; function to
+find the first subnet address. The first subnet address is defined as
+that having all of its &lt;em&gt;host bits&lt;/em&gt; but the rightmost set to
+zero and the rightmost, set to one.
+
+&lt;p&gt;We then use the numerical comparison discussed earlier to see if
+the value of &lt;tt&gt;$ip&lt;/tt&gt; is less than or equal to whatever
+&lt;tt&gt;-&gt;last()&lt;/tt&gt; returns. &lt;tt&gt;-&gt;last()&lt;/tt&gt; returns an address with
+all of its host bits set to one but the rightmost. If this condition
+holds, we execute the loop and post-increment &lt;tt&gt;$ip&lt;/tt&gt; to get the
+next IP address in the subnet.
+
+&lt;p&gt;I started the discussion on this topic with the approach that
+insures less wasted resources. However, in the purest Perl tradition,
+this is not the only way to do it. There's another way, reserved for
+the true lazy (or those with memory to burn, but we all know you never
+have enough memory, right?).
+
+&lt;p&gt;This other way is invoked with the &lt;tt&gt;-&gt;hostenum()&lt;/tt&gt; or the
+&lt;tt&gt;-&gt;hostenumref()&lt;/tt&gt; methods. They return either an array or a
+reference to an array respectively, containing one object for each
+&lt;em&gt;host&lt;/em&gt; address in the subnet. Note that only valid host
+addresses will be returned (as objects) since the network and
+broadcast addresses are seldom useful.
+
+&lt;p&gt;With no further preamble, I introduce an example that kids
+shouldn't attempt at home, or at least in production code. (If you
+find this warning superfluous, try adding &lt;tt&gt;64.0.0.0/8&lt;/tt&gt; to the
+&lt;tt&gt;__DATA__&lt;/tt&gt; section and see if your machine chews through it
+all).
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+push @space, new NetAddr::IP-&gt;new($_) for &amp;lt;DATA&gt;;
+
+for my $ip (map { $_-&gt;hostenum } NetAddr::IP::compact @space) 
+{
+    # Do something with $ip
+}
+__DATA__
+10.0.0.0/16
+172.16.0.0/24
+&lt;/CODE&gt;
+
+&lt;p&gt;If you really have enough memory, you'll see that each host address
+in your IP space is generated into a huge array. This is much more
+costly (read, slow) than the approach presented earlier, but provides
+for more compact one-liners or quickies.
+
+&lt;hr&gt;
+
+&lt;a name="num"&gt;&lt;h3&gt;Finding out how big is your network&lt;/h3&gt;&lt;/a&gt;
+
+&lt;p&gt;Have you wondered just how many IP addresses can you use in your
+current subnet plan? If the answer to this (or to a similar question)
+is &lt;em&gt;yes&lt;/em&gt;, then read on.
+
+&lt;p&gt;There is a method called &lt;tt&gt;-&gt;num()&lt;/tt&gt; that will tell you
+exactly how many addresses can you use in a given subnet. For the
+quick observers out there, you can also use something like &lt;tt&gt;scalar
+$subnet-&gt;hostenum&lt;/tt&gt; but this is a really expensive way of doing it.
+
+&lt;p&gt;A more conservative (in resources) approach is depicted below:
+
+&lt;CODE&gt;
+use NetAddr::IP;
+
+my $hosts = 0;
+push @space, new NetAddr::IP-&gt;new($_) for &amp;lt;DATA&gt;;
+$hosts += $_-&gt;num for @space;
+print "You have $hosts\n";
+__DATA__
+10.0.0.0/16
+172.16.0.0/24
+&lt;/CODE&gt;
+
+&lt;p&gt;Sometimes, you will be surprised at how many addresses are lost by
+subnetting, but we'll leave that discussion to other tutorials.
+
+&lt;hr&gt;
+</field>
+</data>
+</node>

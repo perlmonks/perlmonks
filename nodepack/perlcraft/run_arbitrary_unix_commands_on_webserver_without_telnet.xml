@@ -1,0 +1,66 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+use strict;
+
+# This is a RIDUCULOUSLY simple script which I often use
+# with ISP's that prohibit telnet access.  It simply runs
+# an arbitrary UNIX command and captures its output to a
+# web page.
+
+# I won't debate whether or not it belongs here; that's for
+# exalted others to decide; I merely present something I
+# have found to be useful.
+
+# Be Warned: this appends sh redirection (of stderr to
+# stdout: '2&gt;&amp;1') to the command entered, so arbitrary
+# redirection entered as part of any command may not
+# work as expected!
+
+# DISCLAIMER: Do NOT leave this script in an accessible
+# location on any active web server!! It is VERY insecure!
+# At least chmod the 'x' bit off when not in use!
+
+use CGI qw( :standard *table *Tr *pre );
+use CGI::Carp qw( fatalsToBrowser );
+use File::Basename;
+
+my $title = 'UNIX Command';
+
+my $command = param('command'); # get command entered
+# append command name, if any, to title
+$title .= ': '. basename( (split /\s/, $command)[0] ) if $command;
+
+# display control panel
+print join( &quot;\n&quot;, header,
+		  start_html($title),
+		  strong(h1($title)),
+		  start_form({ -method=&gt;'get' }),
+		  start_table({-width=&gt;'100%',-borders=&gt;0}),
+		  start_Tr,
+		  td( 'Command:' ),
+		  td( textfield({-size=&gt;100,-name=&gt;'command'}) ),
+		  td( submit('run')),
+		  end_Tr,
+		  end_table,
+		  end_form ), &quot;\n&quot;;
+
+# if command was entered, run it in a pipe and display its output
+if ($command) {
+  open( CMD, &quot;$command 2&gt;&amp;1|&quot; ) or die &quot;$!: running command: '$command'&quot;;
+  print start_pre, &quot;\n&quot;;
+  print while (&lt;CMD&gt;);
+  print end_pre, &quot;\n&quot;;
+  close CMD;
+}
+
+print join( &quot;\n&quot;,
+            end_html ),&quot;\n&quot;;
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>122087</node_id>
+  <author_user>31662</author_user>
+  <title>Run arbitrary UNIX commands on webserver without telnet</title>
+  <createtime>2001-10-30 13:55:27</createtime>
+  <nodeupdated>2005-07-21 01:28:36</nodeupdated>
+</node>

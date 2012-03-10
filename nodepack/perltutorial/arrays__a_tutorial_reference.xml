@@ -1,0 +1,418 @@
+<node>
+  <doctext>&lt;h1&gt;Arrays: A Tutorial/Reference&lt;/h1&gt;
+&lt;p&gt;
+&lt;i&gt;Array&lt;/i&gt; is a type of Perl variable.
+An array variable is an ordered collection of any number (zero or more) of &lt;i&gt;elements&lt;/i&gt;.
+Each element in an array has an [wp://Index (information technology)#Array_element_identifier|index] which is a non-negative integer.
+Perl arrays are (like nearly everything else in the language) dynamic:&lt;ol&gt;
+&lt;li&gt; they grow as necessary, without any need for explicit memory management; &lt;/li&gt;
+&lt;li&gt; they are [wp://heterogeneous], or generic, which is to say, an array doesn't know or enforce the type of its elements. &lt;/li&gt;
+&lt;/ol&gt;
+&lt;/p&gt;&lt;p&gt;
+Actually, the values of Perl array elements can only be [id://591875|&lt;i&gt;scalars&lt;/i&gt;]. 
+This may sound like a limitation, if you think of scalars only as comprising numbers and strings;
+but a scalar can also be a [doc://perlreftut|reference] to any perl data variable type &amp;ndash; scalar, array, [id://591877|hash], etc.
+Therefore, by storing a reference to any data type in an array's elements, [doc://perllol|arbitrarily complex] [doc://perldsc|data structures] are possible. &lt;!-- &lt;small&gt;(This is roughly comparable to having an array of void pointers in [wp://C (programming language)|C] &amp;mdash; except, of course, that Perl references are &quot;smart&quot;: they know what they refer to.)&lt;/small&gt; --&gt;
+Other scalar types, such as [doc://perlfaq5#How-can-I-make-a-filehandle-local-to-a-subroutine?--How-do-I-pass-filehandles-between-subroutines?--How-do-I-make-an-array-of-filehandles?-filehandle,-local-filehandle,-passing-filehandle,-reference|filehandles ] and the special [doc://undef] value, are also naturally allowed in the elements
+of an array.
+&lt;/p&gt;&lt;p&gt;
+So, given those characteristics of a Perl array, what kinds of things would you want to do with it?
+That is, what &lt;i&gt;operations&lt;/i&gt; should be able to act on it?
+You might conceive different sets of operations, or &lt;i&gt;interfaces&lt;/i&gt;, depending on how you expect to use an array in your program:
+&lt;ol&gt;
+&lt;li&gt; as a monolithic whole;&lt;/li&gt;
+&lt;li&gt; as a [wp://Stack (data structure)|stack] or [wp://deque|queue] &amp;mdash; that is, only working with its ends;&lt;/li&gt;
+&lt;li&gt; as a [wp://random access] table of scalars &amp;mdash; that is, working with all of its elemental parts.&lt;/li&gt;
+&lt;/ol&gt;
+Perl arrays can be used in all those ways, and more.
+&lt;/p&gt;
+&lt;readmore&gt;
+&lt;p&gt;
+Here are the fundamental Perl array operations:
+&lt;/p&gt;&lt;ul&gt;
+&lt;li&gt; Initialize &lt;/li&gt;
+&lt;li&gt; Clear &lt;/li&gt;
+&lt;li&gt; Get count of elements &lt;/li&gt;
+&lt;li&gt; Get the highest index &lt;/li&gt;
+&lt;li&gt; Get list of element values  &lt;/li&gt;
+&lt;li&gt; Add new elements at the end &lt;/li&gt;
+&lt;li&gt; Remove an element from the end &lt;/li&gt;
+&lt;li&gt; Adds new elements at the beginning &lt;/li&gt;
+&lt;li&gt; Remove an element from the beginning &lt;/li&gt;
+&lt;li&gt; Access one element at an arbitrary index &lt;/li&gt;
+&lt;li&gt; Access multiple elements at arbitrary indices &lt;/li&gt;
+&lt;li&gt; Insert/Delete/Replace items in the middle of an array &lt;/li&gt;
+
+&lt;/ul&gt;
+&lt;p&gt;
+This tutorial focuses specifically on the array variable type. There are many things you can do in Perl with lists which will also work on arrays; for example, you can iterate over their contents using [doc://perlsyn#Foreach-Loops-for-foreach|foreach]. Those things are not discussed here.
+Also: [doc://perlfaq4#What-is-the-difference-between-a-list-and-an-array?]
+&lt;/p&gt;
+
+&lt;h3&gt; Initialize an array &lt;/h3&gt;
+
+&lt;p&gt;
+Simple assignment does the job:
+&lt;code&gt;
+@array = ( 1, 2, 3 );
+@array = function_generating_a_list();
+@array = @another_array;
+&lt;/code&gt;
+The key points are that &lt;ol&gt;
+&lt;li&gt; the assignment to an array gives [id://738558|list context] to the right hand side; &lt;/li&gt;
+&lt;li&gt; the right side can be any expression which results in a list of zero or more scalar values. &lt;/li&gt;
+&lt;/ol&gt;
+The values are inserted in the array in the same order as they occur in the list,
+beginning with array index zero. For example, after executing
+&lt;code&gt;
+@array = ( 'a', 'b', 'c' );
+&lt;/code&gt;
+element 0 will contain 'a', element 1 will contain 'b', and so on.
+&lt;/p&gt;&lt;p&gt;
+Whenever an array is assigned to &lt;i&gt;en masse&lt;/i&gt; like this,
+any contents it may have had before the assignment are removed!
+&lt;/p&gt;
+
+&lt;h3&gt; Clear an array &lt;/h3&gt;
+
+&lt;p&gt;
+Simply assign a zero-length list:
+&lt;code&gt;
+@array = ();
+&lt;/code&gt;
+Assigning a value such as &lt;c&gt;undef&lt;/c&gt;, &lt;c&gt;0&lt;/c&gt;, or &lt;c&gt;''&lt;/c&gt; &lt;i&gt;will not work!&lt;/i&gt;
+Rather, it will leave the array containing one element, with that one value.  That is,
+&lt;code&gt;
+@array = 0;
+# and
+@array = ( 0 );
+&lt;/code&gt;
+
+are functionally identical.&lt;br/&gt;
+Note that if your goal is to assign the one-element list &lt;c&gt;(0)&lt;/c&gt; to the array,
+omitting the parentheses is considered to be bad style, though technically they are not strictly necessary in this case.
+&lt;/p&gt;
+
+&lt;h3&gt; Get count of elements &lt;/h3&gt;
+
+&lt;p&gt;
+To get the &quot;length&quot; or &quot;size&quot; of an array, simply use it in a [id://738558|scalar context].
+For example, you can &quot;assign&quot; the array to a scalar variable:
+&lt;code&gt;
+$count = @array;
+&lt;/code&gt;
+and the scalar variable will afterwards contain the count of elements in the array.
+Other scalar contexts work as well:
+&lt;code&gt;
+print &quot;# Elements: &quot; . @array . &quot;\n&quot;;
+&lt;/code&gt;
+(Yes, &lt;tt&gt;[doc://print]&lt;/tt&gt; gives its arguments list context, but the dot (string concatenation) operator takes precedence.)
+&lt;/p&gt;&lt;p&gt;
+You can always force scalar context on an array by using the function named &lt;tt&gt;[doc://scalar]&lt;/tt&gt;:
+&lt;code&gt;
+print &quot;# Elements: &quot;, scalar(@array), &quot;\n&quot;;
+&lt;/code&gt;
+Note that this is a &lt;i&gt;get&lt;/i&gt;-only property; you cannot change the length of the array by assigning a scalar to the array variable.
+For example, &lt;c&gt;@array=0&lt;/c&gt; does not empty the array (as stated in the previous section, &lt;b&gt;Clear an array&lt;/b&gt;).
+&lt;/p&gt;
+
+&lt;h3&gt; Get the highest index &lt;/h3&gt;
+
+&lt;p&gt;
+Often, you want to know what is the highest index in an array &amp;mdash; that is, the index of its last element.
+Perl provides a special syntax for obtaining this value:
+&lt;code&gt;
+$highest_index = $#array;
+&lt;/code&gt;
+This is useful, for example, when you want to create a list of all the indices in an array:
+&lt;code&gt;
+foreach ( 0 .. $#array ) {
+  # $_ is set to each index number, in turn, from first (0) to last ($#array)
+}
+&lt;/code&gt;
+&lt;/p&gt;&lt;p&gt;
+Unlike &lt;c&gt;scalar(@array)&lt;/c&gt;, &lt;c&gt;$#array&lt;/c&gt; &lt;i&gt;is&lt;/i&gt; a settable property.
+When you assign to an array's &lt;c&gt;$#array&lt;/c&gt; form, you cause its length (number of elements) to grow or shrink accordingly.
+If the length increases, the new elements will be uninitialized (that is, they'll be [doc://undef]).
+If the length decreases, elements will be dropped from the end.
+(Note, however, that perl dynamically sizes arrays, so forcing the length of an array like this is not something you'd normally need to do.)
+&lt;/p&gt;
+
+&lt;h3&gt; Clear an array - Round 2 &lt;/h3&gt;
+
+&lt;p&gt;
+Given that &lt;c&gt;$#array&lt;/c&gt; is assignable, you can clear an array by assigning -1 to its &lt;c&gt;$#array&lt;/c&gt; form.
+(Why -1? Well, that's what you see in &lt;c&gt;$#array&lt;/c&gt; if &lt;c&gt;@array&lt;/c&gt; is empty.)
+Generally, this is not considered good style, but it's acceptable.
+&lt;/p&gt;
+&lt;p&gt;
+Another way to clear an array is &lt;c&gt;undef @array&lt;/c&gt;.
+This technique should be used with caution, because it frees up some memory used internally to hold the elements.
+In most cases, this isn't worth the processing time. About the only situation in which you'd want to do this is if @array has a huge number of elements, and @array will be re-used after being cleared but will not hold a huge number of elements again.
+&lt;/p&gt;&lt;p&gt;
+Beware: As mentioned above in &lt;b&gt;Clear an array&lt;/b&gt;, assigning &lt;c&gt;@array = undef&lt;/c&gt; does &lt;i&gt;not&lt;/i&gt; clear an array.
+Unlike the case with scalars, &lt;c&gt;@a=undef&lt;/c&gt; and &lt;c&gt;undef(@a)&lt;/c&gt; are not equivalent!
+&lt;/p&gt;
+
+&lt;h3&gt; Get list of element values &lt;/h3&gt;
+
+&lt;p&gt;
+To get the entire list of values stored in an array at any given time, simply use it in a list context:
+&lt;code&gt;
+print &quot;Here are your things: &quot;, @array, &quot;\n&quot;;
+&lt;/code&gt;
+This is useful for iterating over the list of values stored in an array, one at a time:
+&lt;code&gt;
+foreach ( @array ) { ...
+&lt;/code&gt;
+This works because in the &lt;tt&gt;foreach&lt;/tt&gt; control construct, the stuff inside the parentheses is expected to be a list &amp;mdash; or, more precisely, an expression which will be evaluated in list context and is expected to result in a list of (zero or more) scalar values.
+&lt;/p&gt;
+
+&lt;p&gt;
+&lt;b&gt;Quiz:&lt;/b&gt; What's the difference between these two lines of code:
+&lt;code&gt;
+$x = @array;
+@x = @array;
+&lt;/code&gt;
+&lt;/p&gt;&lt;p&gt;
+Answer:
+&lt;spoiler&gt;&lt;br/&gt;
+In the first, the scalar $x is set to the &lt;b&gt;number of elements&lt;/b&gt; in @array.&lt;br/&gt; 
+In the second, the array @x is set to a &lt;b&gt;copy of the contents&lt;/b&gt; of @array.&lt;br/&gt;
+&lt;br/&gt;&lt;/spoiler&gt;
+&lt;/p&gt;
+
+
+&lt;h3&gt; Remove an element from the end &lt;/h3&gt;
+
+
+&lt;p&gt;
+The function to remove a single element from the end of an array is &lt;tt&gt;[doc://pop]&lt;/tt&gt;.
+Given the code:
+&lt;code&gt;
+@array = ( 'a', 'b', 'c' );
+$x = pop @array;
+&lt;/code&gt;
+&lt;c&gt;$x&lt;/c&gt; will contain &lt;c&gt;'c'&lt;/c&gt; and &lt;c&gt;@array&lt;/c&gt; will be left with two elements, &lt;c&gt;'a'&lt;/c&gt; and &lt;c&gt;'b'&lt;/c&gt;.
+&lt;/p&gt;&lt;p&gt;
+Note: By &quot;end&quot;, we mean the end of the array with the highest index. 
+&lt;/p&gt;
+
+&lt;h3&gt; Add new elements at the end &lt;/h3&gt;
+
+&lt;p&gt;
+Use the &lt;tt&gt;[doc://push]&lt;/tt&gt; function to add a number of (scalar) values to the end of an array:
+&lt;code&gt;
+push @array, 8, 10 .. 15;
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;h3&gt; Remove an element from the beginning &lt;/h3&gt;
+
+&lt;p&gt;
+The &lt;tt&gt;[doc://shift]&lt;/tt&gt; function removes one value from the beginning of the array.
+That is, it removes (and returns) the value in element zero, and shifts all the rest of the elements down one, with the effect that the number of elements is decreased by one.
+Given the code:
+&lt;code&gt;
+@array = ( 'a', 'b', 'c' );
+$x = shift @array;
+&lt;/code&gt;
+&lt;c&gt;$x&lt;/c&gt; will contain &lt;c&gt;'a'&lt;/c&gt; and &lt;c&gt;@array&lt;/c&gt; will be left with two elements, &lt;c&gt;'b'&lt;/c&gt; and &lt;c&gt;'c'&lt;/c&gt;.
+(You can see that &lt;tt&gt;[doc://shift]&lt;/tt&gt; is just like &lt;tt&gt;[doc://pop]&lt;/tt&gt;, but acts on the other end of the array.)
+&lt;/p&gt;
+
+&lt;h3&gt; Add new elements at the beginning &lt;/h3&gt;
+
+&lt;p&gt;
+In a similarly analogous way, &lt;tt&gt;[doc://unshift]&lt;/tt&gt; acts on the beginning of the array as &lt;tt&gt;[doc://push]&lt;/tt&gt; acts on the end.
+Given:
+&lt;code&gt;
+@array = ( 1, 2 );
+unshift @array, 'y', 'z';
+&lt;/code&gt;
+&lt;c&gt;@array&lt;/c&gt; will contain &lt;c&gt;( 'y', 'z', 1, 2 )&lt;/c&gt;
+&lt;/p&gt;
+
+&lt;h3&gt; Access one element at an arbitrary index &lt;/h3&gt;
+
+&lt;p&gt;
+The first element of an array is accessed at index 0:
+&lt;code&gt;
+$first_elem = $array[0];
+&lt;/code&gt;
+Why the &lt;c&gt;$&lt;/c&gt; sigil? Remember that the elements of an array can only be scalar values.
+The &lt;c&gt;$&lt;/c&gt; makes sense here because we are accessing a single, scalar element out of the array.
+The thing inside the square brackets does not have to be an [id://943|integer literal]; it can be
+any expression which results in a number. (If the resulting number is not an integer, it will be
+truncated to an integer (that is, rounded toward zero).
+&lt;/p&gt;&lt;p&gt;
+Change the value of the last element:
+&lt;code&gt;
+$array[ $#array ] += 5;
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;h3&gt; Access multiple elements at arbitrary indices &lt;/h3&gt;
+
+&lt;p&gt;
+By analogy, if you want to access multiple elements at once, you would use the &lt;c&gt;@&lt;/c&gt; sigil instead of the &lt;c&gt;$&lt;/c&gt;.
+In addition, you would provide a list of index values within the square brackets, rather than just one.
+&lt;code&gt;
+( $first, $third, $fifth ) = @array[0,2,4];
+&lt;/code&gt;
+&lt;b&gt;Jargon alert:&lt;/b&gt; this syntax for accessing multiple elements of an array at once is called an &lt;i&gt;array slice&lt;/i&gt;.
+&lt;/p&gt;&lt;p&gt;
+Never forget that with an array slice the index expression is a list: it will be evaluated in list context, and can
+return any number (including zero) of index numbers.  However many numbers are in the list of indices, that's how many
+elements will be included in the slice.
+&lt;/p&gt;&lt;p&gt;
+Beware, though: an array slice may &lt;i&gt;look&lt;/i&gt; like an array, due to the &lt;c&gt;@&lt;/c&gt; sigil, but it is not.
+For example,
+&lt;code&gt;
+$n = @array[0..$#array];
+&lt;/code&gt;
+will &lt;i&gt;not&lt;/i&gt; yield the number of items in the slice!
+&lt;/p&gt;
+&lt;p&gt;
+Set the second, third, and fourth elements in an array:
+&lt;code&gt;
+@array[1..3] = ( 'x', 'y', 'z' );
+&lt;/code&gt;
+
+&lt;blockquote&gt;
+&lt;table border=1 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;
+&lt;h2&gt;Sidebar: More about indices&lt;/h2&gt;
+&lt;p&gt;
+We said earlier that array indices are non-negative integers.
+While this is strictly true at some level, perl conveniently lets you index elements from the &lt;i&gt;end&lt;/i&gt; of the array using negative indices.  &lt;tt&gt;-1&lt;/tt&gt; refers to the last element, &lt;tt&gt;-2&lt;/tt&gt; to the next-to-last element, and so on.
+To oversimplify a bit, &lt;tt&gt;-1&lt;/tt&gt; acts like an alias for &lt;tt&gt;$#array&lt;/tt&gt;... &lt;i&gt;but only in the context of indexing &lt;tt&gt;@array&lt;/tt&gt;!&lt;/i&gt;
+&lt;/p&gt;
+&lt;p&gt;
+So the following are equivalent:
+&lt;code&gt;
+$array[ -1 ]
+$array[ $#array ]
+&lt;/code&gt;
+But beware:
+&lt;code&gt;
+@array[ 0 .. $#array ]
+&lt;/code&gt;
+&lt;b&gt;can not&lt;/b&gt; be written as:
+&lt;code&gt;
+@array[ 0 .. -1 ]
+&lt;/code&gt;
+because in this situation the -1 is an argument of the [doc://perlop#Range-Operators-operator,-range-range-..-...|&lt;tt&gt;..&lt;/tt&gt; range operator], which has no idea what &quot;highest index number&quot; is actually wanted.
+&lt;/p&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;/blockquote&gt;
+
+&lt;h3&gt;Insert/Delete/Replace items in the middle of an array&lt;/h3&gt;
+&lt;p&gt;
+It is possible to insert items into the middle of an array and remove items from the middle of an array.
+
+
+&lt;!-- (You can think of it like pushing and popping items in the middle of an array; but don't use those words, as they're not technically accurate for this.) --&gt;
+The function which enables this is called &lt;tt&gt;[doc://splice]&lt;/tt&gt;.
+It can insert items anywhere in an array (including the ends), and it can remove (and return) any sub-sequence of items from an array. In fact, it can do both of these at once: remove some sub-sequence of items and put another list of values in their place. 
+&lt;tt&gt;[doc://splice]&lt;/tt&gt; always returns the list of removed values, if any. 
+&lt;/p&gt;
+&lt;p&gt;
+The second argument of &lt;tt&gt;[doc://splice]&lt;/tt&gt; is an array index, and as such, everything we've said about indices applies to it.
+&lt;/p&gt;
+&lt;p&gt;
+The [wp://deque|queue]-like array functions could have been implemented in terms of &lt;tt&gt;[doc://splice]&lt;/tt&gt;, as follows:
+&lt;code&gt;
+unshift @a, @b;
+# could be written as
+splice  @a, 0, 0, @b;
+&lt;/code&gt;
+&lt;code&gt;
+push @a, @b;
+# could be written as
+splice @a, $#a+1, 0, @b; # we have to index to a position PAST the end of array!
+&lt;/code&gt;
+&lt;code&gt;
+$b = shift @a;
+# could be written as
+$b = splice  @a, 0, 1;
+&lt;/code&gt;
+&lt;code&gt;
+$b = pop @a;
+# could be written as
+$b = splice  @a, -1, 1;
+&lt;/code&gt;
+(Beware that in scalar context splice returns the last of the list of values removed; 
+shift and pop always return the one value removed.) 
+&lt;/p&gt;
+&lt;p&gt;
+Remove 3 items, beginning with the 3rd:
+&lt;code&gt;
+@b = splice @a, 2, 3;
+&lt;/code&gt;
+Insert some new values after the 3rd, without deleting any:
+&lt;code&gt;
+splice @a, 2, 0, @b;
+&lt;/code&gt;
+Replace the 4th and 5th items with three other values:
+&lt;code&gt;
+splice @a,         # array to modify
+    3,             # starting with 4th item
+    2,             # remove (replace) two items
+    'x', 'y', 'z'; # arbitrary list of new values to insert
+&lt;/code&gt;
+And while we're at it: &lt;b&gt;Clear an array - Round 3:&lt;/b&gt;
+&lt;code&gt;
+@a = ();
+# could be written as
+splice @a, 0;
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;h2&gt;Any Questions?&lt;/h2&gt;
+&lt;p&gt;
+The Perl FAQ has a section on [doc://perlfaq4#Data:-Arrays|Arrays].
+&lt;/p&gt;
+&lt;h2&gt;Related Resources&lt;/h2&gt;
+&lt;p&gt;
+&lt;ul&gt;
+&lt;li&gt; [id://17890] &lt;/li&gt;
+&lt;li&gt; [id://90647] &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/p&gt;
+
+&lt;hr/&gt;
+&lt;h3&gt;&lt;i&gt;What about &lt;tt&gt;wantarray&lt;/tt&gt;?&lt;/i&gt;&lt;/h3&gt;
+&lt;p&gt;
+Despite its name, [doc://wantarray] has nothing to do with arrays. It is misnamed.
+It should have been named something like &lt;tt&gt;detect_context&lt;/tt&gt;.
+It is used inside subroutines to detect whether the sub is being called in list, scalar, or void [id://738558|context].
+It returns true, false, and undef in those cases, respectively.
+&lt;/p&gt;
+
+&lt;hr/&gt;
+
+&lt;h3&gt;Other possible topics:&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt; [doc://perltie|tie]ing arrays; the [mod://Tie::Array] module &lt;/li&gt;
+&lt;li&gt; [doc://delete] and how it doesn't work on arrays &lt;/li&gt;
+&lt;li&gt; [doc://exists] and how it DOES work on arrays &lt;/li&gt;
+&lt;li&gt; Various related Perl FAQ entries &lt;/li&gt;
+&lt;li&gt; Array-related modules, such as those in the [cpan://Array::] family &lt;/li&gt;
+&lt;li&gt; Traps/gotchas, such as deleting from an array while iterating over it &lt;/li&gt;
+&lt;li&gt; multidimensional arrays &lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;/readmore&gt;
+&lt;hr/&gt;
+&lt;p&gt;
+&lt;i&gt;If you have corrections or suggestions for changes to this tutorial, please [/msg] me if possible, rather than posting a reply. Thanks.&lt;/i&gt;
+&lt;/p&gt;
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>739305</node_id>
+  <author_user>170442</author_user>
+  <title>Arrays: A Tutorial/Reference</title>
+  <createtime>2009-01-27 14:08:10</createtime>
+  <nodeupdated>2009-01-27 14:08:10</nodeupdated>
+</node>

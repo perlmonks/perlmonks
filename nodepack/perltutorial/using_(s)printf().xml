@@ -1,0 +1,374 @@
+<node>
+  <doctext>&lt;P&gt;&lt;tt&gt;printf()&lt;/tt&gt; and &lt;tt&gt;sprintf()&lt;/tt&gt; work just like in C, with a few slight differences. &lt;tt&gt;printf()&lt;/tt&gt; gives you a lot of control over the formatting of your values, which is what it was intended to do.
+
+&lt;P&gt;If you've ever wanted to make a nicely behaved, field-aligned report, round to an integer or specific decimal place, get octal or hexadecimal representations of your values, or just display your values in any other form imaginable, keep reading. &lt;tt&gt;printf()&lt;/tt&gt; and &lt;tt&gt;sprintf()&lt;/tt&gt; give you the utility to do that, and more.
+
+&lt;h3&gt;&lt;TT&gt;printf()&lt;/TT&gt; versus &lt;TT&gt;sprintf()&lt;/TT&gt;&lt;/H3&gt;
+
+&lt;P&gt;&lt;TT&gt;printf()&lt;/TT&gt; and &lt;TT&gt;sprintf()&lt;/TT&gt; look argumentally the same. That is, whatever arguments you pass to one, you can pass to the other without change. The difference is that &lt;TT&gt;printf()&lt;/TT&gt; prints to a filehandle, and &lt;TT&gt;sprintf()&lt;/TT&gt; returns the string &lt;TT&gt;printf()&lt;/TT&gt; would have outputted.
+
+&lt;P&gt;To use &lt;TT&gt;printf()&lt;/TT&gt; on a filehandle other than &lt;TT&gt;STDOUT&lt;/TT&gt;, specify the filehandle you want to use just as you would with [print], like so:
+
+&lt;PRE&gt;
+printf(HANDLE $format, @values);
+&lt;/PRE&gt;
+
+&lt;P&gt;The result will be printed to &lt;TT&gt;HANDLE&lt;/TT&gt;.
+
+&lt;P&gt;&lt;TT&gt;sprintf&lt;/TT&gt; doesn't take a filehandle, but instead returns the output into a string.
+
+&lt;PRE&gt;
+my $string = sprintf($format, @values);
+&lt;/PRE&gt;
+
+&lt;h3&gt;The Format String&lt;/h3&gt;
+
+&lt;P&gt;The format string in &lt;tt&gt;printf()&lt;/tt&gt; is a number of tokens which describe how
+to print the variables you supply, and whatever else you want. Each
+variable format specifier starts with a &lt;tt&gt;%&lt;/tt&gt;, is followed by zero or more
+of the optional modifiers, and ends with a conversion specifier.
+&lt;/P&gt;
+
+&lt;P&gt;A typical format string could look like this:
+&lt;/P&gt;
+
+&lt;pre&gt;
+	&quot;foo is %d&quot;
+&lt;/pre&gt;
+
+&lt;P&gt;Printed, it may look something like: &lt;tt&gt;'foo is 12'&lt;/tt&gt;. The &lt;tt&gt;%d&lt;/tt&gt; is replaced by
+a variable specified after the format string argument. In this case, you
+would say:
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;foo is %d&quot;, $decimal);
+&lt;/pre&gt;
+
+&lt;P&gt;so that &lt;tt&gt;%d&lt;/tt&gt; is replaced with the value of &lt;tt&gt;$decimal&lt;/tt&gt;. You can put as many specifiers
+in the format string as you like, with the same number of following arguments as
+there are specifiers. An example:
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;%d %s %f&quot;, $decimal, $string, $float);
+&lt;/pre&gt;
+
+
+&lt;h3&gt;Conversion Specifiers&lt;/h3&gt;
+
+&lt;P&gt;You put these in your Format String. Each one, except &lt;TT&gt;%%&lt;/TT&gt;, is replaced by
+the corresponding value in the &lt;TT&gt;printf&lt;/TT&gt; argument list. 
+
+&lt;ul&gt;
+&lt;li&gt;&lt;tt&gt;%%&lt;/tt&gt; prints a single &lt;tt&gt;%&lt;/tt&gt; (percent sign).&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%c&lt;/tt&gt; prints a single character with the given ASCII number (&lt;tt&gt;66&lt;/tt&gt; is printed as
+&lt;tt&gt;B&lt;/tt&gt;, for example).&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%s&lt;/tt&gt; prints a given string&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%d&lt;/tt&gt; a signed integer in decimal&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%u&lt;/tt&gt; an unsigned (can't be negative) integer in decimal&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%o&lt;/tt&gt; an unsigned integer in octal&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%x&lt;/tt&gt; an unsigned integer in hexadecimal&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%e&lt;/tt&gt; a floating point number in scientific notation&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%f&lt;/tt&gt; a floating point number in fixed decimal notation&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%g&lt;/tt&gt; same as &lt;tt&gt;%e&lt;/tt&gt; or &lt;tt&gt;%f&lt;/tt&gt;, whichever printf thinks is best.&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%X&lt;/tt&gt; is the same as &lt;tt&gt;%x&lt;/tt&gt;, except it uses upper-case letters&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%E&lt;/tt&gt; like &lt;tt&gt;%e&lt;/tt&gt;, but with an upper-case &lt;tt&gt;'E'&lt;/tt&gt;&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%G&lt;/tt&gt; same as &lt;tt&gt;%E&lt;/tt&gt; when scientific notation is used for the value.&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%p&lt;/tt&gt; a pointer; it outputs Perl's value address in hexadecimal.&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%n&lt;/tt&gt; an odd little bugger that *stores* (in the variable given
+for the position) the number of characters output so far.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;P&gt;Others that simply exist for backward compatibility:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;tt&gt;%i&lt;/tt&gt; synonym for &lt;tt&gt;%d&lt;/tt&gt;&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%D&lt;/tt&gt; same as &lt;tt&gt;%ld&lt;/tt&gt; (long decimal)&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%U&lt;/tt&gt; same as &lt;tt&gt;%lu&lt;/tt&gt; (long unsigned decimal)&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%O&lt;/tt&gt; same as &lt;tt&gt;%lo&lt;/tt&gt; (long octal)&lt;/li&gt;
+&lt;li&gt;&lt;tt&gt;%F&lt;/tt&gt; same as &lt;tt&gt;%f&lt;/tt&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3&gt;Format Specifiers&lt;/h3&gt;
+
+&lt;p&gt;Each item below is optional (unless otherwise stated), and should be used in the 
+order they appear here. If this is confusing, skip to the next section. It's intended
+as a reference, and copied from &lt;tt&gt;man 3 printf&lt;/tt&gt; with some extra explanation and
+examples.
+&lt;/p&gt;
+
+&lt;ul&gt;
+
+&lt;li&gt;&lt;tt&gt;%&lt;/tt&gt; - a percent sign. This is required, of course.&lt;/li&gt;
+&lt;li&gt;Zero or more of the following:&lt;/li&gt;
+
+&lt;ul&gt;
+&lt;li&gt;&lt;tt&gt;'#'&lt;/tt&gt; (pound sign): Specifies that the value should be converted
+to an 'alternate form.' This has no effect on &lt;tt&gt;'c'&lt;/tt&gt;, &lt;tt&gt;'d'&lt;/tt&gt;, &lt;tt&gt;'i'&lt;/tt&gt;,
+&lt;tt&gt;'n'&lt;/tt&gt;, &lt;tt&gt;'p'&lt;/tt&gt;, &lt;tt&gt;'s'&lt;/tt&gt;, and &lt;tt&gt;'u'&lt;/tt&gt; conversions. 
+For &lt;tt&gt;'o'&lt;/tt&gt; (octal) conversions,
+this prepends a &lt;tt&gt;'0'&lt;/tt&gt; to the beginning. For &lt;tt&gt;'x'&lt;/tt&gt; and &lt;tt&gt;'X'&lt;/tt&gt; (hexadecimal),
+&lt;tt&gt;0x&lt;/tt&gt; or &lt;tt&gt;0X&lt;/tt&gt; is prepended to the value. For &lt;tt&gt;'e'&lt;/tt&gt;, &lt;tt&gt;'E'&lt;/tt&gt;, 
+&lt;tt&gt;'f'&lt;/tt&gt;, &lt;tt&gt;'g'&lt;/tt&gt; and &lt;tt&gt;'G'&lt;/tt&gt;,
+the value is always printed with a trailing decimal point (&lt;tt&gt;.&lt;/tt&gt;), even
+if no numbers follow it. For &lt;tt&gt;'g'&lt;/tt&gt; and &lt;tt&gt;'G'&lt;/tt&gt;, trailing zeros are not
+removed from the result.
+
+&lt;pre&gt;
+printf(&quot;%x&quot;, 10);		# prints just 'a', versus:
+printf(&quot;%#x&quot;, 10);		# prints '0xa'
+&lt;/pre&gt;
+&lt;/li&gt;
+
+&lt;li&gt;&lt;tt&gt;'0'&lt;/tt&gt; (zero): To specify zero-padding on a digit. The converted value
+is padded on the left with the specified number of zeros minus the
+number of digits to be printed. This is described in more detail
+below.
+
+&lt;pre&gt;
+printf(&quot;%03d&quot;, 7);		# prints '007' ;)
+printf(&quot;%03d&quot;, 153);		# prints '153'
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;tt&gt;'-'&lt;/tt&gt; (minus): Specifies a &lt;i&gt;negative&lt;/i&gt; field width. This indicates the
+value should be left-adjusted on the boundary, versus the default
+right-adjusted. See below for more on how to specify field widths.
+
+&lt;pre&gt;
+printf(&quot;%5s&quot;, 'foo');		# prints '  foo'
+printf(&quot;%-5s&quot;, 'foo');		# prints 'foo  '
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;tt&gt;' '&lt;/tt&gt; (a space): To specify that a blank should be left before a
+positive number.
+
+&lt;pre&gt;
+printf(&quot;% d&quot;, 7);		# prints ' 7'
+printf(&quot;% d&quot;, -7);		# prints '-7'
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;&lt;tt&gt;'+'&lt;/tt&gt; (plus sign): This specifies that a sign always be placed
+before the value. &lt;tt&gt;'+'&lt;/tt&gt; overrides &lt;tt&gt;' '&lt;/tt&gt; (space) if both are used.
+
+&lt;pre&gt;
+printf(*quot;%+d&quot;, 7);		# prints '+7'
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;/ul&gt;
+
+&lt;li&gt;A decimal digit specifying the minimum field width. Using the &lt;tt&gt;'-'&lt;/tt&gt; modifier
+(see above) will left-align the value, otherwise it is right-aligned. With the '0'
+modifier for numeric conversions, the value is right-padded with zeros to fill the
+field width.
+
+&lt;pre&gt;
+printf(&quot;%5s&quot;, 'foo');		# prints '  foo'
+printf(&quot;%-5s&quot;, 'foo');		# prints 'foo  '
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;A precision value in the form of a period (&lt;tt&gt;'.'&lt;/tt&gt;), followed by an optional
+digit string. If the digit string is omitted, a precision of zero is used.
+This specifies the minimum number of digits to print for &lt;tt&gt;'d'&lt;/tt&gt;, &lt;tt&gt;'i'&lt;/tt&gt;, &lt;tt&gt;'o'&lt;/tt&gt;,
+&lt;tt&gt;'u'&lt;/tt&gt;, &lt;tt&gt;'x'&lt;/tt&gt;, and &lt;tt&gt;'X'&lt;/tt&gt; conversions. For &lt;tt&gt;'e'&lt;/tt&gt;, 
+&lt;tt&gt;'E'&lt;/tt&gt;, and &lt;tt&gt;'F'&lt;/tt&gt; conversions, it is
+the number of digits to appear after the decimal point. For &lt;tt&gt;'g'&lt;/tt&gt; and &lt;tt&gt;'G'&lt;/tt&gt;
+conversions, it specifies the maximum number of signifigant digits. For
+the &lt;tt&gt;'s'&lt;/tt&gt; (string) conversion, it is the maximum number of characters of the
+string to print. Use the latter to make sure long strings don't exceed their field
+width.
+
+&lt;pre&gt;
+printf(&quot;%.3d&quot;, 7);		# prints '007'
+printf(&quot;%.2f&quot;, 3.66666);	# prints '3.66'
+printf(&quot;%.3s&quot;, 'foobar');	# prints 'foo'
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;The character &lt;tt&gt;'h'&lt;/tt&gt; here will specify to treat the decimal value as a
+C type 'short' or 'unsigned short'.
+
+&lt;pre&gt;
+printf(&quot;%hd\n&quot;, 400000);	# prints '6784'
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;The character &lt;tt&gt;'l'&lt;/tt&gt; (ell) can be used to treat the value as a C 'long'
+type.&lt;/li&gt;
+
+&lt;li&gt;The character &lt;tt&gt;'V'&lt;/tt&gt; will interpret an integer as Perl's standard integer
+type.
+
+&lt;pre&gt;
+printf(&quot;%Vd&quot;, 7);		# prints '7'
+&lt;/pre&gt;&lt;/li&gt;
+
+&lt;li&gt;Finally, the required conversion specifier. Valid conversions are listed
+in the previous section.&lt;/li&gt;
+
+&lt;/ul&gt;
+
+&lt;h3&gt;Leading Zeros&lt;/h3&gt;
+
+&lt;P&gt;Say you have a number, something like &lt;tt&gt;642&lt;/tt&gt;, and you want to output it as
+&lt;tt&gt;00642&lt;/tt&gt; instead. The &lt;tt&gt;%0nC&lt;/tt&gt; specifier syntax lets you do just that, where &lt;tt&gt;'n'&lt;/tt&gt;
+is the field width, and &lt;tt&gt;C&lt;/tt&gt; is the conversion specifier you want to use. A
+&lt;i&gt;field width&lt;/i&gt; is the minimum (in this case) number of characters the value
+should fill. Any less than that, and the remainder is filled by prepending
+zeros on your value until it fits perfectly.
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;%05d&quot;, 642);		# outputs '00642'
+&lt;/pre&gt;
+
+&lt;P&gt;You should note that certain conversions, like &lt;tt&gt;%f&lt;/tt&gt;, are a little trickier.
+Floating point numbers (with &lt;tt&gt;%f&lt;/tt&gt;) are always outputted with 6 places after
+the decimal point, unless you specify a precision with the &lt;tt&gt;'.'&lt;/tt&gt; modifier
+(see below for a discussion of the &lt;tt&gt;'.'&lt;/tt&gt; precision modifier). In
+other words, printing a value of &lt;tt&gt;'2'&lt;/tt&gt; as &lt;tt&gt;%f&lt;/tt&gt; will actually output as
+&lt;tt&gt;2.000000&lt;/tt&gt;. This means you have to take into account, when specifying the
+field width, that there are already 7 characters tacked on. To get the value
+of 2 to print with one leading zero, you have to use a field width of 9 (7
+for the '.' and 6 zeros, 1 for the '2', and 1 for the leading zero).
+&lt;/P&gt;
+
+&lt;P&gt;All other specifiers act in this way, too. To find out how many characters
+are output by default for a specifier, output a value of 0 (zero) for it and
+count how many characters there are:
+&lt;/P&gt;
+
+&lt;pre&gt;
+	# this outputs: '0, 0.000000, 0.000000e+00'
+	printf(&quot;%d, %f, %e&quot;, 0, 0, 0);
+&lt;/pre&gt;
+
+&lt;P&gt;You can also ask perl to count them for you:
+&lt;/P&gt;
+
+&lt;PRE&gt;
+	printf(&quot;There are %d characters\n&quot;, length(sprintf(&quot;%e&quot;, 0)));
+&lt;/PRE&gt;
+
+&lt;P&gt;Which should tell you there are 12 characters for 0 in scientific
+notation.
+&lt;/P&gt;
+
+&lt;h3&gt;Padding with spaces&lt;/h3&gt;
+
+&lt;P&gt;This is more or less the same as leading zeros, except it uses leading
+(or, if told, trailing) spaces to complete the field width. This is useful
+for lining up multiple lines of data into a report, for instance (though in
+that case, you may also want to specify a maximum field width to truncate
+long values - more on that below). The syntax is just like leading zeros,
+but drop the leading zero:
+&lt;/P&gt;
+
+&lt;PRE&gt;
+	printf(&quot;%6s&quot;, 'foo');		# prints '   foo'
+&lt;/PRE&gt;
+
+&lt;P&gt;By default, leading spaces are used, so values appear to be right-aligned
+in their field. To reverse this, put a &lt;tt&gt;'-'&lt;/tt&gt; sign before the field width:
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;%-6s&quot;, 'foo');		# prints 'foo   '
+&lt;/pre&gt;
+
+&lt;P&gt;For numeric values with default precision, like &lt;tt&gt;%f&lt;/tt&gt; and &lt;tt&gt;%e&lt;/tt&gt;, act here just like
+they do with leading zeros. &lt;tt&gt;%f&lt;/tt&gt;, for example, won't have any padding unless you
+put a field width of more than 8. 
+&lt;/P&gt;
+
+&lt;h3&gt;Precision Modifier&lt;/h3&gt;
+
+&lt;P&gt;The precision modifier tells &lt;tt&gt;printf()&lt;/tt&gt; how many digits you want after
+the decimal point, if its a floating point specifier. If there are
+more digits than you specified, the value is rounded. If there are less,
+zeros are used to fill the space.
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;%.2f&quot;, 9.333333);		# prints '9.34'
+	printf(&quot;%.2f&quot;, 9);			# prints '9.00'
+&lt;/pre&gt;
+
+&lt;p&gt;For decimal values, the precision modifier has the same effect
+as the &lt;tt&gt;'0'&lt;/tt&gt; modifier described above:
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;%.3f&quot;, 7);			# prints 007
+&lt;/pre&gt;
+
+&lt;p&gt;For string values, it has the nice effect of specifying a maximum
+field width, where it will only print out the first n characters
+of the string. In combonation with the field width modifier described
+above, you can have a well-behaved-under-all-circumstances string field.
+&lt;/P&gt;
+
+&lt;pre&gt;
+	printf(&quot;%.3s&quot;, 'foobar');		# prints 'foo'
+	printf(&quot;%.10s&quot;, 'foobar');		# prints 'foobar'
+	printf(&quot;%5.5s %5.5s&quot;, 'foobar', 'baz');	# prints 'fooba   baz'
+&lt;/pre&gt;
+
+&lt;h3&gt;Rounding Numbers with &lt;tt&gt;sprintf()&lt;/tt&gt;&lt;/h3&gt;
+
+&lt;P&gt;Ever wanted to round a floating point number to a decimal in
+perl? Or round it to an arbitrary decimal place? &lt;tt&gt;sprintf()&lt;/tt&gt; gives
+you the ability to do that.
+&lt;/P&gt;
+
+&lt;pre&gt;
+	# this sets $foo to '3'
+	$foo = sprintf(&quot;%d&quot;, 3.14);
+
+	# this sets $bar to '7.3531'
+	$bar = sprintf(&quot;%.4f&quot;, 7.35309);
+&lt;/pre&gt;
+
+&lt;P&gt;&lt;tt&gt;%d&lt;/tt&gt; specifies to convert the given value to a decimal integer. The
+conversion rounds as necessary. &lt;tt&gt;%.4f&lt;/tt&gt; specifies to convert the value
+given to a floating point number with a precision to 4 decimal places, rounding
+the value as needed.&lt;/P&gt;
+
+&lt;h3&gt;Octal and Hexadecimal&lt;/h3&gt;
+
+&lt;P&gt;You can convert your decimal based values to Hexadecimal and Octal values using &lt;tt&gt;printf()&lt;/tt&gt; and &lt;tt&gt;sprintf()&lt;/tt&gt;. To do so, specify the conversion as &lt;tt&gt;%o&lt;/tt&gt; for octal, and &lt;tt&gt;%x&lt;/tt&gt; for hexadecimal. &lt;TT&gt;%X&lt;/TT&gt; is equivilant to &lt;tt&gt;%x&lt;/tt&gt;, except the result is printed using capital letters.
+
+&lt;PRE&gt;
+	printf(&quot;%x&quot;, 15);	# prints 'f'
+	printf(&quot;%X&quot;, 15);	# prints 'F'
+	printf(&quot;%o&quot;, 15);	# prints '17'
+&lt;/PRE&gt;
+
+&lt;P&gt;As explained in the Format Modifiers section, using a '#' (pound sign) right after the % will convert the value to &quot;alternate form.&quot; For &lt;tt&gt;%x&lt;/tt&gt; and &lt;tt&gt;%X&lt;/tt&gt;, it will prepend to the value &lt;tt&gt;'0x'&lt;/tt&gt; and &lt;tt&gt;'0X'&lt;/tt&gt; respectively. For &lt;tt&gt;%o&lt;/tt&gt;, a single leading &lt;tt&gt;'0'&lt;/tt&gt; (zero) is added. The extra characters using the &lt;tt&gt;#&lt;/tt&gt; modifier are considered part of the field width.
+
+&lt;PRE&gt;
+	printf(&quot;%#x&quot;, 15);	# prints '0xf'
+	printf(&quot;%#o&quot;, 15);	# prints '017'
+	printf(&quot;%#4x&quot;, 15);	# prints ' 0xf'
+&lt;/PRE&gt;
+
+&lt;P&gt;In the last example, the field width of 4 is specified. Since the &lt;tt&gt;#&lt;/tt&gt; modifier adds two extra characters to the value, it ends up taking 3 characters in total. Thus the single leading space.
+
+&lt;h3&gt;When to Use, and When Not to&lt;/h3&gt;
+
+&lt;P&gt;While &lt;tt&gt;printf()&lt;/tt&gt; is more powerful than &lt;tt&gt;print()&lt;/tt&gt;, it is also less efficient
+and more error-prone. The [printf] manpage tells us not to use &lt;tt&gt;printf()&lt;/tt&gt;
+where a simple &lt;tt&gt;print()&lt;/tt&gt; would suffice, and that's good advice. You should
+use printf where you need the control over a value's format that &lt;tt&gt;printf()&lt;/tt&gt;
+gives you, when you want to use field widths (and don't care much for
+perl's reports), and when you want to round floating point numbers.
+&lt;/P&gt;
+
+&lt;h3&gt;Errors and Corrections&lt;/h3&gt;
+
+&lt;P&gt;Please post any errors and corrections below. I'll humbly and embarassingly admit my mistake and fix it. Helpful comments would be greatly appreciated.
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>20519</node_id>
+  <author_user>2905</author_user>
+  <title>Using (s)printf()</title>
+  <createtime>2000-06-29 23:36:05</createtime>
+  <nodeupdated>2005-08-15 12:26:06</nodeupdated>
+</node>

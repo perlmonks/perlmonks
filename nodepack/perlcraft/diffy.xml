@@ -1,0 +1,176 @@
+<node>
+  <doctext>#!/usr/bin/perl
+
+##########################################################################
+#                                                                        #
+# How diffy works:                                                       #
+# - it simply compares files and prints out the names of identical files #
+# - if you give it 2 paths it compares the files in those paths          #
+# - if you give it 1 path, it compares just the files in this path       #
+# - if you give it no path, the current directory is taken               #
+# - if you give the option -h, hardlings will be shown too               #
+#                                                                        #
+# TODO:                                                                  #
+#  make it faster, smaller and more robust                               #
+#  print usage with -h and get better options                            #
+#                                                                        #
+##########################################################################
+
+$hardlinks = 0;
+
+
+if ( &quot;$ENV{'DIFFY_SEARCH_SIZE'}&quot; ) {
+    $min_size = $ENV{'DIFFY_SEARCH_SIZE'};
+} else {
+    $min_size = &quot;20k&quot;;
+}
+
+$numDirs = 0;
+foreach (@ARGV) {
+    if($_ eq &quot;?&quot;) {
+	die &quot;*** Usage: diffy [directoy_1 [directory_2]] [-h]\n\n&quot;;
+    }
+    
+    if($_ eq &quot;-h&quot;) {
+	$hardlinks = 1;
+    } elsif($numDirs &lt; 2) {
+	if($numDirs == 0) { $dir1 = $_ }
+	if($numDirs == 1) { $dir2 = $_ }
+		
+	$numDirs++;
+    }
+}
+
+if($numDirs == 0) {
+    $dir1 = &quot;.&quot;;
+    
+    $numDirs = 1;
+}
+
+if($numDirs == 1) {
+    $dir2 = $dir1;
+}
+
+
+%files1 = &amp;getFiles($dir1);
+%files2 = &amp;getFiles($dir2);
+
+
+@keys1 = sort { $files1{$a} &lt;=&gt; $files1{$b} } keys(%files1);
+@keys2 = sort { $files2{$a} &lt;=&gt; $files2{$b} } keys(%files2);
+
+
+$numKeys1 = scalar(@keys1) + 1 ;
+$numKeys2 = scalar(@keys2) + 1 ;
+
+
+$value       = $files1{$keys1[0]};
+$i2          = 0;
+$index       = 0;
+%savedFiles1 = %empty; # $savedFiles1{index} = filename
+%savedFiles2 = %empty;
+
+for($i1 = 0; $i1 &lt; $numKeys1; $i1++) {
+    if($value != $files1{$keys1[$i1]}) {
+	if($index &gt; 0) {
+	    ### now delete double pairs and print the remaining pairs
+	    
+	    @savedKeys = keys(%savedFiles1);
+	    $numSaved  = scalar(@savedKeys);
+			
+	    while($numSaved &gt; 0) {
+		for($iSave = 1; $iSave &lt; $numSaved; $iSave++) {
+		    if($savedFiles1{$savedKeys[0]} eq $savedFiles2{$savedKeys[$iSave]} &amp;&amp;
+		       $savedFiles2{$savedKeys[0]} eq $savedFiles1{$savedKeys[$iSave]}) {
+			
+			delete $savedFiles1{$savedKeys[$iSave]};
+			delete $savedFiles2{$savedKeys[$iSave]};
+			last;
+		    }
+		}
+		print &quot;ln -f \&quot;&quot;.$savedFiles1{$savedKeys[0]}.&quot;\&quot;&quot;.&quot; &quot;.&quot;\&quot;&quot;.$savedFiles2{$savedKeys[0]}.&quot;\&quot;&quot;.&quot;\n&quot;;
+		
+		delete $savedFiles1{$savedKeys[0]};
+		delete $savedFiles2{$savedKeys[0]};
+		
+		@savedKeys = keys(%savedFiles1);
+		$numSaved  = scalar(@savedKeys);
+	    }
+	}
+	$index       = 0;
+	%savedFiles1 = %empty; # just to be sure
+	%savedFiles2 = %empty;
+	
+	$value = $files1{$keys1[$i1]};
+    }
+    
+    while($files2{$keys2[$i2]} &lt; $files1{$keys1[$i1]}) {
+	$i2++;
+	if($i2 &gt; $numKeys2) { exit; }
+    }
+    
+    if($files2{$keys2[$i2]} == $files1{$keys1[$i1]}) {
+	$i2Old = $2;
+	
+	while($files2{$keys2[$i2]} == $files1{$keys1[$i1]}) {
+	    if($keys2[$i2] ne $keys1[$i1]) {
+		open(FILE, $keys1[$i1]);
+		$inode1 = (stat(FILE))[1];
+		close(FILE);
+		
+		open(FILE, $keys2[$i2]);
+		$inode2 = (stat(FILE))[1];
+		close(FILE);
+		
+		if($inode1 == $inode2) {
+		    if($hardlinks == 1) {
+			$index++;
+			$savedFiles1{$index} = $keys1[$i1];
+			$savedFiles2{$index} = $keys2[$i2];
+		    }
+		} else {
+		    if(system(&quot;cmp -s \&quot;$keys1[$i1]\&quot; \&quot;$keys2[$i2]\&quot;&quot;) == 0) {
+			$index++;
+			$savedFiles1{$index} = $keys1[$i1];
+			$savedFiles2{$index} = $keys2[$i2];
+		    }
+		}
+	    }
+	    $i2++;
+	    if($i2 &gt; $numKeys2) { exit; }
+	}
+	$i2 = $i2Old;
+
+        # $i2 gets a reset, because every file in %files1 has to be compared with
+        # every file in %files2 of equal size. Otherwise some files would be skipped.	
+    }
+}
+
+sub getFiles {
+    local($dir, %list, $file, $size);
+    
+    $dir = $_[0];
+    unless(-d $dir) { die &quot;*** ERROR: $dir is not a directory.\n&quot;; }
+    
+    open(DIR, &quot;find $dir -size +$min_size -type f -printf \&quot;%p %s\\n\&quot; |&quot;) || 
+	die &quot;*** ERROR: Cannot access $dir.\n&quot;;
+    while(&lt;DIR&gt;) {
+	chop;
+	($file, $size) = split ( /\s/, $_, 2 );
+	if(-f $file) {
+	    $list{$file} = $size;
+	}
+    }
+    close(DIR);
+    
+    unless(keys(%list)) { die &quot;*** No files in $dir\n&quot;; }    
+    %list;
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>90511</node_id>
+  <author_user>89299</author_user>
+  <title>diffy</title>
+  <createtime>2001-06-21 19:51:52</createtime>
+  <nodeupdated>2005-07-21 01:27:21</nodeupdated>
+</node>

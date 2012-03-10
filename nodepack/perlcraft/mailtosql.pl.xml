@@ -1,0 +1,70 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+#############################################################
+# Usage... | mailtosql &lt;dbname&gt; &lt;dbusername&gt; &lt;dbpass&gt;       #
+# Pipe mail to this script and it will stick it in a mysql  #
+# table called Email. This is usefull for writing web       #
+# interfaces to email :) or other stuff.                    #
+#############################################################
+
+use DBI;
+use Mail::Internet;
+use strict;
+use vars qw/$line $header @header @dats @fields $dbh $mail @arr $sth $statement $body $col @cols @body/;
+
+$dbh = DBI-&gt;connect(&quot;DBI:mysql:$ARGV[0]&quot;,$ARGV[1],$ARGV[2],{
+        'RaiseError' =&gt; 0,
+        'PrintError' =&gt; 1
+});
+
+$mail = new Mail::Internet \*STDIN;
+$header = $mail-&gt;head();
+
+if (!($dbh-&gt;do(&quot;desc Email&quot;))) {
+        $statement = &quot;CREATE TABLE Email \(ID INT NOT NULL AUTO_INCREMENT PRIMARY KEY,ETo varchar\(150\),EFrom varchar\(150\),ESender varchar\(150\),ECc varchar\(150\),EDate varchar\(150\),ESubject varchar\(150\),EHeader text,EBody text\);&quot;;
+        $dbh-&gt;do($statement) || die &quot;Could not create table \&quot;Email\&quot; on DB \&quot;$ARGV[0]\&quot;\n&quot;;
+}
+
+die &quot;Bad mail file\n&quot; unless(defined($mail));
+
+
+# get fields 
+$sth = $dbh-&gt;prepare(&quot;desc Email&quot;);
+$sth-&gt;execute;
+while(@arr = $sth-&gt;fetchrow_array) {
+        push(@cols,$arr[0]);
+}
+
+map {
+        chomp($line = $header-&gt;get($_));
+        $line = $dbh-&gt;quote($line);
+        $_ = &quot;E&quot;.$_;
+        foreach $col(@cols) {
+                if ($_ eq $col) {
+                        push(@fields,$_);
+                        push(@dats,$line);
+                }
+        }
+} $header-&gt;tags;
+
+map {
+        push(@header,$dbh-&gt;quote(&quot;$_: &quot;.$header-&gt;get($_)));
+} $header-&gt;tags;
+push(@fields,&quot;EHeader&quot;);
+push(@dats,&quot;@header&quot;);
+
+push(@fields,&quot;EBody&quot;);
+@body = map {$dbh-&gt;quote($_)} @{$mail-&gt;body};
+push(@dats,&quot;@body&quot;);
+
+$statement = &quot;INSERT INTO Email (&quot;.join(',',@fields).&quot;) VALUES(&quot;.join(',',@dats).&quot;);&quot;;
+$sth = $dbh-&gt;prepare($statement);
+$sth-&gt;execute;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>23515</node_id>
+  <author_user>23075</author_user>
+  <title>mailtosql.pl</title>
+  <createtime>2000-07-21 00:31:20</createtime>
+  <nodeupdated>2005-07-21 01:13:57</nodeupdated>
+</node>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="74291" title="other users xml2 ticker" created="2000-06-01 15:14:20" updated="2005-06-22 02:52:35">
+<type id="122">
+fullpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="doctext">
+[%
+return "Using this?  /msg tye if you miss it"
+  unless  isGod($USER);
+
+my $str;
+use XML::Generator;
+my $XG = new XML::Generator;
+my $time=180;
+
+my $csr=$DB-&gt;getDatabaseHandle()-&gt;prepare("	
+	SELECT node_id, title FROM node, user
+	WHERE node_id=user_id and
+	type_nodetype=". getId ($DB-&gt;getType('user')));
+
+$csr-&gt;execute;
+my $lines;
+my @users;
+while (my $N = $csr-&gt;fetchrow_hashref) {
+  push @users, $N;
+}
+
+$str.=$XG-&gt;INFO({site =&gt; $HTMLVARS{site_url}, sitename =&gt; $HTMLVARS{site_name}}, "Rendered by the Other Users XML Ticker");
+
+foreach my $N (@users) {
+  my $username=$$N{title};
+  #encode_entities($username);
+  $str.=$XG-&gt;user({user_id =&gt; getId($N),username=&gt;$username},"")."\n";
+}
+
+
+$str="\n".$XG-&gt;CHATTER($str."\n");
+$str=~s/([\177-\377])/"&amp;#".ord($1).";"/eg;
+$str;
+
+%]</field>
+</data>
+</node>

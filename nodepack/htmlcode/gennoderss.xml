@@ -1,0 +1,175 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>783332</node_id>
+  <author_user>518801</author_user>
+  <title>genNodeRSS</title>
+  <createtime>2009-07-26 10:36:01</createtime>
+  <code>=head1 NAME
+
+genNodeRSS($node, $options) - create RSS for a list of nodes
+
+If the node passed in is a single node id, the (sub)tree
+of nodes is retrieved. Otherwise, it is assumed to be
+a flat list of node hashrefs.
+
+If no preset list of viewable items is included in the,
+the settings for Newest Nodes of the current user will be used
+as a default.
+
+The nodes are validated against this list of viewable nodetypes,
+and unreadable nodes are discarded from the list, unless
+the 'show_all' key is present in the options.
+
+Optional information about the site can be passed in via the options as well.
+
+=cut
+
+my ($node,$opts) = @_;
+$opts ||= {};
+
+my $ttl = $opts-&gt;{ttl} || 60;
+
+my %viewable;
+if (! $opts-&gt;{viewable}) {
+
+    # Determine what nodes are viewable for the current user at all
+    # This is somewhat influenced by their Newest Node Settings, so
+    # stuff that is blocked in their NN settings doesn't show up here either.
+    # Such is life.
+    my $nn_settings = {};
+    htmlcode('handle_nn_settings','',$nn_settings);
+    %viewable = map { $_ =&gt; 1 } @{ $nn_settings-&gt;{types} };
+} else {
+    %viewable = %{ $opts-&gt;{viewable} };
+};
+
+local *getFlattenedNodeTree = sub {
+    my ($nodes, $res) = @_;
+    $res ||= [];
+    for my $node (@$nodes) {
+        my $n = getNodeById( $node-&gt;{id} );
+        push @$res, $n;
+        getFlattenedNodeTree( $node-&gt;{children}, $res );
+    };
+    $res
+};
+
+local *nodeurl = sub {
+     my $n=shift;
+     (my $site=$HTMLVARS{site_url})=~s!/+$!!;
+     return $site. #$ENV{SCRIPT_NAME}.
+            urlGen({ node_id=&gt; ref $n ? $n-&gt;{node_id} : $n, 
+                     from   =&gt; 'rss', 
+                   },1);
+};
+
+my $nodes;
+if (ref $node ne 'ARRAY') {
+    # a node number, or a node hash was passed in:
+    my $tree = htmlcode('getNodeTree','',$node, 0, 200); # arbitrary limit
+    $nodes = getFlattenedNodeTree($tree);
+} else {
+    # assume the correct structure, a list of node hashes, was passed in
+    $nodes = $node;
+};
+
+# Validate our list
+if (! $opts-&gt;{show_all}) {
+    $nodes = [ grep {
+                   $viewable{ $_-&gt;{type}-&gt;{title} } and canReadNode( $USER, $_ );
+             } @$nodes ];
+};
+
+my($xml,@data,%xmlstyle);
+$xmlstyle{clean}=1;
+$xmlstyle{rss}=1;
+
+return &quot;&lt;error&gt;Error creating fling object&lt;/error&gt;&quot;
+    unless htmlcode('new_xml_fling','',\($xml,@data,%xmlstyle));
+
+require POSIX;
+
+my $site= $opts-&gt;{site} || {
+      site        =&gt; $HTMLVARS{site_url},
+      sitename    =&gt; $HTMLVARS{site_name},
+      foruser     =&gt; $USER-&gt;{title},
+      foruser_id  =&gt; $USER-&gt;{node_id},
+      min_poll_seconds =&gt; 30,
+      style      =&gt; join(',',grep $xmlstyle{$_}, keys %xmlstyle),
+      gentimeGMT =&gt; POSIX::strftime(&quot;%Y-%m-%d %H:%M:%S&quot;,
+                                    gmtime(time)),
+
+      #req_from    =&gt; &quot;&quot;.localtime($asked),
+      #got_from    =&gt; &quot;&quot;.localtime($since),
+      #lastchecked =&gt; $lastchecked,
+};
+
+$xml-&gt;header(&quot;windows-1252&quot;);
+
+my $NODE = $nodes-&gt;[0];
+
+$xml-&gt;start(rss=&gt;version=&gt;'2.0',
+                'xmlns:perlmonks'=&gt;nodeurl(393035),
+                'xmlns:dc'       =&gt;&quot;http://purl.org/dc/elements/1.1/&quot;);
+    $xml-&gt;start('channel');
+    $xml-&gt;element(ttl=&gt;$ttl);
+    $xml-&gt;element(title=&gt; $NODE-&gt;{title});
+    $xml-&gt;element(description=&gt; &quot;Node and replies&quot;);
+    $xml-&gt;element(link=&gt;nodeurl($NODE));
+    $xml-&gt;element(docs=&gt;'http://blogs.law.harvard.edu/tech/rss');
+    $xml-&gt;element(generator=&gt;'PerlMonks RSS XML Generator');
+    foreach my $key (keys %$site) {
+        $xml-&gt;element(&quot;perlmonks:$key&quot;,$site-&gt;{$key});
+    };
+
+    my %authors;
+
+    for my $node (@$nodes) {
+      $authors{ $node-&gt;{author_user} }||=getNodeById($node-&gt;{author_user});
+      if( $authors{ $node-&gt;{author_user}} == -1) {
+          $authors{ $node-&gt;{author_user} } = { 
+              title =&gt; sprintf('No such user (%s)', $node-&gt;{author_user}),
+          };
+      };
+
+      my $usertime=htmlcode('parseTimeInString','',$node-&gt;{createtime},undef,undef,&quot;RFC822&quot;);
+      my $time = $node-&gt;{createtime};
+      $time    =~ s/\D//g;
+
+      my @note = map {
+        $_ =&gt; $node-&gt;{$_}
+      } grep {
+        $node-&gt;{$_}
+      } qw/root_node parent_node/;
+
+      $node-&gt;{abbreviated}||=$node-&gt;{doctext};
+      #$node-&gt;{abbreviated}=~s#&lt;[^&gt;]*&gt;##g;
+      #$node-&gt;{abbreviated}=~s/&lt;[^&gt;]*\.\.\.$/.../;
+      $node-&gt;{abbreviated}=htmlcode('parselinksinchatter','',$node-&gt;{abbreviated});
+
+      require HTML::Entities;
+      #$node-&gt;{abbreviated}= HTML::Entities::encode_entities($node-&gt;{abbreviated});
+
+      $xml-&gt;start('item','perlmonks:itemtype'=&gt;'node');
+          $xml-&gt;element('title'=&gt;$node-&gt;{title});
+          $xml-&gt;element('dc:creator'=&gt;$authors{ $node-&gt;{author_user} }-&gt;{title});
+          $xml-&gt;element('link' =&gt;nodeurl($node));
+          $xml-&gt;element('description'=&gt;$node-&gt;{abbreviated})
+            if $node-&gt;{abbreviated} ne '...';
+          #$xml-&gt;element('category'=&gt;$type);
+          $xml-&gt;element('pubDate'=&gt;$usertime);
+          $xml-&gt;element('guid', nodeurl($node-&gt;{node_id}));
+          $xml-&gt;element('perlmonks:node_id'=&gt;$node-&gt;{node_id});
+          $xml-&gt;element('perlmonks:author_user'=&gt;$node-&gt;{author_user});
+          $xml-&gt;element('perlmonks:createtime'=&gt;$node-&gt;{createtime});
+          $xml-&gt;element('perlmonks:authortitle'=&gt;$authors{ $node-&gt;{author_user} }-&gt;{title});
+        $xml-&gt;end('item');
+    }
+
+$xml-&gt;end('channel');
+$xml-&gt;end('rss');
+
+return join '', @data;
+</code>
+  <nodeupdated>2009-07-26 10:36:01</nodeupdated>
+</node>

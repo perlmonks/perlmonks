@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="5769" title="vote" created="2000-03-21 00:10:20" updated="2005-06-01 13:52:46">
+<type id="3545">
+opcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+return
+    if  getId($USER) == $HTMLVARS{default_user}
+    ||  ! $USER-&gt;{votesleft};
+my @params= reverse $q-&gt;param();
+
+use Everything::Experience;
+use Digest::MD5 qw&lt; md5_base64 &gt;;
+
+my $nid= $q-&gt;param('node_id');
+my $votebot= 0;
+if(     ! $nid
+    ||  $q-&gt;param('vc') ne md5_base64( ($nid+42) . $USER-&gt;{title} )
+    ||  $ENV{HTTP_USER_AGENT} =~ /UA libwww/
+) {
+    $votebot= 1;
+}
+
+my $votestr= '';
+foreach (  @params  ) {
+    next
+        if  ! /^vote\_\_(.*)$/;
+    my $N= $1;
+    my $val= $q-&gt;param($_);
+    getRef( $N );
+    next
+        if  $N-&gt;{author_user} == getId($USER)
+        ||  $val !~ /^-?1$/;
+    my $A= getNodeById( $N-&gt;{author_user} );
+    next
+        if  $USER-&gt;{nick} eq $A-&gt;{title};
+    $votestr .= 0&lt;$val ? "+" : "-";
+    $votestr .= getId($N) . " ";
+    castVote( $N, $USER, $val, $ENV{REMOTE_ADDR} )
+        if  ! $votebot;
+}
+
+if(  ! $USER-&gt;{votesleft}  ) {
+    my $lvl= getLevel($USER); # can't accessrule
+    my $VOTES= getVars( getNode('level votes','setting') );
+    my $bonus= int( ( 5 + $VOTES-&gt;{$lvl} ) / 6 )
+        if  Everything::isApproved( $USER,'GetsVoteBonus' );
+    adjustExp( $USER, $bonus );
+}
+
+if(  $votebot  &amp;&amp;  $votestr  ) {
+    $USER-&gt;{experience} -= 5;
+    --$USER-&gt;{votesleft}
+        if  0 &lt; $USER-&gt;{votesleft};
+    Everything::printLog( join ' ',
+        "votebot alert: $USER-&gt;{title} -5 = $USER-&gt;{experience}",
+        ": node_id=$nid : $ENV{REMOTE_ADDR}",
+        ": UA $ENV{HTTP_USER_AGENT} : $votestr",
+    );
+    updateNode( $USER, -1 );
+}
+</field>
+</data>
+</node>

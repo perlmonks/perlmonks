@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="99596" title="AuthDBM obfu" created="2001-07-25 07:41:47" updated="2005-07-21 01:27:44">
+<type id="121">
+perlcraft</type>
+<author id="94384">
+kchea</author>
+<data>
+<field name="doctext">
+&lt;p&gt;
+Copyright (c) 1999-2001, Keith S. Chea. All rights reserved. 
+&lt;/p&gt;&lt;p&gt;
+Legal Note: codes you see below were extracted
+from my soon-to-be-released product and they
+are copyrighted. These codes (and soon-to-be
+released product) is free, you can redistribute
+it and/or modify it as long the copyright note
+(above) remains intact. Using these codes for 
+commercial purposes without prior permission 
+from me is prohibited. 
+&lt;/p&gt;
+&lt;p&gt;
+Works the same as "dbmmanage add|adduser", except 
+that you can add group(s) to an existing user, 
+and remove any duplicated group(s) before adding.
+&lt;/p&gt;
+&lt;code&gt;
+#!/usr/local/bin/perl
+
+use strict;
+use DB_File;
+my $u = $ARGV[0] || 'japh'; #User ID: i.e japh
+my $p = $ARGV[1] || '1234'; #Password: i.e 1234
+my $g = $ARGV[2] || 'perl'; #Group: i.e admin or admin,staff,root
+my @o = ("email\@yahoo.com", "123 St,Boston,MA 02450,USA","24","Male"); #optionally other information
+&amp;_($u,$p,$g);
+
+sub _{ my($u1,$p1,$g1,@o1)=@_;
+       my(%D)=();
+       my(%G)=();
+       my(@G,@V,@U,@M);
+
+       flock "pwd.db",2;dbmopen %D,"pwd.db", 0666 or die "$!\n";while(
+
+       my($k,$v) = each %D){$D{$k} = $v;}
+       my($o) = defined(@o1) ? join ',',@o1 : '';
+       my($g) = ($g1 =~ /[^\w\-\,]+/) ? undef : $g1;
+       my($p) = sub {shift;
+       my(@__)= ('.','/','A'..'Z','a'..'z','0'..'9');
+       my($s) = $__[rand($#__) + 0] . $__[rand($#__) + 0];
+       my($c) = crypt($_,$s);};@G = grep {! $G{$_} ++ } split ',',$g1;
+
+       if(exists $D{$u1}){
+       if(defined $g){@V = split ':',$D{$u1};
+       if($V[1] ne ''){@M
+ 
+       = (@G,(split ',',$V[1]));@U 
+       = grep {! $G{$_} ++ } @M;$V[1] 
+       = join ',',@U,@G;$D{$u1} 
+       = join ':',$V[0],$V[1],$V[2];
+            
+       }else{$V[1] = join ',',@G;$D{$u1} = join ':',$V[0],$V[1],$V[2];}
+       }else{dbmclose %D;flock "pwd.db", 8;print "$u1 existed\n";exit(0);}
+       }else{$D{$u1} = join ':',&amp;$p($p),(join ',',@G),$o;}dbmclose %D;
+
+       flock "pwd.db", 8;
+       my($z) = sub {dbmopen %D, "pwd.db", 0444 or die "$!\n";while(
+       my($x,$y) = each %D){return "$x:$y\n";}dbmclose %D;};print &amp;$z;
+    } 
+&lt;/CODE&gt;
+&lt;small&gt;&lt;strong&gt;Edit&lt;/strong&gt; [kudra], 
+2001-07-25
+Changed formatting--HTML not code ;)
+&lt;/small&gt;
+&lt;/p&gt;
+</field>
+</data>
+</node>

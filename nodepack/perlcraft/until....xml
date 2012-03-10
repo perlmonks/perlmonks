@@ -1,0 +1,84 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+#Here's a simple module that lets you run a &quot;forever&quot; kind 
+#of script, and know it will die at a time you specify.
+
+#This could be better, but it does what I need.
+
+#Edit: Added note about hooking $SIG{INT} for cleanup to
+#POD comments
+
+package Until;
+
+=head1 NAME
+
+Until.pm
+
+=head1 SYNOPSIS
+
+    use Until &quot;16:30&quot;;
+
+    sub cleanup {
+        # do whatever you need to do on exit
+    }
+
+    $SIG{INT}=\&amp;cleanup;
+
+    while(1) {
+        # do something...
+    }
+
+=head1 DESCRIPTION
+
+This simple module forks, and the child process returns.  The parent
+process waits for the designated end time, then kills the child process.
+
+=cut
+
+use strict;
+
+sub import
+{
+    my $stopTime=$_[-1];
+
+    die &quot;Arg 1 ($stopTime) must be hh:mm&quot; unless $stopTime=~/^(\d\d?):(\d\d)$/;
+    print &quot;Running until $stopTime\n&quot;;
+
+    my ($h,$m)=($1,$2);
+    my $endMinutes=$h*60+$m;
+
+    my $pid;
+
+    if(!($pid=fork)) {
+        # did fork fail?
+        die &quot;Error forking ($!)&quot; if !defined $pid;
+
+        # child process
+        return;
+    }
+    else {
+        my $currMinutes;
+        do {
+            my ($h, $m)=(localtime)[2,1];
+            $currMinutes=$h*60+$m;
+            sleep(5) unless $currMinutes&lt;$endMinutes;
+        } while($currMinutes &lt; $endMinutes);
+
+        # kill child process
+        my $result=kill &quot;INT&quot;,$pid;
+        print &quot;Killed child process $pid (result $result)\n&quot;;
+
+        exit;
+    }
+}
+
+1;
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>213926</node_id>
+  <author_user>151991</author_user>
+  <title>Until...</title>
+  <createtime>2002-11-18 16:33:54</createtime>
+  <nodeupdated>2004-12-27 02:14:37</nodeupdated>
+</node>

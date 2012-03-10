@@ -1,0 +1,104 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>929</author_user>
+  <createtime>2002-06-07 15:37:01</createtime>
+  <node_id>172637</node_id>
+  <title>Book 'em, Danno</title>
+  <nlcode>[%
+  use Everything::NodeCache;
+  use Data::Dumper;
+
+  return 'Go Away' unless isGod($USER) 
+    || Everything::isApproved( $USER, getNode('power users', 'usergroup') );
+
+  if ( my $uid = $query-&gt;param('borg') ) {
+    htmlcode(
+      'borg',
+      $uid,
+      10 * 60,
+      $query-&gt;param('silent') || 0
+    );
+  }
+
+  if ( my $uid = $query-&gt;param('unborg') ) {
+    htmlcode(
+      'unborg',
+      $uid
+    );
+  }
+
+  my $BUN = getNode('borged users', 'setting');
+  my $BU  = getVars( $BUN );
+
+  my @users = ( [ 0, 'Select user' ] );
+
+  if ( my $ou = $DB-&gt;{cache}-&gt;getCachedNodeByName('Other Users', 'nodelet') ) {
+    while ( $ou-&gt;{nltext} =~ m!&lt;a href=&quot;\S*/index\.pl\?node_id=(\d+)&quot;&gt;([^&lt;]+)&lt;/a&gt;!gi ) {
+      my ($uid, $title) = ($1, $2);
+      $title =~ s/$/ */ if $BU-&gt;{$uid} &gt; time();
+
+      push @users, [ $uid, $query-&gt;unescapeHTML($title) ];
+    }
+  } else {
+    my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare('
+      SELECT   user_id,
+               title
+      FROM     user LEFT JOIN node ON user_id = node_id
+      WHERE    UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(lasttime) &lt; 180
+      ORDER BY experience DESC
+    ');
+
+    $sth-&gt;execute;
+
+    while ( my $r = $sth-&gt;fetchrow_arrayref ) {
+      $r-&gt;[1] =~ s/$/ */ if $BU-&gt;{$r-&gt;[0]} &gt; time();
+      push @users, [ @$r ];
+    }
+  }
+
+  my $borg = htmlcode('openform') . 
+    $query-&gt;checkbox('silent') . '&lt;br /&gt;' .
+    $query-&gt;popup_menu(
+      'borg',
+      [ map { $_-&gt;[0] } @users ], 
+      0,
+      { map { $_-&gt;[0] =&gt; $query-&gt;escapeHTML($_-&gt;[1]) } @users }
+  ) . htmlcode('closeform', 'borg');
+
+  my $borged = [
+    grep {
+      ref eq 'HASH'
+    } map {
+      getNodeById($_, 'light')
+    } grep {
+      time() &lt; $BU-&gt;{$_}
+    } keys %$BU
+  ];
+
+  my $unborg = @$borged ? htmlcode('openform') . $query-&gt;popup_menu(
+    'unborg',
+    [ map getId($_), @$borged ],
+    '',
+    {
+      map {
+        getId($_) =&gt; sprintf '%s (%d)',
+                      $query-&gt;escapeHTML($_-&gt;{title}),
+                      $BU-&gt;{getId($_)} - time()
+      } @$borged
+    }
+  ) . htmlcode('closeform', 'unborg') : '';
+
+  my $type = $NODE-&gt;{type}{title};
+  my $context = '';
+  if($type eq 'user'){
+    $context = join &quot;&lt;br /&gt;\n&quot;,
+      linkNode( 174976, 'Shared IPs',         { un   =&gt; $NODE-&gt;{title} } ),
+      linkNode( 209653, 'Uncanny Likenesses', { un   =&gt; $NODE-&gt;{title} } ),
+      linkNode( 153985, 'Edit User Vars',     { user =&gt; $NODE-&gt;{title} } );
+  }
+
+  return qq[$borg $unborg $context];
+%]</nlcode>
+  <nodeupdated>2005-08-06 13:05:20</nodeupdated>
+</node>

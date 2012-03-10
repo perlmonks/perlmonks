@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="224407" title="Gaussian Elimination Algorithm" created="2003-01-05 08:22:42" updated="2005-06-23 08:07:38">
+<type id="121">
+perlcraft</type>
+<author id="159186">
+grexman</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl5.6.1 -w
+# Another Algorithm we learned in school as Perl code (-;
+# It is used for solving equations, and I put it here hoping 
+# for some hints what could be improved, because concerning 
+# elegance I do not like it and would be glad to have the 
+# possibilitie to learn from more experienced folks (-;
+# (especially readability is a problem for me)
+
+use strict;
+my (@MatrixA,@MatrixB,@MatrixX);
+# MatrixA will include the left-side of the equation,MatrixB the right, MatrixX the solutions
+
+my $line_counter=0;
+# Input are equations of the Form: a*x1+b*x2+c*x3+..=A
+# Written as:a b c=A
+# Either in a file or just entered or line by line.
+# Input of the left side, has to be quadratic!
+while(&lt;&gt;)
+{  
+    my @line_array;
+    chomp;
+    die "Wrong Character in Input, $_" unless /^[0123456789 -=]+$/;
+    die "No B-Val found" unless s/=(-?\d+)$//;
+    @line_array=(split / /);           
+    $MatrixB[$line_counter]=$1;      
+    $MatrixA[$line_counter]=\@line_array;
+    $line_counter++;
+}
+#Check if all input lines have the same number of elements
+foreach (0..($line_counter-2))
+{
+    my $line_length_1=@{$MatrixA[$_]};
+    my $line_length_2=@{$MatrixA[$_+1]};
+    die "ERROR:(Columns 1/Columns 2: $line_length_1/$line_length_2)\n" unless ($line_length_1==$line_length_2);
+}
+
+my $input_lines=@MatrixB;
+my $input_columns=@{$MatrixA[0]};
+
+die "Matrix not quadratic"
+    unless ($input_lines==$input_columns);
+
+my $format=$input_columns-1;
+
+sub Print_Matrix
+{
+    print join(" ",@{$MatrixA[$_]})."=".$MatrixB[$_]."\n" foreach (0..$input_columns-1); 
+    print "\n";
+}
+
+
+&amp;Print_Matrix;
+{
+    # Creation of a compareable Matrix
+    # To check if two lines are equivalent
+    my (@Norm_MatrixA,@Norm_MatrixB);
+    foreach my $current_line (0..$format)
+    {  
+	my $factor=$MatrixA[$current_line][0];
+	foreach (0..($format))
+	{
+	    $Norm_MatrixA[$current_line][$_]=$MatrixA[$current_line][$_]/$factor;
+	    $Norm_MatrixB[$current_line]=$MatrixB[$current_line]/$factor;
+	}  	
+    }
+    # Compare the Lines of the Matrix:
+    foreach (0..($format))
+    {
+	my $upper_line=$_;
+	my $eq_counter=0;
+	foreach(($upper_line+1)..($format))
+	{
+	    my $lower_line=$_;
+	    foreach(0..($format))
+	    {
+	        $eq_counter++ if ($Norm_MatrixA[$upper_line][$_]==$Norm_MatrixA[$lower_line][$_]);
+	    }
+	    $eq_counter++ if ($Norm_MatrixB[$upper_line]==$Norm_MatrixB[$lower_line]);
+	    die "Two Lines of Matrix ident: $upper_line/$lower_line" if($eq_counter&gt;=$input_columns)
+	}
+    }
+}
+
+# Now here comes the Gauss Algorithm
+foreach my $SubMatrix (0..($input_lines-2))
+{
+    foreach my $line (($SubMatrix+1)..($format))
+    {	
+	my $pivot=$MatrixA[$SubMatrix][$SubMatrix];
+	my $first=$MatrixA[$line][$SubMatrix];
+	foreach my $Spalte (0..($format))
+	{
+	    $MatrixA[$line][$Spalte]=$MatrixA[$SubMatrix][$Spalte]+($MatrixA[$line][$Spalte]*$pivot/$first*-1);
+	}    
+	$MatrixB[$line]=$MatrixB[$SubMatrix]+($MatrixB[$line]*$pivot/$first*-1);
+    } 
+    &amp;Print_Matrix;
+}
+
+# Get the solutions
+foreach my $solve_line (reverse (0..($format)))
+{
+    my $leftsum=0;
+    ($leftsum+=($MatrixA[$solve_line][$_]*$MatrixX[$_]))foreach ($solve_line+1..$format);  
+    $MatrixX[$solve_line]=($MatrixB[$solve_line]-$leftsum)/($MatrixA[$solve_line][$solve_line]);    
+}
+print "x_$_=$MatrixX[$_-1]\n"foreach(1..$format+1);
+
+</field>
+</data>
+</node>

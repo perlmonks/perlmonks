@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="793997" title="activate_user" created="2009-09-07 13:39:33" updated="2009-09-07 13:39:33">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[% # getsitedoclet %]
+[%
+
+=head1 Description
+
+This resets the password for an existing user,
+provided that the user already exists.
+
+=cut
+
+my $user_id = 0+$q-&gt;param('user_id');
+my $activation_hash = $q-&gt;param('activation_hash');
+
+if ( $HTMLVARS{guest_user} != $USER-&gt;{user_id}) {
+    return "You are already logged in as [$USER-&gt;{title}]."
+};
+
+if( $HTMLVARS{guest_user} == $user_id) {
+    return "You cannot reset [Anonymous Monk]'s password"
+};
+
+my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare_cached(&lt;&lt;SQL);
+    SELECT user_id 
+    FROM   pending_activations
+    WHERE  user_id = ?
+      AND  activation_hash = ?
+      AND  expires &gt; now()
+SQL
+
+$sth-&gt;execute($user_id, $activation_hash);
+
+my $rows = $sth-&gt;fetchall_arrayref;
+
+my $message;
+if (! @$rows) {
+    $message = 'Sorry, but your reset credentials were not found.';
+} else {
+    my $user = getNode($user_id);
+
+    # Generate the passwd.
+    # also see [109].
+    my @chars = ( 'A'..'Z', 'a'..'k', 2..9 );
+    my $passwd = join('', @chars[ map { rand @chars } 1 .. 8 ]);
+
+    $user-&gt;{passwd} = $passwd;
+    $user-&gt;{passwd_hash} = htmlcode('generate_password_hash', '', $user, $passwd);
+    $DB-&gt;updateNode($user,$user);
+    
+    # Send new cookie
+    $message = &lt;&lt;HTML;
+&lt;p&gt;Welcome back $user-&gt;{title}!&lt;/p&gt;
+&lt;p&gt;We've reset your password to&lt;/p&gt;
+    &lt;tt&gt;&lt;b&gt;$user-&gt;{passwd}&lt;/b&gt;&lt;/tt&gt;
+&lt;p&gt;
+but you might want to change the password to something else
+and write it on a sheet of paper to &lt;strike&gt;glue to your monitor&lt;/strike&gt; keep in a safe place.
+&lt;/p&gt;&lt;p&gt;
+Please [?node=login;user=$user-&gt;{title}|log in] now with your new password
+or [?op=login;user=$user-&gt;{title};passwd=$passwd;node=User+settings|change your password].
+&lt;/p&gt;
+HTML
+}
+
+return $message
+
+%]</field>
+</data>
+</node>

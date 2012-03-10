@@ -1,0 +1,258 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+Exporter - Implements default import method for modules
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+The Exporter module implements a default [perlfunc:import|import] method which many modules choose to inherit rather than implement their
+own.
+
+&lt;P&gt;
+Perl automatically calls the [perlfunc:import|import] method when processing a
+[perlfunc:use|use] statement for a module. Modules and [perlfunc:use|use] are documented in [perlman:perlfunc|perlfunc] and [perlman:perlmod|perlmod]. Understanding the concept of modules and how the [perlfunc:use|use] statement operates is important to understanding the Exporter.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Selecting_What_To_Export&quot;&gt;Selecting What To Export&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Do &lt;STRONG&gt;not&lt;/STRONG&gt; export method names!
+
+&lt;P&gt;
+Do &lt;STRONG&gt;not&lt;/STRONG&gt; export anything else by default without a good reason!
+
+&lt;P&gt;
+Exports pollute the namespace of the module user. If you must export try to
+use &lt;CODE&gt;@EXPORT_OK&lt;/CODE&gt; in preference to &lt;CODE&gt;@EXPORT&lt;/CODE&gt; and avoid
+short or common symbol names to reduce the risk of name clashes.
+
+&lt;P&gt;
+Generally anything not exported is still accessible from outside the module
+using the ModuleName::item_name (or $blessed_ref-&amp;gt;method) syntax. By
+convention you can use a leading underscore on names to informally indicate
+that they are 'internal' and not for public use.
+
+&lt;P&gt;
+(It is actually possible to get private functions by saying:
+
+&lt;P&gt;
+&lt;PRE&gt;  my $subref = sub { ... };
+  &amp;amp;$subref;
+&lt;/PRE&gt;
+&lt;P&gt;
+But there's no way to call that directly as a method, since a method must
+have a name in the symbol table.)
+
+&lt;P&gt;
+As a general rule, if the module is trying to be object oriented then
+export nothing. If it's just a collection of functions then
+&lt;CODE&gt;@EXPORT_OK&lt;/CODE&gt; anything but use &lt;CODE&gt;@EXPORT&lt;/CODE&gt; with caution.
+
+&lt;P&gt;
+Other module design guidelines can be found in [perlman:perlmod|perlmod].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Specialised_Import_Lists&quot;&gt;Specialised Import Lists&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If the first entry in an import list begins with !, : or / then the list is
+treated as a series of specifications which either add to or delete from
+the list of names to import. They are processed left to right.
+Specifications are in the form:
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;#091;!&amp;#093;name         This name only
+    &amp;#091;!&amp;#093;:DEFAULT     All names in @EXPORT
+    &amp;#091;!&amp;#093;:tag         All names in $EXPORT_TAGS{tag} anonymous list
+    &amp;#091;!&amp;#093;/pattern/    All names in @EXPORT and @EXPORT_OK which match
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; leading ! indicates that matching names should be deleted from the list of names to import. If the first specification is a deletion it is treated as though preceded by 
+&lt;FONT SIZE=-1&gt;:DEFAULT.&lt;/FONT&gt; If you just want to import extra names in addition to the default set you will still need to include 
+&lt;FONT SIZE=-1&gt;:DEFAULT&lt;/FONT&gt; explicitly.
+
+&lt;P&gt;
+e.g., Module.pm defines:
+
+&lt;P&gt;
+&lt;PRE&gt;    @EXPORT      = qw(A1 A2 A3 A4 A5);
+    @EXPORT_OK   = qw(B1 B2 B3 B4 B5);
+    %EXPORT_TAGS = (T1 =&amp;gt; &amp;#091;qw(A1 A2 B1 B2)&amp;#093;, T2 =&amp;gt; &amp;#091;qw(A1 A2 B3 B4)&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    Note that you cannot use tags in @EXPORT or @EXPORT_OK.
+    Names in EXPORT_TAGS must also appear in @EXPORT or @EXPORT_OK.
+&lt;/PRE&gt;
+&lt;P&gt;
+An application using Module can say something like:
+
+&lt;P&gt;
+&lt;PRE&gt;    use Module qw(:DEFAULT :T2 !B3 A3);
+&lt;/PRE&gt;
+&lt;P&gt;
+Other examples include:
+
+&lt;P&gt;
+&lt;PRE&gt;    use Socket qw(!/^&amp;#091;AP&amp;#093;F_/ !SOMAXCONN !SOL_SOCKET);
+    use POSIX  qw(:errno_h :termios_h !TCSADRAIN !/^EXIT/);
+&lt;/PRE&gt;
+&lt;P&gt;
+Remember that most patterns (using //) will need to be anchored with a
+leading ^, e.g., &lt;CODE&gt;/^EXIT/&lt;/CODE&gt; rather than &lt;CODE&gt;/EXIT/&lt;/CODE&gt;.
+
+&lt;P&gt;
+You can say &lt;CODE&gt;BEGIN { $Exporter::Verbose=1 }&lt;/CODE&gt; to see how the specifications are being processed and what is actually
+being imported into modules.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Exporting_without_using_Export_s&quot;&gt;Exporting without using Export's import method&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Exporter has a special method, 'export_to_level' which is used in
+situations where you can't directly call Export's import method. The
+export_to_level method looks like:
+
+&lt;P&gt;
+MyPackage-&amp;gt;export_to_level($where_to_export, @what_to_export);
+
+&lt;P&gt;
+where &lt;CODE&gt;$where_to_export&lt;/CODE&gt; is an integer telling how far up the
+calling stack to export your symbols, and &lt;CODE&gt;@what_to_export&lt;/CODE&gt; is
+an array telling what symbols *to* export (usually this is @_).
+
+&lt;P&gt;
+For example, suppose that you have a module, 
+&lt;FONT SIZE=-1&gt;A,&lt;/FONT&gt; which already has an import function:
+
+&lt;P&gt;
+package 
+&lt;FONT SIZE=-1&gt;A;&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;CODE&gt;@ISA&lt;/CODE&gt; = 
+&lt;CODE&gt;qw(Exporter);&lt;/CODE&gt;
+&lt;CODE&gt;@EXPORT_OK&lt;/CODE&gt; = qw ($b);
+
+&lt;P&gt;
+sub import { $A::b = 1; # not a very useful import method }
+
+&lt;P&gt;
+and you want to Export symbol $A::b back to the module that called package 
+&lt;FONT SIZE=-1&gt;A.&lt;/FONT&gt; Since Exporter relies on the import method to work,
+via inheritance, as it stands Exporter::import() will never get called.
+Instead, say the following:
+
+&lt;P&gt;
+package 
+&lt;FONT SIZE=-1&gt;A;&lt;/FONT&gt; &lt;CODE&gt;@ISA&lt;/CODE&gt; = 
+&lt;CODE&gt;qw(Exporter);&lt;/CODE&gt; &lt;CODE&gt;@EXPORT_OK&lt;/CODE&gt; = qw ($b);
+
+&lt;P&gt;
+sub import { $A::b = 1; A-&amp;gt;export_to_level(1, @_); }
+
+&lt;P&gt;
+This will export the symbols one level 'above' the current package - ie: to the program or module that used package 
+&lt;FONT SIZE=-1&gt;A.&lt;/FONT&gt;
+ 
+
+&lt;P&gt;
+Note: Be careful not to modify '@_' at all before you call export_to_level
+- or people using your package will get very unexplained results!
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Module_Version_Checking&quot;&gt;Module Version Checking&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The Exporter module will convert an attempt to import a number from a
+module into a call to $module_name-&amp;gt;require_version($value). This can
+be used to validate that the version of the module being used is greater
+than or equal to the required version.
+
+&lt;P&gt;
+The Exporter module supplies a default require_version method which checks
+the value of &lt;CODE&gt;$VERSION&lt;/CODE&gt; in the exporting module.
+
+&lt;P&gt;
+Since the default require_version method treats the &lt;CODE&gt;$VERSION&lt;/CODE&gt;
+number as a simple numeric value it will regard version 1.10 as lower than
+1.9. For this reason it is strongly recommended that you use numbers with
+at least two decimal places, e.g., 1.09.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Managing_Unknown_Symbols&quot;&gt;Managing Unknown Symbols&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In some situations you may want to prevent certain symbols from being
+exported. Typically this applies to extensions which have functions or
+constants that may not exist on some systems.
+
+&lt;P&gt;
+The names of any symbols that cannot be exported should be listed in the &lt;CODE&gt;@EXPORT_FAIL&lt;/CODE&gt; array.
+
+&lt;P&gt;
+If a module attempts to import any of these symbols the Exporter will give
+the module an opportunity to handle the situation before generating an
+error. The Exporter will call an export_fail method with a list of the
+failed symbols:
+
+&lt;P&gt;
+&lt;PRE&gt;  @failed_symbols = $module_name-&amp;gt;export_fail(@failed_symbols);
+&lt;/PRE&gt;
+&lt;P&gt;
+If the export_fail method returns an empty list then no error is recorded
+and all the requested symbols are exported. If the returned list is not
+empty then an error is generated for each symbol and the export fails. The
+Exporter provides a default export_fail method which simply returns the
+list unchanged.
+
+&lt;P&gt;
+Uses for the export_fail method include giving better error messages for
+some symbols and performing lazy architectural checks (put more symbols
+into &lt;CODE&gt;@EXPORT_FAIL&lt;/CODE&gt; by default and then take them out if someone
+actually tries to use them and an expensive check shows that they are
+usable on that platform).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Tag_Handling_Utility_Functions&quot;&gt;Tag Handling Utility Functions&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Since the symbols listed within &lt;CODE&gt;%EXPORT_TAGS&lt;/CODE&gt; must also appear in either &lt;CODE&gt;@EXPORT&lt;/CODE&gt; or 
+&lt;FONT SIZE=-1&gt;@EXPORT_OK,&lt;/FONT&gt; two utility functions are provided which allow you to easily add tagged sets of symbols to &lt;CODE&gt;@EXPORT&lt;/CODE&gt; or 
+&lt;FONT SIZE=-1&gt;@EXPORT_OK:&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;  %EXPORT_TAGS = (foo =&amp;gt; &amp;#091;qw(aa bb cc)&amp;#093;, bar =&amp;gt; &amp;#091;qw(aa cc dd)&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  Exporter::export_tags('foo');     # add aa, bb and cc to @EXPORT
+  Exporter::export_ok_tags('bar');  # add aa, cc and dd to @EXPORT_OK
+&lt;/PRE&gt;
+&lt;P&gt;
+Any names which are not tags are added to &lt;CODE&gt;@EXPORT&lt;/CODE&gt; or
+&lt;CODE&gt;@EXPORT_OK&lt;/CODE&gt; unchanged but will trigger a warning (with &lt;CODE&gt;-w&lt;/CODE&gt;) to avoid misspelt tags names being silently added to &lt;CODE&gt;@EXPORT&lt;/CODE&gt; or 
+&lt;FONT SIZE=-1&gt;@EXPORT_OK.&lt;/FONT&gt; Future versions may make this a fatal error.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:49:26</createtime>
+  <node_id>1109</node_id>
+  <synopsis>&lt;P&gt;
+In module ModuleName.pm:
+
+&lt;P&gt;
+&lt;PRE&gt;  package ModuleName;
+  require Exporter;
+  @ISA = qw(Exporter);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  @EXPORT = qw(...);            # symbols to export by default
+  @EXPORT_OK = qw(...);         # symbols to export on request
+  %EXPOR</synopsis>
+  <title>perlman:lib:Exporter</title>
+  <nodeupdated>2005-08-15 14:55:12</nodeupdated>
+</node>

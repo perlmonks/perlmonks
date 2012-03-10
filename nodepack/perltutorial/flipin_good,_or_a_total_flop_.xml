@@ -1,0 +1,157 @@
+<node>
+  <doctext>&lt;p&gt;When I first encountered the flip-flop operator (scalar context range operator) while browsing through the Camel I thought: that's interesting, I wonder what it's good for? I then read guickly through the rest of the section before my eyes glazed over, without learning much more. Which is odd really given my electronics background!
+
+&lt;p&gt;Since then I have seen mention of the flip-flop operator a number of times in various contexts here - either as a very tidy solution to a parsing problem, or as the villain in what looks like a slice (but ain't).
+
+&lt;p&gt;A recent SoPW where the villain was a flip-flop operator pretending to be a slice range piqued my interest so I decided to go back to the Camel for enlightenment. This meditation is a result of that consultation and a little subsequent playing with flip-flops. Follow along with me as I share what I have learned. Keep a copy of Perl handy, there's code to try.
+
+&lt;readmore&gt;
+&lt;p&gt;First, if you think that a &quot;scalar context&quot; is a cliff face, you should consider taking up knitting and leave the Perling to others. Similarly, you should clearly understand that a &quot;list context&quot; is not in a boat in a high wind! The flip-flop operator (oh bother it, let's use f/f) only applies in a scalar context, otherwise it is a range operator.
+
+&lt;p&gt;The key to understanding the f/f is that it remembers its state. There are in effect three parts to the f/f: the left expression (trigger), the right expression (reset), and the flip-flop that stores the f/f's state (a flip-flop is an electronic device that remembers the state of one bit).
+
+&lt;p&gt;Let's have a look at one of the beasties in its natural environment to see what it does and where the various parts are:
+
+&lt;c&gt;
+while (&lt;DATA&gt;) {
+    print &quot;\t&quot; if (/^start/ .. /^end/);
+    print $_;
+}
+__DATA__
+First line.
+start
+Indented line
+end
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;This prints:
+&lt;c&gt;
+First line.
+	start
+	Indented line
+	end
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;The left expression (/^start/) is the trigger and the right expression (/^end/) is the reset. You can't see the flip-flop that stores the operator's state, but you could pretend the .. is where it is if you like. When the program starts the flip-flops for all the f/fs are reset (set to 0 or false). So the first time through the loop above the f/f evaluates its trigger as false and remains reset. For the second line the trigger expression evaluates true and the f/f is set true. For the third line the reset expression is false so the f/f remains triggered. For the fourth line the reset expression is true so the f/f is reset. For the last line the trigger expression is false so the f/f remains reset.
+
+&lt;p&gt;Note that while the f/f is reset (false), only the trigger expression is evaluated and that while the f/f is set (true) only the reset expression is evaluated. There are some subtleties of course - even discounting context issues. For example, what happens when both the trigger and reset expressions are true at the same time?
+
+&lt;p&gt;Consider the following:
+&lt;c&gt;
+while (&lt;DATA&gt;) {
+    print &quot;\t&quot; if (/start/ .. /end/);
+    print $_;
+}
+__DATA__
+First line.
+Indent lines between the start and the end markers
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;This prints:
+&lt;c&gt;
+First line.
+	Indent lines between the start and the end markers
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;Ok, why? The f/f returns true if the flip flop had been, or becomes set when it is evaluated. It doesn't matter if the flip flop is reset in the same evaluation cycle as it became set. That is: even if the flip flop is set and reset (as in the code above) in the same evaluation cycle, it still returns a true result.
+
+&lt;p&gt;But what if you don't want the reset detected in the same line? Use the three hump Camel. Uh, no no, I mean the three dot f/f:
+&lt;c&gt;
+while (&lt;DATA&gt;) {
+    print &quot;\t&quot; if (/start/ ... /end/);
+    print $_;
+}
+__DATA__
+First line.
+Indent lines between the start and the end markers
+So this is indented,
+and this is the end of the indented block.
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;Which prints:
+&lt;c&gt;
+First line.
+	Indent lines between the start and the end markers
+	So this is indented,
+	and this is the end of the indented block.
+Back to left margin
+&lt;/c&gt;
+
+&lt;p&gt;That's the flip side dealt with. What about the darker flop side? It turns out that there is some good even in the evil side of the f/f. In an endeavor not to let any semantic wrinkle be wasted, Perl ascribes special meaning to numeric constants used as the set and reset expressions for the f/f. If a constant is used, it is compared with the current file line number (special variable $.) and the result is true if they match:
+&lt;c&gt;
+while (&lt;DATA&gt;) {
+    print &quot;\t&quot; if (2 .. 4);
+    print $_;
+}
+__DATA__
+First line.
+start
+Indented line
+end
+
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;This prints:
+&lt;c&gt;
+First line.
+	start
+	Indented line
+	end
+Back to left margin
+&lt;/c&gt;
+&lt;p&gt;Well, there's a useful thing eh! No problem there then. Just use it when you need it (about once every 1e6 lines of code) and forget about  it otherwise right? Wrong! But before we take a look at why, let's make a little detour and look at the range operator: .. (in list context).
+
+&lt;p&gt;Remember that .. is really two completely different operators depending on context. The range operator returns a list of constants between two limits:
+&lt;c&gt;
+print join ' ', (1..5);
+&lt;/c&gt;
+&lt;p&gt;prints:
+&lt;c&gt;
+1 2 3 4 5
+&lt;/c&gt;
+&lt;p&gt;for example. It is often used to slice arrays like this:
+&lt;c&gt;
+my @array = qw(1 2 3 4 5 6 7 8 9);
+print &quot;@array[0..3]&quot;;
+&lt;/c&gt;
+&lt;p&gt;which prints:
+&lt;c&gt;
+1 2 3 4
+&lt;/c&gt;
+&lt;p&gt;Ok, with that very brief refresher course for the range operator in mind, consider:
+&lt;c&gt;
+my @array = qw(1 2 3 4 5 6 7 8 9);
+print &quot;$array[0..3]&quot;;
+&lt;/c&gt;
+&lt;p&gt;What gets printed? Most likely &quot;2&quot;, sometimes &quot;1&quot;. By the way, did you spot the deliberate mistake? $array puts the [] into scalar context and makes .. the f/f operator, not the range operator a first glance would suggest. And there the dark side of the f/f is reveled and reviled.
+
+&lt;p&gt;Because the context can be rather subtle and because the f/f with constant numeric values for its operands looks like a range, the f/f poses a rather nasty trap lying in wait for the unwary. The best defense against the sprung trap is &lt;c&gt;use warnings&lt;/c&gt; which will generate a warning, sometimes:
+&lt;c&gt;
+use strict;
+use warnings;
+my @array = qw(1 2 3 4 5 6 7 8 9);
+print &quot;$array[0..3]&quot;;
+&lt;/c&gt;
+&lt;p&gt;generates the warning:
+&lt;c&gt;
+Use of uninitialized value in range (or flip) at noname.pl line 4.
+&lt;/c&gt;
+&lt;p&gt;The f/f can be a really useful tool. It is a great pity that it looks identical with the range operator. But now that you know, you will never make the mistake again will you? And you will remember to &lt;c&gt;use warnings&lt;/c&gt; won't you?
+
+&lt;p&gt;Note that a little searching will turn up plenty of other stuff about the &lt;b&gt;scalar range operator&lt;/b&gt;, including [id://377450]. But it doesn't hurt to revisit such stuff from time to time with a different emphasis each time.
+&lt;/readmore&gt;
+&lt;p&gt;&lt;small&gt;Update: added missing code fragment.&lt;/small&gt;&lt;/p&gt;
+&lt;p&gt;&lt;small&gt;Update: fix various spelling errors.&lt;/small&gt;&lt;/p&gt;
+&lt;div class=&quot;pmsig&quot;&gt;&lt;div class=&quot;pmsig-461912&quot;&gt;
+&lt;hr&gt;DWIM is Perl's answer to G&amp;ouml;del
+&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;&lt;small&gt;Moved to [Tutorials] by [planetscape] &lt;readmore title=&quot;view votes&quot;&gt;( keep:1 edit:14 reap:0 )&lt;/readmore&gt;&lt;/small&gt;&lt;/p&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>525392</node_id>
+  <author_user>461912</author_user>
+  <title>Flipin good, or a total flop?</title>
+  <createtime>2006-01-25 04:44:02</createtime>
+  <nodeupdated>2006-01-24 23:44:02</nodeupdated>
+</node>

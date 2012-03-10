@@ -1,0 +1,106 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>11910</node_id>
+  <author_user>929</author_user>
+  <title>addnewform</title>
+  <createtime>1999-09-30 17:30:10</createtime>
+  <code># [addnewform]
+# Be careful, changes made here should be sync'ed to [addnewnoteform]
+# at least until that node and this one are refactored.
+# A large chunk of this code was refactored into [add_signature].
+
+my( $type, $heading, $texttag, $title, $group )= @_;
+my $html=&quot;&lt;!--( $type, $heading, $texttag, $title, $group )--&gt;\n&quot;;
+$texttag ||= &quot;Your text&quot;;
+$texttag =~ s/:?$/:/;
+
+return ''
+    if  ! canCreateNode( $USER, getType($type) );
+
+return $html
+    if  $group  &amp;&amp;  ! $DB-&gt;isApproved( $USER, getNode($group,'usergroup') );
+
+my $PS= getVars( getNode('preview settings','setting') );
+my %signatureTypes;
+$signatureTypes{$_}= 1
+    for  split /,/, $PS-&gt;{signatureWithTypes};
+
+my $text= '';
+my $preview= $q-&gt;param('op') eq 'preview';
+if(  $preview  ) {
+
+    $title ||= $q-&gt;param('preview_node');
+    $text= $q-&gt;param( 'preview_' . $type . '_doctext' );
+}
+
+my $warning= htmlcode(
+    'add_signature','',
+    \$text,
+    do_add =&gt; $signatureTypes{$type},
+);
+
+my $lastnode_id= $preview ? $q-&gt;param('preview_parent_node') : getId($NODE);
+
+$html .= join &quot;\n&quot;,
+    &quot;&lt;br /&gt;&lt;table width='100%' class='addnewform'&gt;&quot;,
+    &quot;&lt;tr class='titlebar add-root-blurb'&gt;&quot;,
+    &quot;&lt;td&gt;&lt;b&gt;&lt;a name='post'&gt;&quot;,
+    $q-&gt;escapeHTML($heading),
+    &quot;&lt;/a&gt;&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;\n&lt;tr&gt;&lt;td&gt;&quot;,
+    htmlcode('openform'),
+    $q-&gt;sethidden( &quot;type&quot;, $type ),
+    $q-&gt;sethidden( &quot;lastnode_id&quot;, $lastnode_id ),
+'';
+
+if(  $type =~ /note/i  ) {
+    # does this code ever fire? demerphq
+    my $id= $q-&gt;param('preview_parent_node')
+        ||  $q-&gt;param('parent_node')
+        ||  getId($NODE);
+
+    $html .= $q-&gt;sethidden( &quot;parent_node&quot;, $id ) . &quot;\n&quot;;
+
+    $title= htmlcode( 'add_re_to_title','', $title )
+        if  ! $preview;
+}
+
+my $single_word_title=  $preview  &amp;&amp;  $title !~ /\S\s+\S/;
+
+my $spoilerbox = '';
+if(  $q-&gt;param($type.&quot;_doctext&quot;) =~ m{&lt;spoiler&gt;.*&lt;/spoiler&gt;}si  ) {
+    $spoilerbox = $q-&gt;checkbox( 'spoil','', '1', 'Preview spoil' );
+}
+
+$html .= join &quot;\n&quot;,
+    &quot;&lt;span class='add-title'&gt;Title:&lt;/span&gt;&quot;,
+    $q-&gt;textfield( -name =&gt; 'node', -value =&gt; $title, -force =&gt; 1 ),
+    ! $single_word_title ? '' :
+        &quot;&lt;br /&gt;&lt;strong&gt;Title must be more than one word!&lt;/strong&gt;&quot;,
+    &quot;&lt;br /&gt;&lt;span class='add-text'&gt;$texttag&lt;/span&gt;&lt;br/&gt;&quot;,
+    $warning,
+    &quot;Use:&amp;nbsp; &lt;tt&gt;&amp;lt;p&amp;gt; text here (a &lt;b&gt;p&lt;/b&gt;aragraph) &amp;lt;/p&amp;gt;&lt;/tt&gt;&quot;,
+    &quot;&lt;br /&gt;and:&amp;nbsp; &lt;tt&gt;&amp;lt;code&amp;gt; code here &amp;lt;/code&amp;gt;&lt;/tt&gt;&lt;br /&gt;&quot;,
+    &quot;to format your post; it's \&quot;PerlMonks-approved HTML\&quot;: &lt;br /&gt;&quot;,
+    $q-&gt;textarea( $type.&quot;_doctext&quot;, $text, 10, 60 ),
+    &quot;&lt;br /&gt;$spoilerbox&quot;,
+    $q-&gt;submit( 'op', 'preview' ),
+'';
+
+if(     (   $preview
+        ||  $VARS-&gt;{previewfirstoff}  )
+    &amp;&amp;  ! $single_word_title
+) {
+    $html .= $q-&gt;submit( 'op', 'create' ) . &quot;\n&quot;;
+}
+
+return join &quot;\n&quot;,
+    &quot;&lt;div class='editnodetext'&gt;&quot;,
+    $html,
+    $q-&gt;end_form(),
+    &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&quot;,
+    &quot;&lt;/div&gt;&quot;,
+    htmlcode( 'showhints' ),
+'';
+</code>
+  <nodeupdated>2005-07-27 17:47:53</nodeupdated>
+</node>

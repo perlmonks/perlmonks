@@ -1,0 +1,130 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+Net::netent - by-name interface to Perl's built-in getnet*() functions
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+This module's default exports override the core 
+&lt;CODE&gt;getnetbyname()&lt;/CODE&gt; and 
+&lt;CODE&gt;getnetbyaddr()&lt;/CODE&gt; functions, replacing them with versions that return ``Net::netent'' objects. This object has methods that return the similarly named structure field name from the C's netent structure from
+ &lt;EM&gt;netdb.h&lt;/EM&gt;; namely name, aliases, addrtype, and net. The aliases method returns an
+array reference, the rest scalars.  
+
+&lt;P&gt;
+You may also import all the structure fields directly into your namespace as regular variables using the 
+&lt;FONT SIZE=-1&gt;:FIELDS&lt;/FONT&gt; import tag. (Note that this still overrides your core functions.) Access these fields as variables named with a preceding
+ &lt;CODE&gt;n_&lt;/CODE&gt;. Thus, &lt;CODE&gt;$net_obj-&amp;gt;name()&lt;/CODE&gt; corresponds to &lt;CODE&gt;$n_name&lt;/CODE&gt; if you import the fields. Array
+references are available as regular array variables, so for example &lt;CODE&gt;@{ $net_obj-&amp;gt;aliases()
+}&lt;/CODE&gt; would be simply @n_aliases.
+
+&lt;P&gt;
+The 
+&lt;CODE&gt;getnet()&lt;/CODE&gt; funtion is a simple front-end that forwards a numeric argument to 
+&lt;CODE&gt;getnetbyaddr(),&lt;/CODE&gt; and the rest to 
+&lt;CODE&gt;getnetbyname().&lt;/CODE&gt;
+
+&lt;P&gt;
+To access this functionality without the core overrides, pass the [perlfunc:use|use] an empty import list, and then access function functions with their full
+qualified names. On the other hand, the built-ins are still available via
+the &lt;CODE&gt;CORE::&lt;/CODE&gt; pseudo-package.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;EXAMPLES&quot;&gt;EXAMPLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The 
+&lt;CODE&gt;getnet()&lt;/CODE&gt; functions do this in
+the Perl core:
+
+&lt;P&gt;
+&lt;PRE&gt;    sv_setiv(sv, (I32)nent-&amp;gt;n_net);
+&lt;/PRE&gt;
+&lt;P&gt;
+The 
+&lt;CODE&gt;gethost()&lt;/CODE&gt; functions do this
+in the Perl core:
+
+&lt;P&gt;
+&lt;PRE&gt;    sv_setpvn(sv, hent-&amp;gt;h_addr, len);
+&lt;/PRE&gt;
+&lt;P&gt;
+That means that the address comes back in binary for the host functions,
+and as a regular perl integer for the net ones. This seems a bug, but
+here's how to deal with it:
+
+&lt;P&gt;
+&lt;PRE&gt; use strict;
+ use Socket;
+ use Net::netent;
+ 
+ @ARGV = ('loopback') unless @ARGV;
+ 
+ my($n, $net);
+ 
+ for $net ( @ARGV ) {
+ 
+     unless ($n = getnetbyname($net)) {
+        warn &amp;quot;$0: no such net: $net\n&amp;quot;;
+        next;
+     }
+ 
+     printf &amp;quot;\n%s is %s%s\n&amp;quot;, 
+            $net, 
+            lc($n-&amp;gt;name) eq lc($net) ? &amp;quot;&amp;quot; : &amp;quot;*really* &amp;quot;,
+            $n-&amp;gt;name;
+ 
+     print &amp;quot;\taliases are &amp;quot;, join(&amp;quot;, &amp;quot;, @{$n-&amp;gt;aliases}), &amp;quot;\n&amp;quot;
+                if @{$n-&amp;gt;aliases};     
+ 
+     # this is stupid; first, why is this not in binary?
+     # second, why am i going through these convolutions
+     # to make it looks right
+     {
+        my @a = unpack(&amp;quot;C4&amp;quot;, pack(&amp;quot;N&amp;quot;, $n-&amp;gt;net));
+        shift @a while @a &amp;amp;&amp;amp; $a&amp;#091;0&amp;#093; == 0;
+        printf &amp;quot;\taddr is %s &amp;#091;%d.%d.%d.%d&amp;#093;\n&amp;quot;, $n-&amp;gt;net, @a;
+     }
+ 
+     if ($n = getnetbyaddr($n-&amp;gt;net)) {
+        if (lc($n-&amp;gt;name) ne lc($net)) {
+            printf &amp;quot;\tThat addr reverses to net %s!\n&amp;quot;, $n-&amp;gt;name;
+            $net = $n-&amp;gt;name;
+            redo;
+        } 
+     }
+ }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NOTE&quot;&gt;NOTE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+While this class is currently implemented using the Class::Struct module to
+build a struct-like class, you shouldn't rely upon this.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Tom Christiansen
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:52:52</createtime>
+  <node_id>1231</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt; use Net::netent qw(:FIELDS);
+ getnetbyname(&amp;quot;loopback&amp;quot;)               or die &amp;quot;bad net&amp;quot;;
+ printf &amp;quot;%s is %08X\n&amp;quot;, $n_name, $n_net;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; use Net::netent;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt; $n = getnetbyname(&amp;quot;loopback&amp;qu</synopsis>
+  <title>perlman:Net::netent</title>
+  <nodeupdated>2005-08-13 01:36:10</nodeupdated>
+</node>

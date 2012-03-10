@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="32557" title="Automatic database reports" created="2000-09-14 20:26:09" updated="2005-07-21 01:19:39">
+<type id="121">
+perlcraft</type>
+<author id="18673">
+cbraga</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+#
+# When we work with databases, aren't there a few queries
+# we keep typing every day, over and over, to find out how
+# the database is going along? Well, since I'm too Lazy to
+# keep typing the same stuff, I wrote a tiny program to 
+# take a number of queries and report its results 
+# automatically.
+#
+# All there's to be done to add new queries is to fill in 
+# the structures on the top of the program, and adjust to
+# your favorite RDBMS. Hopefully everything is self-
+# explanatory.
+#
+&lt;READMORE&gt;
+use DBI;
+use DBD::Pg;
+use CGI qw(:standard);
+
+use strict;
+use integer;
+
+print header ();
+
+my @qlist = (
+	{
+		query =&gt; 'SELECT count(*) FROM item',
+		desc =&gt; 'Number of items',
+		labels =&gt; [ 'Number' ],
+	},
+	{
+		query =&gt; 'SELECT a, b, c FROM mytable',
+		desc =&gt; 'stuff from mytable',
+		labels =&gt; [ 'A', 'B', 'C' ],
+	},
+);
+
+my $dbh = DBI-&gt;connect ("dbi:Pg:dbname=beta", 'cbraga', '', { AutoCommit =&gt; 1, RaiseError =&gt; 1 } ) || die "error connecting to db";
+
+foreach my $query (@qlist) {
+	print "&lt;h1&gt; $query-&gt;{desc} &lt;/h1&gt;\n";
+
+	my $sth = $dbh-&gt;prepare ($query-&gt;{query});
+	$sth-&gt;execute ();
+
+	unless ($sth-&gt;rows) {
+		print "No results. &lt;p&gt;\n";
+		next;
+	}
+
+	print "&lt;table border&gt; &lt;tr&gt;\n";
+	my $line = $query-&gt;{labels};
+	foreach my $label (@$line) {
+		print "&lt;td&gt; &lt;b&gt; $label &lt;/b&gt;\n";
+	}
+
+	while (my $row = $sth-&gt;fetchrow_arrayref) {
+		print "&lt;tr&gt;";
+		foreach my $col (@$row) {
+			print "&lt;td&gt; $col\n";
+		}
+	}
+
+	print "&lt;/table&gt;\n";
+}
+
+$dbh-&gt;disconnect ();</field>
+</data>
+</node>

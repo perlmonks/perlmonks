@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="70251" title="Delete or warn about oversize photos in an LDAP directory (uses GD and Net::LDAP)" created="2001-04-05 19:43:16" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="28130">
+araqnid</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+# Copyright (C) 2001 Steve Haslam
+# This is free software
+# This script may be modified and/or reproduced under the terms of the
+# GNU Public License version 2 or later.
+
+require 5.6.0;
+use strict;
+use Net::LDAP;
+use Net::LDAP::Util qw(ldap_error_text);
+use GD;
+use Getopt::Std;
+use Term::ReadKey;
+use Mail::Sendmail;
+
+# Most of the configuration is here
+
+our $basedn = "ou=People, o=Excite, c=GB";
+our $host = "ldap.london.excite.com";
+our $basefilter = "(objectClass=excitePerson)";
+our $maxfilesize = 75*1024;
+our $maxwidth = 600;
+our $maxheight = 800;
+our $makeurl = sub { 'http://www.london.excite.com/directory/'.$_[0]-&gt;get_value('uid').'/' };
+
+# Code
+
+our %opts;
+getopts('dD:w:', \%opts) or die "Syntax: $0 [-d] [-D binddn] [-w bindpw]\n";
+our $deletemode = $opts{'d'};
+our $adminemail = 'root@london.excite.com';
+
+sub ldapassert {
+  my $mesg = shift;
+  my $action = shift;
+  return $mesg if (!$mesg-&gt;code);
+  my $errortext = ldap_error_text($mesg-&gt;code);
+  chomp $errortext;
+  die "LDAP: $errortext ($action)\n";
+}
+
+our $ldap = Net::LDAP-&gt;new($host) or die "Unable to connect to $host: $@";
+
+if ($opts{'D'}) {
+  my $binddn = $opts{'D'};
+  my $bindpw = $opts{'w'};
+  if (!$bindpw) {
+    print "Password: ";
+    ReadMode 'noecho';
+    $bindpw = &lt;STDIN&gt;;
+    ReadMode 'restore';
+    chomp $bindpw;
+  }
+  ldapassert($ldap-&gt;bind(dn =&gt; $binddn, password =&gt; $bindpw), "authenticated bind");
+  print "OK.\n";
+}
+else {
+  ldapassert($ldap-&gt;bind(), "anonymous bind");
+}
+
+my $sr = ldapassert($ldap-&gt;search(base =&gt; $basedn, filter =&gt; "(&amp;(jpegphoto=*)$basefilter)", scope =&gt; 'sub'));
+
+while (my $entry = $sr-&gt;shift_entry) {
+  my %problems;
+  my @photos = $entry-&gt;get_value('jpegPhoto');
+  foreach my $photoindex (1..@photos) {
+    my $size = length($photos[$photoindex-1]);
+    my $gdwarnings;
+    my $im = GD::Image-&gt;newFromJpegData($photos[$photoindex-1]);
+    if (!$im) {
+      push(@{$problems{$photoindex}}, "Photo #$photoindex is not a valid JPEG image");
+    }
+    elsif ($maxfilesize &amp;&amp; $size &gt; $maxfilesize) {
+      push(@{$problems{$photoindex}}, "Photo #$photoindex exceeds maximum file size of $maxfilesize bytes");
+    }
+    else {
+      my($width, $height) = $im-&gt;getBounds;
+      if ($maxwidth &amp;&amp; $width &gt; $maxwidth) {
+	push(@{$problems{$photoindex}}, "Photo #$photoindex exceeds maximum width of $maxwidth pixels");
+      }
+      if ($maxheight &amp;&amp; $height &gt; $maxheight) {
+	push(@{$problems{$photoindex}}, "Photo #$photoindex exceeds maximum height of $maxheight pixels");
+      }
+    }
+  }
+  if (%problems) {
+    if ($deletemode) {
+      my @delphotos = keys %problems;
+      if (@delphotos == @photos) {
+	# We are deleting all the photos, just send a delete command
+	print $entry-&gt;dn, ": Deleting photos: ", join(', ', map {$_ - 1} @delphotos), " (using delete)\n";
+	$entry-&gt;delete('jpegPhoto');
+      }
+      else {
+	# Use a replace command
+	print $entry-&gt;dn, ": Deleting photos: ", join(', ', map {$_ - 1} @delphotos), " (using replace)\n";
+	my @newphotos;
+	foreach my $oldphotoindex (1..@photos) {
+	  next if (grep { $_ == $oldphotoindex } @delphotos);
+	  push(@newphotos, $photos[$oldphotoindex]);
+	}
+	$entry-&gt;replace(jpegPhoto =&gt; \@newphotos);
+      }
+      ldapassert($entry-&gt;update($ldap), "updating ".$entry-&gt;dn);
+    }
+    else {
+      my $mailto = $entry-&gt;get_value('cn').' &lt;'.$entry-&gt;get_value('mail').'&gt;';
+      my $problems = join('', map { "$_\n" } map {@$_} values %problems);
+      my $uri = &amp;$makeurl($entry);
+      my $message = &lt;&lt;EndMessage;
+You currently have one or more photos in your directory entry, however
+there are some problems with it:
+
+$problems
+
+Please go to $uri to fix the
+problem photos, usually this just involves making them smaller.
+
+Thanks,
+$adminemail
+EndMessage
+
+      sendmail(To =&gt; $mailto, From =&gt; $adminemail,
+	       Subject =&gt; 'Problems with your photo in the vertex LDAP directory',
+	       Message =&gt; $message);
+    }
+  }
+}
+
+exit(0);
+
+__END__
+=head1 NAME
+
+prune_ldap_photos.pl - Removing oversize photos people put into LDAP
+
+=head1 SYNOPSIS
+
+  prune_ldap_photos.pl
+  prune_ldap_photos.pl -D admindn -d
+
+=head1 DESCRIPTION
+
+This script will search the LDAP directory for people with JPEG photos
+in their directory entry, and for each photo found it will check that
+the photo is:
+
+=over 4
+
+=item less than a certain number of bytes long
+
+=item a valid JPEG image
+
+=item a certain number of pixels wide
+
+=item a certain number of pixels high
+
+=back
+
+By default, the entry owner will be sent email (as specified in the
+'mail' attribute) describing the problems with their photo. If the
+B&lt;-d&gt; option is given, then the offending photo will be removed from
+their entry.
+
+The B&lt;-D&gt; option is used to specify a DN to bind as- typically this is
+required iff the B&lt;-d&gt; option is used to remove photos.
+
+The B&lt;-w&gt; option can be used to specify the password on the command
+line, when using the B&lt;-D&gt; option. If B&lt;-w&gt; is not given, the password
+is prompted for on stdin.
+
+=head1 AUTHOR
+
+Steve Haslam &lt;steve.haslam@excitehome.net&gt;
+
+=cut</field>
+</data>
+</node>

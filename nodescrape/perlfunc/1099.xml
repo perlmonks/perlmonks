@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1099" title="perlman:lib:CPAN" created="1999-12-22 19:49:24" updated="2005-08-15 14:10:32">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; - query, download and build perl modules from 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; sites
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+Interactive mode:
+
+&lt;P&gt;
+&lt;PRE&gt;  perl -MCPAN -e shell;
+&lt;/PRE&gt;
+&lt;P&gt;
+Batch mode:
+
+&lt;P&gt;
+&lt;PRE&gt;  use CPAN;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;  autobundle, clean, install, make, recompile, test
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="description">
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; module is designed to automate the make and install of perl modules and extensions. It includes some searching capabilities and knows how to use Net::FTP or 
+&lt;FONT SIZE=-1&gt;LWP&lt;/FONT&gt; (or lynx or an external ftp client) to fetch the raw data from the net.
+
+&lt;P&gt;
+Modules are fetched from one or more of the mirrored 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; (Comprehensive Perl Archive Network) sites and
+unpacked in a dedicated directory.
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; module also supports the concept of named and versioned 'bundles' of modules. Bundles simplify the handling of sets of related modules. See 
+&lt;FONT SIZE=-1&gt;BUNDLES&lt;/FONT&gt; below.
+
+&lt;P&gt;
+The package contains a session manager and a cache manager. There is no status retained between sessions. The session manager keeps track of what has been fetched, built and installed in the current session. The cache manager keeps track of the disk space occupied by the make processes and deletes excess space according to a simple 
+&lt;FONT SIZE=-1&gt;FIFO&lt;/FONT&gt; mechanism.
+
+&lt;P&gt;
+All methods provided are accessible in a programmer style and in an
+interactive shell style.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Interactive_Mode"&gt;Interactive Mode&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The interactive mode is entered by running
+
+&lt;P&gt;
+&lt;PRE&gt;    perl -MCPAN -e shell
+&lt;/PRE&gt;
+&lt;P&gt;
+which puts you into a readline interface. You will have the most fun if you
+install Term::ReadKey and Term::ReadLine to enjoy both history and command
+completion.
+
+&lt;P&gt;
+Once you are on the command line, type 'h' and the rest should be
+self-explanatory.
+
+&lt;P&gt;
+The most common uses of the interactive modes are
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Searching"&gt;Searching for authors, bundles, distribution files and modules&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+There are corresponding one-letter commands &lt;CODE&gt;a&lt;/CODE&gt;, &lt;CODE&gt;b&lt;/CODE&gt;, &lt;CODE&gt;d&lt;/CODE&gt;, and [perlman:perlop|perlop]
+for each of the four categories and another, &lt;CODE&gt;i&lt;/CODE&gt; for any of the mentioned four. Each of the four entities is implemented as
+a class with slightly differing methods for displaying an object.
+
+&lt;P&gt;
+Arguments you pass to these commands are either strings exactly matching
+the identification string of an object or regular expressions that are then
+matched case-insensitively against various attributes of the objects. The
+parser recognizes a regular expression only if you enclose it between two
+slashes.
+
+&lt;P&gt;
+The principle is that the number of found objects influences how an item is
+displayed. If the search finds one item, the result is displayed as
+object-&amp;gt;as_string, but if we find more than one, we display each as
+object-&amp;gt;as_glimpse. E.g.
+
+&lt;P&gt;
+&lt;PRE&gt;    cpan&amp;gt; a ANDK
+    Author id = ANDK
+        EMAIL        a.koenig@franz.ww.TU-Berlin.DE
+        FULLNAME     Andreas K&amp;#246;nig
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    cpan&amp;gt; a /andk/
+    Author id = ANDK
+        EMAIL        a.koenig@franz.ww.TU-Berlin.DE
+        FULLNAME     Andreas K&amp;#246;nig
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    cpan&amp;gt; a /and.*rt/
+    Author          ANDYD (Andy Dougherty)
+    Author          MERLYN (Randal L. Schwartz)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_make"&gt;make, test, install, clean  modules or distributions&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These commands take any number of arguments and investigate what is necessary to perform the action. If the argument is a distribution file name (recognized by embedded slashes), it is processed. If it is a module, 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; determines the distribution file in which this module is included and processes that.
+
+&lt;P&gt;
+Any &lt;CODE&gt;make&lt;/CODE&gt; or &lt;CODE&gt;test&lt;/CODE&gt; are run unconditionally. An
+
+&lt;P&gt;
+&lt;PRE&gt;  install &amp;lt;distribution_file&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+also is run unconditionally. But for
+
+&lt;P&gt;
+&lt;PRE&gt;  install &amp;lt;module&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; checks if an install is actually needed for it
+and prints
+&lt;EM&gt;module up to date&lt;/EM&gt; in the case that the distribution file containing the module doesn&amp;#39;t
+need to be updated.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; also keeps track of what it has done within the
+current session and doesn&amp;#39;t try to build a package a second time
+regardless if it succeeded or not. The &lt;CODE&gt;force&lt;/CODE&gt; command takes as a first argument the method to invoke (currently: &lt;CODE&gt;make&lt;/CODE&gt;, &lt;CODE&gt;test&lt;/CODE&gt;, or &lt;CODE&gt;install&lt;/CODE&gt;) and executes the command from scratch.
+
+&lt;P&gt;
+Example:
+
+&lt;P&gt;
+&lt;PRE&gt;    cpan&amp;gt; install OpenGL
+    OpenGL is up to date.
+    cpan&amp;gt; force install OpenGL
+    Running make
+    OpenGL-0.4/
+    OpenGL-0.4/COPYRIGHT
+    &amp;#091;...&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; &lt;CODE&gt;clean&lt;/CODE&gt; command results in a 
+
+&lt;P&gt;
+&lt;PRE&gt;  make clean
+&lt;/PRE&gt;
+&lt;P&gt;
+being executed within the distribution file's working directory.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_readme"&gt;readme, look module or distribution&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These two commands take only one argument, be it a module or a distribution
+file. &lt;CODE&gt;readme&lt;/CODE&gt; unconditionally runs, displaying the 
+&lt;FONT SIZE=-1&gt;README&lt;/FONT&gt; of the associated distribution file. &lt;CODE&gt;Look&lt;/CODE&gt; gets and untars (if not yet done) the distribution file, changes to the
+appropriate directory and opens a subshell process in that directory.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Signals"&gt;Signals&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+CPAN.pm installs signal handlers for 
+&lt;FONT SIZE=-1&gt;SIGINT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;SIGTERM.&lt;/FONT&gt; While you are in the cpan-shell it is intended that you can press
+ [perlman:perlop|perlop] anytime and return to the cpan-shell prompt. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;SIGTERM&lt;/FONT&gt; will cause the cpan-shell to clean up and leave the shell loop. You can emulate the effect of a 
+&lt;FONT SIZE=-1&gt;SIGTERM&lt;/FONT&gt; by sending two consecutive SIGINTs, which usually means by pressing
+ [perlman:perlop|perlop] twice.
+
+&lt;P&gt;
+CPAN.pm ignores a 
+&lt;FONT SIZE=-1&gt;SIGPIPE.&lt;/FONT&gt; If the user sets inactivity_timeout, a 
+&lt;FONT SIZE=-1&gt;SIGALRM&lt;/FONT&gt; is used during the run of the
+ &lt;CODE&gt;perl Makefile.PL&lt;/CODE&gt; subprocess.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="CPAN_Shell"&gt;CPAN::Shell&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The commands that are available in the shell interface are methods in the
+package CPAN::Shell. If you enter the shell command, all your input is
+split by the Text::ParseWords::shellwords() routine which acts like most
+shells do. The first word is being interpreted as the method to be called
+and the rest of the words are treated as arguments to this method.
+Continuation lines are supported if a line ends with a literal backslash.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="autobundle"&gt;autobundle&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;CODE&gt;autobundle&lt;/CODE&gt; writes a bundle file into the
+&lt;CODE&gt;$CPAN::Config-&amp;gt;{cpan_home}/Bundle&lt;/CODE&gt; directory. The file contains a list of all modules that are both available from 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; and currently installed within 
+&lt;FONT SIZE=-1&gt;@INC.&lt;/FONT&gt; The name of the bundle file is based on the current date and a counter.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="recompile"&gt;recompile&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;recompile()&lt;/CODE&gt; is a very special command in that it takes no argument and runs the make/test/install cycle with brute force over all installed dynamically loadable extensions (aka 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; modules) with 'force' in effect. The primary purpose of this command is to finish a network installation. Imagine, you have a common source tree for two different architectures. You decide to do a completely independent fresh installation. You start on one architecture with the help of a Bundle file produced earlier. 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; installs the whole Bundle for you, but when you try to repeat the job on the second architecture, 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; responds with a
+ &lt;CODE&gt;&amp;quot;Foo up to date&amp;quot;&lt;/CODE&gt; message for all modules. So you invoke CPAN's recompile on the second
+architecture and you&amp;#39;re done.
+
+&lt;P&gt;
+Another popular use for &lt;CODE&gt;recompile&lt;/CODE&gt; is to act as a rescue in case your perl breaks binary compatibility. If one of the modules that 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; uses is in turn depending on binary compatibility (so you cannot run 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; commands), then you should try the CPAN::Nox module for recovery.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="The_four_C_CPAN_Classes_Aut"&gt;The four &lt;CODE&gt;CPAN::*&lt;/CODE&gt; Classes: Author, Bundle, Module, Distribution&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Although it may be considered internal, the class hierarchy does matter for both users and programmer. CPAN.pm deals with above mentioned four classes, and all those classes share a set of methods. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; classical single polymorphism is in effect. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; metaclass object registers all objects of all kinds and indexes them with a string. The strings referencing objects have a separated namespace (well, not completely separated):
+
+&lt;P&gt;
+&lt;PRE&gt;         Namespace                         Class
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   words containing a &amp;quot;/&amp;quot; (slash)      Distribution
+    words starting with Bundle::          Bundle
+          everything else            Module or Author
+&lt;/PRE&gt;
+&lt;P&gt;
+Modules know their associated Distribution objects. They always refer to the most recent official release. Developers may mark their releases as unstable development versions (by inserting an underbar into the visible version number), so the really hottest and newest distribution file is not always the default. If a module Foo circulates on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; in both version 1.23 and 1.23_90, CPAN.pm offers a convenient way to install version 1.23 by saying
+
+&lt;P&gt;
+&lt;PRE&gt;    install Foo
+&lt;/PRE&gt;
+&lt;P&gt;
+This would install the complete distribution file (say BAR/Foo-1.23.tar.gz) with all accompanying material. But if you would like to install version 1.23_90, you need to know where the distribution file resides on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; relative to the authors/id/ directory. If the author is 
+&lt;FONT SIZE=-1&gt;BAR,&lt;/FONT&gt; this might be BAR/Foo-1.23_90.tar.gz; so you would have to say
+
+&lt;P&gt;
+&lt;PRE&gt;    install BAR/Foo-1.23_90.tar.gz
+&lt;/PRE&gt;
+&lt;P&gt;
+The first example will be driven by an object of the class CPAN::Module,
+the second by an object of class CPAN::Distribution.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="ProgrammerE_39_s_interface"&gt;ProgrammerÅ¼³¹¾s interface&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you do not enter the shell, the available shell commands are both
+available as methods (&lt;CODE&gt;CPAN::Shell-&amp;gt;install(...)&lt;/CODE&gt;) and as functions in the calling package (&lt;CODE&gt;install(...)&lt;/CODE&gt;).
+
+&lt;P&gt;
+There's currently only one class that has a stable interface - CPAN::Shell. All commands that are available in the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; shell are methods of the class CPAN::Shell. Each of the commands that produce listings of modules (
+&lt;CODE&gt;r&lt;/CODE&gt;, &lt;CODE&gt;autobundle&lt;/CODE&gt;, &lt;CODE&gt;u&lt;/CODE&gt;) returns a list of the IDs of all modules within the list.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_expand"&gt;expand($type,@things)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The IDs of all objects available within a program are strings that can be
+expanded to the corresponding real objects with the
+&lt;CODE&gt;CPAN::Shell-&amp;gt;expand(&amp;quot;Module&amp;quot;,@things)&lt;/CODE&gt; method. Expand returns a list of CPAN::Module objects according to the &lt;CODE&gt;@things&lt;/CODE&gt; arguments given. In scalar context it only returns the first element of the
+list.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_Programming"&gt;Programming Examples&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This enables the programmer to do operations that combine functionalities
+that are available in the shell.
+
+&lt;P&gt;
+&lt;PRE&gt;    # install everything that is outdated on my disk:
+    perl -MCPAN -e 'CPAN::Shell-&amp;gt;install(CPAN::Shell-&amp;gt;r)'
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # install my favorite programs if necessary:
+    for $mod (qw(Net::FTP MD5 Data::Dumper)){
+        my $obj = CPAN::Shell-&amp;gt;expand('Module',$mod);
+        $obj-&amp;gt;install;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # list all modules on my disk that have no VERSION number
+    for $mod (CPAN::Shell-&amp;gt;expand(&amp;quot;Module&amp;quot;,&amp;quot;/./&amp;quot;)){
+        next unless $mod-&amp;gt;inst_file;
+        # MakeMaker convention for undefined $VERSION:
+        next unless $mod-&amp;gt;inst_version eq &amp;quot;undef&amp;quot;;
+        print &amp;quot;No VERSION in &amp;quot;, $mod-&amp;gt;id, &amp;quot;\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Methods_in_the_four"&gt;Methods in the four&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Cache_Manager"&gt;Cache Manager&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Currently the cache manager only keeps track of the build directory ($CPAN::Config-&amp;gt;{build_dir}). It is a simple 
+&lt;FONT SIZE=-1&gt;FIFO&lt;/FONT&gt; mechanism that deletes complete directories below
+ &lt;CODE&gt;build_dir&lt;/CODE&gt; as soon as the size of all directories there gets bigger than $CPAN::Config-&amp;gt;{build_cache} (in 
+&lt;FONT SIZE=-1&gt;MB).&lt;/FONT&gt; The contents of this cache may be used for later re-installations that you intend to do manually, but will never be trusted by 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; itself. This is due to the fact that the user might use these directories for building modules on different architectures.
+
+&lt;P&gt;
+There is another directory ($CPAN::Config-&amp;gt;{keep_source_where}) where
+the original distribution files are kept. This directory is not covered by
+the cache manager and must be controlled by the user. If you choose to have
+the same directory as build_dir and as keep_source_where directory, then
+your sources will be deleted with the same fifo mechanism.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Bundles"&gt;Bundles&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; bundle is just a perl module in the namespace
+Bundle:: that does not define any functions or methods. It usually only
+contains documentation.
+
+&lt;P&gt;
+It starts like a perl module with a package declaration and a
+&lt;CODE&gt;$VERSION&lt;/CODE&gt; variable. After that the pod section looks like any
+other pod with the only difference being that &lt;EM&gt;one special pod section&lt;/EM&gt; exists starting with (verbatim):
+
+&lt;P&gt;
+&lt;PRE&gt;        =head1 CONTENTS
+&lt;/PRE&gt;
+&lt;P&gt;
+In this pod section each line obeys the format
+
+&lt;P&gt;
+&lt;PRE&gt;        Module_Name &amp;#091;Version_String&amp;#093; &amp;#091;- optional text&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+The only required part is the first field, the name of a module (e.g.
+Foo::Bar, ie. &lt;EM&gt;not&lt;/EM&gt; the name of the distribution file). The rest of the line is optional. The
+comment part is delimited by a dash just as in the man page header.
+
+&lt;P&gt;
+The distribution of a bundle should follow the same convention as other
+distributions.
+
+&lt;P&gt;
+Bundles are treated specially in the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; package. If you say 'install Bundle::Tkkit' (assuming such a bundle exists), 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; will install all the modules in the 
+&lt;FONT SIZE=-1&gt;CONTENTS&lt;/FONT&gt; section of the pod. You can install your own Bundles locally by placing a conformant Bundle file somewhere into your &lt;CODE&gt;@INC&lt;/CODE&gt; path. The 
+&lt;CODE&gt;autobundle()&lt;/CODE&gt; command which is available in the shell interface does that for you by including all currently installed modules in a snapshot bundle file.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Prerequisites"&gt;Prerequisites&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you have a local mirror of 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; and can access all files with ``file:'' URLs, then you only need a perl better than perl5.003 to run this module. Otherwise Net::FTP is strongly recommended. 
+&lt;FONT SIZE=-1&gt;LWP&lt;/FONT&gt; may be required for non-UNIX systems or if your nearest 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; site is associated with an 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; that is not
+ &lt;CODE&gt;ftp:&lt;/CODE&gt;.
+
+&lt;P&gt;
+If you have neither Net::FTP nor 
+&lt;FONT SIZE=-1&gt;LWP,&lt;/FONT&gt; there is a fallback mechanism implemented for an
+external ftp command or for an external lynx command.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Finding_packages_and_VERSION"&gt;Finding packages and VERSION&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This module presumes that all packages on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt;
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+declare their &lt;CODE&gt;$VERSION&lt;/CODE&gt; variable in an easy to parse manner.
+This prerequisite can hardly be relaxed because it consumes far too much
+memory to load all packages into the running program just to determine the
+&lt;CODE&gt;$VERSION&lt;/CODE&gt; variable. Currently all programs that are dealing
+with version use something like this
+
+&lt;P&gt;
+&lt;PRE&gt;    perl -MExtUtils::MakeMaker -le \
+        'print MM-&amp;gt;parse_version($ARGV&amp;#091;0&amp;#093;)' filename
+&lt;/PRE&gt;
+&lt;P&gt;
+If you are author of a package and wonder if your &lt;CODE&gt;$VERSION&lt;/CODE&gt; can
+be parsed, please try the above method.
+
+&lt;P&gt;&lt;LI&gt;
+
+come as compressed or gzipped tarfiles or as zip files and contain a
+Makefile.PL (well, we try to handle a bit more, but without much
+enthusiasm).
+
+&lt;/UL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Debugging"&gt;Debugging&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The debugging of this module is pretty difficult, because we have interferences of the software producing the indices on 
+&lt;FONT SIZE=-1&gt;CPAN,&lt;/FONT&gt; of the mirroring process on 
+&lt;FONT SIZE=-1&gt;CPAN,&lt;/FONT&gt; of packaging, of configuration, of synchronicity, and of bugs within CPAN.pm.
+
+&lt;P&gt;
+In interactive mode you can try ``o debug'' which will list options for
+debugging the various parts of the package. The output may not be very
+useful for you as it's just a by-product of my own testing, but if you have
+an idea which part of the package may have a bug, it's sometimes worth to
+give it a try and send me more specific output. You should know that ``o
+debug'' has built-in completion support.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Floppy_Zip_and_all_that_Jazz"&gt;Floppy, Zip, and all that Jazz&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+CPAN.pm works nicely without network too. If you maintain machines that are not networked at all, you should consider working with file: URLs. Of course, you have to collect your modules somewhere first. So you might use CPAN.pm to put together all you need on a networked machine. Then copy the $CPAN::Config-&amp;gt;{keep_source_where} (but not $CPAN::Config-&amp;gt;{build_dir}) directory on a floppy. This floppy is kind of a personal 
+&lt;FONT SIZE=-1&gt;CPAN.&lt;/FONT&gt; CPAN.pm on the non-networked machines works nicely with this floppy.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="CONFIGURATION"&gt;CONFIGURATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+When the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; module is installed, a site wide configuration file is created as CPAN/Config.pm. The default values defined there can be overridden in another configuration file: CPAN/MyConfig.pm. You can store this file in $HOME/.cpan/CPAN/MyConfig.pm if you want, because $HOME/.cpan is added to the search path of the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; module before the 
+&lt;CODE&gt;use()&lt;/CODE&gt; or 
+&lt;CODE&gt;require()&lt;/CODE&gt; statements.
+
+&lt;P&gt;
+Currently the following keys in the hash reference $CPAN::Config are
+defined:
+
+&lt;P&gt;
+&lt;PRE&gt;  build_cache        size of cache for directories to build modules
+  build_dir          locally accessible directory to build modules
+  index_expire       after this many days refetch index files
+  cpan_home          local directory reserved for this package
+  gzip               location of external program gzip
+  inactivity_timeout breaks interactive Makefile.PLs after this
+                     many seconds inactivity. Set to 0 to never break.
+  inhibit_startup_message
+                     if true, does not print the startup message
+  keep_source        keep the source in a local directory?
+  keep_source_where  directory in which to keep the source (if we do)
+  make               location of external make program
+  make_arg           arguments that should always be passed to 'make'
+  make_install_arg   same as make_arg for 'make install'
+  makepl_arg         arguments passed to 'perl Makefile.PL'
+  pager              location of external program more (or any pager)
+  tar                location of external program tar
+  unzip              location of external program unzip
+  urllist            arrayref to nearby CPAN sites (or equivalent locations)
+  wait_list          arrayref to a wait server to try (See CPAN::WAIT)
+&lt;/PRE&gt;
+&lt;P&gt;
+You can set and query each of these options interactively in the cpan shell
+with the command set defined within the &lt;CODE&gt;o conf&lt;/CODE&gt; command:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item_o"&gt;o conf ltscalar optiongt&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+prints the current value of the &lt;EM&gt;scalar option&lt;/EM&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;o conf ltscalar optiongt ltvaluegt&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Sets the value of the &lt;EM&gt;scalar option&lt;/EM&gt; to &lt;EM&gt;value&lt;/EM&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;o conf ltlist optiongt&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+prints the current value of the &lt;EM&gt;list option&lt;/EM&gt; in MakeMaker's neatvalue format.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;o conf ltlist optiongt &amp;#091;shift|pop&amp;#093;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+shifts or pops the array in the &lt;EM&gt;list option&lt;/EM&gt; variable
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;o conf ltlist optiongt &amp;#091;unshift|push|splice&amp;#093; ltlistgt&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+works like the corresponding perl commands.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="CD_ROM_support"&gt;CD-ROM support&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;CODE&gt;urllist&lt;/CODE&gt; parameter of the configuration table contains a list of URLs that are to be
+used for downloading. If the list contains any
+&lt;CODE&gt;file&lt;/CODE&gt; URLs, 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; always tries to get files from there first. This feature is disabled for index files. So the recommendation for the owner of a 
+&lt;FONT SIZE=-1&gt;CD-ROM&lt;/FONT&gt; with 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; contents is: include your local, possibly outdated 
+&lt;FONT SIZE=-1&gt;CD-ROM&lt;/FONT&gt; as a
+ &lt;CODE&gt;file&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; at the end of urllist, e.g.
+
+&lt;P&gt;
+&lt;PRE&gt;  o conf urllist push &lt;U&gt;file://localhost/CDROM/CPAN&lt;/U&gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+CPAN.pm will then fetch the index files from one of the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; sites that come at the beginning of urllist. It
+will later check for each module if there is a local copy of the most
+recent version.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SECURITY"&gt;SECURITY&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+There's no strong security layer in CPAN.pm. CPAN.pm helps you to install foreign, unmasked, unsigned code on your machine. We compare to a checksum that comes from the net just as the distribution file itself. If somebody has managed to tamper with the distribution file, they may have as well tampered with the 
+&lt;FONT SIZE=-1&gt;CHECKSUMS&lt;/FONT&gt; file. Future development will go towards strong authentification.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="EXPORT"&gt;EXPORT&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Most functions in package 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; are exported per default. The reason for this is
+that the primary use is intended for the cpan shell or for oneliners.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="BUGS"&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+We should give coverage for _all_ of the 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; and not just the 
+&lt;FONT SIZE=-1&gt;PAUSE&lt;/FONT&gt; part, right? In this discussion 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;PAUSE&lt;/FONT&gt; have become equal -- but they are not. 
+&lt;FONT SIZE=-1&gt;PAUSE&lt;/FONT&gt; is authors/ and modules/. 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; is 
+&lt;FONT SIZE=-1&gt;PAUSE&lt;/FONT&gt; plus the clpa/, doc/, misc/, ports/, src/, scripts/.
+
+&lt;P&gt;
+Future development should be directed towards a better integration of the
+other parts.
+
+&lt;P&gt;
+If a Makefile.PL requires special customization of libraries, prompts the user for special input, etc. then you may find 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; is not able to build the distribution. In that case, you should attempt the traditional method of building a Perl module package from a shell.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="AUTHOR"&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Andreas K&amp;#246;nig &lt;A
+HREF="mailto:&amp;lt;a.koenig@mind.de&amp;gt;"&gt;&amp;lt;a.koenig@mind.de&amp;gt;&lt;/A&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;perl(1),&lt;/CODE&gt; CPAN::Nox(3)
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

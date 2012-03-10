@@ -1,0 +1,51 @@
+<node>
+  <doctext>&lt;p&gt;
+[cpan://Time::Piece::MySQL] is a very useful module for MySQL users. It is simply an 
+extension to [cpan://Time::Piece] that provides a handful of methods for converting back and 
+forth between Time::Piece objects and the MySQL date/time types: date, time, datetime, and 
+timestamp. (The year type is available from Time::Piece, so it doesn't need to be here.)
+&lt;/p&gt;
+&lt;p&gt;
+As an example, say i had a table of events that contained an id and a datetime field:
+&lt;pre&gt;
++---------+------------------+
+| Field   | Type             |
++---------+------------------+
+| id      | int(10) unsigned |
+| date    | datetime         |
++---------+------------------+
+&lt;/pre&gt;
+and i wanted to add 50 days to to each date. The following snippet would do just that:
+&lt;code&gt;
+use strict;
+use warnings;
+use DBI;
+use Time::Seconds;
+use Time::Piece::MySQL;
+
+my $dbh   = DBI-&gt;connect( ... );
+my $sth   = $dbh-&gt;prepare('update events set date = ? where id = ?');
+my $dates = $dbh-&gt;selectall_arrayref(
+   'select id,date from events', {Slice =&gt; {}}
+);
+
+for (@$dates) {
+
+   my $date = localtime-&gt;from_mysql_datetime( $_-&gt;{date} );
+   $date += ONE_DAY * 50;
+   $sth-&gt;execute( $date-&gt;mysql_datetime, $_-&gt;{id} );
+}
+&lt;/code&gt;
+A very trivial example, but i think it demonstrates how it can make someone's Perl/MySQL
+script easier to work with.
+&lt;/p&gt;</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>18800</author_user>
+  <createtime>2004-01-04 14:02:40</createtime>
+  <itemdescription>Bridges the gap between Perl and MySQL date-time types</itemdescription>
+  <identifier></identifier>
+  <node_id>318677</node_id>
+  <usercomment></usercomment>
+  <title>Time::Piece::MySQL</title>
+  <nodeupdated>2005-08-08 22:27:26</nodeupdated>
+</node>

@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1169" title="perlman:CGI::Push" created="1999-12-22 19:50:49" updated="2005-08-12 23:34:16">
+<type id="119">
+perlfunc</type>
+<author id="113">
+root</author>
+<data>
+<field name="doctext">
+</field>
+<field name="name">
+
+&lt;P&gt;
+CGI::Push - Simple Interface to Server Push
+
+&lt;P&gt;
+&lt;HR&gt;
+</field>
+<field name="synopsis">
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Push qw(:standard);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    do_push(-next_page=&amp;gt;\&amp;amp;next_page,
+            -last_page=&amp;gt;\&amp;amp;last_page,
+            -delay=&amp;gt;0.5);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub next_page {
+        my($q,$counter) = @_;
+        retur</field>
+<field name="description">
+
+&lt;P&gt;
+CGI::Push is a subclass of the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object created by CGI.pm. It is specialized for
+server push operations, which allow you to create animated pages whose
+content changes at regular intervals.
+
+&lt;P&gt;
+You provide CGI::Push with a pointer to a subroutine that will draw one page. Every time your subroutine is called, it generates a new page. The contents of the page will be transmitted to the browser in such a way that it will replace what was there beforehand. The technique will work with 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; pages as well as with graphics files, allowing you to create animated GIFs.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="USING_CGI_Push"&gt;USING CGI::Push&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+CGI::Push adds one new method to the standard 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; suite, 
+&lt;CODE&gt;do_push().&lt;/CODE&gt; When you call this method, you pass it a reference to a subroutine that is responsible for drawing each new page, an interval delay, and an optional subroutine for drawing the last page. Other optional parameters include most of those recognized by the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; 
+&lt;CODE&gt;header()&lt;/CODE&gt; method.
+
+&lt;P&gt;
+You may call 
+&lt;CODE&gt;do_push()&lt;/CODE&gt; in the object
+oriented manner or not, as you prefer:
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Push;
+    $q = new CGI::Push;
+    $q-&amp;gt;do_push(-next_page=&amp;gt;\&amp;amp;draw_a_page);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use CGI::Push qw(:standard);
+    do_push(-next_page=&amp;gt;\&amp;amp;draw_a_page);
+&lt;/PRE&gt;
+&lt;P&gt;
+Parameters are as follows:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__next_page"&gt;-next_page&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;    do_push(-next_page=&amp;gt;\&amp;amp;my_draw_routine);
+&lt;/PRE&gt;
+&lt;P&gt;
+This required parameter points to a reference to a subroutine responsible for drawing each new page. The subroutine should expect two parameters consisting of the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object and a counter indicating the number of times the subroutine has been called. It should return the contents of the page as an
+ &lt;STRONG&gt;array&lt;/STRONG&gt; of one or more items to print. It can return a false value (or an empty
+array) in order to abort the redrawing loop and print out the final page
+(if any)
+
+&lt;P&gt;
+&lt;PRE&gt;    sub my_draw_routine {
+        my($q,$counter) = @_;
+        return undef if $counter &amp;gt; 100;
+        return start_html('testing'),
+               h1('testing'),
+               &amp;quot;This page called $counter times&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+You are of course free to refer to create and use global variables within
+your draw routine in order to achieve special effects.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__last_page"&gt;-last_page&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This optional parameter points to a reference to the subroutine responsible
+for drawing the last page of the series. It is called after the -next_page
+routine returns a false value. The subroutine itself should have exactly
+the same calling conventions as the -next_page routine.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__type"&gt;-type&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This optional parameter indicates the content type of each page. It defaults to ``text/html''. Normally the module assumes that each page is of a homogenous 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type. However if you provide either of the magic values ``heterogeneous'' or ``dynamic'' (the latter provided for the convenience of those who hate long parameter names), you can specify the 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type -- and other header fields -- on a per-page basis. See ``heterogeneous pages'' for more details.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__delay"&gt;-delay&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This indicates the delay, in seconds, between frames. Smaller delays
+refresh the page faster. Fractional values are allowed.
+
+&lt;P&gt;
+&lt;STRONG&gt;If not specified, -delay will default to 1 second&lt;/STRONG&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME="item__cookie_"&gt;-cookie, -target, -expires&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+These have the same meaning as the like-named parameters in CGI::header().
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Heterogeneous_Pages"&gt;Heterogeneous Pages&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Ordinarily all pages displayed by CGI::Push share a common 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type. However by providing a value of ``heterogeneous'' or ``dynamic'' in the 
+&lt;CODE&gt;do_push()&lt;/CODE&gt; -type parameter, you can specify the 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type of each page on a case-by-case basis.
+  
+
+&lt;P&gt;
+If you use this option, you will be responsible for producing the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header for each page. Simply modify your draw
+routine to look like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub my_draw_routine {
+        my($q,$counter) = @_;
+        return header('text/html'),   # note we're producing the header here
+               start_html('testing'),
+               h1('testing'),
+               &amp;quot;This page called $counter times&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+You can add any header fields that you like, but some (cookies and status fields included) may not be interpreted by the browser. One interesting effect is to display a series of pages, then, after the last page, to redirect the browser to a new 
+&lt;FONT SIZE=-1&gt;URL.&lt;/FONT&gt; Because 
+&lt;CODE&gt;redirect()&lt;/CODE&gt; does b&amp;lt;not&amp;gt; work, the easiest way is with a -refresh header field, as shown below:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub my_draw_routine {
+        my($q,$counter) = @_;
+        return undef if $counter &amp;gt; 10;
+        return header('text/html'),   # note we're producing the header here
+               start_html('testing'),
+               h1('testing'),
+               &amp;quot;This page called $counter times&amp;quot;;
+    }
+   
+    sub my_last_page {
+        header(-refresh=&amp;gt;'5; URL=[perlman:CGI::finished|finished]',
+               -type=&amp;gt;'text/html'),
+        start_html('Moved'),
+        h1('This is the last page'),
+        'Goodbye!'
+         hr,    
+         end_html; 
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME="Changing_the_Page_Delay_on_the_F"&gt;Changing the Page Delay on the Fly&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you would like to control the delay between pages on a page-by-page basis, call 
+&lt;CODE&gt;push_delay()&lt;/CODE&gt; from within your draw routine. 
+&lt;CODE&gt;push_delay()&lt;/CODE&gt; takes a single numeric argument representing the number of seconds you wish to delay after the current page is displayed and before displaying the next one. The delay may be fractional. Without parameters, 
+&lt;CODE&gt;push_delay()&lt;/CODE&gt; just returns the current delay.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="INSTALLING_CGI_Push_SCRIPTS"&gt;INSTALLING CGI::Push SCRIPTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Server push scripts &lt;STRONG&gt;must&lt;/STRONG&gt; be installed as no-parsed-header 
+&lt;FONT SIZE=-1&gt;(NPH)&lt;/FONT&gt; scripts in order to work correctly. On Unix systems, this is most often accomplished by prefixing the script's name with ``nph-''. Recognition of 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; scripts happens automatically with WebSTAR and Microsoft 
+&lt;FONT SIZE=-1&gt;IIS.&lt;/FONT&gt; Users of other servers should see their documentation for help.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="CAVEATS"&gt;CAVEATS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This is a new module. It hasn't been extensively tested.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="AUTHOR_INFORMATION"&gt;AUTHOR INFORMATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+be used and modified freely, but 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; do request that this copyright notice remain
+attached to the file. You may modify this module as you wish, but if you
+redistribute a modified version, please attach a note listing the
+modifications you have made.
+
+&lt;P&gt;
+Address bug reports and comments to: &lt;A
+HREF="mailto:lstein@genome.wi.mit.edu"&gt;lstein@genome.wi.mit.edu&lt;/A&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="BUGS"&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This section intentionally left blank.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SEE_ALSO"&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:CGI::Carp|Carp], [perlman:lib:CGI|CGI]
+
+&lt;HR&gt;
+</field>
+</data>
+</node>

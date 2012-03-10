@@ -1,0 +1,239 @@
+<node>
+  <parent_container>1058</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-04-19 20:11:59</createtime>
+  <node_id>160708</node_id>
+  <title>Moderation Nodelet</title>
+  <nlcode>[%
+#op=approve
+#node_id=
+#(&quot;a&quot;.$node-&gt;{node_id})=noop,unok,unfp,ok,fp,move
+#origtype=$node-&gt;{type_nodetype}
+#movetotype=
+##linktype=
+##sectionid=
+   # Display any errors/notifications from the approve opcode:
+   my $html= '';
+   for my $msg (  @{$HTMLVARS{approve_msgs}}  ) {
+      $html .= qq[* $msg&lt;br /&gt;\n];
+   }
+   return $html;
+%]
+[%
+   use Everything::Experience;
+#use strict; use warnings;
+#my( $USER, $NODE, $DB, $q );
+
+   my $isGod= isGod($USER);
+   return ''   if ! Everything::isApproved( $USER, 'CanConsider' );
+
+   my $SETTING= getVars( getNode('approval nodelet settings','setting') );
+
+   return
+      if  0 &lt;= index( $SETTING-&gt;{inconsiderate}, &quot;[$USER-&gt;{title}]&quot; )
+      ||  0 &lt;= index( $SETTING-&gt;{inconsiderate}, &quot;[$USER-&gt;{node_id}]&quot; );
+
+   my %types;   # Node types that require approval.
+   {
+      my @types= split /,/, $SETTING-&gt;{types};
+      @types{@types}= (1) x @types;
+   }
+   my $type= $NODE-&gt;{type}{title};
+
+   return   unless  $types{$type}  or  grep $_ eq $type,
+      qw/modulereview bookreview note sourcecode snippet perltutorial perlnews/;
+      # ^ Node types that can be considered (but not approved)
+
+   my $isEd= do {
+      my $ED= getNode('editors','usergroup');
+      $ED  &amp;&amp;  Everything::isApproved( $USER, $ED );
+   };
+
+   my $opers= '';   # HTML to select moderation operation (ok, fp, move, ...)
+   my $message= ''; # HTML to show node approval status
+
+   my $disabled= $NODE-&gt;{author_user} == $USER-&gt;{user_id}
+      ? qq[ disabled=&quot;disabled&quot;] : &quot;&quot;;
+   $disabled= &quot;&quot;   if  $isGod;
+
+   my $nid= getId($NODE);
+   my( $user, $when, $rec );
+   my $status= 'unok';
+   if(  $types{$type}  ) {
+      $status= htmlcode( 'isapproved','', $nid, \$user, \$when, \$rec );
+
+      if(  $status ne 'unok'  ) {
+
+         $message .=
+            'fp' eq $status ? 'Front-paged' :
+            'ok' eq $status ? 'Approved' :
+            &quot;Error &lt;!--$status--&gt;&quot;;
+         $message .= ' by ' . linkNode($user)
+            if  $user;
+         $message .= qq[&lt;br /&gt;\n];
+         if(  $rec  ) {
+            $message .= {qw/
+               ok Approved fp Front-paged from Moved
+               unok unApproved unfp unFront-paged
+            /}-&gt;{ $rec-&gt;{action} }  ||  &quot;Error &lt;!--$rec-&gt;{action}--&gt;&quot;;
+            $message .= ' by ' . linkNode($rec-&gt;{user_approves}) . qq[&lt;br /&gt;\n]
+               if  $rec-&gt;{user_approves};
+            #!!!#$message .= &quot; from &quot; . htmlcode( '?','', $rec-&gt;{?} )
+            #!!!#   if  'from' eq $rec-&gt;{action}  &amp;&amp;  $rec-&gt;{?};
+            $message .= qq[&lt;br /&gt;\n];
+         }
+      }
+
+      my @ops;
+      push @ops, 'move'   if  'unok' eq $status;
+      if(  ! $disabled  ) {
+         push @ops, 'fp'   if  'fp' ne $status;
+         push @ops, 'ok'   if  'unok' eq $status;
+      }
+      if(  $isEd  ) {
+          push @ops, 'unok'   if  'unok' ne $status;
+          push @ops, 'unfp'   if  'fp' eq $status;
+      }
+      push @ops, 'noop';
+      my %label= (
+         move =&gt; 'Move',
+         fp   =&gt; 'Front-Page',
+         ok   =&gt; 'Approve',
+         noop =&gt; 'nada',
+      );
+      $label{$_} ||= $_   for  @ops;
+      $opers= $q-&gt;radio_group(
+         &quot;$nid&quot;, \@ops, &quot;noop&quot;, 0, \%label ) . qq[&lt;br /&gt;\n]
+         if  1 &lt; @ops;
+   }
+
+   my $mover= '';
+   $mover= htmlcode('writeupmover', '', '0', '1')
+      if  $types{$type}  &amp;&amp;  'unok' eq $status;
+   $mover &amp;&amp;= &quot;Move to: $mover&lt;br /&gt;\n&quot;;
+
+   my $consider= '';
+
+   my $reaped =
+      $NODE-&gt;{author_user} == $HTMLVARS{NodeReaperID};
+   my $considered= $DB-&gt;sqlSelect(
+      'description', 'considernodes', &quot;considernodes_id = $nid&quot; );
+
+   my $considerit= $q-&gt;param('considerit');
+   my $reason= $q-&gt;param('considerreason');
+   if(  $considerit  &amp;&amp;  $reason  ) {
+      if(  $considered  ) {
+         # Do nothing
+      } elsif(  $reason =~ m#^\s*[/\\](msg|tell|me)#i  ) {
+         $consider .= &quot;&lt;b&gt;This is not the chatterbox&lt;/b&gt;&quot;;
+         $q-&gt;param( &quot;sentmessage&quot;,
+            &quot;&lt;i&gt;You tried to chat (&lt;tt&gt;&quot; . $q-&gt;escapeHTML($reason)
+            . &quot;&lt;/tt&gt;) via the Moderation Nodelet.&lt;/i&gt;&quot; );
+      } else {
+         my $description= sprintf '[%s] %s',
+            $USER-&gt;{title}, $reason;
+         $DB-&gt;sqlDelete( &quot;considervote&quot;, &quot;considervote_id=$nid&quot; );
+         $DB-&gt;sqlInsert(
+            'considernodes',
+            {
+               considernodes_id  =&gt; $nid,
+               -considertime     =&gt; 'now()',
+               description       =&gt; $description,
+            }
+         );
+         $consider= qq[
+            ] . linkNode(28877,'Considered') . ': '
+              . $q-&gt;escapeHTML($description) . '&lt;br /&gt;' . q[
+            &lt;hr /&gt;];
+         $considered= $DB-&gt;sqlSelect(
+            'description', 'considernodes', &quot;considernodes_id = $nid&quot; );
+      }
+   } elsif(  $considerit  ||  $reason  ) {
+      $consider= &quot;You must check the box AND enter a reason to &quot;;
+      # Note that code below leaves their reason but unchecks the box.
+   }
+
+   # disable approving/moving:
+   $opers= ''   if  $reaped  &amp;&amp;  ! $isEd;
+
+   if(  $considered  ) {
+      $considered =~ s&lt;[\[(]&gt;&lt;&amp;#91;[&gt;;
+      $considered =~ s&lt;[\])]&gt;&lt;]&amp;#93;&gt;;
+      $considered= htmlcode( 'parselinksinchatter','', $considered );
+
+      $consider= qq[
+         ] . linkNode(28877, 'Considered') . ': ' . $considered . '&lt;hr /&gt;' . q[
+         ];
+   } elsif(  ! $reaped  ||  $isEd  ) {
+      $consider .= qq[
+         Consider node:
+         &lt;input type=&quot;checkbox&quot; name=&quot;considerit&quot; value=&quot;yes&quot;&gt;]
+          . $q-&gt;textfield( &quot;considerreason&quot;, &quot;&quot;, 20, 128 );
+   }
+
+   my $cvote= '';
+   if(  $considered  ) {
+      my $has_voted= $DB-&gt;sqlSelect(
+         'count(*)',
+         'considervote',
+         &quot;considervote_id = $nid AND voter_user = &quot; . getId($USER),
+      );
+
+      my( $keep, $edit, $delete )= $DB-&gt;sqlSelect(
+         'keep, edit, del',
+         'considernodes',
+         &quot;considernodes_id = $nid&quot;,
+      );
+      # allow janitors to unconsider if there have been enough keep or edit votes
+      # to act upon, or there are so many that the node will never be reaped (see [consider])
+      my $canUnconsider=  $isGod
+         ||  $isEd  &amp;&amp;  ( 2 &lt;= $edit || 4 &lt;= $keep
+            || 5 &lt;= $delete &amp;&amp; 4 &lt;= 2*$keep + $edit );
+      if(  $has_voted  ||  $isGod  ) {
+         $cvote .= sprintf 'Keep/Edit/Reap: %d/%d/%d', $keep, $edit, $delete;
+      }
+      if(  ! $has_voted  ||  $canUnconsider  ) {
+         my @list;
+         push @list, qw/keep edit reap/   unless  $has_voted;
+         push @list, 'unconsider'   if  $canUnconsider;
+         push @list, 'novote';
+
+         $cvote .= &quot;&lt;br /&gt;&quot;   if  $cvote;
+         $cvote .= qq[
+            &lt;input type=&quot;hidden&quot; name=&quot;op&quot; value=&quot;consider&quot; /&gt;];
+         $cvote .= $q-&gt;radio_group(
+            -name =&gt; &quot;cv$nid&quot;, values =&gt; \@list, -default =&gt; 'novote' );
+         $cvote .= &quot;&lt;hr /&gt;&quot;;
+      }
+   }
+
+   #$message = qq[
+   #   &lt;br /&gt;] . $message
+   #   if  $message  &amp;&amp;  ! $considered;
+
+   my $submit= '';
+   $submit= qq[&lt;input type=&quot;submit&quot; name=&quot;sexisgood&quot; value=&quot;moderate&quot; /&gt;]
+      if  $mover  ||  $opers  ||  $consider;
+   return &quot;&quot;   if  ! $submit  &amp;&amp;  ! $message;
+
+   my $ops= '';
+
+   return qq[
+      ] . htmlcode('openform') . qq[
+      &lt;input type=&quot;hidden&quot; name=&quot;linktype&quot;  value=&quot;$SETTING-&gt;{$type.&quot;_linktype&quot;}&quot; /&gt;
+      &lt;input type=&quot;hidden&quot; name=&quot;sectionid&quot; value=&quot;$SETTING-&gt;{$type.&quot;_node&quot;}&quot; /&gt;
+      &lt;input type=&quot;hidden&quot; name=&quot;op&quot; value=&quot;newapprove&quot; /&gt;
+      &lt;input type=&quot;hidden&quot; name=&quot;origtype&quot; value=&quot;$NODE-&gt;{type}-&gt;{title}&quot; /&gt;
+      $message
+      $opers
+      $mover
+      $consider
+      $cvote
+      $submit
+      ] . linkNode(17645, 'help') . ' '. linkNode(28877,'ntc') . qq[
+   &lt;/form&gt;
+   ];
+%]</nlcode>
+  <nodeupdated>1147636070</nodeupdated>
+</node>

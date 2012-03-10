@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="401006" title="quotes in Perl" created="2004-10-20 18:33:03" updated="2005-08-15 16:01:10">
+<type id="956">
+perltutorial</type>
+<author id="397229">
+apotheon</author>
+<data>
+<field name="doctext">
+Quotation marks are fairly ubiquitous in Perl, as in most programming languages.  Different methods of quoting exist, and each has different uses and a different set of behaviors associated with it.&lt;br /&gt;
+&lt;br /&gt;
+This document is intended as a treatment of the subject of delimiting strings &amp;mdash; "quoting".  I try to keep it from devolving into lengthy digressions on tangential topics, such as escape characters and interpolation.  Such topics do tie in with the use of such delimiters, however, and must to some degree be addressed.  Further information can be found at [http://perldoc.perl.org/perlop.html|perlop].&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;single-quotes&lt;/h3&gt;
+Single quotation marks are used to enclose data you want taken literally.  Just as the &amp;lt;code&amp;gt;&amp;lt;/code&amp;gt; tags here at the Monastery make all text they enclose literally rendered, whitespace and all, so too does a set of single-quotes in Perl ensure that what they enclose is used literally:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo;
+my $bar;
+$foo = 7;
+$bar = 'it is worth $foo';
+print $bar;&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+This example, when run, produces the following:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;it is worth $foo&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;double-quotes&lt;/h3&gt;
+Double quotation marks are used to enclose data that needs to be interpolated before processing.  That means that escaped characters and variables aren't simply literally inserted into later operations, but are evaluated on the spot.  Escape characters can be used to insert newlines, tabs, and other special characters into a string, for instance.  The values, or contents, of variables are used in double-quoted strings, rather than the names of variables.  For instance:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo;
+my $bar;
+$foo = 7;
+$bar = "it is worth $foo";
+print $bar;&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+This example, when run, produces the following:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;it is worth 7&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+Double-quotes interpolate scalar and array variables, but not hashes.  On the other hand, you can use double-quotes to interpolate slices of both arrays and hashes.&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;escape characters&lt;/h3&gt;
+The interpolating effects of double-quotes creates a necessity of using escaped characters to reproduce characters within a string that would be displayed literally within single-quotes, however.  For instance, to add quotes to the above-printed string in the double-quote example, you would have to do something like this:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo;
+my $bar;
+$foo = 7;
+$bar = "it is \"worth\" $foo";
+print $bar;&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+The backslash "escapes" the quotation mark that follows it, so that running the above produces the following:&lt;br/&gt;
+&lt;blockquote&gt;&lt;code&gt;it is "worth" 7&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+An exception to the literal interpretation behavior in the use of single-quotes is when you wish to include single-quotes inside the string.  In that case, you must escape the single-quotes you want inside the string so the Perl compiler can discern between them and the single-quotes that delimit the string:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo;
+my $bar;
+$foo = 7;
+$bar = 'it is \'worth\' $foo';
+print $bar;&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+This example, when run, produces the following:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;it is 'worth' $foo&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+In any interpolating quotation scheme, such as double-quotes (or &lt;code&gt;qq&lt;/code&gt; and interpolating uses of &lt;code&gt;&lt;&lt;&lt;/code&gt;, as described below), @ and $ characters must be escaped when you want them used literally.  If they are not, they will be treated by the Perl compiler as indicators of variable names.&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;quoting without quotes&lt;/h3&gt;
+In Perl, you can use methods other than quotation marks to "quote" a string.  This functionality makes using strings that contain quotation marks much easier sometimes, since those quotation marks no longer need to be escaped.  There are three simple methods of doing this with the letter q.&lt;br /&gt;
+&lt;br /&gt;
+In the following three sections, on the subjects of &lt;code&gt;q&lt;/code&gt;, &lt;code&gt;qq&lt;/code&gt;, and &lt;code&gt;qw&lt;/code&gt; notation, I refer exclusively to the use of parentheses as delimiters.  Other delimiters can be used, however, which allows you to avoid having to escape the characters you choose to use as delimiters if you must also include instances of them in your string.  For instance, instead of using parentheses, you could also use brackets ( &lt;code&gt;[ ]&lt;/code&gt; ), braces ( &lt;code&gt;{ }&lt;/code&gt; ), asterisks ( &lt;code&gt;* *&lt;/code&gt; ), and (almost?) any other characters other than whitespace.  It's worth noting that in the case of an alphanumeric character there must be a space between the &lt;code&gt;q&lt;/code&gt; (or &lt;code&gt;qw&lt;/code&gt;, or &lt;code&gt;qq&lt;/code&gt;).&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;q&lt;/h3&gt;
+The first way to quote without quotes is to use &lt;code&gt;q()&lt;/code&gt; notation.  Instead of using quotation marks, you would use parentheses with a &lt;code&gt;q&lt;/code&gt; preceding them:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo;
+my $bar;
+$foo = 7;
+$bar = q(it is 'worth' $foo);
+print $bar;&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+This example, when run, produces the following:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;it is 'worth' $foo&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+The &lt;code&gt;q()&lt;/code&gt; function works the same as single-quoting your string, with the exception that you no longer need to escape single-quotes that appear within the string.  You would, however, have to escape any parentheses you need in the string.&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;qq&lt;/h3&gt;
+In the same way that double-quotes add interpolation to the functionality of single-quotes, doubling the &lt;code&gt;q&lt;/code&gt; adds interpolation to quoting without quotation marks.  For instance, if you wanted to avoid escape characters and interpolate &lt;code&gt;$foo&lt;/code&gt; in the above code, and wanted to use double-quotes around the word worth, you might do this:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo;
+my $bar;
+$foo = 7;
+$bar = qq(it is "worth" $foo);
+print $bar;&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+This example, when run, produces the following:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;it is "worth" 7&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;qw&lt;/h3&gt;
+You can use qw to quote individual words without interpolation.  Use whitespace to separate terms you would otherwise have to separate by quoting individually and adding commas.  This is often quite useful when assigning lists to array variables.  The two following statements are equivalent:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;@baz = ('one', 'two', 'three');
+
+@baz = qw(one two three);&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;h3&gt;here documents&lt;/h3&gt;
+If you want to quote many lines of text literally, you can use "Here Document" notation.  This consists of an introductory line which has two open angles (aka "angle brackets": &lt;code&gt;&lt;&lt;&lt;/code&gt; ) followed by a keyword &amp;mdash; the end tag &amp;mdash; for signalling the end of the quote.  All text and lines following the introductory line are quoted. The quote ends when the end tag is found, by itself, on a line. For example, if the end tag is &lt;code&gt;EOT&lt;/code&gt;:&lt;br /&gt;
+&lt;blockquote&gt;&lt;code&gt;#!/usr/bin/perl -w
+use strict;
+my $foo = 123.45;
+my $bar = "Martha Stewedprune";
+print &lt;&lt;"EOT";
+=====
+
+This is an example of
+   text taken literally
+   except that variables are
+   expanded where their
+   variable names appear.
+   foo: $foo
+   bar: $bar
+EOT&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+This example, when run, produces the following:
+&lt;blockquote&gt;&lt;code&gt;=====
+
+This is an example of
+   text taken literally
+   except that variables are
+   expanded where their
+   variable names appear.
+   foo: 123.45
+   bar: Martha Stewedprune&lt;/code&gt;&lt;/blockquote&gt;&lt;br /&gt;
+
+The type of quotation marks placed around the end tag is important.  For instance, in the above example, &lt;code&gt;EOT&lt;/code&gt; is double-quoted, and as a result the values of &lt;code&gt;$foo&lt;/code&gt; and &lt;code&gt;$bar&lt;/code&gt; are substituted for the variable names.  Double-quoting the end tag causes the quoted block of text to be interpolated as it would be with double-quotes.  Use of single-quotes would cause it to be used literally, without interpolation, as though the quoted block of text were delimited by single-quotes rather than being referenced as a "here document".  Omitting the quotation marks entirely defaults to behavior the same as using double-quotes.&lt;br /&gt;
+&lt;br /&gt;
+some notes to keep in mind:&lt;br /&gt;
+&lt;ul&gt;
+&lt;li&gt;The end tag specifier must follow the &lt;code&gt;&lt;&lt;&lt;/code&gt; without any intermediate space.&lt;/li&gt;
+&lt;li&gt;The actual end tag must be exactly the same as specified in the introduction line.&lt;/li&gt;
+&lt;li&gt;The introduction line must end with a semicolon.&lt;/li&gt;
+&lt;/ul&gt;
+The use of here documents is particularly useful in Perl scripts that include HTML and other markup, because it allows you to keep the markup relatively free of escape characters that would otherwise reduce the readability of it.&lt;br /&gt;
+&lt;br /&gt;
+&lt;center&gt;&lt;hr /&gt;&lt;/center&gt;
+&lt;font size="-1"&gt;Thanks due the PerlMonks community members who contributed suggestions and comments in discussion below.&lt;/font&gt;&lt;br /&gt;
+&lt;br /&gt;
+&lt;!-- Node text goes above. Div tags should contain sig only --&gt;
+&lt;div class="pmsig"&gt;&lt;div class="pmsig-397229"&gt;
+- &lt;font color="#0000ff"&gt;a&lt;/font&gt;&lt;font color="#3355ff"&gt;p&lt;/font&gt;&lt;font color="#6688ff"&gt;o&lt;/font&gt;&lt;font color="#99bbff"&gt;t&lt;/font&gt;&lt;font color="#99bbff"&gt;h&lt;/font&gt;&lt;font color="#6688ff"&gt;e&lt;/font&gt;&lt;font color="#3355ff"&gt;o&lt;/font&gt;&lt;font color="#0000ff"&gt;n&lt;/font&gt;
+&lt;br /&gt;
+[http://ccd.apotheon.org|CopyWrite] Chad Perrin
+&lt;/div&gt;&lt;/div&gt;</field>
+</data>
+</node>

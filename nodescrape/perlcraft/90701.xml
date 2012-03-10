@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="90701" title="File synchronisation (for criticism)" created="2001-06-22 13:07:32" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="57013">
+kevin_i_orourke</author>
+<data>
+<field name="doctext">
+# This my first posting in this section so be kind (well, unless it's for my own good ;-) ).
+
+# The program was intended to synchronise MP3 files on my hard disk with
+# those on my portable MP3 jukebox thingy
+# (&lt;a href="http://www.archos.com"&gt;Archos Jukebox 6000&lt;/a&gt;).
+#  I rip the CDs onto my local hard disk then copy them across
+# to the player (which appears as a USB removable hard disk).
+
+# I just recently noticed the a module which does a lot of the same things,
+# as well as lots of other things.  That makes this program yet another
+# re-invented wheel but I enjoyed writing it. (NOTE: I can't
+# remember what the module was called though!)
+
+#!perl -w
+# MP3sync - synchronises MP3 files/directories between
+#           two directories
+
+# Usage:
+#   MP3sync [configfile]
+# Where:
+#   configfile is a configuration file (as described below),
+#   the program defaults to reading mp3sync.cfg
+
+# Configuration file format:
+#   Each line begins with a setting name, followed by '=' and
+#   the value to be assigned to the setting.  Case is significant.
+#
+# Settings: [default in square brackets]
+#   Source - directory with (possibly new) MP3s
+#     [C:/My Documents/My Music/]
+#   Dest - directory where MP3s should be copied (if necessary)
+#     [G:/]
+# (each of these specifies a path which should be the root directory
+#  of the tree containing the files and directories to be synchronised)
+
+# important stuff
+use strict;
+use diagnostics;
+
+# we want to calculate checksums for files
+use Digest::MD5;
+# for reading directories
+use IO::Dir;
+# for copying files
+use File::Copy;
+
+# Default configuration file name
+my $configFile = "mp3sync.cfg";
+
+# Hash to hold configuration settings
+my %config = (
+  Source =&gt; 'C:/My Document/My music/',
+  Dest =&gt; 'G:/'
+);
+
+# Sub: ReadConfig - reads in a configuration file
+# Usage:
+#   $status = ReadConfig($configFile, \%configHash);
+# Where:
+#   $status will be true on successfull reading of the file.
+#   (error messages will be output to STDERR)
+#   $configFile is the name of the file to read
+#   \%ConfigHash is a reference to a hash holding configuration
+#     settings
+sub ReadConfig {
+  my $filename = shift;
+  my $configHash = shift;
+  # check the parameters - filename first
+  if (!defined($filename)) {
+    warn("You must supply a filename to ReadConfig");
+    return undef;
+  };
+  # has the user specified a hash?
+  if (!defined($configHash)) {
+    warn("You must supply a configuration hash reference to ReadConfig");
+    return undef;
+  };
+  # is it really a hash ref?
+  if (ref($configHash) ne "HASH") {
+    warn("The second parameter to ReadConfig must be a hash reference");
+    return undef;
+  };
+  # open the file - warn that we're using the defaults if it can't be opened
+  unless (open(CONFFILE, '&lt;', $filename)) {
+    warn("Couldn't open config file $filename: $!\n");
+    warn("Using defaults");
+    return 1;
+  };
+  # now read each line
+  my $line;
+  while (defined($line = &lt;CONFFILE&gt;)) {
+    # if it's a valid line store it in the hash
+    if ($line =~ /(\w+)\=(.+)/) {
+      $configHash-&gt;{$1} = $2;
+    };
+    # ignore invalid lines silently
+  };
+  # close the file
+  unless (close(CONFFILE)) {
+    WARN("Couldn't close config file $filename: $!\n");
+    return undef;
+  };
+  # success!
+  return 1;
+};
+
+# Sub: PopulateTree
+# Usage:
+#   $status = PopulateTree($path, \%hash);
+# Where:
+#   $status will be true if the function succeeded
+#   $path is the directory to examine (terminate in '/')
+#   \%hash is a reference to a hash to be filled with directory
+#     tree information.  Each item in the hash will be a hash
+#     containing the following keys:
+#       Type (files and dirs) - 'File' or 'Dir'
+#       Contents (dirs only)  - an array containing the directory
+#                               contents, in this form
+#       Digest (files only)   - the MD5 digest of the file
+sub PopulateTree {
+  # get our parameters
+  my $path = shift;
+  if (!defined($path)) {
+    warn("PopulateTree needs a path");
+    return undef;
+  };
+  my $hashref = shift;
+  if (!defined($hashref)) {
+    warn("PopulateTree needs a hash reference");
+    return undef;
+  };
+  # check that $hashref really is a hash reference
+  if (ref($hashref) ne 'HASH') {
+    warn("PopulateTree needs a HASH reference");
+    print ref($hashref), "\n";
+    return undef;
+  };
+  
+  print "Looking in $path...\n";
+
+  # create a Digest::MD5 object
+  my $digest = new Digest::MD5;
+  
+  # read the directory
+  my $dir = new IO::Dir;
+  my @dirContents;
+  unless ($dir-&gt;open($path)) {
+    warn("Couldn't open directory $path: $!\n");
+    return undef;
+  };
+  unless (@dirContents = $dir-&gt;read()) {
+    warn("Couldn't read directory $path: $!\n");
+    return undef;
+  };
+  # now look at each item and decide what to do with it
+  ITEM:
+  foreach my $item (@dirContents) {
+    if (($item eq '.') || ($item eq '..')) {
+      next ITEM;
+    };
+    if (-d $path.$item) {
+      # it's a directory, create an item entry for it
+      $hashref-&gt;{$item} = {
+        Type =&gt; 'Dir',
+        Contents =&gt; {}
+      };
+      # get its contents
+      unless (PopulateTree($path.$item."/", $hashref-&gt;{$item}-&gt;{Contents})) {
+        warn("PopulateTree failed");
+        return undef;
+      };
+    } elsif (-f _) {
+      # it's an ordinary file, pass it to Digest::MD5
+      unless (open(*FILE, '&lt;', $path.$item)) {
+        warn("Couldn't open $path$item: $!\n");
+        return undef;
+      };
+      $digest-&gt;addfile(*FILE);
+      my $fileDigest = $digest-&gt;hexdigest();
+      unless (close(*FILE)) {
+        warn("Couldn't close $path$item: $!\n");
+        return undef;
+      };
+      # create an item entry for it
+      $hashref-&gt;{$item} = {
+        Type =&gt; 'File',
+        Digest =&gt; $fileDigest
+      };
+    };
+    # ignore other item types
+  };
+   # success
+   return 1;
+};
+
+
+# Sub: CompareTrees
+# Usage:
+#   ($status, @doList) =
+#     CompareTrees($sourcePath,$destPath,\%sourceTree, \%destTree);
+# Where:
+#   $status will be true if the function succeeded.
+#   @doList will contain a list of things to do to make the two trees
+#     identical, or be undefined on failure.  Each item in the list will be
+#     a hash containing two keys: 'Action' and 'Detail'.  'Action' will be
+#     either 'Copy' or 'Create', 'Detail' will be the full path to create (for
+#     'Create') or a two item array (for 'Copy').  The first item is the source
+#     file, the second is the file to copy it to both have full paths.
+#   $sourcePath is the full path to the source tree root
+#   $destPath is the full path to the destination tree root
+#   \%sourceTree is a reference to a tree as returned by PopulateTree.
+#   \%destTree is a reference to a tree as returned by PopulateTree.
+# Note:
+#   The destTree hash is modified by this function, keep a copy of it if
+#   you want the original data.
+sub CompareTrees {
+  # get the paths
+  my $sourcePath = shift;
+  unless ($sourcePath) {
+    warn("You must provide a source path to CompareTrees");
+    return undef;
+  };
+  my $destPath = shift;
+  unless ($destPath) {
+    warn("You must provide a destination path to CompareTrees");
+    return undef;
+  };
+  # get our two tree refs
+  my $sourceRef = shift;
+  unless ($sourceRef) {
+    warn("You must provide a source tree reference to CompareTrees");
+    return undef;
+  };
+  my $destRef = shift;
+  unless ($destRef) {
+    warn("You must provide a destination tree reference to CompareTrees");
+    return undef;
+  };
+  # check that they are hash refs
+  if ((ref($sourceRef) ne 'HASH') || (ref($destRef) ne 'HASH')) {
+    warn("CompareTrees takes two hash references");
+    return undef;
+  };
+  
+  # an array to return our result in
+  my @retArray = ();
+  my $item;
+  # look at each item contained in the source tree
+CMPITEM:
+  foreach $item (keys(%{$sourceRef})) {
+    # is there a corresponding item in the destination tree?
+    if (defined($destRef-&gt;{$item})) {
+      # if it's a directory we know it exists, if it's a file we want to
+      # check it's identical
+      if ($destRef-&gt;{$item}-&gt;{Type} eq 'File') {
+        # compare the MD5 digests
+        if ($destRef-&gt;{$item}-&gt;{Digest} ne $sourceRef-&gt;{$item}-&gt;{Digest}) {
+          # indicate that we want to make a copy
+          push(@retArray, {
+            Action =&gt; 'Copy',
+            Detail =&gt; [$sourcePath.$item, $destPath]
+          });
+        };
+      };
+      # no further action is required, look at the next item
+      next CMPITEM;
+    } else {
+      # if it's a directory then we need to create it, if it's a file we need
+      # to copy it
+      if ($sourceRef-&gt;{$item}-&gt;{Type} eq 'File') {
+        # indicate that we want to make a copy
+        push(@retArray, {
+          Action =&gt; 'Copy',
+          Detail =&gt; [$sourcePath.$item, $destPath.$item]
+        });
+      } else {
+        # it's a directory, indicate that we want to create it
+        push(@retArray, {
+          Action =&gt; 'Create',
+          Detail =&gt; $destPath.$item
+        });
+        # create it in the destination tree
+        $destRef-&gt;{$item} = {
+          Contents =&gt; {},
+          Type =&gt; 'Dir'
+        };
+        # we also need to recurse down into it
+        my ($status, @tempArray) = CompareTrees(
+          $sourcePath.$item.'/',
+          $destPath.$item.'/',
+          $sourceRef-&gt;{$item}-&gt;{Contents},
+          $destRef-&gt;{$item}-&gt;{Contents});
+        unless ($status) {
+          warn("CompareTrees recursion failed");
+      	  return undef;
+      	};
+      	push(@retArray, @tempArray);
+      }; # item type is 'Dir'
+    }; # !defined($destRef-&gt;{$item})
+  }; # foreach
+  # success
+  return (1, @retArray);
+};
+
+
+# Sub: DoActions - carry out the actions to sync two trees
+# Usage:
+#   $status = DoActions(@actionArray);
+# Where:
+#   $status will be true if successful
+#   @actionArray is an array of actions as returned by CompareTrees
+sub DoActions {
+  # get the array
+  my @actions = @_;
+  # carry out the actions
+  foreach my $action (@actions) {
+    # what type of action is it?
+    if ($action-&gt;{Action} eq 'Copy') {
+      # it's a copy, get the source and destination
+      print "Copying $action-&gt;{Detail}-&gt;[0]...\n";
+      unless (copy($action-&gt;{Detail}-&gt;[0], $action-&gt;{Detail}-&gt;[1])) {
+        warn("Couldn't copy $action-&gt;{Detail}-&gt;[0] to $action-&gt;{Detail}-&gt;[1]: $!\n");
+        return undef;
+      };
+    } else {
+      # it's a create, get the directory name
+      print "Creating $action-&gt;{Detail}...\n";
+      unless(mkdir $action-&gt;{Detail}) {
+        warn("Couldn't create directory $action-&gt;{Detail}: $!\n");
+        return undef;
+      };
+    };
+  }; # foreach Action
+  return 1;
+};
+
+
+#
+# Main
+#
+
+# read the config file
+ReadConfig($configFile, \%config) or die("Couldn't read config file $configFile\n");
+
+# storage for the two trees
+my (%sourceTree, %destTree);
+
+# read the source tree
+PopulateTree($config{Source}, \%sourceTree) or die("Couldn't read source tree\n");
+# and the destination tree
+PopulateTree($config{Dest}, \%destTree) or die("Couldn't read dest tree\n");
+
+# find the differences
+my ($status, @actions) =
+  CompareTrees($config{Source}, $config{Dest}, \%sourceTree, \%destTree)
+    or die("Couldn't compare trees\n");
+
+# check whether there are any actions
+if (scalar(@actions) == 0) {
+  print "Nothing to do, source and destination trees are identical.\n";
+};
+
+DoActions(@actions) or die("Sync failed to create files/directories.\n");
+
+print "Finished.";
+
+# So what do you think?
+# Kevin O'Rourke.</field>
+</data>
+</node>

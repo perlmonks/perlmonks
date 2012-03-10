@@ -1,0 +1,281 @@
+<node>
+  <doctext>=head1 NAME
+
+Graphics::ACT - A module to manipulate Photoshop Style Color Tables (.act)
+
+=head1 DESCRIPTION
+
+Foobar.ACT are color table files that come with Adobe Photoshop.
+Adobe Photoshop expects them to have exactly 256 entries(go figure).
+Each color is represented by 3 bytes corresponding to RGB.
+Other applications probably use these types of color tables, but I don't know that.
+
+=head1 SYNOPSIS
+
+    use Graphics::ACT;
+                                                            #
+    use strict;
+    BEGIN{eval'use warnings;'; $^W=1 if$@;}# must to have some kind of warning
+                                                            #
+    dumpAsHtml($_) for @ARGV;
+                                                            #
+    sub dumpAsHtml {
+        local $\=&quot;\n&quot;;
+        my $file = shift;
+        my $cT = Graphics::ACT-&gt;new($file);
+        my $s = $cT-&gt;size();
+        print &quot;&lt;h1&gt;$file = $s colors&lt;/h1&gt;&quot;;
+        print &quot;&lt;table border=1&gt;&quot;;
+        while($cT-&gt;canRead){
+            print &quot;&lt;tr&gt;&quot;;
+            for(1..8){
+                my $color = $cT-&gt;getColor(1);
+                print qq[&lt;td bgcolor=&quot;#$color&quot;&gt;#$color&lt;/td&gt;];
+            }
+            print &quot;&lt;/tr&gt;&quot;;
+        }
+        print &quot;&lt;/table&gt;&quot;;
+    }
+    __END__
+
+    #create the infamous 'Black Body' color table (can't make fire without it)
+    use Graphics::ACT;
+    use strict;
+    BEGIN{eval'use warnings;'; $^W=1 if$@;}# must to have some kind of warning
+                                                            #
+    Fyack(
+        [ 255, 0, 0 ] =&gt; [ 255, 255, 0 ],
+        Graphics::ACT-&gt;new('black.body',1)
+    );
+                                                            #
+    sub Fyack {
+        my( $one, $two, $yF) = @_;
+        $yF-&gt;YuckFoo( 85, [0,0,0] =&gt; $one );
+        $yF-&gt;YuckFoo( 85, $one =&gt; $two );
+        $yF-&gt;YuckFoo( 86, $two =&gt; [255,255,255] );
+    }
+
+=cut
+
+package Graphics::ACT;
+use Carp;
+use IO::File();
+use vars qw[ $VERSION ];
+$VERSION = 0.1;
+
+use strict;
+BEGIN{eval q[use warnings];}
+
+=head1 METHODS
+
+=head2 C&lt;new&gt;
+
+This is the constructor.  It takes 2 arguments:
+
+=over 4
+
+=item C&lt;$file&gt;
+
+A required argument, a filename of a color table to read/create.
+
+=item C&lt;$w&gt;
+
+Optional.  If you pass a true value, C&lt;$file&gt; will be clobbered,
+and L&lt;C&lt;canRead&gt;|&quot;canRead&quot;&gt; will always return undef.
+
+If you pass a false value (or none), L&lt;C&lt;canWrite&gt;|&quot;canWrite&quot;&gt; will always return undef.
+
+=back
+
+=cut
+
+sub new {
+    my( $class, $file, $w ) = @_;
+
+    croak &quot; you need to pass a filename to new&quot; unless $file;
+
+    my $self = { fileN =&gt; $file, w =&gt; $w ? 1 : 0 };
+    my $fh = new IO::File($file, $self-&gt;{w} ? 'w' : 'r');
+
+    croak &quot;couldn't create a filehandle $! $@&quot; unless defined $fh;
+
+    binmode $fh;
+    $self-&gt;{fileH} = $fh;
+    $self-&gt;{fileS} = -s $fh;
+    $self-&gt;{size} = $self-&gt;{fileS} / 3; #/
+
+    croak &quot;file size ain't divisible by 3, this color table is corrupted&quot;
+    if int $self-&gt;{size} != $self-&gt;{size};
+
+    return bless $self, $class;
+}
+
+
+
+=head2 C&lt;canRead&gt;
+
+Returns 1 if the filehandle is still open (if $w was true), and undef otherwise.
+
+=cut
+
+sub canRead {
+    return not eof $_[0]-&gt;{fileH} unless $_[0]-&gt;{w};
+    return undef;
+}
+
+=head2 C&lt;canWrite&gt;
+
+If you created a new color table($w was true), returns C&lt;fileno&gt; of the filehandle, and undef otherwise.
+
+=cut
+
+sub CanWrite {
+    return fileno $_[0]-&gt;{fileH} if $_[0]-&gt;{w};
+    return undef;
+}
+
+=head2 C&lt;getColor&gt;
+
+Optionally takes a true value as an argument, and returns a hex string color representation.
+Returns an arrayref of rgb colors otherwise, like:
+
+    $VAR1 = [ 255, 255, 255 ];
+
+B&lt;BEWARE&gt;, this method does not check if it L&lt;C&lt;canRead&gt;|&quot;canRead&quot;&gt;. 
+
+=cut
+
+sub getColor {
+    my( $self, $asHex ) = @_;
+    my $rgb = &quot;&quot;;
+    my $stat = read($self-&gt;{fileH},$rgb,3);
+    unless(defined $stat or $stat == 3){
+        carp(&quot; Didn't read 3 bytes (a color) $! $@&quot;);
+        return undef;
+    }else{
+        if($asHex){
+            $rgb = unpack 'h*', $rgb;
+        }else{
+            $rgb = [ unpack 'C*', $rgb];
+        }
+    }
+    return $rgb;
+}
+
+
+=head2 C&lt;putColor&gt;
+
+This method requires 1 argument, a color, either a 6-digit hex string, 
+or an array ref (basically what L&lt;C&lt;getColor&gt;|&quot;getColor&quot;&gt; returns).
+
+B&lt;BEWARE&gt;, this method does not check if it L&lt;C&lt;canWrite&gt;|&quot;canWrite&quot;&gt;.
+
+B&lt;BEWARE&gt;, this method does not check to see if you're passing a valid color
+( a valid color would be one with RGB values ranging from 0 to 255).
+
+=cut
+
+
+sub putColor{
+    my( $self, $color ) = @_;
+    unless($color){
+        carp &quot;you need to pass a color to putColor()&quot;;
+        return();
+    }elsif(ref $color eq 'ARRAY'){
+        $color = join '', map { pack('c',$_) } @$color;
+    }else{
+        $color = join '', pack 'h*', $color;
+    }
+
+    my $fh = $self-&gt;{fileH}; 
+    print $fh $color;
+}
+
+=head2 C&lt;size&gt;
+
+Returns the size of the Color Table (should be 256, every .act file i've encountered is)
+
+=cut
+
+sub size { return $_[0]-&gt;{size} }
+
+=head2 C&lt;YuckFoo&gt;
+
+A utility method for creating gradients courtesy of the perlmonk YuckFoo.
+
+    my $colorTable = Graphics::ACT-&gt;new('grayscale.act',1);
+    $colorTable-&gt;(256, [0,0,0] =&gt; [255,255,255] ); # write a grayscale color table
+
+B&lt;BEWARE&gt;, this method does not check if it L&lt;C&lt;canWrite&gt;|&quot;canWrite&quot;&gt;. 
+
+It takes 3 arguments:
+
+=over 4
+
+=item C&lt;$steps&gt;
+
+The nuber of color create.
+If you call this method more than once, you should probably make sure the steps add up to 256.
+
+=item C&lt;$beg&gt;
+
+A beginning color (array ref only)
+
+=item C&lt;$end&gt;
+
+An ending color (array ref only)
+
+=back
+
+=cut
+
+sub YuckFoo {
+    my( $self, $steps, $beg, $end) = @_;
+
+   # RGB rate of change from beginning to ending color
+    my @delta = ( 
+        ($$end[0] - $$beg[0]) / ($steps-1),
+        ($$end[1] - $$beg[1]) / ($steps-1),
+        ($$end[2] - $$beg[2]) / ($steps-1),
+    );
+   
+# Calculate colors using beginning color and rate of change
+    my $i = 0;
+    while($i &lt; $steps) {
+        my $color = [
+            $$beg[0] + $i * $delta[0],
+            $$beg[1] + $i * $delta[1],
+            $$beg[2] + $i * $delta[2]
+        ];
+        $self-&gt;putColor($color);       
+        $i++;
+    }
+}
+
+
+1;
+
+
+=head1 AUTHOR
+
+D.H. &lt;podmaster@cpan.org&gt;
+
+=head1 LICENSE
+
+copyright (c) D.H. 2002
+All rights reserved.
+
+This program is released under the same terms as perl itself.
+If you don't know what that means, visit http://perl.com
+or execute C&lt;perl -v&gt; at a commandline (assuming you have perl installed).
+
+=cut
+
+1;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>216314</node_id>
+  <author_user>107642</author_user>
+  <title>Graphics::ACT - A module to manipulate Photoshop Style Color Tables (.act)</title>
+  <createtime>2002-11-28 09:57:46</createtime>
+  <nodeupdated>2005-06-23 14:47:21</nodeupdated>
+</node>

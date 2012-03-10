@@ -1,0 +1,47 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>182567</node_id>
+  <author_user>929</author_user>
+  <title>chat/msg</title>
+  <createtime>2002-07-17 16:16:03</createtime>
+  <code>my( $cmd, $rest ) = @_;
+   my( $TO, $message, $isgroup ) =
+      htmlcode( 'chatuserarg','', $cmd, $rest, 'group' );
+   $HTMLVARS{testmessage}
+      .= &quot;chat/msg: TO($TO) message($message)\n&quot;;
+   return $message   unless  $TO;
+   return undef   unless  $message =~ /\S/;
+
+   if (  $isgroup
+     &amp;&amp;  ! Everything::isApproved( $USER, $TO )  ) {
+      htmlcode( 'insertmessage', '', $message, getId($TO) );
+      return &quot;&quot;;
+   }
+
+   my $V = getVars( $TO );
+   if ( $V-&gt;{ignoredusers} =~ /\|$USER-&gt;{user_id},/ ) {
+     $query-&gt;param( &quot;sentmessage&quot;,
+        q[&lt;i&gt;Couldn't send message, because you are being ignored by ]
+          . linkNode($TO) . q[.&lt;/i&gt;]
+     );
+     return &quot;&quot;;
+   }
+
+   my @rec;
+   if (  $isgroup  ) {
+      return &quot;&quot;   if  htmlcode( 'chatrepeated', '',
+         $message, getId($TO) );
+      @rec = @{ $DB-&gt;selectNodegroupFlat($TO) };
+      $message = &quot;To [id://$TO-&gt;{node_id}]: &quot; . $message;
+   } else {
+      push @rec, getId($TO);
+   }
+
+   my $sent;
+   foreach my $for (  @rec  ) {
+      next if $sent-&gt;{ getId($for) }++;
+      htmlcode( 'insertmessage', $message, getId($for) );
+   }
+   return &quot;&quot;;</code>
+  <nodeupdated>2005-06-18 19:31:04</nodeupdated>
+</node>

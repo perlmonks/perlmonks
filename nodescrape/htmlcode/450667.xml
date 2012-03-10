@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="450667" title="ParseLinksInContent" created="2005-04-23 05:29:56" updated="2005-08-11 23:30:11">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+#[ParseLinksInContent]
+
+# Note this is intended to be the canonical parser for PM content
+#  intended to replace most of [{ParseLinks}], [{ParseLinksInString}]
+#  [{ParseLinksInNodeField}], and [{ParseLinksInChatter}]
+my ( $text, %opts ) = @_;
+
+# Currently supported %opts:
+#   id              =&gt; id used for readmore, spoiler and dl link support
+#                      THE ID OF THE NODE BEING RENDERED
+#   node_id         =&gt; the current node id (defaults to $NODE-&gt;{node_id})
+#   do_spoiler      =&gt; defaults to true, determines if spoiler handling occurs
+#   do_perlfunc     =&gt; defaults to true, determines if perlfunc handling occurs
+#   do_readmore     =&gt; defaults to true, determines if readmore handling occurs
+#   readmore_remove =&gt; handle readmores specially
+#   overridefilter  =&gt; used for changing filtering behaviour.
+
+#   approvedtags    =&gt; name of setting, or settings hash which will be used
+#                      instead of the default 'approved html tags'
+#   bookscan        =&gt; if true will scan for book references
+#   pmlinkparser    =&gt; name of htmlcode to use for parsing pmlinks
+#                      overrides default of handleLinks()
+#   simplecode      =&gt; if true then CB style code escaping occurs.
+#   no_dl           =&gt; do not show download links.
+#   preview         =&gt; in preview mode
+#   parsecode       =&gt; do superdoc style code parsing.
+#   nodetype        =&gt; used for parsecode
+#   htmlnest        =&gt; if present overrides users htmlnest rules.
+#   htmlerror       =&gt; if present overrides users htmlerror rules.
+
+#
+# *** NOTE ABOUT 'id' &amp; 'node_id' ***
+# 'id' is the id of the node being rendered. Wheras node_id is the id of the
+# node being _displayed_. Do not confuse them. Readmore support, auto download
+# link supprt, and spoiler support all require a valid 'id' if the string being
+# rendered isn't content from the node being displayed ($NODE).
+# IE, if SOPW is the node being displayed, then for each node rendered below
+# the 'id' would be set as appropriate. If one of those nodes was viewed directly
+# then 'id' would not be set.
+#
+# OTOH, 'node_id' is just the $NODE-&gt;{node_id} in almost every situation, and
+# defaults this way.
+
+$opts{do_spoiler}=1
+  unless defined $opts{do_spoiler};
+
+$opts{do_readmore}=1
+  unless defined $opts{do_readmore};
+
+$opts{do_perlfunc}=1
+  unless defined $opts{do_perlfunc};
+
+$opts{node_id} = getId($NODE)
+  unless $opts{node_id};
+
+my $node_id = $opts{node_id};
+# used by both spoiler and readmore handling and also code d/l link support.
+my $item_id = $opts{id};
+
+### PARSECODE  ###
+my ($start,$end)=("","");
+if ($opts{parsecode} and $opts{nodetype}) {
+   $text= parseCode( $text )
+      unless grep $_ eq $opts{nodetype},
+         qw/sourcecode snippet/;
+
+   if ($opts{nodetype}=~/superdoc/i &amp;&amp;
+       $text=~m,
+         ^
+         (\s*(?:&lt;![^&gt;]*&gt;\s*)?&lt;html[^&gt;]*&gt;.*?&lt;body[^&gt;]*&gt;)
+         (.*?)
+         (&lt;/body&gt;\s*&lt;/html&gt;\s*)
+         $
+        ,ixs
+   ){
+       ($start,$text,$end)=($1,$2,$3);
+   }
+}
+
+### BOOKSCAN ###
+if ( $opts{bookscan} ) {
+    $HTMLVARS{buybook} ||= $text =~ /(book)|(reference)/i;
+}
+
+### CONVERT CODE ###
+my $partnum;
+$text =~ s{(&lt;(c(?:ode)?)&gt;(.*?)&lt;/\2&gt;)}{
+
+    my $whole = $1;
+    my $code = $3;
+
+    $HTMLVARS{code} .= $whole
+      if $opts{do_perlfunc};
+
+    if ($opts{simplecode}) {
+        "&lt;tt&gt;" . $q-&gt;escapeHTML($code) . "&lt;/tt&gt;"
+    } elsif(  $HTMLVARS{codereplaceoff}  ) {
+        $whole;
+    } else {
+        my $dllink;
+        if (!$VARS-&gt;{no_emded_code_dl} &amp;&amp; !$opts{no_dl}) {
+              $dllink = linkNode($item_id||$node_id, "&amp;#91;download&amp;#93;",
+                            { displaytype =&gt; 'displaycode',
+                              abspart =&gt; 1,
+                              part =&gt; ++$partnum
+                            });
+              if(Everything::isApproved($USER, getNode('editors','usergroup'))) {
+                  $dllink .= ' ' . linkNode(
+                      $item_id||$node_id, "&amp;#91;add readmore&amp;#93;",
+                      { 
+                          op   =&gt; 'addreadmore',                            
+                          part =&gt; $partnum,
+                      }
+                  );  
+              }                            
+        }
+        htmlcode( 'wrapcode','', $code, $dllink,$opts{preview});
+    }
+}seig;
+
+
+
+### SPOILER ###
+if ( $opts{do_spoiler} ) {
+    my $spoiler_pat = "%TEXT%"; # this value should be overriden below
+    my $spoiler_style = $VARS-&gt;{spoiler_style} || 'link';
+    my $count;
+    my $donefirst;
+    while ( $text =~ m{&lt;spoiler&gt;((?:[^&lt;]+|&lt;(?!/?spoiler&gt;))*?)&lt;/spoiler&gt;}sgi ) {
+        $count++
+    }
+    if ($count) {
+        my %show;
+        if (my $show_spoilers=$q-&gt;param('showspoiler')) {
+            $show{$_}++ for split /,/,$show_spoilers;
+        }
+
+        my $rel_id= $item_id || $node_id;
+        if ($spoiler_style eq 'link') {
+            #[Reveal this spoiler] or all spoilers [in this node].
+            #Reveal [only this spoiler] or [only this node]
+            #  or all [in this thread].
+
+            #[Reveal this spoiler] or [only this spoiler]
+
+            my $addthis= linkNode($node_id,'Reveal this spoiler',
+                            {
+                                showspoiler =&gt; join (",","$rel_id-N-U-M",keys %show)
+                            }
+                       );
+            my $thread=linkNode($node_id,'in this thread',{spoil=&gt;1});
+            if ( $count &gt;1 ) {
+                my $only=linkNode($node_id,'only this spoiler',
+                            {showspoiler=&gt;"$rel_id-N-U-M"});
+                my $addnode=linkNode($node_id,'in this node',
+                        {showspoiler=&gt;join (",",$rel_id,
+                            grep { !/^$rel_id(-|$)/ } keys %show)});
+                my $onlynode=linkNode($node_id,'reveal only this node',
+                        {showspoiler=&gt;"$rel_id"});
+
+                $spoiler_pat = "&lt;div class = 'spoil_link'&gt;&amp;lt;"
+                       . "$addthis\{ or all spoilers $addnode "
+                       . "or all $thread}"
+                       . "&lt;!--\n%TEXT%\n--&gt;&amp;gt;"
+                       . "&lt;/div&gt;";
+             } else {
+                $spoiler_pat = "&lt;div class = 'spoil_link'&gt;&amp;lt;"
+                       . "$addthis or all $thread"
+                       . "&lt;!--\n%TEXT%\n--&gt;&amp;gt;"
+                       . "&lt;/div&gt;";
+             }
+        } elsif ($spoiler_style eq 'table') {
+            $spoiler_pat = "&lt;table&gt;&lt;tr&gt;&lt;td class='spoiler'&gt;".
+                       "%TEXT%".
+                       "&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;";
+        } elsif ($spoiler_style eq 'div' or $spoiler_style eq 'span') {
+            $spoiler_pat = "&lt;$spoiler_style class='spoiler'&gt;%TEXT%&lt;/$spoiler_style&gt;";
+        }
+        # now allow ;spoil=1 to override whatever setting they have.
+        my $reveal_pat="&lt;div class = 'spoiled'&gt;%TEXT%&lt;/div&gt;";
+        if ($q-&gt;param('spoil') or $spoiler_style eq 'reveal') {
+            $spoiler_pat=$reveal_pat;
+        }
+        # Question: why isnt this a /g modifier?
+        my $num;
+        while ( $text =~ m{&lt;spoiler&gt;((?:[^&lt;]+|&lt;(?!/?spoiler&gt;))*?)&lt;/spoiler&gt;}si ) {
+            my $spoiler = $1;
+            ++$num;
+            my $show = $show{$rel_id} || $show{"$rel_id-$num"};
+            my $repl;
+            if ($show) {
+                $repl=$reveal_pat;
+            } else {
+                $repl=$spoiler_pat;
+                $repl =~ s/-N-U-M/-$num/;
+                $repl =~ s/\{([^}]+)\}/$donefirst ? "" : $1/ge;
+                $donefirst++;
+            }
+            $repl =~ s/%TEXT%/$spoiler/;
+            $text =~ s{&lt;spoiler&gt;((?:[^&lt;]+|&lt;(?!/?spoiler&gt;))*?)&lt;/spoiler&gt;}{$repl}si;
+        }
+    }
+}
+
+### PERLFUNCADDER ###
+# XXX this should be reworked. [demerphq]
+if ($opts{do_perlfunc}) {
+  htmlcode( "perlfuncadder" );
+}
+
+### READMORE ###
+if ( $opts{do_readmore} ) {
+  $text = htmlcode( 'handle_readmore', '',
+    $item_id||$node_id, $text, 0, $opts{readmore_remove}
+  );
+}
+
+
+### PM LINKS ##
+my $special={
+              142755 =&gt; 'linkHandler',   # [tye&amp;nbsp;] for testing
+              # 108447 =&gt; "demerphq's linkparser",  # [demerphq] for testing
+            };
+my $parser = $special-&gt;{$node_id} || $opts{pmlinkparser};
+$text=htmlcode('convert_links_to_html','',$text,$parser);
+
+
+### FILTER APPROVED TAGS ###
+# XXX NOTE: we cache the approved filter in HTMLVARS
+my $approved;
+my $overridefilter = $opts{overridefilter};
+$overridefilter="" unless defined $overridefilter;
+
+if ( $opts{approvedtags} ) {
+    $approved = $opts{approvedtags};
+    unless (ref $approved) {
+        $approved = getVars( getNode( $approved, 'setting' ) )
+    }
+} else {
+    $HTMLVARS{'approved html tags setting'} ||=
+        getVars( getNode('approved html tags','setting') );
+    $approved = $HTMLVARS{'approved html tags setting'};
+}
+
+# $approved is now a hashref for sure
+if( ref $overridefilter ) {
+    $approved-&gt;{$_} = $overridefilter-&gt;{$_}
+        for keys %$overridefilter;
+} elsif( $overridefilter eq 'allowImg' ) {
+    $approved-&gt;{img} = 'alt,border,height,src,width'
+        unless exists $approved-&gt;{img};
+}
+
+unless ( $overridefilter eq "override" ) {
+    local $VARS-&gt;{htmlnest}=
+        exists $opts{htmlnest} ? $opts{htmlnest} : $VARS-&gt;{htmlnest};
+    local $VARS-&gt;{htmlerror}=
+        exists $opts{htmlerror} ? $opts{htmlerror} : $VARS-&gt;{htmlerror};
+    $text = htmlScreen( $text, $approved );
+}
+
+### THATS ALL FOLKS! ###
+return $start.$text.$end;
+</field>
+</data>
+</node>

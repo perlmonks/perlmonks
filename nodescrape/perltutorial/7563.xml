@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="7563" title="Reading from a database" created="2000-04-13 22:41:53" updated="2005-08-15 13:44:02">
+<type id="956">
+perltutorial</type>
+<author id="2329">
+stephen</author>
+<data>
+<field name="doctext">
+&lt;P&gt;The easiest way to read data from a database with Perl is by using the DBI module. DBI is available from CPAN, and is
+quite possibly already installed on your system.&lt;/P&gt;
+
+&lt;P&gt;For those in a hurry, here's the quick answer:&lt;/P&gt;
+&lt;CODE&gt;
+use strict;
+
+use DBI;
+
+# Connect to the database
+# See footnote 1
+my $dbh = DBI-&gt;connect('DBI:mysql:my_database', 'my_username', 'my_password')
+    or die "Couldn't open database: $DBI::errstr; stopped";
+
+# Prepare the SQL query for execution
+my $sth = $dbh-&gt;prepare(&lt;&lt;End_SQL) or die "Couldn't prepare statement: $DBI::errstr; stopped";
+SELECT field_1, field_2, field_3 FROM my_table WHERE field_1 = 'my_condition'
+End_SQL
+
+# Execute the query
+$sth-&gt;execute() or die "Couldn't execute statement: $DBI::errstr; stopped";
+
+# Fetch each row and print it
+while ( my ($field1, $field2, $field3) = $sth-&gt;fetchrow_array() ) {
+     print STDOUT "Field 1: $field1  Field 2: $field2  Field 3: $field3\n";
+}
+
+# Disconnect from the database
+$dbh-&gt;disconnect();
+
+&lt;/CODE&gt;
+
+&lt;H2&gt;In Detail&lt;/H2&gt;
+
+&lt;P&gt;&lt;B&gt;DBI&lt;/B&gt; is Perl's &lt;B&gt;D&lt;/B&gt;ata&lt;B&gt;B&lt;/B&gt;ase &lt;B&gt;I&lt;/B&gt;nterface.
+There are many different databases: Oracle, mSQL, MySQL, Ingres...
+even files containing data separated by columns could be considered databases. DBI works with practically all
+of them.
+
+&lt;P&gt;To get information from a database, typically we have to:
+&lt;UL&gt;
+&lt;LI&gt;Connect to the database
+&lt;LI&gt;Prepare a request telling the database what information we want
+&lt;LI&gt;Send the request to the database
+&lt;LI&gt;Read the information out of the database
+&lt;/UL&gt;
+
+At the same time, we need to constantly make sure that all is well with our
+database connection. We'll begin by examining the code snippet above in
+detail, then move on to making your database code efficient, robust,
+and elegant. (Well, at least two of those.)
+
+&lt;P&gt;This document assumes that you know enough about SQL to
+write your own SELECT statement. I don't go into too much detail
+on the internals of DBI; get the DBI book for more information.
+&lt;/P&gt;
+
+&lt;H3&gt;How DBI Works&lt;/H3&gt;
+&lt;P&gt;There are many different databases out there, and each
+one has its own way of communicating. For that reason, DBI
+requires a &lt;B&gt;database driver&lt;/B&gt; module to talk to the database. The driver
+module handles all of the details about connecting to and communicating with
+the database. DBI sits on top of the driver; its job is to
+make reading from (and writing to) all databases as similar
+as possible. That way, if your project grows from something
+that could be handled with mSQL to something needing Oracle,
+you can make that change without altering the code very much.
+&lt;/P&gt;
+&lt;P&gt;Database driver modules are Perl modules like any other,
+and often they contain documentation. They are all inside
+the root package DBD. So, to get information on an Oracle
+driver you've installed, you can type:
+&lt;CODE&gt;
+perldoc DBD::Oracle
+&lt;/CODE&gt;
+&lt;/P&gt;
+&lt;P&gt;
+Other than installing the module, and possibly reading the
+documentation, you rarely need to deal directly with the database
+driver module. DBI handles all of that.&lt;/P&gt;
+
+&lt;H3&gt;Connecting To The Database&lt;/H3&gt;
+
+&lt;CODE&gt;
+
+# Connect to the database
+my $dbh = DBI-&gt;connect('DBI:mysql:my_database', 'my_username', 'my_password')
+    or die "Couldn't open database: '$DBI::errstr'; stopped";
+
+&lt;/CODE&gt;
+
+&lt;P&gt;In order to get information out of the database, 
+you must first connect to it. Since DBI deals with many different
+kinds of databases, you need to tell it what kind of database you have
+before it can connect to it. Also, you'll need to give it your username and password.
+&lt;/P&gt;
+
+&lt;P&gt;The string 'DBI:mysql:my_database' is the &lt;I&gt;connect string&lt;/I&gt;. Different databases
+accept different formats for the connect string, but the usual format is:
+&lt;BLOCKQUOTE&gt;DBI&lt;B&gt;:&lt;/B&gt;&lt;I&gt;driver&lt;/I&gt;&lt;B&gt;:&lt;/B&gt;&lt;I&gt;database&lt;/I&gt;&lt;/BLOCKQUOTE&gt;
+
+&lt;P&gt;The 'driver' is the type of database system you have: 'Oracle', 'mysql', etc.
+'Database' is the name of the database. Some database systems don't have names
+for individual databases; you can leave those blank. 
+&lt;/P&gt;
+
+&lt;P&gt;&lt;I&gt;'my_username'&lt;/I&gt; and &lt;I&gt;'my_password'&lt;/I&gt;
+are the username and password that you use to access the
+database system. These are not the username and password that
+you use to log in to your account! Some databases don't need
+a special username and password; in that case, leave them out.
+Check out the driver documentation for details.&lt;/P&gt;
+
+&lt;P&gt;If the connection fails for some reason, connect() will
+return false, and DBI will put its error message into $DBI::errstr.
+It's important to include that 'or die' in the statement,
+or else if there are any problems with your database, they
+won't show up until deep inside your program, and you'll waste
+hours trying to debug it.
+&lt;/P&gt;
+
+&lt;H3&gt;Preparing And Executing The Query&lt;/H3&gt;
+
+&lt;P&gt;Next, you need to create a query to send to the database,
+then send it to the database.&lt;/P&gt;
+
+&lt;P&gt;You prepare a query using the &lt;I&gt;prepare&lt;/I&gt; statement.
+Its syntax is pretty simple:
+&lt;CODE&gt;
+my $sth = prepare(q{SELECT foo FROM bar WHERE baz='bap'})
+   or die "Couldn't prepare statement: $DBI::errstr; stopped";
+&lt;/CODE&gt;
+&lt;/P&gt;
+&lt;P&gt;&lt;I&gt;$sth&lt;/I&gt; here is a &lt;I&gt;statement handle&lt;/I&gt;. You're going
+to use it to get all of your information from the database.
+&lt;/P&gt;
+
+&lt;P&gt;Next, to send your query to the database, use the execute()
+method on the statement handle:
+&lt;CODE&gt;
+$sth-&gt;execute() or die "Couldn't execute statement: $DBI::errstr; stopped";
+&lt;/CODE&gt;
+
+Again, it's important to put the "or die" on the end of the statement.
+
+&lt;H3&gt;Reading Data From The Database&lt;/H3&gt;
+
+&lt;P&gt;Now that you've sent the query, your database will grind a bit
+and spit out the rows that satisfy it. To read the data from
+those rows, you need to fetch them, one row at a time. There
+are three methods that you can use to fetch the data: fetchrow_array(),
+fetchrow_arrayref(), and fetchrow_hashref(). These methods are all
+similar. Each time that you call them, they'll return the data
+for a row returned by the query. When there are no more rows left,
+they'll return a false value. Fetchrow_array() returns each row
+as an array of scalar values; it returns an empty list when it's done. 
+It's generally used like so:
+
+&lt;CODE&gt;
+# Fetch each row and print it
+while ( my ($field1, $field2, $field3) = $sth-&gt;fetchrow_array() ) {
+     print STDOUT "Field 1: $field1  Field 2: $field2  Field 3: $field3\n";
+}
+&lt;/CODE&gt;
+
+Fetchrow_arrayref() is similar. It returns each row as a reference
+to an array. This method is slightly more efficient than calling the
+fetchrow_array() method, since we don't need to spend time and energy copying the
+array values. Here's how it's used:
+
+&lt;CODE&gt;
+# Fetch each row and print it-- fetchrow_arrayref
+while ( my $fields = $sth-&gt;fetchrow_arrayref() ) {
+     print STDOUT "Field 1: $fields-&gt;[0]  Field 2: $fields-&gt;[1]  Field 3: $fields-&gt;[2]\n";
+}
+&lt;/CODE&gt;
+
+Fetchrow_hashref is one of the most flexible of these methods.
+It returns each row as a reference to a hash. The keys of the hash
+are the names of the columns, and the values are the values of that
+column for this particular row. Use it like so:
+
+&lt;CODE&gt;
+# Fetch each row and print it-- fetchrow_hashref
+while ( my $field_hash = $sth-&gt;fetchrow_hashref() ) {
+     print STDOUT "Field 1: $field_hash-&gt;{'field1'}  Field 2: $field_hash-&gt;{'field2'}  Field 3: $field_hash-&gt;{'field3'}\n";
+}
+&lt;/CODE&gt;
+
+With this flexibility comes some inefficiency, though-- the
+computer uses some time creating the hash table, and looking things up in the hash
+takes longer than finding them in an array. Still, it's very useful for
+applications where efficiency isn't super-important.
+&lt;/P&gt;
+
+&lt;P&gt;Which brings us to...&lt;/P&gt;
+
+&lt;H2&gt;Elegance, Efficiency, and Robustness&lt;/H2&gt;
+
+&lt;P&gt;All of the above is fine when you know precisely what the query
+will be in advance. What about when you need to create a query where
+one or two of the variables might change? For example, say that you're
+writing an application that looks up prices for furniture in a database.
+The user enters the name of the item of furniture,
+the program sends the query to the database, and bammo, you've got the price.
+(Sorry, I'm shopping for sofas right now and getting a bit obsessed.)
+How do you do it?&lt;/P&gt;
+
+&lt;P&gt;Well, one way would be to create a new SQL statement each time
+you run the query. This will mostly work, but it's not recommended:
+
+&lt;CODE&gt;
+# A bad way of doing it
+while (my $furniture_name = &lt;STDIN&gt;) {
+    chomp($furniture_name);
+    my $sth = $dbh-&gt;prepare("SELECT price FROM furniture_prices WHERE furniture_name='$furniture_name'")
+       or die "Couldn't prepare: '$DBI::errstr'; stopped";
+    $sth-&gt;execute() or die "Couldn't execute: '$DBI::errstr'";
+    my ($price) = $sth-&gt;fetchrow_array();
+    print STDOUT "Item: $furniture_name Price: $price\n";
+}
+&lt;/CODE&gt;
+
+&lt;P&gt;What's the problem with this? (Other than that there's no user interface.)
+Well, what if one of the chairs is a "Tess of the D'Ubervilles Chair"?
+Then we'd suddenly get an error, as the apostrophe would get read as an
+SQL end-quote. The second problem is efficiency. The computer
+must waste time in every query preparing a
+statement which is almost exactly like the statement it ran
+a second ago.&lt;/P&gt;
+
+&lt;P&gt;How can we solve these problems? Well, DBI allows the use of things called &lt;I&gt;placeholders&lt;/I&gt; in statements.
+Placeholders tell the database, "at execution time, we're going to plug a value into here."
+Then, you pass the values to fill into the placeholders using
+the execute() command.
+Using placeholders, the code would look like this:
+
+&lt;CODE&gt;
+# A better way of doing it
+my $sth = $dbh-&gt;prepare("SELECT price FROM furniture_prices WHERE furniture_name=?")
+    or die "Couldn't prepare: '$DBI::errstr'; stopped";
+
+while (my $furniture_name = &lt;STDIN&gt;) {
+    chomp($furniture_name);
+    $sth-&gt;execute($furniture_name) or die "Couldn't execute: '$DBI::errstr'";
+    my ($price) = $sth-&gt;fetchrow_array();
+    print STDOUT "Item: $furniture_name Price: $price\n";
+}
+&lt;/CODE&gt;
+
+There, the statement handle is only prepared once, and we
+pass $furniture_type via the execute() method. Plus, when placeholders
+are used, DBI and the driver know enough to escape any troublesome
+characters like "'".&lt;/P&gt;
+
+&lt;P&gt;All of the above works relatively quickly if there's only
+one row in the response. But what if we wanted to print out a list
+of all of the different kinds of loveseats in the database? One might write something
+like this:
+&lt;CODE&gt;
+# One way of reading multiple rows
+my $sth = $dbh-&gt;prepare("SELECT furniture_name, price FROM furniture_prices WHERE furniture_type=?")
+    or die "Couldn't prepare: '$DBI::errstr'; stopped";
+
+while (my $furniture_type = &lt;STDIN&gt;) {
+    chomp($furniture_type);
+    $sth-&gt;execute($furniture_type) or die "Couldn't execute: '$DBI::errstr'";
+    while ( my ($furniture_name, $price) = $sth-&gt;fetchrow_array() ) {
+        print STDOUT "Item: $furniture_name Price: $price\n";
+    }
+}
+&lt;/CODE&gt;
+
+Each fetchrow_array() adds a little bit of extra time. The variable
+has to be read out of the database, copied to the array, then copied
+to the database. It'll work, but you can do it much faster. (And cooler.)
+How? Well, many databases allow you to bind variables directly
+to a statement, so that as soon as the row is fetched, the variable is
+filled in with the column's value.
+
+&lt;P&gt;You bind a scalar variable to a column using the bind_col() method.
+&lt;CODE&gt;
+$sth-&gt;bind_col($column, \$scalar)
+&lt;/CODE&gt;
+So, a better way of doing the above would be:
+&lt;CODE&gt;
+# Faster way of reading multiple rows
+my $sth = $dbh-&gt;prepare("SELECT furniture_name, price FROM furniture_prices WHERE furniture_type=?")
+    or die "Couldn't prepare: '$DBI::errstr'; stopped";
+
+while (my $furniture_type = &lt;STDIN&gt;) {
+    my ($furniture_name, $price);
+    chomp($furniture_type);
+    $sth-&gt;execute($furniture_type) or die "Couldn't execute: '$DBI::errstr'";
+    $sth-&gt;bind_col(1, \$furniture_name);
+    $sth-&gt;bind_col(2, \$price);
+    while ( $sth-&gt;fetch() ) {
+        print STDOUT "Item: $furniture_name Price: $price\n";
+    }
+}
+&lt;/CODE&gt;
+
+That's the most efficient way of reading
+from the database. The fetch() call above is really just a handy alias
+to fetchrow_arrayref(), but since we're not doing anything
+with the array reference, it's clearer to say fetch().
+&lt;/P&gt;
+
+&lt;P&gt;So that's about it. When you're done with the database,
+call $dbh-&gt;disconnect() to close the connection. If you need or want more information
+on DBI, do 'perldoc DBI', go to the &lt;A HREF="http://dbi.perl.org"&gt;DBI pages&lt;/A&gt;.
+&lt;I&gt;Programming the Perl DBI&lt;/I&gt; is an excellent book by Alligator Descartes and Tim Bunce.
+&lt;P&gt;&lt;B&gt;Note 1:&lt;/B&gt; Different database drivers sometimes handle connection differently; at time of writing [DBD::Pg] is one of these. See your database driver documentation for how to connect if you're having problems connecting.&lt;/P&gt;</field>
+</data>
+</node>

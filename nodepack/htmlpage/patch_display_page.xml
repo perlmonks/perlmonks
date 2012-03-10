@@ -1,0 +1,109 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>display</displaytype>
+  <page>[{votehead}]
+&lt;p align=&quot;right&quot;&gt;
+   [% linkNode $NODE-&gt;{author_user} %] submitted a patch for
+   [% linkNode( $NODE-&gt;{for_node} ) %]'s [&quot;$NODE-&gt;{field}&quot;] field 
+   [% $q-&gt;small(linkNode( $NODE-&gt;{for_node},&quot;(code)&quot;,{displaytype=&gt;'viewcode'} ) ) %]
+   &lt;br /&gt;
+   [%
+      linkNode( $NODE, &quot;Edit&quot;, {displaytype=&gt;&quot;edit&quot;} ) . &quot; - &quot;
+         if   canUpdateNode($USER,$NODE);
+   %]
+   [%
+      linkNode(
+         getNode(&quot;Patch lister&quot;,&quot;superdoc&quot;),
+         &quot;Related patches&quot;, {
+            'only_p.for_node' =&gt; $NODE-&gt;{for_node},
+         } );
+   %]
+   [%
+      &quot; - &quot; . linkNode( $NODE, &quot;apply $NODE-&gt;{title}&quot;, {
+         op=&gt;'applypatch', patchnum=&gt;getId($NODE),
+      } )
+         if   isGod($USER);
+   %]
+&lt;/p&gt;[{voteit}]&lt;p&gt;
+   &lt;b&gt;Reason:&lt;/b&gt; [{parselinks:reason}]&lt;br /&gt;
+   &lt;b&gt;Last applied:&lt;/b&gt;
+   [%
+      my $when= $NODE-&gt;{applied};
+      $when= &quot;(never)&quot;   unless $when =~ /[1-9]/;
+      $when.= &quot; &lt;b&gt;By:&lt;/b&gt; &quot;.linkNode($NODE-&gt;{applied_by})
+         if $NODE-&gt;{applied_by};
+      return $when;
+   %]
+[%
+   my $N = getNodeById( $NODE-&gt;{for_node} );
+   my $Ndiff;
+   
+   if (my $against=$q-&gt;param('diff_against')) {
+      $Ndiff=getNodeById( $against )||undef;
+      $q-&gt;param('diff_against','') unless $Ndiff;
+   } 
+
+   my $no_diff = $q-&gt;param('no_diff');
+
+   return &quot;&lt;h3&gt;Access denied&lt;/h3&gt;&quot;
+      if  ! canReadNode( $USER, $N );
+
+   my $field = htmlcode('lookup_patchable_field', '', $N, \my %patchinfo);
+   return &quot;&lt;h3&gt;Illegal patch&lt;/h3&gt;&quot;
+      if  ! isGod($USER) &amp;&amp; ( $field ne $NODE-&gt;{field} || $patchinfo{nopatch} );
+
+   my $old=$Ndiff ? $Ndiff-&gt;{code} : $N-&gt;{ $NODE-&gt;{field} };
+   my $new=$NODE-&gt;{code};
+   my $title=$Ndiff ? &quot;Against &quot; .
+                      linkNode($Ndiff,$Ndiff-&gt;{node_id}) .
+                      &quot; the patch is&quot; 
+                    : '';
+
+   my $html = '';
+
+  if ( $no_diff ) {
+   if ($NODE-&gt;{field} eq &quot;vars&quot;) {
+      $html .= htmlcode( 'displayvars', '', 'code' );
+   } else {
+      $html .= htmlcode( 'listcode', '', 'code' );
+   }
+  }
+  else { 
+   if ($NODE-&gt;{field} eq &quot;vars&quot;) {
+      my $diff = Everything::cmpVarsStrs( $old, $new );
+      $html .=
+         $q-&gt;p( $q-&gt;strong(
+              ($title || &quot;The Patch Is&quot;)
+              . ($diff ? &quot; Different&quot; : &quot; Current&quot;)
+         ))
+         . htmlcode('displayvars','', 'code', $diff ? Everything::unpackVars( $old ) : undef);
+   } else {
+      $html .=
+          htmlcode('diff_strings','',
+                   $old,$new,
+                   {use_query=&gt;1, title=&gt;$title, diff_against=&gt;$Ndiff-&gt;{node_id}||0 }
+                  );
+   }
+  }
+
+   $html .= htmlcode('shownote')
+         .  htmlcode('votefoot')
+         . '&lt;hr /&gt;&lt;b&gt;Related Patches:&lt;/b&gt;&lt;br /&gt;'
+         . htmlcode('listpatches','',
+                              { 
+                                diff    =&gt; $NODE-&gt;{for_node},
+                                old     =&gt; ($Ndiff ? getId($Ndiff) : 0),
+                                new     =&gt; getId($NODE),
+                             });
+
+   return $html;
+
+%]
+
+</page>
+  <author_user>929</author_user>
+  <createtime>2001-09-16 17:39:42</createtime>
+  <node_id>113501</node_id>
+  <title>patch display page</title>
+  <nodeupdated>2005-06-25 08:25:52</nodeupdated>
+</node>

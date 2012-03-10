@@ -1,0 +1,45 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>72221</node_id>
+  <author_user>929</author_user>
+  <title>wikipermissionmenu</title>
+  <createtime>2001-04-12 22:25:35</createtime>
+  <code>my( $field, $label )= @_;
+return   if
+       ! isGod($USER)
+  and      getId($USER) == $HTMLVARS{guest_user}
+       ||  getId($USER) != $$NODE{author_user};
+
+my %labels;
+my @choices;
+my $TITLES = getVars(getNode('level titles', 'setting'));
+for( sort { $a &lt;=&gt; $b } keys %$TITLES ) {
+   push @choices, &quot;lvl_$_&quot;;
+   $labels{ &quot;lvl_&quot; . $_ } = &quot;&gt;=Level $_ ($TITLES-&gt;{$_})&quot;;
+}
+
+my @GROUPS= getNodeWhere( {}, &quot;usergroup&quot; );
+foreach( @GROUPS ) {
+   if(  $DB-&gt;isApproved($USER,$_)  ) {
+       push @choices, &quot;ug_&quot;.getId($_);
+       $labels{ &quot;ug_&quot; . getId($_) } = $_-&gt;{title};
+   }
+}
+if(  $query-&gt;param(&quot;set_$field&quot;)  ) {
+   Everything::printLog(
+     &quot;setting wikipermission: $field to &quot;
+     . $query-&gt;param(&quot;set_$field&quot;) );
+   $$NODE{$field}= $query-&gt;param(&quot;set_$field&quot;);
+   updateNode($NODE,$USER);
+}
+$label= &quot;\u$field&quot;   if  &quot;1&quot; eq $label;
+$label &amp;&amp;= &quot;$label: &quot;;
+return $label
+  . $query-&gt;popup_menu(
+      -name=&gt;&quot;set_$field&quot;,
+      -values=&gt;\@choices,
+      -labels=&gt;\%labels,
+      -default=&gt;$$NODE{$field},
+  );</code>
+  <nodeupdated>2005-06-12 18:38:15</nodeupdated>
+</node>

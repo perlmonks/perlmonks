@@ -1,0 +1,269 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>366346</node_id>
+  <author_user>357600</author_user>
+  <title>handle_xml_view</title>
+  <createtime>2004-06-13 16:54:05</createtime>
+  <code># [handle_xml_view]
+my ( $node, $user ) = @_;
+$node ||= $NODE;
+$user ||= $USER;
+
+use XML::Fling;
+use Everything::Experience;
+
+my $pmdev=$DB-&gt;isApproved( $user, getNode( 'pmdev', 'usergroup' ) );
+my $isGod=$pmdev ? isGod($user) : 0;
+
+=begin comment
+
+This code is responsible for rendering a given $NODE as XML.
+
+The XML comes in essentially three parts.
+
+The first part is the default information that is available for all
+nodes. Such as title, node_id, author etc. This is hardcoded here
+and cannot be changed via a setting.
+
+The second is a set of key/value pairs which we will call 'fields'.
+These are normally the contents of a corresponding key/value in the
+$NODE hash itself. However additional arbitrary fields can be added by
+specifying a code snippet in the appropriate 'allowed fields' setting
+with '_eval' suffixed to the type name as the key.  The code may
+return one or more strings or array refs. If the return is a string
+it is taken as a $NODE key, and if it is an array is is assumed to
+contain a key/value pair to be embedded.
+
+The third is via a type specific and or a node specific setting. This
+is where an htmlcode node is specified for either a given node_id or a
+given type. This code is executed and then the results are added to
+the end of the returned XML packet. A special property of this type of
+dispatch is that at user request it can be used to _totally_ replace
+the normal node XML content. Thus a node can pretend to be another
+from the XML point of view. One node that exploits this behaviour is
+the [Scratch Pad Viewer], which when the 'passthrough=1' parameter is
+provided in the query will display the XML of the requested scratchpad
+and not its own. The setting has to specifically enable this by
+providing a TRUE second value (comma seperated) in the passthrough
+setting.
+
+=cut
+
+
+# *** Useful Vars ***
+my $author  = getNodeById( $node-&gt;{author_user} );
+my $type    = $node-&gt;{type};
+my $t_title = $type-&gt;{title};
+$t_title =~ s/\s+//g;
+
+# *** Passthrough ***
+# Passthrough settings are handled first as they pre-empt everything else.
+# If its inline text (most likely) then its appended to the end.
+#
+# xml passthrough setting contains
+# id   =&gt; htmlcode
+# id   =&gt; htmlcode,passthrough
+# type =&gt; htmlcode
+# type =&gt; htmlcode,passthrough
+
+my @inline_xml;
+my $passthrough=$q-&gt;param('passthrough');
+
+my %passthrough = %{ getVars( getNode( 'xml passthrough setting', 'setting' ) ) };
+my %done_htmlcode;
+for my $key ( &quot;id_&quot;.getId($NODE), &quot;type_&quot;.$t_title ) 
+{
+  foreach my $pfx (($isGod ? 'gods_' : ()),($pmdev ? 'pmdev_' : ()),'') {
+    my $opt=$passthrough{&quot;$pfx$key&quot;};
+    next unless $opt;
+
+    my ( $htmlcode, $is_passthrough, @args ) = split /,/, $opt || '';
+    next if $htmlcode &amp;&amp; $done_htmlcode{$htmlcode}++;
+    unshift @args,&quot;&quot; if @args;
+
+    if ( $htmlcode and $is_passthrough and $passthrough) {
+      $q-&gt;param( 'passthrough', 0 );
+      if ($htmlcode) {
+          my $return;
+          $return = htmlcode($htmlcode,@args) if $htmlcode;
+          return $return if $return;
+      }
+    } elsif ( $htmlcode and !$is_passthrough ) {
+      push @inline_xml, htmlcode($htmlcode,@args);
+    }
+  }
+}
+
+# *** Type Specific Behaviour ***
+#
+# Build a HoA of type/fields. Skip any 'type' ending with _eval
+# which are ${type}_eval =&gt; code for more complex behaviour
+#
+# allowed xml fields contain the following:
+# typename      =&gt; list,of,fields
+# typename_eval =&gt; code to eval
+# special       =&gt; list,of,fields
+#
+# we build the full HoA because some of our rules (user for instance)
+# depend on the 'special' feature.
+#
+
+my %types;
+
+# how much to tell...
+foreach my $setting (
+                   # [use the setting, node ]
+                   # we use getNode() and not a string because its
+                   # self documenting with pm's display mechanism
+                   [ 1, getNode( 'allowed xml fields', 'setting' ) ],
+                   [ $pmdev, getNode('pmdev allowed xml fields', 'setting' ) ],
+                   [ $isGod, getNode('gods allowed xml fields', 'setting' ) ] 
+)
+{
+    my ($ok,$setting_node)=@$setting;
+    last unless $ok;
+    # they are in group so fetch any extra info they get to see
+    my %extra_types=%{ getVars( $setting_node ) };
+    # and merge it in.
+    foreach (keys %extra_types) {
+        push @{$types{$_}},/_eval$/ ? $extra_types{$_}
+                                    : split /,/,$extra_types{$_}||'';
+    }
+}
+
+if ($user-&gt;{title} eq 'de-merphq') {
+  use Data::Dumper;
+  printLog(Dumper(\%types));
+}
+
+
+# now we get the list of fields to add
+my @fields = @{ $types{$t_title} || [] };
+
+# Fields are either a non-ref, in which case they are the key for the $NODE hash
+# being dumped, or they are an anonymous array of two elements, the first which
+# represents the field name, and the second the value.
+
+# Example Special Code
+
+#*user
+# my $user_vars = getVars($node);
+#   map { [ $user_vars, $_ ] } @{ $types{'user_settings'} };
+
+
+# and eval any special stuff into existance
+if (my $eval_array=$types{$t_title.&quot;_eval&quot;}) {
+    foreach my $eval (@$eval_array) {
+        my @add=eval $eval;
+        if ($@) {
+            printLog(&quot;In xml type eval '$eval':$@&quot;);
+        } else {
+            #printLog(&quot;for $t_title got: @add\n&quot;);
+            push @fields,@add;
+        }
+    }
+}
+push @fields, 'reputation'
+    if (($node-&gt;{original_author}  ||  $node-&gt;{author_user}) == $USER-&gt;{node_id})
+       || canUpdateNode($user,$node) 
+       || hasVoted($node,$user);
+
+# Now we start XML production
+
+return &quot;Error creatng fling object&quot;
+  unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle));
+
+$xml-&gt;header(&quot;windows-1252&quot;);
+
+my %nosend;
+if ($q-&gt;param('nosend')) {
+  my @nosend = map { split /,/,$_ } $q-&gt;param('nosend');
+  @nosend{@nosend} = @nosend;
+}
+
+# first the stuff every node gets
+my $update = $node-&gt;{lastupdate} || $node-&gt;{nodeupdated};
+$update =~ s!(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)!$1-$2-$3 $4:$5:$6!;
+$xml-&gt;start(
+    'node',
+    id      =&gt; getId($node),
+    title   =&gt; $node-&gt;{title},
+    created =&gt; $node-&gt;{createtime},
+    updated =&gt; $update,
+);
+$xml-&gt;element( 'type',   id =&gt; getId($type),   $type-&gt;{title} )
+  unless $nosend{'type'};
+$xml-&gt;element( 'author', id =&gt; getId($author), $author-&gt;{title} )
+  unless $nosend{'author'};
+
+# now any fields
+if (!$q-&gt;param('nofields') &amp;&amp; @fields) {
+    $xml-&gt;start('data') unless $xmlstyle{flat};
+    
+    my $csr= $DB-&gt;sqlSelectMany(
+        &quot;word&quot;,
+        &quot;keywords&quot;,
+        &quot;node_id=$NODE-&gt;{node_id}&quot;,
+        &quot;order by rating desc&quot;,
+    );
+    if(  $csr  ) {
+        my $started=0;
+        while(  my $kwd= $csr-&gt;fetchrow_hashref()  ) {
+            $xml-&gt;start('keywords')
+              unless $started++;
+            $xml-&gt;element('keyword',
+              rating=&gt; $kwd-&gt;{rating},
+              $kwd-&gt;{word});
+        }
+        $xml-&gt;end('keywords')
+          if $started;
+    }
+    my %dupe;
+    foreach my $field (@fields) {
+        my ( $name, $data, $parse );
+        if ( ref $field ) {
+            ( $name, $data ) = @$field;
+
+            #$parse=$name=~s/^\*//g;
+        } else {
+            $name = $field;
+            next unless $name;
+            #$parse=$name=~s/^\*//g;
+            $data = $node-&gt;{$field};
+            #next if $name eq 'reputation'
+            #    and !(canUpdateNode( $user, $node ) || hasVoted( $node, $user ));
+        }
+        next if $nosend{$name} || $dupe{$name}++;
+        if ( $q-&gt;param('links') eq 'on' ) # and $parse
+        {
+            $HTMLVARS{linkstagparse} = $data;
+            $data = htmlcode('parselinkstotags');
+        }
+        unless ($xmlstyle{flat}) {
+            $xml-&gt;element( 'field', name =&gt; $name, $data );
+        }
+        else {
+            ( my $tagname = $name ) =~ s/ /_/g;
+            $tagname =~ s/\W//g;
+            $xml-&gt;element( $tagname, field_name =&gt; $name, $data );
+        }
+    }
+    $xml-&gt;end('data') unless $xmlstyle{flat};
+}
+
+
+# add any inline XML as the last
+push @data, @inline_xml
+  if @inline_xml;
+
+$xml-&gt;end('node');
+
+my $data = join '', @data;
+
+htmlcode('postProcessXML', '', \$data); 
+
+# and we are done
+return $data;
+</code>
+  <nodeupdated>2005-08-13 05:56:41</nodeupdated>
+</node>

@@ -1,0 +1,185 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+AutoLoader - load subroutines only on demand
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+The &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; module works with the &lt;STRONG&gt;AutoSplit&lt;/STRONG&gt; module and the
+&lt;CODE&gt;__END__&lt;/CODE&gt; token to defer the loading of some subroutines until they are used rather
+than loading them all at once.
+
+&lt;P&gt;
+To use &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;, the author of a module has to place the definitions of subroutines to be
+autoloaded after an &lt;CODE&gt;__END__&lt;/CODE&gt; token. (See [perlman:perldata|perldata].) The &lt;STRONG&gt;AutoSplit&lt;/STRONG&gt; module can then be run manually to extract the definitions into individual
+files &lt;EM&gt;auto/funcname.al&lt;/EM&gt;.
+
+&lt;P&gt;
+&lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; implements an 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutine. When an undefined subroutine in
+is called in a client module of &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;,
+&lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;'s 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutine attempts to locate the subroutine
+in a file with a name related to the location of the file from which the
+client module was read. As an example, if &lt;EM&gt;POSIX.pm&lt;/EM&gt; is located in
+&lt;EM&gt;/usr/local/lib/perl5/POSIX.pm&lt;/EM&gt;, &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; will look for perl subroutines &lt;STRONG&gt;POSIX&lt;/STRONG&gt; in &lt;EM&gt;/usr/local/lib/perl5/auto/POSIX/*.al&lt;/EM&gt;, where the &lt;CODE&gt;.al&lt;/CODE&gt; file has the same name as the subroutine, sans package. If such a file exists, 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; will read and evaluate it, thus (presumably) defining the needed subroutine. 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; will then
+
+[perlfunc:goto|goto] the newly defined subroutine.
+
+&lt;P&gt;
+Once this process completes for a given funtion, it is defined, so future calls to the subroutine will bypass the 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; mechanism.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Subroutine_Stubs&quot;&gt;Subroutine Stubs&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In order for object method lookup and/or prototype checking to operate
+correctly even when methods have not yet been defined it is necessary to
+``forward declare'' each subroutine (as in &lt;CODE&gt;sub NAME;&lt;/CODE&gt;). See
+[perlman:perlsub|perlsub]. Such forward declaration creates ``subroutine stubs'', which are place
+holders with no code.
+
+&lt;P&gt;
+The AutoSplit and &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; modules automate the creation of forward declarations. The AutoSplit module
+creates an 'index' file containing forward declarations of all the
+AutoSplit subroutines. When the AutoLoader module is 'use'd it loads these
+declarations into its callers package.
+
+&lt;P&gt;
+Because of this mechanism it is important that &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; is always
+[perlfunc:use|use]d and not [perlfunc:require|require]d.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Using_B_AutoLoader_s_AUTOLOAD_S&quot;&gt;Using &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;'s AUTOLOAD Subroutine&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In order to use &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;'s 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutine you &lt;EM&gt;must&lt;/EM&gt;
+explicitly import it:
+
+&lt;P&gt;
+&lt;PRE&gt;    use AutoLoader 'AUTOLOAD';
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Overriding_B_AutoLoader_s_AUTOL&quot;&gt;Overriding &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;'s AUTOLOAD Subroutine&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Some modules, mainly extensions, provide their own 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutines. They typically need to check for
+some special cases (such as constants) and then fallback to &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;'s 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; for the rest.
+
+&lt;P&gt;
+Such modules should &lt;EM&gt;not&lt;/EM&gt; import &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;'s 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutine. Instead, they should define their own 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutines along these lines:
+
+&lt;P&gt;
+&lt;PRE&gt;    use AutoLoader;
+    use Carp;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub AUTOLOAD {
+        my $constname;
+        ($constname = $AUTOLOAD) =~ s/.*:://;
+        my $val = constant($constname, @_ ? $_&amp;#091;0&amp;#093; : 0);
+        if ($! != 0) {
+            if ($! =~ /Invalid/) {
+                $AutoLoader::AUTOLOAD = $AUTOLOAD;
+                goto &amp;amp;AutoLoader::AUTOLOAD;
+            }
+            else {
+                croak &amp;quot;Your vendor has not defined constant $constname&amp;quot;;
+            }
+        }
+        *$AUTOLOAD = sub { $val }; # same as: eval &amp;quot;sub $AUTOLOAD { $val }&amp;quot;;
+        goto &amp;amp;$AUTOLOAD;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+If any module's own 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutine has no need to fallback to the AutoLoader's 
+&lt;FONT SIZE=-1&gt;AUTOLOAD&lt;/FONT&gt; subroutine (because it doesn't have any AutoSplit subroutines), then that module should not use
+ &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; at all.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Package_Lexicals&quot;&gt;Package Lexicals&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Package lexicals declared with [perlfunc:my|my] in the main block of a package using &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; will not be visible to auto-loaded subroutines, due to the fact that the
+given scope ends at the &lt;CODE&gt;__END__&lt;/CODE&gt; marker. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; module using such variables as package globals will
+not work properly under the
+&lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;.
+
+&lt;P&gt;
+The &lt;CODE&gt;vars&lt;/CODE&gt; pragma (see [perlman:perlmod|perlmod]) may be used in such situations as an alternative to explicitly qualifying
+all globals with the package namespace. Variables pre-declared with this
+pragma will be visible to any autoloaded routines (but will not be
+invisible outside the package, unfortunately).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_AutoLoader_vs_B_SelfLoader_&quot;&gt;&lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; vs. &lt;STRONG&gt;SelfLoader&lt;/STRONG&gt;&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; is similar in purpose to &lt;STRONG&gt;SelfLoader&lt;/STRONG&gt;: both delay the loading of subroutines.
+
+&lt;P&gt;
+&lt;STRONG&gt;SelfLoader&lt;/STRONG&gt; uses the &lt;CODE&gt;__DATA__&lt;/CODE&gt; marker rather than &lt;CODE&gt;__END__&lt;/CODE&gt;. While this avoids the use of a hierarchy of disk files and the associated
+open/close for each routine loaded, &lt;STRONG&gt;SelfLoader&lt;/STRONG&gt; suffers a startup speed disadvantage in the one-time parsing of the lines
+after
+&lt;CODE&gt;__DATA__&lt;/CODE&gt;, after which routines are cached.  &lt;STRONG&gt;SelfLoader&lt;/STRONG&gt; can also handle multiple packages in a file.
+
+&lt;P&gt;
+&lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; only reads code as it is requested, and in many cases should be faster, but
+requires a machanism like &lt;STRONG&gt;AutoSplit&lt;/STRONG&gt; be used to create the individual files.  [perlman:ExtUtils::MakeMaker|ExtUtils::MakeMaker] will invoke
+&lt;STRONG&gt;AutoSplit&lt;/STRONG&gt; automatically if &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; is used in a module source file.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;CAVEATS&quot;&gt;CAVEATS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+AutoLoaders prior to Perl 5.002 had a slightly different interface. Any old
+modules which use &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt; should be changed to the new calling style. Typically this just means
+changing a require to a use, adding the explicit &lt;CODE&gt;'AUTOLOAD'&lt;/CODE&gt; import if needed, and removing &lt;STRONG&gt;AutoLoader&lt;/STRONG&gt;
+from &lt;CODE&gt;@ISA&lt;/CODE&gt;.
+
+&lt;P&gt;
+On systems with restrictions on file name length, the file corresponding to
+a subroutine may have a shorter name that the routine itself. This can lead
+to conflicting file names. The &lt;EM&gt;AutoSplit&lt;/EM&gt; package warns of these potential conflicts when used to split a module.
+
+&lt;P&gt;
+AutoLoader may fail to find the autosplit files (or even find the wrong
+ones) in cases where &lt;CODE&gt;@INC&lt;/CODE&gt; contains relative paths, &lt;STRONG&gt;and&lt;/STRONG&gt; the program does [perlfunc:chdir|chdir].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:lib:SelfLoader|SelfLoader] - an autoloader that doesn't use external files.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:49:22</createtime>
+  <node_id>1094</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    package Foo;
+    use AutoLoader 'AUTOLOAD';   # import the default AUTOLOAD subroutine
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    package Bar;
+    use AutoLoader;              # don't import AUTOLOAD, define our own
+    sub AUTOLOAD {
+        ...
+        $AutoLoad</synopsis>
+  <title>perlman:lib:AutoLoader</title>
+  <nodeupdated>2005-08-10 16:31:48</nodeupdated>
+</node>

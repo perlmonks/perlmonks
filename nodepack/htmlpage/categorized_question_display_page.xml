@@ -1,0 +1,113 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>display</displaytype>
+  <page>&lt;font size=&quot;2&quot;&gt;
+  Contributed by [% linkNode($$NODE{original_author}) %]
+  on [% htmlcode( 'parseTimeInString','', $NODE-&gt;{createtime}) %]
+&lt;/font&gt;&lt;br /&gt;
+[%
+  $DB-&gt;isApproved( $USER, getNode('QandAEditors','usergroup') )
+    ?  htmlcode('Q&amp;Adelete')
+    :  &quot;&quot;;
+%]
+[%
+  my $isEditor= $DB-&gt;isApproved($USER,getNode('QandAEditors','usergroup'));
+  my $nodeid= getId($NODE);
+  my $votestr= '';
+  my $PARENT= selectNode( $NODE-&gt;{parent_node} );
+  my $str= qq[
+    &lt;font size=&quot;2&quot;&gt;
+      ] . linkNodeTitle(&quot;Categorized Questions and Answers|Q&amp;A&quot;) . qq[
+      &amp;nbsp;&amp;gt; ] . linkNode($PARENT) . qq[
+    &lt;/font&gt;
+    &lt;p&gt;
+      ] . htmlcode('votehead') . qq[
+      ] . htmlcode('voteit',$nodeid) . qq[
+      &lt;br /&gt;];
+
+  if ( $isEditor or canDeleteNode($USER,$NODE) ) {
+    $str .= qq[&lt;div class=&quot;catqa-commandbox&quot;&gt;];
+
+    $str .= qq[
+      &lt;script language=&quot;javascript&quot;&gt;
+        function confirmDelete(){
+          if(  confirm(&quot;Delete '$$NODE{title}'?&quot;)  ) {
+            parent.location= ]
+              . urlGen({node_id=&gt;getId($NODE),op=&gt;&quot;nuke&quot;}) . qq[;
+          }
+        }
+      &lt;/script&gt;
+      &lt;a href=&quot;javascript: confirmDelete();&quot;&gt;Delete this question...&lt;/a&gt; ]
+    if  canDeleteNode($USER,$NODE);
+
+    $str .= qq[ &amp;mdash; &lt;a href=]
+        . urlGen({ node_id=&gt;getId($NODE), op=&gt;'sopwify' })
+        . qq[&gt;SOPWify!&lt;/a&gt; &amp;mdash; Change category: ]
+        . htmlcode('placequestionincategory')
+    if  $isEditor;
+
+    $str .= qq[&lt;/div&gt;];
+  }
+
+  if(  0 &lt; length $$NODE{doctext}  ) {
+    $str .= qq[&lt;div class=&quot;catq-description&quot;&gt;&lt;p&gt;&lt;h4&gt;Description:&lt;/h4&gt; ]
+          . htmlcode('parselinks','doctext')
+          . qq[&lt;/p&gt;&lt;/div&gt;];
+  }
+  ## $str .= htmlcode('editinvote');
+
+  if(  $isEditor || canUpdateNode($USER,$NODE)
+  and  getId($USER) != $HTMLVARS{default_user}  ) {
+    $str .= qq[
+      &lt;br /&gt;&lt;br /&gt;&lt;b&gt;Title:&lt;/b&gt;&lt;br /&gt;
+      ] . htmlcode('textfield','title') . qq[
+      &lt;br /&gt;&lt;br /&gt;
+      &lt;b&gt;Further Description:&lt;/b&gt; (try to avoid using... keep it short and in the title)&lt;br /&gt;
+      ] . htmlcode('textarea','doctext') . qq[
+      &lt;br /&gt;
+      ] . $query-&gt;submit(&quot;sexisgood&quot;,&quot;submit&quot;);
+  }
+  ####
+  my( @nodes )= getNodeWhere(
+    {parent_node=&gt;getId($NODE)},
+    'categorized answer',
+    'reputation desc'
+  );
+  my @unapproved;
+  if(  @nodes  ) {
+    $str .= qq[&lt;table class=&quot;paneled&quot; width=&quot;100%&quot;&gt;];
+    foreach my $TEMP (  @nodes  ) {
+      $votestr= htmlcode( 'voteit', getId($TEMP) );
+      $votestr .= htmlcode( 'approveQ&amp;A', getId($TEMP) )
+        if $isEditor;
+      $str .= qq[&lt;tr&gt;&lt;td&gt;]
+           . linkNode($TEMP)
+           . &quot;&lt;br /&gt;&quot;
+           . $q-&gt;span(
+                { class =&gt; 'attribution' },
+                join '',
+                    &quot;contributed by &quot;,
+                    linkNode( $TEMP-&gt;{original_author} ),
+                    $isEditor ? ' on '. htmlcode( 'parseTimeInString','', $TEMP-&gt;{createtime}) : '',
+           );
+
+      $str .= $votestr
+             . qq[ &lt;p&gt;]
+             . htmlcode('parseLinksInString',0,getId($TEMP),$TEMP-&gt;{doctext})
+             . qq[&lt;/td&gt;&lt;/tr&gt;];
+    }
+    $str .= qq[&lt;/table&gt;];
+  }
+  $str .= htmlcode('votefoot') . qq[
+    &lt;p&gt;&lt;/p&gt;
+    ] . htmlcode('addnewanswer') . qq[
+    &lt;br /&gt;] . htmlcode('showhints');
+  return $str;
+%]
+</page>
+  <author_user>929</author_user>
+  <createtime>2000-01-08 19:07:57</createtime>
+  <node_id>1887</node_id>
+  <title>categorized question display page</title>
+  <nodeupdated>2005-07-07 12:39:03</nodeupdated>
+</node>

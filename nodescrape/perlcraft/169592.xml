@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="169592" title="Image::Filter::Blur draft" created="2002-05-27 10:36:36" updated="2005-07-22 13:46:42">
+<type id="121">
+perlcraft</type>
+<author id="5993">
+Beatnik</author>
+<data>
+<field name="doctext">
+package Image::Filter::Blur;
+#Oki, so I cheated a bit by using Inline::C instead :)
+#Anyway, I owe alot to the fine folks on inline@perl.org and several monks here (derby, rob_au, zaxo)
+#I have some other filter code lying around
+#I plan to release this stuff to CPAN at some point, might change name tho
+#This is ofcourse a draft, cleaner subs etc should be added later on
+#call it :
+#use Filter::Image::Blur;
+#blur("inputpic.jpg","outputpic.jpg");
+#Using PNG takes a little tweaking :)
+#Anyway, enjoy :)
+#Note: This is a BW based blur
+use 5.006;
+use strict;
+use vars qw($VERSION @ISA @EXPORT);
+use Exporter;
+
+@EXPORT = qw(blur);
+
+$VERSION = '0.01';
+
+use Inline C =&gt; Config =&gt; LIBS =&gt; '-lgd -ljpeg',
+			  AUTO_INCLUDE  =&gt; '#include "gd.h"';
+use Inline C =&gt;&lt;&lt;EOC;
+
+int blur(char* infile, char* outfile)
+{ gdImagePtr im;
+  gdImagePtr imblur;
+  FILE *in, *out;
+  int dimx = 0;
+  int dimy = 0;
+  int w = 0;
+  int h = 0;
+  int index = 0;
+  
+  in = fopen(infile, "rb");
+  im = gdImageCreateFromJpeg(in);
+  fclose(in);
+  dimx = gdImageSX(im);
+  dimy = gdImageSY(im);
+  imblur = gdImageCreate(dimx,dimy);
+  for (w = 0; w &lt; dimx ; w++)
+  { for (h = 0; h &lt; dimy ; h++)
+    { float newfcolor = (  
+      gdImageRed(im,gdImageGetPixel(im,w-1,h-1))+
+      gdImageRed(im,gdImageGetPixel(im,w-1,h))+
+      gdImageRed(im,gdImageGetPixel(im,w-1,h+1))+
+      gdImageRed(im,gdImageGetPixel(im,w,h-1))+
+      gdImageRed(im,gdImageGetPixel(im,w,h))+
+      gdImageRed(im,gdImageGetPixel(im,w,h+1))+
+      gdImageRed(im,gdImageGetPixel(im,w+1,h-1))+
+      gdImageRed(im,gdImageGetPixel(im,w+1,h))+
+      gdImageRed(im,gdImageGetPixel(im,w+1,h+1)) )/9;
+      int newcolor = (int) newfcolor;
+      newcolor = newcolor &gt; 255 ? 255 : (newcolor &lt; 0 ? 0 : newcolor);
+      index = gdImageColorExact(imblur,newcolor,newcolor,newcolor);
+      if (index == -1) { index = gdImageColorAllocate(imblur,newcolor,newcolor,newcolor); }
+      gdImageSetPixel(imblur,w,h,index);
+    }
+  }
+
+  out = fopen(outfile, "wb");
+  gdImageJpeg(imblur, out,-1);
+  fclose(out);
+  gdImageDestroy(im);
+  gdImageDestroy(imblur);
+  return 1;
+}
+EOC
+
+1;
+__END__
+</field>
+</data>
+</node>

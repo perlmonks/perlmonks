@@ -1,0 +1,79 @@
+<node>
+  <doctext>Line-oriented input processing is easy in Perl, thanks to [doc://readline] and its angle bracket syntax as in &lt;c&gt;$line = &lt;STDIN&gt;&lt;/c&gt;.
+However, these popular constructs lack control over the size of what is returned, as has been lamented on [id://238980|several] [id://623579|occasions].
+Such control would be beneficial where data from unreliable sources has to be handled.
+[mod://File::GetLineMaxLength], availiable on CPAN, created by our fellow monk [robmueller], addresses this issue.
+This review discusses [dist://File-GetLineMaxLength-1.00|version 1.00].
+&lt;p&gt;
+The module is [http://search.cpan.org/faq.html|not yet listed in the Catalogue],
+but my guess at its DLSIP status would be [http://search.cpan.org/dlsip?apdOp|adpOp].
+&lt;p&gt;
+&lt;b&gt;Development stage: a - Alpha testing&lt;/b&gt;
+&lt;p&gt;
+The module works only in very special cases, has some serious implementation flaws and documentation issues.
+I'll elaborate below.
+&lt;p&gt;
+&lt;b&gt;Language used: p - Pure Perl&lt;/b&gt;
+&lt;p&gt;
+&lt;b&gt;Support level: d - Developer&lt;/b&gt;
+&lt;p&gt;
+&lt;b&gt;Interface style: O - Object oriented&lt;/b&gt;
+&lt;p&gt;
+&lt;b&gt;Public License: p - Standard-Perl&lt;/b&gt;
+&lt;p&gt;
+&lt;h3&gt;Usage&lt;/h3&gt;
+Example:
+&lt;code&gt;
+local $/ = &quot;\n&quot;;
+my $LIMIT = 1024;
+my $f = File::GetLineMaxLength-&gt;new(\*STDIN);
+my ($line, $tooLong);
+while (length($line = $f-&gt;getline($LIMIT, $tooLong))) {
+    die &quot;line too long&quot; if $tooLong;
+    # process $line
+}
+&lt;/code&gt;
+&lt;p&gt;
+File::GetLineMaxLength adds a layer of buffering to an already opened file connection.
+To read lines, you have to create an object that will hold the state of everything, and repeatedly call the object's &lt;c&gt;getline&lt;/c&gt; method.
+&lt;p&gt;
+The constructor &lt;c&gt;new&lt;/c&gt; takes an existing filehandle and an optional buffer size.
+The input record terminator is taken from &lt;c&gt;$/&lt;/c&gt; at the time of object creation --
+I had rather expected either an explicit parameter or the behaviour of [mod://IO::Handle], which uses &lt;c&gt;$/&lt;/c&gt; dynamically at the time of each &lt;c&gt;getline&lt;/c&gt; call.
+&lt;p&gt;
+The &lt;c&gt;getline&lt;/c&gt; method takes a non-negative integer size limit and optionally a variable.
+This variable will be set by the method to 1 in case the size limit is hit and 0 otherwise.
+A limit of zero means no limit.
+The return value is a string and always defined.
+After reading to the end of file it is (supposed to be) empty.
+There is no distinction between normal end of file and error conditions.
+For the size limitation, line terminator characters are not counted.
+&lt;p&gt;
+If the number of input characters before a line terminator exceeds the given limit, the returned string will have exactly &lt;c&gt;limit&lt;/c&gt; characters and no line terminator, the overflow flag will be set, and the next &lt;c&gt;getline&lt;/c&gt; call will continue where the previous one broke off.
+&lt;h3&gt;Open Issues&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Getline goes into an endless loop if the input file does not end with an end of line character sequence.&lt;/li&gt;
+&lt;li&gt;The input record separator must be a nonempty string.
+Other values of &lt;c&gt;$/&lt;/c&gt; reserved for paragraph mode, file slurp mode or fixed length record mode are neither supported nor detected.&lt;/li&gt;
+&lt;li&gt;The buffering strategy makes the module unsuitable for interactive input or scenarios calling for alternating uses of &lt;c&gt;getline&lt;/c&gt; and other file operations.&lt;/li&gt;
+&lt;li&gt;The POD documentation contains a wrong usage example (a &lt;c&gt;while&lt;/c&gt; loop terminating on the boolean value rather than the size of the result, and wrong filehandle syntax), although it has a nice reference to PerlMonks.&lt;/li&gt;
+&lt;li&gt;Not amusingly, the &lt;c&gt;README&lt;/c&gt; file is unaltered [doc://h2xs] output with mismatched 0.01 version number, going all &quot;blah blah&quot; on us.
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Conclusion&lt;/h3&gt;
+File::GetLineMaxLength populates an important and often underestimated niche: tools aiding in interface robustness.
+It could become useful if it were developed a bit further.
+&lt;p&gt;
+&lt;b&gt;Update:&lt;/b&gt;
+Changed wording about documentation issues. Why has this section no preview button?
+</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>524457</author_user>
+  <createtime>2007-06-30 13:28:20</createtime>
+  <itemdescription>Get lines from a file, up to a maximum line length</itemdescription>
+  <identifier></identifier>
+  <node_id>624225</node_id>
+  <usercomment></usercomment>
+  <title>File::GetLineMaxLength</title>
+  <nodeupdated>2007-06-30 09:28:20</nodeupdated>
+</node>

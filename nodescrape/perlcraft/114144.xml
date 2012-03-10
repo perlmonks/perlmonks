@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="114144" title="shortest-path maze solver" created="2001-09-23 06:07:49" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="59285">
+premchai21</author>
+<data>
+<field name="doctext">
+## Yes, I know it's been done before.  But has it been done this way?
+
+# maze solver - solves a maze (shortest path) from a file or stdin
+#
+# Takes mazes with their headers in the format:
+# Maze #. 1,1-8,8
+# (without the initial '# ')
+# (grid with # being wall and . being floor, entrance at (1,1), exit at (8,8))
+#
+# Note that movement cannot occur diagonally, and that the maze wraps
+# around, so that the top is adjacent to the bottom and the left side
+# is adjacent to the right.  Put walls there if you don't want that.
+# The top left corner is (0, 0).
+# Also note that in the maze file, all whitespace is ignored.
+#
+# Prints out the route in the format (row, col) (row, col) ... inclusive of entrance and exit.
+# If no route exists, exits with code 1 and prints "No route found."
+
+#!/usr/bin/perl -w
+use strict;
+
+my (@maze, $wall, $floor, @in, @out);
+
+chomp ($_ = &lt;&gt;);
+tr/ \n\t\f//d;
+m&lt;^Maze(.)(.)(\d+),(\d+)-(\d+),(\d+)$&gt; ?
+    (($wall, $floor, @in[0,1], @out[0,1]) =
+     ($1, $2, $3, $4, $5, $6)) : die "Invalid maze header; stopped";
+
+while (&lt;&gt;)
+{
+    chomp;
+    tr/ \t\n\f//d;
+    my @F = split//;
+    push @maze, [ ];
+    foreach (@F)
+    {
+	($_ eq $wall) and push @ {$maze[-1]}, [ 0, 0 ];
+	($_ eq $floor) and push @ {$maze[-1]}, [ 1, 0 ];
+	($_ ne $wall and
+	 $_ ne $floor) and die "Unrecognized character: \'$_\'; stopped";
+    }
+}
+
+(grep { scalar @$_ != scalar @ {$maze[0]} } @maze) and
+    die "Number of columns not the same in every row; stopped";
+
+my ($rows, $cols) = (scalar @maze, scalar @ {$maze[0]});
+$maze[$in[0]][$in[1]][0] = 0;
+$maze[$in[0]][$in[1]][1] = 1;
+
+for (;;)
+{
+    if ($maze[$out[0]][$out[1]][1])
+    {
+	my @sol = ();
+	my (@c) = ($out[0], $out[1]);
+	while ($c[0] != $in[0] or $c[1] != $in[1])
+	{
+	    push @sol, [ @c ];
+	    (@c) = ($maze[$c[0]][$c[1]][1][0],
+		    $maze[$c[0]][$c[1]][1][1]);
+	}
+	push @sol, [ $in[0], $in[1] ];
+	@sol = reverse @sol;
+	foreach (@sol)
+	{
+	    print "($$_[0], $$_[1]) ";
+	}
+	print "\n";
+	exit 0;
+    }
+	
+    my ($any) = (0);
+    
+    foreach my $row (0..($rows-1))
+    {
+	foreach my $col (0..($cols-1))
+	{
+	    next if $maze[$row][$col][0];
+	    next unless $maze[$row][$col][1];
+
+	    foreach my $rc ([ $row, $col+1 ],
+			    [ $row+1, $col ],
+			    [ $row, $col-1 ],
+			    [ $row-1, $col ])
+	    {
+		$maze[$$rc[0]][$$rc[1]][0] &amp;&amp; !$maze[$$rc[0]][$$rc[1]][1]
+		    and ($maze[$$rc[0]][$$rc[1]][0] = 0,
+			 $maze[$$rc[0]][$$rc[1]][1] = [ $row, $col ],
+			 $any = 1);
+	    }
+	}
+    }
+    if ($any == 0)
+    {
+	print "No route found.\n";
+	exit 1;
+    }
+}
+</field>
+</data>
+</node>

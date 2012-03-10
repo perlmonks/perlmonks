@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="71714" title="Grammatical Pronunciation of numbers." created="2001-04-11 16:05:21" updated="2005-07-21 01:26:38">
+<type id="121">
+perlcraft</type>
+<author id="7824">
+frankus</author>
+<data>
+<field name="doctext">
+package pronounce_number;
+
+# Package Stuff.
+use Exporter;
+@ISA=(Exporter);
+@EXPORT=('pronounce_number', 'set_format');
+
+my @v = ( [ '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven',
+	'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'],
+	[ '', 'ten', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety' ]);
+my @m = ('', ' million', ' billion', ' trillion', ' quadrillion', ' quintillion');
+my @g = ('', ' thousand');
+my @h=('',' hundred');
+my @and=('',' and ');
+
+my %format = ( space=&gt;'', point=&gt;'point');
+
+sub set_format {
+	%format = @_;
+}
+
+sub integer_grammar($) {
+	my ($u,$t,$h) = reverse(split//,$_[0]);
+	return $v[0]-&gt;[$h].$h[!!$h].$and[!!($h&amp;&amp;($t||$u))].$v[!(1==$t&amp;&amp;($u+=10)&amp;&amp;($t=0))]-&gt;[$t].$format{'space'}.$v[0]-&gt;[$u];
+}
+
+sub float_grammar($) {
+	$_[0]=~s/(\d)/$v[0]-&gt;[$1] /geo;
+	return $_[0];
+}
+
+sub magnitude_grammar {
+	return $g[(($_[0]-1)/3)%2].$m[$_[0]/6 * !!($_[0]%6)].' ';
+}
+
+sub pronounce_integer($) {
+
+	$_=join("",(reverse(split//,$_[0])));
+	my ($i,$n,@l)=(0,"",());
+	foreach $n(/(\d{1,3})/g) {
+		$n=join("",(reverse(split//,$n)));
+		$i+=length($n);
+		push @l,($n &amp;&amp; defined(@l))?magnitude_grammar($i):"",integer_grammar($n);
+	}
+	return join('',reverse(@l));
+}
+
+sub pronounce_float($) {
+	my @n=split/\./,$_[0];
+	return pronounce_integer($n[0])." $format{'point'} ".float_grammar($n[1]);
+}
+
+sub pronounce_ip($) {
+	return join(" $format{'point'} ",map{pronounce_integer($_)}(split/\./,$_[0]));
+}
+
+my @process_array=(\&amp;pronounce_integer,\&amp;pronounce_float,\&amp;pronounce_ip);
+
+sub pronounce_number($) {
+	my $string = $_[0];
+	$string =~ s/,//g;
+	$_ = ($string =~ s/\./\./g);
+	return &amp;{$process_array[($_&lt;=$#process_array)?$_:2]}($string)
+}</field>
+</data>
+</node>

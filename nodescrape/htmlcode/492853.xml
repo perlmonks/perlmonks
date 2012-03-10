@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="492853" title="link_list" created="2005-09-17 08:03:34" updated="2005-09-17 04:03:34">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my %opts=@_;
+
+my @links= map { 
+                 ref $_ 
+                  ? $_ 
+                  : /^\d+$/ 
+                     ? getNodeById($_) 
+                     : $_ 
+           } @{$opts{list}};
+@links= map { 
+   if ( ! ref($_) ) {
+       $_;
+   } elsif ( $DB-&gt;canReadNode($USER,$_) ) {
+     my $title= $opts{titlesub}
+              ? $opts{titlesub}-&gt;($_)
+              : $_-&gt;{title};
+     if ( $_-&gt;{node_id} == $NODE-&gt;{node_id} ) {
+         if ($opts{currentnode} eq 'remove') {
+            ()
+         } else {
+            $title; 
+         }
+     } else {
+         linkNode($_,$title);
+     }
+   } else { 
+     ()
+   }
+} @links;
+my $last=pop @links;
+$opts{class} ||= 'link-list';
+$opts{tag} ||= 'span';
+$opts{blurb} ||= '';
+$opts{join} ||= ' | ';
+$opts{last} ||= $opts{join};
+return 
+  "&lt;$opts{tag} class='$opts{class}'&gt;" 
+. $opts{blurb}
+. (!@links ? $last 
+         : join( $opts{last}, join( $opts{join}, @links ), $last ) 
+  )
+. "&lt;/$opts{tag}&gt;"
+;</field>
+</data>
+</node>

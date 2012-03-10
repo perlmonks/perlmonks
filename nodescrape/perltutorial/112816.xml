@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="112816" title="wxPerl image handling (short &amp; sweet)." created="2001-09-17 06:45:02" updated="2005-08-15 14:49:28">
+<type id="956">
+perltutorial</type>
+<author id="24736">
+boo_radley</author>
+<data>
+<field name="doctext">
+This is the second demonstration program I've written for [http://wxperl.sourceforge.net|wxperl]. Jouke mentioned that my last tutorial was better suited to someone familiar with wxperl than not, and I've tried to keep the same level of detail &amp; explanation here.&lt;br/&gt;
+This script shows how to load and display a file (in this case, a jpeg) into a bitmap control. I found that wxWindows' documentation was unclear on how image handlers interacted with image controls and bitmap controls, and it took a little under two hours to come up with the 9 (!) lines of code to complete the task. It also shows how to implement constraints to keep resized objects looking good.&lt;br/&gt;
+You'll have to change the name of the file being loaded, but otherwise the script should load as-is.&lt;br/&gt;
+&lt;readmore&gt;
+&lt;code&gt;#!/usr/bin/perl
+
+use Wx;
+
+package MyApp;
+#As always, we need to subclass Wx::App and populate it with a frame.
+use strict;
+use vars qw(@ISA);
+
+@ISA=qw(Wx::App);
+
+sub OnInit {
+  my $this = @_;
+  my $frame = MyFrame-&gt;new( "Mini-image demo", [-1,-1], [-1,-1]);
+# if the frame didn't get created, exit early. don't use die here, as it seems to be a little unstable...
+# if OnInit returns false,though, wx will clean up after itself nicely.
+  unless ($frame) {print "unable to create frame -- exiting."; return undef}
+  $frame-&gt;Show( 1 );
+  1; #everything's ok, on with the show.
+}
+
+package MyFrame;
+# subclass wx::Frame to insert the image control.
+use vars qw(@ISA);
+use strict;
+#
+#   All we load here are 2 constants used
+#   to keep the image stretched to the dimensions of the window.
+#
+use Wx qw( wxWidth wxHeight);
+#
+#   Wx::Image loads the Image control and all of the Image handlers.
+#
+use Wx::Image;
+use IO::File;
+@ISA=qw(Wx::Frame);
+
+
+sub new {
+    my $class = shift;
+    my $this = $class-&gt;SUPER::new( undef, -1, $_[0], $_[1], $_[2] );
+
+    #
+    #   replace the filename with something appropriate.
+    #
+    my $file = IO::File-&gt;new( "c:/halo2.jpg", "r" ) or return undef;
+    binmode $file;
+
+    #
+    #   define a handler for jpeg images.
+    #   handlers are half of what translates file formats (.jpg in this case)
+    #   into streams readable by wxBitmap objects for diplay.
+    #   yes, this means you typically can't cram a file's contents into
+    #   a wxBitmap control -- the exception being windows bitmaps.
+    #
+    #   There is a method called 'Wx::Image::FindHandlerType', but I couldn't
+    #   get the thing to work in any way, shape or form.
+    #
+    my $handler = Wx::JPEGHandler-&gt;new();
+
+    #
+    #   wxImages are the other half of getting images displayed --
+    #   they hold the data stream created by a handler.
+    #   Although there's many functions that can be performed with an wxImage,
+    #   all we're interested is turning the stream into a bitmap.
+    #
+    my $image = Wx::Image-&gt;new();
+    my $bmp;    # used to hold the bitmap.
+
+    #
+    #   here we load the file into $image. simple enough.
+    #
+    $handler-&gt;LoadFile( $image, $file );
+    #
+    #   and here, we turn the data in $image into a bitmap, and store in $bmp.
+    #   if the data in $bmp is bad for some reason, $bmp-&gt;Ok() will fail.
+    $bmp = $image-&gt;ConvertToBitmap();
+    if( $bmp-&gt;Ok() ) {
+        #  create a static bitmap called ImageViewer that displays the
+        #  selected image.
+        $this-&gt;{ImageViewer}= Wx::StaticBitmap-&gt;new($this, -1, $bmp);
+    }
+
+    #   At this point, we could just return the frame, and be ok.
+    #   unfortunately, the static bitmap could be *really* static and not
+    #   resize itself when the window's resized, which'd look pretty ugly.
+    #   
+    #   To make sure everything looks ok, we'll assign constraints to 
+    #   Imageviewer.
+    #   Layout constraints determine how controls will appear within the 
+    #   window. They consist of 4 members : left, top, width and height.
+    #   constraints are objects by themselves, and need to be assigned to
+    #   objects in order to have any use. We'll be using this contstraint
+    #   in order to stretch the picture out to the full size of the window.
+    #
+    my $b1 = Wx::LayoutConstraints-&gt;new();
+    # set the upper left corner to absolute [0,0]. 
+    # if there were other controls using constraints, we could change these to 
+    # something like $b1-&gt;left-&gt;RightOf ($widget, 5) to make this control appear
+    # 5 pixels to the right of $widget's constraints.
+    $b1-&gt;left-&gt;Absolute(0);
+    $b1-&gt;top-&gt;Absolute(0);
+    
+    # now set the width and height to 100% each way.
+    
+    $b1-&gt;width-&gt;PercentOf( $this, wxWidth,100);
+    $b1-&gt;height-&gt;PercentOf( $this, wxHeight, 100);
+    
+    
+    #
+    #   Now that all the dimensions of the constraint are complete,
+    #   assign it to ImageViewer.
+    #   
+    $this-&gt;{ImageViewer}-&gt;SetConstraints( $b1 );
+    $this;  # return the frame object to the calling application.
+}
+
+
+package main;
+my $app = MyApp-&gt;new();# create an instance of the Wx::App-derived class
+$app-&gt;MainLoop(); # run
+
+&lt;/code&gt;</field>
+</data>
+</node>

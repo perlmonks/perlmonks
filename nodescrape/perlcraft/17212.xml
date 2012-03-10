@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="17212" title="Some Silly Server Side Seshun Storing Stuffs ... =)" created="2000-06-08 20:52:42" updated="2005-07-20 23:19:38">
+<type id="121">
+perlcraft</type>
+<author id="5272">
+PipTigger</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+#                       # [] = optional, {} = parameter value
+#Usage:   perl pw.pl                #uses all DFalts
+#   pw.pl [-p]{permlevl}            # new nobody session with permlevel perms
+#   pw.pl -r{readlevl} -i{inselevl} -d{delelevl} -u{username} -t{minutes[.seconds]}
+#           -t is timelimit until id expires
+#   pw.pl [-c]{seshunid}            #checkin id and renew timelimit
+#           -c returns 0 if id didn't exist, -1 if expired, -2 if past 4*-t
+#   pw.pl -D{seshunid}              #Deletes id &amp; ret 0 if id not exist, else 1
+#       (perm|read|inse|dele)levl must be an int with &lt; 8 digits if unprefixed
+#       seshunid must be an 8 digit hex number regardless of (-c|-D)
+#   pw.pl -C  will clean out all session files which have expired so the dir
+#       doesn't become too cluttered.  This should probably be a monthly || weekly cron.
+
+#sec min hour mday mon year wday yday isdst -&gt; year yday hour min sec
+my $logd = "seshfilz/";  my @nowt = localtime;
+my @time = ($nowt[5], $nowt[7], $nowt[2], $nowt[1], $nowt[0]);
+my $user = "nobody"; my $sess = $news = $rest = "";
+my $rndm = $read = $inse = $dele = $tlim = 0;
+my $test = 2;
+
+while (!$sess) {
+    $rndm = int rand(16**4);
+    $sess = sprintf "%lx", $rndm;
+    $rndm = int rand(16**4);
+    $sess .= sprintf "%lx", $rndm;
+    while (length($sess) &lt; 8) { $sess = "0" . $sess; }
+    $news = $sess;
+    $sess = "$logd$sess.txt";
+    if (-e $sess) {
+        open CHEK, "&lt;$sess";
+        chomp (@poop = &lt;CHEK&gt;);
+        close CHEK;
+        if (defined $poop[5]) {
+            @oldt = split /\s/, $poop[5];
+            if (($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] == $time[3] &amp;&amp; $oldt[4] &lt; $time[4]) ||
+                ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] &lt; $time[3]) ||
+                ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] &lt; $time[2]) ||
+                ($oldt[0] == $time[0] &amp;&amp; $oldt[1] &lt; $time[1]) ||
+                ($oldt[0] &lt; $time[0])) {
+                unlink "$sess";  #if rand id collides, check if collision sess
+            } else { $sess = ""; } # is expired and if so, use it, else new rand
+        }
+    }
+}
+foreach (@ARGV) {
+    if (m/^-(.)(.*)/) {
+        if ($1 eq "p") { $read = $inse = $dele = $2; }
+        elsif ($1 eq "r") { $read = $2; }
+        elsif ($1 eq "i") { $inse = $2; }
+        elsif ($1 eq "d") { $dele = $2; }
+        elsif ($1 eq "u") { $user = $2; }
+        elsif ($1 eq "t") { 
+            $tlim = $2;
+            if ($tlim =~ /(\d+)\.(\d+)/) { $time[3] += $1; $time[4] += $2; }
+            else { $time[3] += $tlim; }
+            if ($time[4] &gt; 59) { $time[3] += int $time[4]/60; $time[4] %= 60; }
+            if ($time[3] &gt; 59) { $time[2] += int $time[3]/60; $time[3] %= 60; }
+            if ($time[2] &gt; 23) { $time[1] += int $time[2]/24; $time[2] %= 24; }
+            if ($time[1] &gt; 365) { $time[0] += int $time[1]/365; $time[1] %= 365; }
+        } elsif ($1 eq "D") {
+            $news = $2;
+            $sess = "$logd$news.txt";
+            $test = 1;
+            if (!-e $sess) { $test = 0; }
+            else { unlink "$sess"; }
+        } elsif ($1 eq "c") {
+            $news = $2;
+            $sess = "$logd$news.txt";
+            if (!-e $sess) { $test = 0; }
+            else {
+                open POOP, "&lt;$sess";
+                chomp (@oldf = &lt;POOP&gt;);
+                close POOP;
+                ($read, $inse, $dele, $user, $tlim) = @oldf[0..4];
+                if (defined $oldf[5]) {
+                    @oldt = split /\s/, $oldf[5];
+                    if (($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] == $time[3] &amp;&amp; $oldt[4] &lt; $time[4]) ||
+                        ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] &lt; $time[3]) ||
+                        ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] &lt; $time[2]) ||
+                        ($oldt[0] == $time[0] &amp;&amp; $oldt[1] &lt; $time[1]) ||
+                        ($oldt[0] &lt; $time[0])) {
+                        $test = -1; unlink "$sess";
+if ($user eq "super") { $test = -2; }
+# this is just a hack so no delay for super
+                        if ($tlim =~ /(\d+)\.(\d+)/) { $oldt[3] += 3 * $1; $oldt[4] += 3 * $2; }
+                        else { $oldt[3] += 3 * $tlim; }
+                        if ($oldt[4] &gt; 59) { $oldt[3] += int $oldt[4]/60; $oldt[4] %= 60; }
+                        if ($oldt[3] &gt; 59) { $oldt[2] += int $oldt[3]/60; $oldt[3] %= 60; }
+                        if ($oldt[2] &gt; 23) { $oldt[1] += int $oldt[2]/24; $oldt[2] %= 24; }
+                        if ($oldt[1] &gt; 365) { $oldt[0] += int $oldt[1]/365; $oldt[1] %= 365; }
+                        if (($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] == $time[3] &amp;&amp; $oldt[4] &lt; $time[4]) ||
+                            ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] &lt; $time[3]) ||
+                            ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] &lt; $time[2]) ||
+                            ($oldt[0] == $time[0] &amp;&amp; $oldt[1] &lt; $time[1]) ||
+                            ($oldt[0] &lt; $time[0])) {
+                            $test = -2;
+                        }
+                    }
+                }
+                if ($tlim =~ /(\d+)\.(\d+)/) { $time[3] += $1; $time[4] += $2; }
+                else { $time[3] += $tlim; }
+                if ($time[4] &gt; 59) { $time[3] += int $time[4]/60; $time[4] %= 60; }
+                if ($time[3] &gt; 59) { $time[2] += int $time[3]/60; $time[3] %= 60; }
+                if ($time[2] &gt; 23) { $time[1] += int $time[2]/24; $time[2] %= 24; }
+                if ($time[1] &gt; 365) { $time[0] += int $time[1]/365; $time[1] %= 365; }
+            }
+        } elsif ($1 eq "C") {
+            $test = 1;
+            foreach $sfil (glob("$logd*")) {
+                open CHEK, "&lt;$sfil";
+                chomp (@poop = &lt;CHEK&gt;);
+                close CHEK;
+                if (defined $poop[5]) {
+                    @oldt = split /\s/, $poop[5];
+                    if (($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] == $time[3] &amp;&amp; $oldt[4] &lt; $time[4]) ||
+                        ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] == $time[2] &amp;&amp; $oldt[3] &lt; $time[3]) ||
+                        ($oldt[0] == $time[0] &amp;&amp; $oldt[1] == $time[1] &amp;&amp; $oldt[2] &lt; $time[2]) ||
+                        ($oldt[0] == $time[0] &amp;&amp; $oldt[1] &lt; $time[1]) ||
+                        ($oldt[0] &lt; $time[0])) {
+                        unlink "$sfil";
+                    }
+                } else { unlink "$sfil"; } #this wipes ones with no limit too!
+            }
+        }
+    } else {
+        if (length($_) &lt; 8 &amp;&amp; $_ !~ /\D/) { #too lil2b id and has all digits
+            $read = $inse = $dele = $_;
+        } elsif (length($_) == 8) { #checkin session id as only
+            $news = $_;             #  unprefixed 8 digit param
+            $sess = "$logd$news.txt";
+            if (!-e $sess) { $test = 0; }
+            else {
+                open POOP, "&lt;$sess";
+                chomp (@oldf = &lt;POOP&gt;);
+                close POOP;
+                ($read, $inse, $dele, $user, $tlim) = @oldf[0..4];
+                if (defined $oldf[5]) {
+                    @oldt = split /\s/, $oldf[5];
+                    if ($oldt[0] &lt;= $time[0] &amp;&amp; $oldt[1] &lt;= $time[1] &amp;&amp; $oldt[2] &lt;= $time[2] &amp;&amp; $oldt[3] &lt;= $time[3] &amp;&amp; $oldt[4] &lt;= $time[4]) {
+                        unlink "$sess"; $test = -1;
+                    }
+                }
+                if ($tlim =~ /(\d+)\.(\d+)/) { $time[3] += $1; $time[4] += $2; }
+                else { $time[3] += $tlim; }
+                if ($time[4] &gt; 59) { $time[3] += int $time[4]/60; $time[4] %= 60; }
+                if ($time[3] &gt; 59) { $time[2] += int $time[3]/60; $time[3] %= 60; }
+                if ($time[2] &gt; 23) { $time[1] += int $time[2]/24; $time[2] %= 24; }
+                if ($time[1] &gt; 365) { $time[0] += int $time[1]/365; $time[1] %= 365; }
+            }
+        } else {
+            $rest .= "$_ "; #anything not matched above is swallowed into rest
+        }
+    }
+}
+if ($tlim eq "0") { @time = (); }
+if ($test eq "2") {
+    open SFIL, "&gt;$sess";
+    print SFIL "$read\n$inse\n$dele\n$user\n$tlim\n@time\n$rest";
+    close SFIL;
+    print "$news $read $inse $dele $user $tlim @time";
+} else { print "$test"; } #1=success, 0=!-e, -1=tlim expired, -2=4*tlim expired
+</field>
+</data>
+</node>

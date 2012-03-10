@@ -1,0 +1,174 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+sort - sort a list of values 
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>114</author_user>
+  <description>&lt;P&gt;
+Sorts the 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; and returns the sorted list value. If 
+&lt;FONT SIZE=-1&gt;SUBNAME&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; is omitted,
+ [perlfunc:sort|sort()]s in standard string comparison order. If 
+&lt;FONT SIZE=-1&gt;SUBNAME&lt;/FONT&gt; is specified, it gives the name of a
+subroutine that returns an integer less than, equal to, or greater than &lt;CODE&gt;0&lt;/CODE&gt;, depending on how the elements of the array are to be ordered. (The &lt;CODE&gt;&amp;lt;=&amp;gt;&lt;/CODE&gt; and &lt;CODE&gt;cmp&lt;/CODE&gt;
+operators are extremely useful in such routines.) 
+&lt;FONT SIZE=-1&gt;SUBNAME&lt;/FONT&gt; may be a scalar variable name (unsubscripted), in which case the value provides the name of (or a reference to) the actual subroutine to use. In place of a 
+&lt;FONT SIZE=-1&gt;SUBNAME,&lt;/FONT&gt; you can provide a 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; as an anonymous, in-line sort subroutine.
+
+&lt;P&gt;
+In the interests of efficiency the normal calling code for subroutines is
+bypassed, with the following effects: the subroutine may not be a recursive
+subroutine, and the two elements to be compared are passed into the
+subroutine not via &lt;CODE&gt;@_&lt;/CODE&gt; but as the package global variables &lt;CODE&gt;$a&lt;/CODE&gt; and
+&lt;CODE&gt;$b&lt;/CODE&gt; (see example below). They are passed by reference, so don't modify &lt;CODE&gt;$a&lt;/CODE&gt; and &lt;CODE&gt;$b&lt;/CODE&gt;. And don't try to declare them as lexicals either.
+
+&lt;P&gt;
+You also cannot exit out of the sort block or subroutine using any of the
+loop control operators described in [perlman:perlsyn|the perlsyn manpage] or with [perlfunc:goto|goto()].
+
+&lt;P&gt;
+When &lt;CODE&gt;use locale&lt;/CODE&gt; is in effect, &lt;CODE&gt;sort LIST&lt;/CODE&gt; sorts 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; according to the current collation locale. See [perlman:perllocale|the perllocale manpage].
+
+&lt;P&gt;
+Examples:
+
+&lt;P&gt;
+&lt;PRE&gt;    # sort lexically
+    @articles = sort @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # same thing, but with explicit sort routine
+    @articles = sort {$a cmp $b} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # now case-insensitively
+    @articles = sort {uc($a) cmp uc($b)} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # same thing in reversed order
+    @articles = sort {$b cmp $a} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # sort numerically ascending
+    @articles = sort {$a &amp;lt;=&amp;gt; $b} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # sort numerically descending
+    @articles = sort {$b &amp;lt;=&amp;gt; $a} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # sort using explicit subroutine name
+    sub byage {
+        $age{$a} &amp;lt;=&amp;gt; $age{$b};  # presuming numeric
+    }
+    @sortedclass = sort byage @class;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # this sorts the %age hash by value instead of key
+    # using an in-line function
+    @eldest = sort { $age{$b} &amp;lt;=&amp;gt; $age{$a} } keys %age;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub backwards { $b cmp $a; }
+    @harry = ('dog','cat','x','Cain','Abel');
+    @george = ('gone','chased','yz','Punished','Axed');
+    print sort @harry;
+            # prints AbelCaincatdogx
+    print sort backwards @harry;
+            # prints xdogcatCainAbel
+    print sort @george, 'to', @harry;
+            # prints AbelAxedCainPunishedcatchaseddoggonetoxyz
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # inefficiently sort by descending numeric compare using
+    # the first integer after the first = sign, or the
+    # whole record case-insensitively otherwise
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @new = sort {
+        ($b =~ /=(\d+)/)&amp;#091;0&amp;#093; &amp;lt;=&amp;gt; ($a =~ /=(\d+)/)&amp;#091;0&amp;#093;
+                            ||
+                    uc($a)  cmp  uc($b)
+    } @old;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # same thing, but much more efficiently;
+    # we'll build auxiliary indices instead
+    # for speed
+    @nums = @caps = ();
+    for (@old) {
+        push @nums, /=(\d+)/;
+        push @caps, uc($_);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @new = @old&amp;#091; sort {
+                        $nums&amp;#091;$b&amp;#093; &amp;lt;=&amp;gt; $nums&amp;#091;$a&amp;#093;
+                                 ||
+                        $caps&amp;#091;$a&amp;#093; cmp $caps&amp;#091;$b&amp;#093;
+                       } 0..$#old
+               &amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # same thing using a Schwartzian Transform (no temps)
+    @new = map { $_-&amp;gt;&amp;#091;0&amp;#093; }
+        sort { $b-&amp;gt;&amp;#091;1&amp;#093; &amp;lt;=&amp;gt; $a-&amp;gt;&amp;#091;1&amp;#093;
+                        ||
+               $a-&amp;gt;&amp;#091;2&amp;#093; cmp $b-&amp;gt;&amp;#091;2&amp;#093;
+        } map { &amp;#091;$_, /=(\d+)/, uc($_)&amp;#093; } @old;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you're using strict, you &lt;EM&gt;MUST NOT&lt;/EM&gt; declare &lt;CODE&gt;$a&lt;/CODE&gt;
+and &lt;CODE&gt;$b&lt;/CODE&gt; as lexicals. They are package globals. That means if you're in the &lt;CODE&gt;main&lt;/CODE&gt; package, it's
+
+&lt;P&gt;
+&lt;PRE&gt;    @articles = sort {$main::b &amp;lt;=&amp;gt; $main::a} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+or just
+
+&lt;P&gt;
+&lt;PRE&gt;    @articles = sort {$::b &amp;lt;=&amp;gt; $::a} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+but if you're in the &lt;CODE&gt;FooPack&lt;/CODE&gt; package, it's
+
+&lt;P&gt;
+&lt;PRE&gt;    @articles = sort {$FooPack::b &amp;lt;=&amp;gt; $FooPack::a} @files;
+&lt;/PRE&gt;
+&lt;P&gt;
+The comparison function is required to behave. If it returns inconsistent
+results (sometimes saying &lt;CODE&gt;$x&amp;#091;1&amp;#093;&lt;/CODE&gt; is less than &lt;CODE&gt;$x&amp;#091;2&amp;#093;&lt;/CODE&gt; and sometimes saying the opposite, for example) the results are not
+well-defined.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-08-24 18:43:30</createtime>
+  <node_id>344</node_id>
+  <synopsis>&lt;P&gt;
+sort 
+&lt;FONT SIZE=-1&gt;SUBNAME&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt;
+
+&lt;P&gt;
+sort 
+&lt;FONT SIZE=-1&gt;BLOCK&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt;
+
+&lt;P&gt;
+sort 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlfunc:sort</title>
+  <nodeupdated>2005-08-15 14:56:24</nodeupdated>
+</node>

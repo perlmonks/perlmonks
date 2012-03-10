@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="1443" title="showthatpoll" created="1999-12-28 17:08:33" updated="2004-11-17 10:43:11">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my $html = '';
+my $total = 0;
+my $ratio = 1;
+
+my $img = $THEME-&gt;{pollImage};
+$img ||= "redbox.gif";
+my @selections = split( /\r*\n/, $NODE-&gt;{choices} );
+my @numbers = split( /\r*\n/, $NODE-&gt;{numbers} );
+
+$html .= htmlcode( 'ParseLinksInContent','', $NODE-&gt;{prologue} ) if $NODE-&gt;{prologue};
+
+for my $i (  0 .. $#numbers  ) {
+  $numbers[$i] ||= 0;
+  $total += $numbers[$i];
+  $ratio = $numbers[$i]
+    if $ratio &lt; $numbers[$i];
+}
+$ratio = 400/$ratio;
+
+$html .= qq[ &lt;table class="poll"&gt;];
+for my $i (  0 .. $#selections  ) {
+  $selections[$i] =~ s/\[(.*?)\]/handleLinks($1,getId($NODE))/egs;
+  my $width = int($numbers[$i]*$ratio) || 1;
+  my $percent = 0==$total ? 0 : int(($numbers[$i]/$total)*100+0.5);
+  $html .= qq[
+    &lt;tr&gt;&lt;td align="right"&gt;$selections[$i]&lt;br /&gt;&lt;/td&gt;
+    &lt;td&gt;&lt;img src="/images/$img" height="15" width="$width" alt="[bar]" /&gt;&amp;nbsp;$numbers[$i]/$percent%&lt;/td&gt;&lt;/tr&gt;];
+}
+$html .= qq[
+    &lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td align="right"&gt;&lt;b&gt;$total total votes&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;\n];
+return $html;</field>
+</data>
+</node>

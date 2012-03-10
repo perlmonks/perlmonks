@@ -1,0 +1,527 @@
+<node>
+  <doctext>&lt;h2&gt;The Motivation&lt;/h2&gt;
+My first real job assignment out of college was to
+deliver a suped up front-end for an Access database
+file implemented in Cold Fusion. That was when a very
+important lesson that I had been taught reared its
+ugly head at me: &quot;seperate your interface from your
+implementation&quot;. This mantra has more than one meaning
+- in this particular scenario it meant don't mix the
+business rules with the presentation documents.
+&lt;p&gt;
+What did I do wrong? I used ColdFusion to generate key
+HTML elements - I painted myself in a corner.  When the
+person who wrote the HTML needed to change something,
+I was the one who did the changing. I had just assigned
+myself a new job on top of the one I had with no extra pay!
+&lt;p&gt;
+That's what [kobe://HTML::Template] is all about - the ability
+to keep your Perl code decoupled from your HTML pages.
+Instead of serving up HTML files or generating HTML
+inside your Perl code, you create templates - text
+files that contain HTML and special tags that will
+be substituted with dynamic data by a Perl script.
+&lt;p&gt;
+If you find yourself lacking as a web designer or generally
+couldn't care less, you can give your templates to a web
+designer who can spice them up. As long as they do not
+mangle the special tags or change form variable names,
+your code will still work, providing your code worked 
+in the first place. :P
+&lt;p&gt;
+&lt;hr align=center&gt;
+&lt;h2&gt;The Tags&lt;/h2&gt;
+HTML::Template provides 3 kinds of tags:
+&lt;ul&gt;
+&lt;li&gt;variables: &amp;lt;TMPL_VAR&amp;gt;
+&lt;li&gt;loops: &amp;lt;TMPL_LOOP&amp;gt;
+&lt;li&gt;conditionals: &amp;lt;TMPL_IF&amp;gt; &amp;lt;TMPL_UNLESS&amp;gt; &amp;lt;TMPL_ELSE&amp;gt;
+&lt;/ul&gt;
+&lt;b&gt;Variables&lt;/b&gt; and conditionals are very simple - a variable
+tag such as &amp;lt;TMPL_VAR&amp;nbsp;NAME=FOO&amp;gt; will be replaced
+by whatever value is assigned to the HTML::Template
+object's paramater FOO. Example Perl code follows, but
+please note that this is not a CGI script - let's stick
+to the command line for now:
+&lt;h4&gt;Example 1&lt;/h4&gt;
+&lt;code&gt;
+# secret.pl
+use HTML::Template;
+my $bar = 'World';
+my $template = HTML::Template-&gt;new(filename =&gt; 'secret.tmpl');
+$template-&gt;param(SECRET_MESSAGE =&gt; $bar);
+print $template-&gt;output;
+&lt;/code&gt;
+and it's corresponding template file:
+&lt;code&gt;
+&lt;!-- secret.tmpl --&gt;
+&lt;h1&gt;Hello &lt;TMPL_VAR NAME=SECRET_MESSAGE&gt;&lt;/h1&gt;
+&lt;/code&gt;
+(p.s. this tutorial discusses CGI below - if you
+really want to try this out as a CGI script then don't
+forget to print out a content header. I recommend the ubiquitous
+[http://stein.cshl.org/WWW/software/CGI/#header|header]
+method avaible from using CGI.pm)
+&lt;p&gt;
+&lt;hr align=center width=&quot;50%&quot;/&gt;
+&lt;/p&gt;
+A &lt;b&gt;conditional&lt;/b&gt; is simply a boolean value - no predicates.
+These tags require closing tags. For example, if you only
+wanted to display a table that contained a secret message
+to certain priviledged viewers, you could use something like:
+&lt;h4&gt;Example 2&lt;/h4&gt;
+&lt;code&gt;
+&lt;!-- secret2.tmpl --&gt;
+&lt;TMPL_IF NAME=&quot;ILLUMINATI&quot;&gt;
+   &lt;table&gt;&lt;tr&gt;
+      &lt;td&gt;&lt;TMPL_VAR NAME=SECRET_MESSAGE&gt;&lt;/td&gt;
+   &lt;/tr&gt;&lt;/table&gt;
+&lt;/TMPL_IF&gt;
+
+# secret.pl
+my $template = HTML::Template-&gt;new(filename =&gt; 'secret2.tmpl');
+$template-&gt;param(
+   ILLUMINATI     =&gt; is_member($id),  # assume sub returns 0 or 1
+   SECRET_MESSAGE =&gt; 'There is no Perl Illuminati',
+);
+print $template-&gt;output;
+&lt;/code&gt;
+Notice the quotes around the name attribute for a conditional,
+these are the only tags that use quotes, and the quotes are
+necessary. 
+&lt;p&gt;
+Also, something very important - that last bit of perl code
+was not very smart. In his documentation, the author mentions
+that a maintenance problem can be created by thinking like
+this. Don't write matching conditionals inside your Perl
+code. My example is very simple, so it is hard to see how
+this could get out of hand.  Example 2 would be better as:
+&lt;h4&gt;Example 2 (revised)&lt;/h4&gt;
+&lt;code&gt;
+&lt;!-- secret2.tmpl --&gt;
+&lt;TMPL_IF NAME=&quot;SECRET&quot;&gt;
+   &lt;table&gt;&lt;tr&gt;
+      &lt;td&gt;&lt;TMPL_VAR NAME=SECRET&gt;&lt;/td&gt;
+   &lt;/tr&gt;&lt;/table&gt;
+&lt;TMPL_ELSE&gt;
+   Move along, nothing to see . . .
+&lt;/TMPL_IF&gt;
+
+# secret.pl
+my $message  = 'Yes there is' if is_member($id);
+my $template = HTML::Template-&gt;new(filename =&gt; 'secret2.tmpl');
+$template-&gt;param(SECRET =&gt; $message);
+print $template-&gt;output;
+&lt;/code&gt;
+Now only one parameter is needed instead of two.  $message
+will be undefined if &lt;b&gt;is_member()&lt;/b&gt; returns false, and since an
+undefined value is false, the TMPL_IF for 'SECRET' will be
+false and the message will not be displayed.
+&lt;p&gt;
+By using the same attribute name in the TMPL_IF tag and the
+TMPL_VAR tag, decoupling has been achieved. The conditional
+in the code is for the message, not the conditional in the
+template. The presence of the secret message triggers the
+TMPL_IF. This becomes more apparent when using data from
+a database - I find the best practice is to place template
+conditionals on table column names, not a boolean value 
+that will be calculated in the Perl script. I will discuss 
+using a database shortly.
+&lt;p&gt;
+Now, you may be tempted to simply use one TMPL_VAR tag and
+use a variable in your Perl script to hold the HTML code.
+Now you don't need a TMPL_IF tag, right? Yes, but that is
+wrong. The whole point of HTML::Template is to keep the
+HTML out of your Perl code, and to have fun doing it!
+
+&lt;p&gt;
+&lt;hr align=center width=&quot;50%&quot;&gt;
+&lt;p&gt;
+&lt;b&gt;Loops&lt;/b&gt; are more tricky than variables or conditionals,
+even more so if you do not grok Perl's anonymous data structures.
+HTML::Template's param method will only accept a reference
+to an array that contains references to hashes. Here is an example:
+&lt;h4&gt;Example 3&lt;/h4&gt;
+&lt;codE&gt;
+&lt;!-- students.tmpl --&gt;
+&lt;TMPL_LOOP NAME=STUDENT&gt;
+   &lt;p&gt;
+   Name: &lt;TMPL_VAR NAME=NAME&gt;&lt;br/&gt;
+   GPA: &lt;TMPL_VAR NAME=GPA&gt;
+   &lt;/p&gt;
+&lt;/TMPL_LOOP&gt;
+
+# students.pl
+my $template = HTML::Template-&gt;new(filename =&gt; 'students.tmpl');
+
+$template-&gt;param(
+   STUDENT =&gt; [
+      { NAME =&gt; 'Bluto Blutarsky', GPA =&gt; '0.0' },
+      { NAME =&gt; 'Tracey Flick'   , GPA =&gt; '4.0' },
+   ]
+);
+print $template-&gt;output;
+&lt;/code&gt;
+This might seem a bit cludgy at first, but it is actually
+quite handy. As you will soon see, the complexity of the
+data structure can actually make your code simpler.
+&lt;p&gt;
+&lt;hr align=center&gt;
+&lt;h2&gt;A Concrete Example part 1&lt;/h2&gt;
+So far, my examples have not been very pratical - the real
+power of HTML::Template does not kick in until you bring
+DBI and CGI along for the ride.
+&lt;p&gt;
+To demonstrate, suppose you have information about your
+mp3 files stored in a database table - no need for worrying
+about normalization, keep it simple. All you need to do
+is display the information to a web browser. The table
+(named songs) has these 4 fields:
+&lt;ul&gt;
+&lt;li&gt;title&lt;/li&gt;
+&lt;li&gt;artist&lt;/li&gt;
+&lt;li&gt;album&lt;/li&gt;
+&lt;li&gt;year&lt;/li&gt;
+&lt;/ul&gt;
+Ok, confesion - I wrote a script that dumped my mp3 files'
+ID3 tags into a database table for this tutorial. This 
+program has no usefulness other than to demonstrate the
+features of HTML::Tempate in a relatively simple manner. Onward!
+&lt;p&gt;
+We will need to display similar information repeatly, sounds like a loop will be needed - one that displays 4 
+variables. And this time, just because it is possible,
+the HTML::Template tags are in the form of HTML comments,
+which is good for HTML syntax validation and editor 
+syntax highlighting.
+&lt;h4&gt;Example 4&lt;/h4&gt;
+&lt;code&gt;
+&lt;!-- songs.tmpl --&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;Song Listing&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;My Songs&lt;/h1&gt;
+&lt;table&gt;
+&lt;!-- TMPL_LOOP NAME=ROWS --&gt;
+   &lt;tr&gt;
+      &lt;td&gt;&lt;!-- TMPL_VAR NAME=TITLE --&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;!-- TMPL_VAR NAME=ARTIST --&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;!-- TMPL_VAR NAME=ALBUM --&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;!-- TMPL_VAR NAME=YEAR --&gt;&lt;/td&gt;
+   &lt;/tr&gt;
+&lt;!-- /TMPL_LOOP --&gt;
+&lt;/table&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+# songs.cgi
+use DBI;
+use CGI;
+use HTML::Template;
+use strict;
+
+my $DBH = DBI-&gt;connect(
+   qw(DBI:vendor:database:host user pass),
+   { RaiseError =&gt; 1}
+);
+my $CGI = CGI-&gt;new();
+
+# grab the stuff from the database
+my $sth = $DBH-&gt;prepare('
+   select title, artist, album, year
+   from songs
+');
+$sth-&gt;execute();
+
+# prepare a data structure for HTML::Template
+my $rows;
+push @{$rows}, $_ while $_ = $sth-&gt;fetchrow_hashref();
+ 
+# instantiate the template and substitute the values
+my $template = HTML::Template-&gt;new(filename =&gt; 'songs.tmpl');
+$template-&gt;param(ROWS =&gt; $rows);
+
+print $CGI-&gt;header();
+print $template-&gt;output();
+
+
+$DBH-&gt;disconnect();
+&lt;/code&gt;
+And that's it. Notice what I passed to the HTML::Template 
+object's param method: one variable that took care of that 
+entire loop. Now, how does it work? Everything should be 
+obvious except this little oddity:
+&lt;code&gt;
+push @{$rows}, $_ while $_ = $sth-&gt;fetchrow_hashref(); 
+&lt;/code&gt;
+&lt;i&gt;fetchrow_hashref&lt;/i&gt; returns a hash reference like so:
+&lt;code&gt;
+{
+   'artist' =&gt; 'Van Halen',
+   'title'  =&gt; 'Spanish Fly',
+   'album'  =&gt; 'Van Halen II',
+   'year'   =&gt; '1979',
+};
+&lt;/code&gt; 
+This hash reference describes one row. The line of code
+takes each row-as-a-hash_ref and pushes it to an array
+reference - which is exactly what param() wants for
+a Template Loop: &quot;a list (an array ref) of parameter assignments (hash refs)&quot;. 
+&lt;font size=&quot;1&quot;&gt;(ref: HTML::Template docs)&lt;/font&gt;
+&lt;p&gt;
+Some of the older versions of DBI allowed you to utitize
+an undocumented feature. [dkubb] presented it
+[id://63435|here]. The result was being able to call
+the DBI selectall_arrayref() method and be returned a
+data structure that was somehow magically suited for
+HTML::Template loops, but this feature did not survive
+subsequent revisions.
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;h1&gt;Bag of Tricks&lt;/h1&gt;
+The new() method has quite a few heplful attributes that you can
+
+set. One of them is &lt;i&gt;die_on_bad_params&lt;/i&gt;, which defaults to true.
+By utilizing this, you can get real lazy:
+&lt;code&gt;
+# we don't need no stinkin' column names
+my $rows = $DBH-&gt;selectall_arrayref('select * from songs');
+
+# don't croak on template names that don't exist
+my $template = HTML::Template-&gt;new(
+	filename          =&gt; 'mp3.tmpl',
+	die_on_bad_params =&gt; 0,
+);
+$template-&gt;param(ROWS =&gt; $rows);
+&lt;/code&gt;
+It is not good to blindly rely on
+&lt;i&gt;die_on_bad_params&lt;/i&gt;, but 
+[id://124526|sometimes] it is necessary.
+Just be carefull to note that if someone changes the
+name of a column, the script will not report an error, and 
+you might let the problem go unoticed for a longer period 
+of time than if you had used &lt;i&gt;die_on_bad_params&lt;/i&gt;.
+&lt;p&gt;
+Another [extremely] useful attribute is &lt;i&gt;associate&lt;/i&gt;. When I wrote
+my first project with HTML::Template, I ran into a problem:
+if the users of my application submitted bad form data, I needed
+to show them the errors and allow them to correct them, without
+having to fill in the ENTIRE form again.
+
+&lt;p&gt;
+In my templates I used variables like so:&lt;br&gt;
+&lt;code&gt;&lt;input type=text name=ssn value=&quot;&lt;TMLP_VAR NAME=SSN&gt;&quot;&gt;&lt;/code&gt;&lt;br&gt;
+That way I could populate form elements with database information if the item already existing, or leave them blank when the user was creating a new item. I only needed one template for creating and updating items. (Notice that I named my text box the same as the template variable - also the same as the database field.)
+&lt;p&gt;
+But when the user had invalid data, they would loose what 
+they just typed in - either to the old data or to blank 
+form fields. Annoying!
+&lt;p&gt;
+That's where &lt;i&gt;associate&lt;/i&gt; saves the day. It allows you to inherit
+paramter values from other objects that have a &lt;b&gt;param()&lt;/b&gt; method
+that work like HTML::Template's &lt;b&gt;param()&lt;/b&gt; - objects like CGI.pm!
+&lt;code&gt;
+my $CGI       = CGI-&gt;new();
+my $template  = HTML::Template-&gt;new(
+   filename  =&gt; 'foo.tmpl',
+   associate =&gt; $CGI,
+);
+&lt;/code&gt;
+Problem solved! The parameters are magically set, and you 
+can override them with your own values if need be. No need 
+for those nasty and cumbersome hidden tags. :)
+&lt;p&gt;
+&lt;i&gt;loop_context_vars&lt;/i&gt; allows you to access 4 variables 
+that control loop output: first, last, inner, and odd.  
+They can be used in conditionals to vary your table output:
+&lt;code&gt;
+&lt;!-- pill.tmpl --&gt;
+&lt;table&gt;
+&lt;TMPL_LOOP NAME=ROWS&gt;
+   &lt;tr&gt;
+   &lt;TMPL_IF NAME=&quot;__FIRST__&quot;&gt;
+      &lt;th&gt;the first is usually a header&lt;/th&gt;
+   &lt;/TMPL_IF&gt;
+   &lt;TMPL_IF NAME=&quot;__ODD__&quot;&gt;
+      &lt;td style=&quot;background: red&quot;&gt;odd rows are red&lt;/td&gt;
+   &lt;TMPL_ELSE&gt;
+      &lt;td style=&quot;background: blue&quot;&gt;even rows are blue&lt;/td&gt;
+   &lt;/TMPL_IF&gt;
+   &lt;TMPL_IF NAME=&quot;__LAST__&quot;&gt;
+      &lt;TD&gt;you have no chance to survive so choose&lt;/td&gt;
+   &lt;/TMPL_IF&gt;
+   &lt;/tr&gt;
+&lt;/TMPL_LOOP&gt;
+&lt;/table&gt;
+
+# pill.cgi
+my $template  = HTML::Template-&gt;new(
+   filename          =&gt; 'pill.tmpl',
+   loop_context_vars =&gt; 1,
+);
+# etc.
+&lt;/code&gt;
+No need to keep track of a counter in your Perl code, 
+the conditions take care of it for you. Remember, if you
+use a conditional in a template, you should not have to
+test for that condition in your code. Code smart.
+&lt;p&gt;
+&lt;hr align=center&gt;
+&lt;h2&gt;A Concrete Example part 2&lt;/h2&gt;
+Let's supe up our previous song displayer to allow sorting
+by the column names. And while we are at it, why bother
+hard coding the names of the database fields in the 
+template. Let's set a goal to store the database field 
+names in one list and one list only.
+&lt;p&gt;
+Of course, this means that we will have to design a new 
+data structure, because the only way to accomplish our 
+lofty goal cleanly is to use two template loops: one for 
+each row of data, and one for the indidividual fields 
+themselves.
+&lt;p&gt;
+As for sorting - let's just use plain old anchor tags 
+instead of a full blown form. We can make the headers links 
+back to the script with a parameter set to sort by the name 
+of the header: &lt;b&gt;&amp;lt;a href=&quot;mp3.cgi?sort=title&quot;&gt;Title&amp;lt;/a&gt;&lt;/b&gt;.
+Also, let's get rid of the hard coded script name, in case 
+we decide to change the extension from .cgi to .asp, 
+because we can. CGI.pm provides a method, &lt;b&gt;script_name&lt;/b&gt; which returns the name of the script, relative to the web server's root.
+&lt;p&gt;
+Here is the final example. If you think the Perl code is a
+bit convoluted, well you are right, it is. But it is also
+flexible enough to allow you add or remove database fields
+simply by changing the @COLS list. This makes it trivial to
+allow the user to choose which fields she or he sees, an
+exercise I leave to the reader, as well as adding the ability to sort fields in descending or ascending order.
+&lt;p&gt;
+Last note, notice the use of the built-in &amp;lt;DATA&amp;gt; 
+filehandle to store the template in this script. This
+allows you to contain your code and template in one
+text document, but still fully seperated. You can specify a 
+scalar reference in the constructor like so:
+&lt;code&gt;
+my $template = HTML::Template-&gt;new(scalarref =&gt; \$scalar);
+&lt;/code&gt;
+And now...
+&lt;h4&gt;The Last Example&lt;/h4&gt;
+&lt;code&gt;
+#!/usr/bin/perl -Tw
+use DBI;
+use CGI;
+use HTML::Template;
+
+use strict;
+
+my $DBH = DBI-&gt;connect(
+   qw(DBI:mysql:mp3:host user pass),
+   { RaiseError =&gt; 1 },
+);
+my $CGI  = CGI-&gt;new();
+my @COLS = (qw(title artist album));
+
+# verify the sort param - never trust user input
+my %sort_lookup = map {$_ =&gt; $_} @COLS;
+my $sort        = $sort_lookup{$CGI-&gt;param('sort')||''} || 'title';
+
+my $data = $DBH-&gt;selectall_arrayref(&quot;
+   select @{[join(',', @COLS)]}
+   from songs
+   order by ?
+&quot;, undef, ($sort));
+
+# prepare the DS for the headers
+my $headers = [ 
+   map {{
+      URL  =&gt; $CGI-&gt;script_name . &quot;?sort=$_&quot;, 
+      LINK =&gt; ucfirst($_), 
+   }} @COLS 
+];
+
+# prepare the DS for the rows
+my $i;
+my $rows = [
+   map {
+      my $row = $_;
+      (++$i % 2)
+         ? { ODD  =&gt; [ map { {VALUE =&gt; $_} } @{$row} ] }
+         : { EVEN =&gt; [ map { {VALUE =&gt; $_} } @{$row} ] }
+   } @{$data}
+];
+# remove excess blood from ears after that last expression
+
+# read the template as a scalar from DATA
+my $html = do { local $/; &lt;DATA&gt; };
+
+# prepare the template and substitute the values
+my $template = HTML::Template-&gt;new(
+   scalarref         =&gt; \$html,
+   loop_context_vars =&gt; 1,
+);
+
+$template-&gt;param(
+   HEADERS =&gt; $headers,
+   ROWS    =&gt; $rows,
+   SORT    =&gt; $sort,
+);
+
+
+# print the goods
+print $CGI-&gt;header();
+print $template-&gt;output();
+
+
+$DBH-&gt;disconnect();
+
+__DATA__
+&lt;html&gt;
+&lt;head&gt;
+&lt;title&gt;Songs sorted by &lt;TMPL_VAR NAME=SORT&gt;&lt;/title&gt;
+&lt;/head&gt;
+
+&lt;body&gt;
+&lt;h1&gt;Songs sorted by &lt;TMPL_VAR NAME=SORT&gt;&lt;/h1&gt;
+&lt;table&gt;
+&lt;tr&gt;
+&lt;TMPL_LOOP NAME=HEADERS&gt;
+   &lt;th&gt;&lt;a href=&quot;&lt;TMPL_VAR NAME=URL&gt;&quot;&gt;&lt;TMPL_VAR NAME=LINK&gt;&lt;/a&gt;&lt;/th&gt;
+&lt;/TMPL_LOOP&gt;
+&lt;/tr&gt;
+&lt;TMPL_LOOP NAME=ROWS&gt;
+   &lt;tr&gt;
+   &lt;TMPL_UNLESS NAME=&quot;__ODD__&quot;&gt;
+      &lt;TMPL_LOOP NAME=EVEN&gt;
+         &lt;td style=&quot;background: #B3B3B3&quot;&gt;&lt;TMPL_VAR NAME=VALUE&gt;&lt;/td&gt;
+      &lt;/TMPL_LOOP&gt;
+   &lt;TMPL_ELSE&gt;
+      &lt;TMPL_LOOP NAME=ODD&gt;
+         &lt;td style=&quot;background: #CCCCCC&quot;&gt;&lt;TMPL_VAR NAME=VALUE&gt;&lt;/td&gt;
+      &lt;/TMPL_LOOP&gt;
+   &lt;/TMPL_UNLESS&gt;
+   &lt;/tr&gt;
+&lt;/TMPL_LOOP&gt;
+&lt;/table&gt;
+
+&lt;/body&gt;
+&lt;/html&gt; 
+&lt;/code&gt;
+&lt;hr&gt;
+&lt;p&gt;
+Thanks to [dkubb] and [deprecated] for corrections; Sam
+Tregar for writing the module; [aijin], [orkysoft],
+and [bladx] for pointing out typos; and [dws] for 
+bringing you the letter 'D'.
+
+&lt;p&gt;
+See also: [cpan://HTML::Template] and 
+'&lt;b&gt;perldoc HTML::Template&lt;/b&gt;'
+after you install it.
+&lt;p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>65642</node_id>
+  <author_user>18800</author_user>
+  <title>HTML::Template Tutorial</title>
+  <createtime>2001-03-20 06:07:54</createtime>
+  <nodeupdated>2005-08-15 09:55:49</nodeupdated>
+</node>

@@ -1,0 +1,481 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;B&lt;/FONT&gt; - The Perl Compiler
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+The &lt;CODE&gt;B&lt;/CODE&gt; module supplies classes which allow a Perl program to delve into its own
+innards. It is the module used to implement the ``backends'' of the Perl
+compiler. Usage of the compiler does not require knowledge of this module:
+see the &lt;EM&gt;O&lt;/EM&gt; module for the user-visible part. The &lt;CODE&gt;B&lt;/CODE&gt; module is of use to those who want to write new compiler backends. This
+documentation assumes that the reader knows a fair amount about perl's
+internals including such things as SVs, OPs and the internal symbol table
+and syntax tree of a program.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;OVERVIEW_OF_CLASSES&quot;&gt;OVERVIEW OF CLASSES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structures used by Perl's internals to hold 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OP&lt;/FONT&gt; information 
+&lt;FONT SIZE=-1&gt;(PVIV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;AV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;HV,&lt;/FONT&gt; ..., 
+&lt;FONT SIZE=-1&gt;OP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;SVOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;UNOP,&lt;/FONT&gt; ...) are modelled on a class hierarchy and the
+ &lt;CODE&gt;B&lt;/CODE&gt; module gives access to them via a true object hierarchy. Structure fields which point to other objects (whether types of 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; or types of 
+&lt;FONT SIZE=-1&gt;OP)&lt;/FONT&gt; are represented by the
+ &lt;CODE&gt;B&lt;/CODE&gt;
+module as Perl objects of the appropriate class. The bulk of the &lt;CODE&gt;B&lt;/CODE&gt;
+module is the methods for accessing fields of these structures. Note that
+all access is read-only: you cannot modify the internals by using this
+module.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;SV_RELATED_CLASSES&quot;&gt;SV-RELATED CLASSES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;B::IV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::NV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::RV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PVIV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PVNV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PVMG,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::BM,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PVLV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::AV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::HV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::CV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::GV,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::FM,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::IO.&lt;/FONT&gt; These classes correspond in the obvious way to the underlying 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structures of similar names. The inheritance hierarchy mimics the underlying 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; ``inheritance''. Access methods correspond to the underlying 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; macros for field access, usually with the leading ``class indication'' prefix removed (Sv, Av, Hv, ...). The leading prefix is only left in cases where its removal would cause a clash in method name. For example,
+ &lt;CODE&gt;GvREFCNT&lt;/CODE&gt; stays as-is since its abbreviation would clash with the ``superclass''
+method
+&lt;CODE&gt;REFCNT&lt;/CODE&gt; (corresponding to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; function [perlman:perlguts|perlguts]).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_SV_METHODS&quot;&gt;B::SV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_REFCNT&quot;&gt;REFCNT&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FLAGS&quot;&gt;FLAGS&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_IV_METHODS&quot;&gt;B::IV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_IV&quot;&gt;IV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_IVX&quot;&gt;IVX&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_needs64bits&quot;&gt;needs64bits&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_packiv&quot;&gt;packiv&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_NV_METHODS&quot;&gt;B::NV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_NV&quot;&gt;NV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_NVX&quot;&gt;NVX&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_RV_METHODS&quot;&gt;B::RV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_RV&quot;&gt;RV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_PV_METHODS&quot;&gt;B::PV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PV&quot;&gt;PV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_PVMG_METHODS&quot;&gt;B::PVMG METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_MAGIC&quot;&gt;MAGIC&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SvSTASH&quot;&gt;SvSTASH&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_MAGIC_METHODS&quot;&gt;B::MAGIC METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_MOREMAGIC&quot;&gt;MOREMAGIC&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PRIVATE&quot;&gt;PRIVATE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TYPE&quot;&gt;TYPE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;FLAGS&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_OBJ&quot;&gt;OBJ&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PTR&quot;&gt;PTR&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_PVLV_METHODS&quot;&gt;B::PVLV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TARGOFF&quot;&gt;TARGOFF&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TARGLEN&quot;&gt;TARGLEN&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;TYPE&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TARG&quot;&gt;TARG&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_BM_METHODS&quot;&gt;B::BM METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_USEFUL&quot;&gt;USEFUL&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PREVIOUS&quot;&gt;PREVIOUS&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_RARE&quot;&gt;RARE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TABLE&quot;&gt;TABLE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_GV_METHODS&quot;&gt;B::GV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_NAME&quot;&gt;NAME&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_STASH&quot;&gt;STASH&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SV&quot;&gt;SV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_IO&quot;&gt;IO&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FORM&quot;&gt;FORM&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_AV&quot;&gt;AV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_HV&quot;&gt;HV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_EGV&quot;&gt;EGV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_CV&quot;&gt;CV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_CVGEN&quot;&gt;CVGEN&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_LINE&quot;&gt;LINE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FILEGV&quot;&gt;FILEGV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_GvREFCNT&quot;&gt;GvREFCNT&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;FLAGS&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_IO_METHODS&quot;&gt;B::IO METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_LINES&quot;&gt;LINES&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PAGE&quot;&gt;PAGE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PAGE_LEN&quot;&gt;PAGE_LEN&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_LINES_LEFT&quot;&gt;LINES_LEFT&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TOP_NAME&quot;&gt;TOP_NAME&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_TOP_GV&quot;&gt;TOP_GV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FMT_NAME&quot;&gt;FMT_NAME&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FMT_GV&quot;&gt;FMT_GV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_BOTTOM_NAME&quot;&gt;BOTTOM_NAME&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_BOTTOM_GV&quot;&gt;BOTTOM_GV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_SUBPROCESS&quot;&gt;SUBPROCESS&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_IoTYPE&quot;&gt;IoTYPE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_IoFLAGS&quot;&gt;IoFLAGS&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_AV_METHODS&quot;&gt;B::AV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_FILL&quot;&gt;FILL&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_MAX&quot;&gt;MAX&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_OFF&quot;&gt;OFF&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_ARRAY&quot;&gt;ARRAY&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_AvFLAGS&quot;&gt;AvFLAGS&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_CV_METHODS&quot;&gt;B::CV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;STASH&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_START&quot;&gt;START&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_ROOT&quot;&gt;ROOT&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_GV&quot;&gt;GV&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;FILEGV&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DEPTH&quot;&gt;DEPTH&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PADLIST&quot;&gt;PADLIST&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_OUTSIDE&quot;&gt;OUTSIDE&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_XSUB&quot;&gt;XSUB&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_XSUBANY&quot;&gt;XSUBANY&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_HV_METHODS&quot;&gt;B::HV METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;FILL&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;MAX&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_KEYS&quot;&gt;KEYS&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_RITER&quot;&gt;RITER&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;NAME&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_PMROOT&quot;&gt;PMROOT&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;ARRAY&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;OP_RELATED_CLASSES&quot;&gt;OP-RELATED CLASSES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;B::OP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::UNOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::BINOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::LOGOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::CONDOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::LISTOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PMOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::SVOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::GVOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::PVOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::CVOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::LOOP,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;B::COP.&lt;/FONT&gt; These classes correspond in the obvious way to the underlying 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structures of similar names. The inheritance hierarchy mimics the underlying 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; ``inheritance''. Access methods correspond to the underlying 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structre field names, with the leading ``class indication'' prefix removed (op_).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_OP_METHODS&quot;&gt;B::OP METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_next&quot;&gt;next&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_sibling&quot;&gt;sibling&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_ppaddr&quot;&gt;ppaddr&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This returns the function name as a string (e.g. pp_add, pp_rv2av).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_desc&quot;&gt;desc&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This returns the op description from the global 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; op_desc array (e.g. ``addition'' ``array deref'').
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_targ&quot;&gt;targ&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_type&quot;&gt;type&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_seq&quot;&gt;seq&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_flags&quot;&gt;flags&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_private&quot;&gt;private&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_UNOP_METHOD&quot;&gt;B::UNOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_first&quot;&gt;first&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_BINOP_METHOD&quot;&gt;B::BINOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_last&quot;&gt;last&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_LOGOP_METHOD&quot;&gt;B::LOGOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_other&quot;&gt;other&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_CONDOP_METHODS&quot;&gt;B::CONDOP METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_true&quot;&gt;true&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_false&quot;&gt;false&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_LISTOP_METHOD&quot;&gt;B::LISTOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_children&quot;&gt;children&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_PMOP_METHODS&quot;&gt;B::PMOP METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pmreplroot&quot;&gt;pmreplroot&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pmreplstart&quot;&gt;pmreplstart&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pmnext&quot;&gt;pmnext&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pmregexp&quot;&gt;pmregexp&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pmflags&quot;&gt;pmflags&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pmpermflags&quot;&gt;pmpermflags&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_precomp&quot;&gt;precomp&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_SVOP_METHOD&quot;&gt;B::SVOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_sv&quot;&gt;sv&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_GVOP_METHOD&quot;&gt;B::GVOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_gv&quot;&gt;gv&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_PVOP_METHOD&quot;&gt;B::PVOP METHOD&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_pv&quot;&gt;pv&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_LOOP_METHODS&quot;&gt;B::LOOP METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_redoop&quot;&gt;redoop&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_nextop&quot;&gt;nextop&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_lastop&quot;&gt;lastop&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;B_COP_METHODS&quot;&gt;B::COP METHODS&lt;/A&gt;&lt;/H2&gt;
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_label&quot;&gt;label&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_stash&quot;&gt;stash&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_filegv&quot;&gt;filegv&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_cop_seq&quot;&gt;cop_seq&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_arybase&quot;&gt;arybase&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_line&quot;&gt;line&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;FUNCTIONS_EXPORTED_BY_C_B_&quot;&gt;FUNCTIONS EXPORTED BY &lt;CODE&gt;B&lt;/CODE&gt;&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The &lt;CODE&gt;B&lt;/CODE&gt; module exports a variety of functions: some are simple utility functions,
+others provide a Perl program with a way to get an initial ``handle'' on an
+internal object.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_main_cv&quot;&gt;main_cv&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return the (faked) 
+&lt;FONT SIZE=-1&gt;CV&lt;/FONT&gt; corresponding to the main part of the Perl program.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_main_root&quot;&gt;main_root&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the root op (i.e. an object in the appropriate B::OP-derived class)
+of the main part of the Perl program.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_main_start&quot;&gt;main_start&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the starting op of the main part of the Perl program.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_comppadlist&quot;&gt;comppadlist&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;AV&lt;/FONT&gt; object (i.e. in class 
+&lt;FONT SIZE=-1&gt;B::AV)&lt;/FONT&gt; of the global comppadlist.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_sv_undef&quot;&gt;sv_undef&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; object corresponding to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable
+ &lt;CODE&gt;sv_undef&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_sv_yes&quot;&gt;sv_yes&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; object corresponding to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable
+ &lt;CODE&gt;sv_yes&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_sv_no&quot;&gt;sv_no&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;SV&lt;/FONT&gt; object corresponding to the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; variable
+ &lt;CODE&gt;sv_no&lt;/CODE&gt;.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_walkoptree&quot;&gt;walkoptree(OP, METHOD)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Does a tree-walk of the syntax tree based at 
+&lt;FONT SIZE=-1&gt;OP&lt;/FONT&gt; and calls 
+&lt;FONT SIZE=-1&gt;METHOD&lt;/FONT&gt; on each op it visits. Each node is visited before its children. If
+
+&lt;CODE&gt;walkoptree_debug&lt;/CODE&gt; (q.v.) has been called to turn debugging on then the method &lt;CODE&gt;walkoptree_debug&lt;/CODE&gt; is called on each op before 
+&lt;FONT SIZE=-1&gt;METHOD&lt;/FONT&gt; is called.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_walkoptree_debug&quot;&gt;walkoptree_debug(DEBUG)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the current debugging flag for &lt;CODE&gt;walkoptree&lt;/CODE&gt;. If the optional 
+&lt;FONT SIZE=-1&gt;DEBUG&lt;/FONT&gt; argument is non-zero, it sets the debugging flag
+to that. See the description of &lt;CODE&gt;walkoptree&lt;/CODE&gt; above for what the debugging flag does.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_walksymtable&quot;&gt;walksymtable(SYMREF, METHOD, RECURSE)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Walk the symbol table starting at 
+&lt;FONT SIZE=-1&gt;SYMREF&lt;/FONT&gt; and call 
+&lt;FONT SIZE=-1&gt;METHOD&lt;/FONT&gt; on each symbol visited. When the walk reached package symbols ``Foo::'' it invokes 
+&lt;FONT SIZE=-1&gt;RECURSE&lt;/FONT&gt; and only recurses into the package if that sub returns true.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_svref_2object&quot;&gt;svref_2object(SV)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Takes any Perl variable and turns it into an object in the appropriate
+B::OP-derived or B::SV-derived class. Apart from functions such as &lt;CODE&gt;main_root&lt;/CODE&gt;, this is the primary way to get an initial ``handle'' on a internal perl
+data structure which can then be followed with the other access methods.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_ppname&quot;&gt;ppname(OPNUM)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return the 
+&lt;FONT SIZE=-1&gt;PP&lt;/FONT&gt; function name (e.g. ``pp_add'') of op number 
+&lt;FONT SIZE=-1&gt;OPNUM.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_hash&quot;&gt;hash(STR)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a string in the form ``0x...'' representing the value of the internal hash function used by perl on string 
+&lt;FONT SIZE=-1&gt;STR.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_cast_I32&quot;&gt;cast_I32(I)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Casts 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; to the internal 
+&lt;FONT SIZE=-1&gt;I32&lt;/FONT&gt; type used by that perl.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_minus_c&quot;&gt;minus_c&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Does the equivalent of the &lt;CODE&gt;-c&lt;/CODE&gt; command-line option. Obviously, this is only useful in a 
+&lt;FONT SIZE=-1&gt;BEGIN&lt;/FONT&gt; block or else the flag is set too late.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_cstring&quot;&gt;cstring(STR)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns a double-quote-surrounded escaped version of 
+&lt;FONT SIZE=-1&gt;STR&lt;/FONT&gt; which can be used as a string in 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; source code.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_class&quot;&gt;class(OBJ)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the class of an object without the part of the classname preceding the first ``::''. This is used to turn 
+&lt;FONT SIZE=-1&gt;``B::UNOP''&lt;/FONT&gt; into 
+&lt;FONT SIZE=-1&gt;``UNOP''&lt;/FONT&gt; for example.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_threadsv_names&quot;&gt;threadsv_names&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+In a perl compiled for threads, this returns a list of the special
+per-thread threadsv variables.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_byteload_fh&quot;&gt;byteload_fh(FILEHANDLE)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Load the contents of 
+&lt;FONT SIZE=-1&gt;FILEHANDLE&lt;/FONT&gt; as bytecode. See documentation for the &lt;STRONG&gt;Bytecode&lt;/STRONG&gt; module in &lt;EM&gt;B::Backend&lt;/EM&gt; for how to generate bytecode.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Malcolm Beattie, &lt;CODE&gt;mbeattie@sable.ox.ac.uk&lt;/CODE&gt;
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:49:23</createtime>
+  <node_id>1096</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;        use B;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlman:lib:B</title>
+  <nodeupdated>2005-08-14 19:18:18</nodeupdated>
+</node>

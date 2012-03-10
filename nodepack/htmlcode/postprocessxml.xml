@@ -1,0 +1,30 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>876631</node_id>
+  <author_user>142755</author_user>
+  <title>postProcessXML</title>
+  <createtime>2010-12-11 15:40:59</createtime>
+  <code>my( $strRef )= @_;
+
+our( %badWinChars, $badWinChars );
+if(  ! %badWinChars  ) {
+    # Control chars, not liked by XML 1.0 and
+    # bytes not mapped in Windows-1252 by Unicode:
+    for my $b (  0 .. 31, 0x81, 0x8d, 0x8f, 0x90, 0x9d  ) {
+        local( $_ )= chr($b);
+        if(  ! /[\t\r\n]/  ) { # XML allows these 3
+            $b += 0x2400
+                if  $b &lt; 32;
+            $badWinChars{$_}= sprintf '&amp;#x%x;', $b;
+            $badWinChars .= $_;
+        }
+    }
+    # chr(0x7f) =&gt; '&amp;#x2421;', ?
+}
+
+$$strRef =~ s{ ([$badWinChars]) }{ $badWinChars{$1} }gex;
+
+return '';
+</code>
+  <nodeupdated>2010-12-11 15:40:59</nodeupdated>
+</node>

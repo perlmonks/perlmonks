@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="207304" title="New Chatterbox XML Ticker" created="2002-10-23 03:39:12" updated="2005-08-15 17:33:09">
+<type id="122">
+fullpage</type>
+<author id="3607">
+Petruchio</author>
+<data>
+<field name="doctext">
+[%
+  unless ($q-&gt;param('oldcache')) {
+    return htmlcode('get_cached_xml_chatter','new');
+  }
+  htmlcode('log_ticker','','new-oldcache') or
+    Everything::printLog( "CB - new - oldcache - " .
+       "$USER-&gt;{title} ($ENV{REMOTE_ADDR}) - $ENV{'HTTP_USER_AGENT'}" );
+
+  my $code_id= $$NODE{node_id};
+  use vars qw( %cachehits );
+  $cachehits{$code_id}++;
+  my $hd = getHttpHeader("text/xml");
+  my $updateInterval = 9;
+  my $dbh = $DB-&gt;getDatabaseHandle();
+  my $geth= $dbh-&gt;prepare_cached(
+      "select updateinterval,cachekey,cachedata"
+      ." from cachedinfo where code_id=? and"
+      ." lastupdate between subdate(now(),interval ? second) and now()"
+      ." order by cachekey" );
+  $geth-&gt;execute( $code_id, $updateInterval );
+  my $CACHE= $geth-&gt;fetchrow_hashref();
+  if(   $CACHE  and  "" eq $$CACHE{cachekey}  ) {
+    $geth-&gt;finish();
+    return $hd . $$CACHE{cachedata};
+  }
+
+  use vars qw( $hostname );
+  chomp( $hostname= `hostname` )   if  ! defined $hostname;
+  my $mykey= "$$/$hostname";
+  Everything::printLog( "node=$code_id; me=$mykey
+hits=$cachehits{$code_id}"
+    ." waitfor=".($CACHE?$$CACHE{cachekey}:"")." user=$$USER{title}" );
+  $cachehits{$code_id}= 0;
+  {
+    my $NEXT= $CACHE;
+    while(  $NEXT  &amp;&amp;  "" eq $$NEXT{cachekey}  ) {
+      $NEXT= $geth-&gt;fetchrow_hashref();
+    }
+    $geth-&gt;finish();
+    if(  $NEXT  &amp;&amp;  "" ne $$NEXT{cachekey}  ) {
+      select(undef,undef,undef,2.0);
+      $geth-&gt;execute( $code_id, $updateInterval );
+      $CACHE= $geth-&gt;fetchrow_hashref();
+      $geth-&gt;finish();
+      return $hd . $$CACHE{cachedata}
+        if  $CACHE  and  "" eq $$CACHE{cachekey};
+      Everything::printLog( "node=$code_id; me=$mykey"
+        ." waitedfor=$$NEXT{cachekey} user=$$USER{title}" );
+    }
+    $CACHE= $NEXT;
+  }
+
+  my $insertTime= time();
+  $dbh-&gt;do( "insert into cachedinfo "
+    ."(code_id,cachedata,updateinterval,lastupdate,cachekey) "
+    ."values (?,?,?,now(),?)", undef,
+    $code_id, "", $updateInterval, $mykey );
+  my $data;
+  {
+    my $sth= $DB-&gt;sqlSelectMany(
+      'message_id,msgtext as text,author_user as user_id,'   .
+      'UNIX_TIMESTAMP(tstamp) as epoch,' .
+      q&lt;DATE_FORMAT(tstamp, '%Y-%m-%d') as date,&gt; .
+      q&lt;DATE_FORMAT(tstamp, '%T') as time&gt;,
+      "message", "(for_user = 0) AND"
+      ." (UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(tstamp) &lt; 600)",
+      "ORDER BY message_id DESC LIMIT 10"
+    );
+    my @msg;
+    unshift @msg, $_ while $_ = $sth-&gt;fetchrow_hashref;
+    require XML::Fling;
+    my @data;
+    my $xml= XML::Fling-&gt;new( \@data );
+    $xml-&gt;header("Windows-1252");
+    push @data, "\n";
+    $xml-&gt;start('chatter');
+    push @data, "\n";
+
+    $xml-&gt;element(
+      'info',
+      site     =&gt; $HTMLVARS{site_url},
+      sitename =&gt; $HTMLVARS{site_name},
+      'Rendered by the New Chatterbox XML Ticker'
+    );
+    push @data, "\n";
+    for my $msg (@msg) {
+      $msg-&gt;{author} = getNodeById( $msg-&gt;{user_id} )-&gt;{title};
+      $xml-&gt;start('message');
+      push @data, "\n";
+      for( @{$msg}{qw. author text .} ){
+        s/&amp;/&amp;amp;/g;
+        s/&lt;/&amp;lt;/g;
+        s/&gt;/&amp;gt;/g;
+      }
+      for( qw. author user_id date time epoch message_id text. ) {
+        $xml-&gt;start($_);
+        push @data, $msg-&gt;{$_};
+        $xml-&gt;end();
+        push @data, "\n";
+      }
+      $xml-&gt;end();
+      push @data, "\n";
+    }
+    $xml-&gt;end();
+    $data = join '', @data;
+    htmlcode('postProcessXML','',\$data);
+  }
+
+  my $sth= $dbh-&gt;prepare(
+      "select cachekey,lastupdate"
+      ." from cachedinfo where code_id=? and cachekey &lt;&gt; '' and"
+      ." lastupdate between subdate(now(),interval ? second) and now()"
+      ." order by lastupdate,cachekey" );
+  $sth-&gt;execute( $code_id, $updateInterval + time() - $insertTime );
+  my $WINNER= $sth-&gt;fetchrow_hashref();
+
+  if(  ! $WINNER  ||  $mykey ne $$WINNER{cachekey}  ) {
+    $dbh-&gt;do(
+      'delete from cachedinfo where code_id=? and cachekey=?',
+      undef,
+      $code_id,
+      $mykey
+    );
+    Everything::printLog(
+      "node=$code_id; me=$mykey winner="
+      .($WINNER?$$WINNER{cachekey}:"(none)")." user=$$USER{title}" );
+    return $hd . $data;
+  }
+
+  my $updates= $dbh-&gt;do( "update cachedinfo set"
+    ." lastupdate=now(), cachedata=?, updateinterval=?, cachekey=''"
+    ." where code_id=? and cachekey=?", undef,
+    $data, $updateInterval, $code_id, $mykey );
+  my $deletes= "-";
+  if(  0 &lt; $updates  ) {
+    $deletes= $dbh-&gt;do( "delete from cachedinfo where code_id=? and ("
+      ." cachekey &lt;&gt; '' or lastupdate not between"
+      ." subdate( now(), interval ? second ) and now() )", undef,
+      $code_id, $updateInterval );
+  }
+  Everything::printLog( "node=$code_id; me=$mykey updated=$updates"
+    ." deleted=$deletes user=$$USER{title}" );
+  $hd . $data;
+%]</field>
+</data>
+</node>

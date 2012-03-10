@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="30175" title="newest nodes xml generator" created="2000-08-29 17:26:47" updated="2005-08-15 17:33:07">
+<type id="122">
+fullpage</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="doctext">
+[%
+  local *nodeurl = sub {
+     my $n=shift;
+     (my $site=$HTMLVARS{site_url})=~s!/+$!!;
+     return $site.$ENV{SCRIPT_NAME}.
+            urlGen({ node_id=&gt; ref $n ? $n-&gt;{node_id} : $n },1);
+  };
+
+  my $days = $q-&gt;param('days') || 0.25;
+  my $since = $q-&gt;param('sinceunixtime')
+    || $VARS-&gt;{lastviewednewestnodes}
+    || time() - $days*86400;
+
+  my $asked=$since;
+
+  $since = $since&lt;$_ ? $_ : $since
+    for  time() - 86400 * 3;
+
+  my $lastchecked =  $DB-&gt;sqlSelect(
+    "FROM_UNIXTIME($since)", "node", "", "limit 1" );
+  $lastchecked    =~ s/\D//g;
+
+  return "&lt;error&gt;Error creating fling object&lt;/error&gt;"
+     unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),'add_header');
+
+  require POSIX;
+
+  my $site={
+      site        =&gt; $HTMLVARS{site_url},
+      sitename    =&gt; $HTMLVARS{site_name},
+      foruser     =&gt; $USER-&gt;{title},
+      foruser_id  =&gt; $USER-&gt;{node_id},
+      min_poll_seconds =&gt; 30,
+      style      =&gt; join(',',grep $xmlstyle{$_}, keys %xmlstyle),
+      gentimeGMT =&gt; POSIX::strftime("%Y-%m-%d %H:%M:%S",
+                                    gmtime(time)),
+
+      req_from    =&gt; "".localtime($asked),
+      got_from    =&gt; "".localtime($since),
+      lastchecked =&gt; $lastchecked,
+  };
+
+  $xml-&gt;header("windows-1252");
+  unless ($xmlstyle{rss}) {
+    $xml-&gt;start('NEWESTNODES');
+    $xml-&gt;element( 'INFO',%$site,
+                   'Rendered by the Perlmonks Newest Nodes XML Generator'
+    );
+  } else {
+     $xml-&gt;start(rss=&gt;version=&gt;'2.0',
+                      'xmlns:perlmonks'=&gt;nodeurl(393035),
+                      'xmlns:dc'       =&gt;"http://purl.org/dc/elements/1.1/");
+     $xml-&gt;start('channel');
+     $xml-&gt;element(ttl=&gt;60);
+     $xml-&gt;element(title=&gt;'PerlMonks - Newest Nodes');
+     $xml-&gt;element(description=&gt;'New nodes appearing on PerlMonks');
+     $xml-&gt;element(link=&gt;nodeurl($NODE));
+     $xml-&gt;element(docs=&gt;'http://blogs.law.harvard.edu/tech/rss');
+     $xml-&gt;element(generator=&gt;'PerlMonks Newest Nodes XML Generator');
+     foreach my $key (keys %$site) {
+        $xml-&gt;element("perlmonks:$key",$site-&gt;{$key});
+     }
+  }
+  my $h={};
+  htmlcode('handle_nn_settings','',$h);
+
+  my %authors;
+  foreach my $type (  @{$h-&gt;{types}}  ) {
+    my $id = getId( getType($type) );
+    next unless $id;
+
+    my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare("
+      SELECT node.*,note.*,concat(left(doctext,200),'...') as abbreviated
+      FROM node
+      LEFT JOIN note ON node_id = note_id
+      LEFT JOIN document ON document_id = node_id
+      WHERE  createtime    &gt;= $lastchecked
+        AND  type_nodetype  = $id
+      ORDER  BY createtime DESC
+    ");
+
+    $sth-&gt;execute();
+
+    while (  my $node = $sth-&gt;fetchrow_hashref  ) {
+      $authors{ $node-&gt;{author_user} }||=getNodeById($node-&gt;{author_user});
+      if( $authors{ $node-&gt;{author_user}} == -1) {
+          $authors{ $node-&gt;{author_user} } = { 
+              title =&gt; sprintf('No such user (%s)', $node-&gt;{author_user}),
+          };
+      };
+
+      my $usertime=htmlcode('parseTimeInString','',$node-&gt;{createtime},undef,undef,"RFC822");
+      my $time = $node-&gt;{createtime};
+      $time    =~ s/\D//g;
+
+      my @note = map {
+        $_ =&gt; $node-&gt;{$_}
+      } grep {
+        $node-&gt;{$_}
+      } qw/root_node parent_node/;
+
+      unless ($xmlstyle{rss}) {
+        $xml-&gt;element( 'NODE',
+            nodetype    =&gt; $type,
+            author_user =&gt; $node-&gt;{author_user},
+            authortitle =&gt; $authors{ $node-&gt;{author_user} }-&gt;{title},
+            createtime  =&gt; $time,
+            # usercreatetime  =&gt; $usertime,
+            node_id     =&gt; $node-&gt;{node_id},
+            @note,
+          $node-&gt;{title} );
+      } else {
+        $node-&gt;{abbreviated}||='';
+        $node-&gt;{abbreviated}=~s#&lt;[^&gt;]*&gt;##g;
+        $node-&gt;{abbreviated}=~s/&lt;[^&gt;]*\.\.\.$/.../;
+        $node-&gt;{abbreviated}=htmlcode('parselinksinchatter','',$node-&gt;{abbreviated});
+        $xml-&gt;start('item','perlmonks:itemtype'=&gt;'node');
+          $xml-&gt;element('title'=&gt;$node-&gt;{title});
+          $xml-&gt;element('dc:creator'=&gt;$authors{ $node-&gt;{author_user} }-&gt;{title});
+          $xml-&gt;element('link' =&gt;nodeurl($node));
+          $xml-&gt;element('description'=&gt;$node-&gt;{abbreviated})
+            if $node-&gt;{abbreviated} ne '...';
+          $xml-&gt;element('category'=&gt;$type);
+          $xml-&gt;element('pubDate'=&gt;$usertime);
+          $xml-&gt;element('guid'=&gt;nodeurl($node-&gt;{node_id}));
+          $xml-&gt;element('perlmonks:node_id'=&gt;$node-&gt;{node_id});
+          $xml-&gt;element('perlmonks:author_user'=&gt;$node-&gt;{author_user});
+          $xml-&gt;element('perlmonks:createtime'=&gt;$node-&gt;{createtime});
+          $xml-&gt;element('perlmonks:authortitle'=&gt;$authors{ $node-&gt;{author_user} }-&gt;{title});
+        $xml-&gt;end('item');
+      }
+    }
+  }
+
+  unless ($xmlstyle{rss}) {
+      foreach my $user (  sort { $a-&gt;{node_id}&lt;=&gt;$b-&gt;{node_id} } values %authors  )
+      {
+            unless ($xmlstyle{rss}) {
+                $xml-&gt;element( 'AUTHOR',
+                  node_id =&gt; $user-&gt;{node_id},
+                $user-&gt;{title} );
+            } else {
+                $xml-&gt;start('item','perlmonks:itemtype'=&gt;'author');
+                  $xml-&gt;element('title'=&gt;$user-&gt;{title});
+                  $xml-&gt;element('link' =&gt;nodeurl($user));
+                  #$xml-&gt;element('description'=&gt;$user-&gt;{abbreviated});
+                  $xml-&gt;element('perlmonks:node_id'=&gt;$user-&gt;{node_id});
+                  $xml-&gt;element('category','user');
+                $xml-&gt;end('item');
+            }
+      }
+  }
+  unless ($xmlstyle{rss}) {
+    $xml-&gt;end('NEWESTNODES');
+  } else {
+    $xml-&gt;end('channel');
+    $xml-&gt;end('rss');
+  }
+
+  return join '', @data;
+%]</field>
+</data>
+</node>

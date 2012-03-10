@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="276421" title="Yesterday's most-visited nodes" created="2003-07-21 15:40:14" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+   use Time::Local qw( timelocal );
+   my $date = $q-&gt;param('hitdate');
+   my $dow;
+   {
+      my( $cc, $year, $mon, $day )= $date =~ /(\d\d)/g;
+      if(  $day  ) {
+         $date= "$cc$year-$mon-$day";
+         my $when= timelocal( 0, 0, 0, $day, $mon-1, $cc*100+$year-1900 );
+         $dow= ( localtime($when) )[6];
+      } else {
+         ( $year, $mon, $day, $dow )=
+            ( localtime( time() - 60*60*24 ) )[5,4,3,6];
+         $date= sprintf "%d-%02d-%02d", 1900+$year, 1+$mon, $day;
+      }
+   }
+   $q-&gt;param( hitdate =&gt; $date );
+   return join ' ',
+      htmlcode('openform'),
+      $q-&gt;textfield( 'hitdate' ),
+      htmlcode('closeform'),
+      qq[&lt;p&gt;&lt;h3&gt;Most popular nodes for],
+      (qw( Sun Mon Tues Wednes Thurs Fri Satur ))[$dow] . 'day,',
+      qq[$date:&lt;/h3&gt;&lt;/p&gt;\n];
+%]
+
+&lt;table&gt;
+[%
+   my $date = $q-&gt;param('hitdate');
+   my $minhits = $q-&gt;param('minhits') || 100;
+   my $curs= $DB-&gt;sqlSelectMany(
+      "hits,node_id",
+      "traffic_stats",
+      join( ' ',
+        "day =", $DB-&gt;quote($date),
+        "and", $DB-&gt;quote($minhits), "&lt; hits",
+        "and hour = 0",
+      ),
+      "order by hits desc limit 100",
+   );
+   my @recs;
+   my $rec;
+   while(  $rec= $curs-&gt;fetchrow_hashref()  ) {
+      push @recs, $rec;
+   }
+   my $html= '';
+   my $n;
+   for my $rec (  @recs  ) {
+      my $hlt = (++$n &amp; 1) ? ' class="highlight"' : '';
+      $html .= sprintf
+         qq[  &lt;tr$hlt&gt;&lt;td align="right"&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;\n],
+         $rec-&gt;{hits}, linkNode($rec-&gt;{node_id})
+   }
+   return $html;
+%]
+&lt;/table&gt;
+</field>
+</data>
+</node>

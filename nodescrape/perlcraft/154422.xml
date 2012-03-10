@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="154422" title="Using Test::Harness to test PHP code" created="2002-03-26 10:58:35" updated="2005-07-28 13:41:46">
+<type id="121">
+perlcraft</type>
+<author id="72812">
+petdance</author>
+<data>
+<field name="doctext">
+# My project uses Perl and PHP side by side.  I have .t
+# files throughout the source tree to test my Perl modules,
+# and also .phpt files to test my PHP code.  I wanted to
+# have Test::Harness run both sets of test scripts, but
+# the _open_test() specifically calls Perl scripts.  So
+# I made my own TW::Harness. (TW is the project)
+# 
+# Basically, what I'm doing is overloading the _open_test()
+# method, although we're not using any inheritance since
+# we don't have an instance of the *::Harness object.
+#
+# This method is terribly tied to current implementation of
+# Test::Harness, but is the best way I had without getting
+# into the Test::Harness::Straps API.
+
+package TW::Harness;
+
+=head1 NAME
+
+TW::Harness - Magic override class to PHP-ify Test::Harness
+
+    $Author: alester $
+    $Date: 2002/03/23 04:44:33 $
+    $Source: /home/cvs/tw/Lib/TW/Harness.pm,v $
+    $Revision: 1.4 $
+
+=head1 DESCRIPTION
+
+This class is a TW-specific testing harness that still lets us use Schwern's
+original C&lt;Test::Harness&gt; for everything that isn't a .phpt file.
+
+=head1 USAGE
+
+Use TW::Harness just like regular Test::Harness.  Here's the line from the Makefile:
+
+    perl -I./Lib -I/usr/local/lib/perl5/5.6.1/sun4-solaris -I/usr/local/lib/perl5/5.6.1 \
+        -e 'use TW::Harness qw(&amp;runtests $$verbose $$switches); $$verbose=$(TEST_VERBOSE); \
+        $$switches=""; runtests(@ARGV);' $(TEST_FILES)
+
+=head1 SEE ALSO
+
+L&lt;Test::Harness&gt;
+
+=cut
+use Test::Harness qw( $verbose runtests $switches );
+
+# Replicate all of C&lt;Test::Harness&gt;'s exports
+our @ISA = qw( Exporter );
+our @EXPORT    = @Test::Harness::EXPORT;
+our @EXPORT_OK = @Test::Harness::EXPORT_OK;
+
+# Save a pointer to the original function
+my $original_open_test = \&amp;Test::Harness::_open_test;
+
+# And point the original at our new function.
+*Test::Harness::_open_test = \&amp;_open_test;
+
+sub _open_test {
+    my($test) = shift;
+
+    if ( $test =~ /\.phpt$/ ) {
+        my $phproot = $ENV{PHPROOT} or die "Must set PHPROOT\n";
+        my $PHPINC = ".:$phproot/Class:$phproot/Include";
+
+        $cmd = "php -dinclude_path=$PHPINC -q $test|";
+        if ( open( PERL, $cmd ) ) {
+            return \*PERL;
+        } else {
+            print "Can't run $test. $!\n";
+            return;
+        }
+    } else {
+        # Call the original version thru our saved typeglob
+        return $original_open_test-&gt;($test);
+    }
+}
+
+1;
+</field>
+</data>
+</node>

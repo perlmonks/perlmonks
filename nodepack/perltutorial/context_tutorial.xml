@@ -1,0 +1,238 @@
+<node>
+  <doctext>&lt;blockquote&gt;&quot;You will be miserable until you learn the difference between scalar and list context&quot;&lt;/blockquote&gt;
+&lt;p align=&quot;right&quot;&gt;&amp;mdash; &lt;i&gt;Programming Perl&lt;/i&gt; 3rd ed, page 69
+
+&lt;p&gt;&lt;b&gt;An introduction to context&lt;/b&gt;
+&lt;p&gt;Context is &lt;em&gt;everywhere&lt;/em&gt; in Perl.  Every operand is evaluated in some context.  Every operator imposes a context to its operands.  Every expression is constrained by the context in which it is evaluated.
+&lt;p&gt;The two main contexts are &lt;b&gt;scalar&lt;/b&gt; context and &lt;b&gt;list&lt;/b&gt; context.  Another is &lt;b&gt;void&lt;/b&gt;.  An operator that works on scalars imposes a scalar context.  You can tell which kind of context an operator has by checking the standard Perl documentation.  Every operator that creates a list context for its operands has &quot;&lt;i&gt;LIST&lt;/i&gt;&quot; in its syntactic description.
+
+&lt;p&gt;&lt;em&gt;Context matters&lt;/em&gt; because operands in Perl can behave differently according to context.  This is sort of like overloading.  A function (or other expression) can provide different results depending on the context it's in.
+
+&lt;readmore&gt;
+
+&lt;p&gt;&lt;b&gt;Context in action&lt;/b&gt;
+&lt;p&gt;For these examples, I'll use [doc://localtime] since it's a common function which evaluates differently according to context.  In a list context, it returns a series of numeric values that describe the current time.  In a scalar context, it returns a human readable string to describe the current time.
+&lt;c&gt;
+# Example 1.
+# @now will be (40, 51, 20, 9, 0, 109, 5, 8, 0)
+@now = localtime();
+
+# Example 2.
+# $now will be &quot;Fri Jan  9 20:51:40 2009&quot;
+$now = localtime();
+&lt;/c&gt;
+&lt;p&gt;In example 1, we assign [doc://localtime] to an array, which imposes a list context.  The array takes in all the values returned by &lt;c&gt;localtime&lt;/c&gt;.
+&lt;p&gt;In example 2, [doc://localtime] is assigned to a scalar, which imposes a scalar context.  In that context, &lt;c&gt;localtime&lt;/c&gt; returns the string, &quot;Fri Jan  9 20:51:40 2009&quot;.
+
+&lt;p&gt;You can try this yourself on the command line. If you're on a Windows box, you can run the code in Example&amp;nbsp;1 like this:
+
+&lt;c&gt;
+perl -e &quot;@now = localtime(); for $now(@now) {print $now;}&quot;
+432351301092120
+
+perl -e &quot;$now = localtime(); print $now;&quot;
+Tue Jan 13 05:26:30 2009
+&lt;/c&gt;
+&lt;p&gt;If you're on a Unix-like operating system (like Linux or newer Macs), replace the double quotes above with single quotes.
+&lt;p&gt;Now, back to context.
+
+&lt;c&gt;
+# Example 3.
+# $sec will be 40, $min will be 51, $hr will be 20
+($sec,$min,$hr) = localtime();
+&lt;/c&gt;
+&lt;p&gt;In example 3, [doc://localtime] is assigned to a list expression which has three scalar variables in it (wrapped in parentheses).  Because of the list expression, &lt;c&gt;localtime()&lt;/c&gt; is in list context.  The three variables get the first three values from the list that &lt;c&gt;localtime()&lt;/c&gt; returns, and its other return values are discarded.
+&lt;p&gt;Note that this assignment is also to a list expression:
+&lt;c&gt;
+my ($x) = localtime();     # Example 4
+&lt;/c&gt;
+&lt;p&gt;To write it without the list context, drop the parentheses.
+&lt;c&gt;
+my $x = localtime();       # Example 5
+&lt;/c&gt;
+
+&lt;p&gt;&lt;b&gt;Other common occurrences of context&lt;/b&gt;
+&lt;p&gt;When creating a hash, the elements are in list context.  This probably doesn't do what's intended:
+&lt;c&gt;
+# BAD!   [Example 6]
+my %h = ( now =&gt; localtime() );
+&lt;/c&gt;
+&lt;p&gt;Instead, [doc://localtime] needs [doc://scalar] to force it to be a single value associated with the key.  There's more about &lt;c&gt;scalar&lt;/c&gt; later in this tutorial.
+&lt;c&gt;
+# GOOD    [Example 7]
+my %h = ( now =&gt; scalar localtime() );
+&lt;/c&gt;
+&lt;p&gt;If you want to have the list returned from [doc://localtime] in an array in the hash, an anonymous array reference is the best way to do that.
+&lt;c&gt;
+# GOOD     [Example 8]
+my %h = ( now =&gt; [ localtime() ] );
+&lt;/c&gt;
+&lt;p&gt;If you're not familiar with references, see [doc://perlreftut], [doc://perlref], and [id://69927].
+&lt;p&gt;The arguments to a call to a user-defined sub are in list context also.
+&lt;c&gt;
+# Example 9
+sub print_time {
+    my $now = shift @_;
+
+    print &quot;The time is now $now\n&quot;;
+}
+
+# prints &quot;The time is now 40&quot;
+print_time( localtime() );
+
+# prints &quot;The time is now Tue Jan 13 05:26:30 2009&quot;
+print_time( scalar localtime() );
+&lt;/c&gt;
+&lt;p&gt;There is a way for a user-defined function to have its arguments in a scalar context, but that's seldom used, often discouraged, and outside the scope of this tutorial.  &lt;em&gt;Most&lt;/em&gt; of the time, subs' arguments are in list context.
+&lt;p&gt;Perl's built-ins don't follow this rule at all.  Example&amp;nbsp;10 does not do what's intended.
+&lt;c&gt;
+# Example 10
+my @loc = ($offset, $length);
+my $part = substr( $string, @loc );
+&lt;/c&gt;
+&lt;p&gt;Perl's [doc://substr] takes only scalar arguments.  Putting some of those arguments into an array this way won't work.  (The above is equivalent to &quot;&lt;c&gt;substr( $string, 2 )&lt;/c&gt;&quot; because &lt;c&gt;@loc&lt;/c&gt; is in scalar context.)
+
+&lt;p&gt;&lt;b&gt;Context propagates into sub calls&lt;/b&gt;
+&lt;p&gt;When control reaches a [doc://return], the operand to the right of that return finds itself in the context that the sub was in when it was called.  That means that in the following code, [doc://localtime] is in the list context from [doc://print].
+&lt;c&gt;
+print clock();          # Example 11
+
+sub clock {
+    return localtime();
+}
+&lt;/c&gt;
+&lt;p&gt;A sub's calling context might come from some operator high up in the call stack.
+
+&lt;p&gt;&lt;b&gt;Forcing scalar context&lt;/b&gt;
+&lt;p&gt;If you want to force a scalar context on an operand, use [doc://scalar].  For example:
+&lt;c&gt;
+print scalar localtime();     # Example 12
+&lt;/c&gt;
+&lt;p&gt;When you [doc://print], its operands are in list context.  It accepts a list of values to be printed.  If you just &quot;&lt;c&gt;print localtime()&lt;/c&gt;&quot;, it will print something like &quot;40512090109580&quot; (the list of values all stuck together), but &quot;&lt;c&gt;scalar localtime()&lt;/c&gt;&quot; looks like &quot;Fri Jan  9 20:51:40 2009&quot;.
+
+&lt;p&gt;&lt;b&gt;Forcing list context&lt;/b&gt;
+&lt;p&gt;To force a list context where there wouldn't be one otherwise, assign to an empty list.
+
+&lt;c&gt;
+my $match_count = ()= /x/g;       # Example 13
+&lt;/c&gt;
+&lt;p&gt;The &quot;&lt;c&gt;/x/g&lt;/c&gt;&quot; in scalar context would match only once, but with the list context, it finds every match.  The value of &quot;&lt;c&gt;()=&lt;/c&gt;&quot; in scalar context is the number of items in the list.
+
+&lt;p&gt;&lt;b&gt;Void context&lt;/b&gt;
+&lt;p&gt;Void context is a special case of scalar context.  It's the context of something that doesn't have an operator working on it.  The value of a thing in void context is discarded, not used for anything.  For example, the body of a &lt;c&gt;while&lt;/c&gt; loop is in void context.
+&lt;c&gt;
+# Example 14
+while (&lt;&gt;) {
+    ponder( $_ );   # void context
+}
+&lt;/c&gt;
+
+&lt;p&gt;The only way void context is like scalar context is that it's not list context.  The only way void context is &lt;em&gt;not&lt;/em&gt; like scalar context is that some things in void context can generate [doc://warnings] that they wouldn't generate in a scalar context.
+
+&lt;p&gt;&lt;b&gt;Determining context with wantarray&lt;/b&gt;
+&lt;p&gt;A sub can determine what context it was called in by using [doc://wantarray].  If the sub is in list context, &lt;c&gt;wantarray&lt;/c&gt; will return a true value.  In scalar context, it returns a false value that's [doc://defined].  In void context, it will return [doc://undef].
+&lt;c&gt;
+# Example 15
+
+sub print_context {
+    if ( wantarray() ) {
+        print &quot;list\n&quot;;
+    }
+    elsif ( defined wantarray() ) {
+        print &quot;scalar\n&quot;;
+    }
+    else {
+        print &quot;void\n&quot;;
+    }
+}
+
+       print_context();
+()=    print_context();
+scalar print_context();
+__END__
+void
+list
+scalar
+&lt;/c&gt;
+
+&lt;p&gt;&lt;b&gt;More flavors of scalars&lt;/b&gt;
+&lt;p&gt;The Camel book subdivides scalar context into &lt;strong&gt;numeric&lt;/strong&gt;, &lt;strong&gt;string&lt;/strong&gt;, and &lt;strong&gt;don't care&lt;/strong&gt; context, but it's more useful to think of these as &lt;em&gt;casts&lt;/em&gt;.
+&lt;p&gt;Scalar assignment is a &quot;don't care&quot; because numbers and strings are treated the same&amp;mdash;passed through to the scalar variable to have and to hold just as they are.  Another &quot;don't care&quot; cast is &lt;strong&gt;boolean&lt;/strong&gt; because strings and numbers aren't converted when being interpreted as true or false.  To learn more about how values are treated in boolean context, see [id://495975]
+&lt;p&gt;In numeric and string contexts, a variable might undergo a transformation from one to the other in order to facilitate the workings of the operator.  In example&amp;nbsp;16, a string is cast to a number to accommodate the numeric operation of the postfix &quot;&lt;c&gt;--&lt;/c&gt;&quot; operator.
+&lt;c&gt;
+# Example 16
+
+my $beer_inventory = '99 bottles';
+print &quot;how much beer?  $beer_inventory\n&quot;;
+$beer_inventory--;     # take one down...
+print &quot;how much beer?  $beer_inventory\n&quot;;
+__END__
+how much beer?  99 bottles
+how much beer?  98
+&lt;/c&gt;
+&lt;p&gt;To force an expression to a string, use &quot;&lt;c&gt;''.&lt;/c&gt;&quot; (that is, append to an empty string).  To interpret an expression as a number, use &quot;&lt;c&gt;0+&lt;/c&gt;&quot; (that is, add zero).  It's better to use &quot;&lt;c&gt;0+&lt;/c&gt;&quot; than some other identity function (such as &quot;&lt;c&gt;1*&lt;/c&gt;&quot;) because that's what [doc://overload] uses to designate the numeric cast.  To force a boolean interpretation, use &quot;&lt;c&gt;!!&lt;/c&gt;&quot; (that is, boolean negation twice).
+&lt;c&gt;
+# Example 17
+
+my $s = &quot;12 monkeys&quot;;
+my $n = 31337;
+
+my $stringified = ''. $n;  # &quot;31337&quot;
+my $numified    = 0+  $s;  # 12
+my $boolean     = !!  $n;  # 1
+&lt;/c&gt;
+
+&lt;p&gt;Every cast is possible.  Strings can be cast to numbers or booleans.  Numbers can be cast to strings or booleans.  Booleans can be cast to numbers or strings.
+
+&lt;p&gt;&lt;b&gt;Context clash&lt;/b&gt;
+&lt;p&gt;A single value (such as a scalar) in a list context becomes a list with one item.
+&lt;c&gt;
+# Example 18
+
+my $scaley = 'snake';
+my @listy = $scaley;
+
+# does the same thing:
+#my @listy = ('snake');
+&lt;/c&gt;
+&lt;p&gt;That's simple enough.  What about the other way around?  In scalar context, a list of expressions separated by commas evaluates to the whatever the last item evaluates to in scalar context.  A slice of an array or hash in scalar context will similarly evaluate to the last element in the slice (for more on slices, see [doc://perldata#Slices]).
+&lt;c&gt;
+# Example 19
+
+my @t = ( 'one', 'two' );
+
+my $x = ( 'one', 'two' );               # 'two'
+my $y = @t[0,1];                        # 'two'
+my $z = ( 'larry', 'moe', @t[0,1] );    # 'two'
+
+my $r = ( 'larry', 'moe', @t );         # 2
+my $f = ( 'old', 'man', localtime() );  # &quot;Fri Jan  9 20:51:40 2009&quot;
+&lt;/c&gt;
+&lt;p&gt;Other things ordinarily used in list context have their own special scalar context behaviors.  One particularly useful one is demonstrated by the &lt;c&gt;$r&lt;/c&gt; value in example&amp;nbsp;19.  An array in scalar context evaluates to the number of items in the array.  For a list of others, see [id://347416].
+
+&lt;p&gt;&lt;b&gt;Interpolative context&lt;/b&gt;
+&lt;p&gt;This isn't a full fledged context like scalar and list context, but it helps to know in which places variables are expanded (interpolated) into their values.  For a full list of these, see [doc://perlop#Quote-and-Quote-like-Operators|Quote and Quote-like Operators].  For a brief example, see below.
+&lt;c&gt;
+# Example 20
+
+my $friend   = 'Perl';
+my $literal  = '$friend';   # literally, '$friend'
+my $expanded = &quot;$friend&quot;;   # literally, 'Perl'
+&lt;/c&gt;
+&lt;p&gt;To reiterate, this isn't a context the way &quot;scalar context&quot; is a context, and it isn't what we normally mean when we say simply &quot;context.&quot;  Still, it may help to think of it as a context when one is considering interpolation.  For the full scoop including many other places this is relevant, see the full documentation ([doc://perlop#Quote-and-Quote-like-Operators|Quote and Quote-like Operators]).
+
+&lt;p&gt;&lt;b&gt;More context&lt;/b&gt;
+&lt;p&gt;If the deep dark magic of [doc://wantarray] leaves you wanting for more, look into [mod://Want] and [mod://Contextual::Return], which are advertised to detect contexts I have not mentioned here.  Also, look at [doc://overload] for creating an object which can interpret itself differently in numeric and string contexts.
+&lt;p&gt;Another good source of information about context is [http://perl.plover.com/context.html|What is Scalar Context?] by [Dominus].
+
+&lt;p&gt;Thanks to [belg4mit], [tye], [theorbtwo], [Arunbear], [bart], [zentara], [ikegami], [Limbic~Region], [Narveson], [jdporter], [moritz], [Porculus], [ww], [gwadej], [oshalla], and [gwadej] for commenting on an earlier draft!
+
+&lt;/readmore&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>738558</node_id>
+  <author_user>585085</author_user>
+  <title>Context tutorial</title>
+  <createtime>2009-01-23 14:20:47</createtime>
+  <nodeupdated>2009-01-23 14:20:47</nodeupdated>
+</node>

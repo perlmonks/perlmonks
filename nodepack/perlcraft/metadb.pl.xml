@@ -1,0 +1,59 @@
+<node>
+  <doctext>#!/usr/bin/perl
+# daniel j shahin
+# metadb.pl - make a dbm of filenames and it's stats for later comparison
+# only a little useful, could add checksum too...
+# you may distribute this under the same terms as perl
+
+#use strict;
+use DB_File;
+use vars qw($COMMAND $DIRNAME $FILENAME $COLOR @filestats 
+            @dbstats @statnames %HASH $i $file $stat );
+if (@ARGV &lt; 3){die &quot;usage: metadb [makedb | compare] &lt;directory&gt; &lt;dbm&gt;&quot;}
+$COMMAND = shift;
+$DIRNAME = shift;
+$FILENAME = shift;
+
+@statnames = ('device', 'inode', 'mode', 'nlink',
+              'uid', 'gid', 'rdev', 'size', 'atime',
+              'mtime', 'ctime', 'blksize', 'blocks');
+
+if ($COMMAND eq 'makedb'){
+    dbmopen (%HASH, $FILENAME, 0666) or die &quot;Can't open $FILENAME: $!\n&quot;;
+    opendir(DIR, $DIRNAME) or die &quot;can't opendir $DIRNAME: $!&quot;;
+    while (defined($file = readdir(DIR))) {
+        next if $file =~ /^\.\.?$/;
+        $stat = join(':',stat(&quot;$DIRNAME/$file&quot;));
+        $HASH{&quot;$DIRNAME/$file&quot;} = $stat;
+        print &quot;$DIRNAME/$file: $stat  \n&quot;;
+    }
+    closedir(DIR);
+    dbmclose %HASH;
+}elsif($COMMAND eq 'compare'){
+    dbmopen %HASH, $FILENAME, 0666 or die &quot;Can't open $FILENAME: $!\n&quot;;
+    opendir(DIR, $DIRNAME) or die &quot;can't opendir $DIRNAME: $!&quot;;
+    while (defined($file = readdir(DIR))) {
+        next if $file =~ /^\.\.?$/;
+        $stat = join(':',stat(&quot;$DIRNAME/$file&quot;));
+        if(exists $HASH{&quot;$DIRNAME/$file&quot;} &amp;&amp; $HASH{&quot;$DIRNAME/$file&quot;} ne $stat){
+            if (exists $HASH{&quot;$DIRNAME/$file&quot;}){
+                    print &quot;$DIRNAME/$file\n&quot;;
+                    @filestats = split(':', $stat);
+                    @dbstats = split(':', $HASH{&quot;$DIRNAME/$file&quot;});
+                    for ($i=0; $i&lt;13; $i++){
+                          print &quot;\t$statnames[$i]&quot;;
+                          print &quot;\tfile:$filestats[$i]&quot;;
+                          print &quot;\tdb:$dbstats[$i]\n&quot;;
+                    }
+            }
+        }
+    }
+}
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>74318</node_id>
+  <author_user>8867</author_user>
+  <title>metadb.pl</title>
+  <createtime>2001-04-20 20:45:11</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

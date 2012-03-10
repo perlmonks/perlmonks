@@ -1,0 +1,1064 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlport - Writing portable Perl
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Perl runs on a variety of operating systems. While most of them share a lot
+in common, they also have their own very particular and unique features.
+
+&lt;P&gt;
+This document is meant to help you to find out what constitutes portable
+Perl code, so that once you have made your decision to write portably, you
+know where the lines are drawn, and you can stay within them.
+
+&lt;P&gt;
+There is a tradeoff between taking full advantage of &lt;STRONG&gt;a&lt;/STRONG&gt; particular type of computer, and taking advantage of a full &lt;STRONG&gt;range&lt;/STRONG&gt; of them. Naturally, as you make your range bigger (and thus more diverse),
+the common denominators drop, and you are left with fewer areas of common
+ground in which you can operate to accomplish a particular task. Thus, when
+you begin attacking a problem, it is important to consider which part of
+the tradeoff curve you want to operate under. Specifically, whether it is
+important to you that the task that you are coding needs the full
+generality of being portable, or if it is sufficient to just get the job
+done. This is the hardest choice to be made. The rest is easy, because Perl
+provides lots of choices, whichever way you want to approach your problem.
+
+&lt;P&gt;
+Looking at it another way, writing portable code is usually about willfully
+limiting your available choices. Naturally, it takes discipline to do that.
+
+&lt;P&gt;
+Be aware of two important points:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Not&quot;&gt;Not all Perl programs have to be portable&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+There is no reason why you should not use Perl as a language to glue Unix
+tools together, or to prototype a Macintosh application, or to manage the
+Windows registry. If it makes no sense to aim for portability for one
+reason or another in a given program, then don't bother.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_The&quot;&gt;The vast majority of Perl is portable&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Don't be fooled into thinking that it is hard to create portable Perl code.
+It isn't. Perl tries its level-best to bridge the gaps between what's
+available on different platforms, and all the means available to use those
+features. Thus almost all Perl code runs on any machine without
+modification. But there &lt;EM&gt;are&lt;/EM&gt; some significant issues in writing portable code, and this document is
+entirely about those issues.
+
+&lt;/DL&gt;
+&lt;P&gt;
+Here's the general rule: When you approach a task that is commonly done
+using a whole range of platforms, think in terms of writing portable code.
+That way, you don't sacrifice much by way of the implementation choices you
+can avail yourself of, and at the same time you can give your users lots of
+platform choices. On the other hand, when you have to take advantage of
+some unique feature of a particular platform, as is often the case with
+systems programming (whether for Unix, Windows,
+Mac&amp;nbsp;OS, 
+&lt;FONT SIZE=-1&gt;VMS,&lt;/FONT&gt; etc.), consider writing platform-specific code.
+
+&lt;P&gt;
+When the code will run on only two or three operating systems, then you may
+only need to consider the differences of those particular systems. The
+important thing is to decide where the code will run, and to be deliberate
+in your decision.
+
+&lt;P&gt;
+The material below is separated into three main sections: main issues of
+portability (&lt;A HREF=&quot;#ISSUES&quot;&gt;ISSUES&lt;/A&gt;, platform-specific issues (&lt;A HREF=&quot;#PLATFORMS&quot;&gt;PLATFORMS&lt;/A&gt;, and builtin perl functions that behave differently on various ports (&lt;A HREF=&quot;#FUNCTION_IMPLEMENTATIONS&quot;&gt;FUNCTION IMPLEMENTATIONS&lt;/A&gt;.
+
+&lt;P&gt;
+This information should not be considered complete; it includes possibly transient information about idiosyncrasies of some of the ports, almost all of which are in a state of constant evolution. Thus this material should be considered a perpetual work in progress 
+&lt;FONT SIZE=-1&gt;(&amp;lt;IMG&lt;/FONT&gt; SRC=``yellow_sign.gif'' ALT=``Under Construction''&amp;gt;).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;ISSUES&quot;&gt;ISSUES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Newlines&quot;&gt;Newlines&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In most operating systems, lines in files are terminated with newlines. Just what is used as a newline may vary from 
+&lt;FONT SIZE=-1&gt;OS&lt;/FONT&gt; to 
+&lt;FONT SIZE=-1&gt;OS.&lt;/FONT&gt; Unix traditionally uses
+ &lt;CODE&gt;\012&lt;/CODE&gt;, one kind of Windows 
+&lt;FONT SIZE=-1&gt;I/O&lt;/FONT&gt; uses &lt;CODE&gt;\015\012&lt;/CODE&gt;, and Mac&amp;nbsp;OS uses &lt;CODE&gt;\015&lt;/CODE&gt;.
+
+&lt;P&gt;
+Perl uses &lt;CODE&gt;\n&lt;/CODE&gt; to represent the ``logical'' newline, where what is logical may depend on
+the platform in use. In MacPerl, &lt;CODE&gt;\n&lt;/CODE&gt;
+always means &lt;CODE&gt;\015&lt;/CODE&gt;. In DOSish perls, &lt;CODE&gt;\n&lt;/CODE&gt; usually means &lt;CODE&gt;\012&lt;/CODE&gt;, but when accessing a file in ``text'' mode, 
+&lt;FONT SIZE=-1&gt;STDIO&lt;/FONT&gt; translates it to (or from)
+&lt;CODE&gt;\015\012&lt;/CODE&gt;.
+
+&lt;P&gt;
+Due to the ``text'' mode translation, DOSish perls have limitations of
+using [perlfunc:seek|seek] and [perlfunc:tell|tell] when a file is being accessed in ``text'' mode. Specifically, if you stick
+to [perlfunc:seek|seek]-ing to locations you got from [perlfunc:tell|tell] (and no others), you are usually free to use [perlfunc:seek|seek] and
+[perlfunc:tell|tell] even in ``text'' mode. In general, using [perlfunc:seek|seek] or [perlfunc:tell|tell] or other file operations that count bytes instead of characters, without
+considering the length of &lt;CODE&gt;\n&lt;/CODE&gt;, may be non-portable. If you use
+[perlfunc:binmode|binmode] on a file, however, you can usually use [perlfunc:seek|seek] and [perlfunc:tell|tell]
+with arbitrary values quite safely.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; common misconception in socket programming is that &lt;CODE&gt;\n&lt;/CODE&gt; eq &lt;CODE&gt;\012&lt;/CODE&gt;
+everywhere. When using protocols such as common Internet protocols,
+&lt;CODE&gt;\012&lt;/CODE&gt; and &lt;CODE&gt;\015&lt;/CODE&gt; are called for specifically, and the values of the logical &lt;CODE&gt;\n&lt;/CODE&gt; and &lt;CODE&gt;\r&lt;/CODE&gt; (carriage return) are not reliable.
+
+&lt;P&gt;
+&lt;PRE&gt;    print SOCKET &amp;quot;Hi there, client!\r\n&amp;quot;;      # WRONG
+    print SOCKET &amp;quot;Hi there, client!\015\012&amp;quot;;  # RIGHT
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;&amp;#091;NOTE:&lt;/FONT&gt; this does not necessarily apply to communications that are filtered by another program or module before sending to the socket; the the most popular 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; webserver, for instance, accepts
+ &lt;CODE&gt;\r\n&lt;/CODE&gt;, which translates those characters, along with all other characters in text streams, from 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; to 
+&lt;FONT SIZE=-1&gt;ASCII.&amp;#093;&lt;/FONT&gt;
+
+&lt;P&gt;
+However, using &lt;CODE&gt;\015\012&lt;/CODE&gt; (or &lt;CODE&gt;\cM\cJ&lt;/CODE&gt;, or &lt;CODE&gt;\x0D\x0A&lt;/CODE&gt;) can be tedious and unsightly, as well as confusing to those maintaining
+the code. As such, the &lt;CODE&gt;Socket&lt;/CODE&gt; module supplies the Right Thing for those who want it.
+
+&lt;P&gt;
+&lt;PRE&gt;    use Socket qw(:DEFAULT :crlf);
+    print SOCKET &amp;quot;Hi there, client!$CRLF&amp;quot;      # RIGHT
+&lt;/PRE&gt;
+&lt;P&gt;
+When reading &lt;EM&gt;from&lt;/EM&gt; a socket, remember that the default input record separator (&lt;CODE&gt;$/&lt;/CODE&gt;) is &lt;CODE&gt;\n&lt;/CODE&gt;, but code like this should recognize &lt;CODE&gt;$/&lt;/CODE&gt; as
+&lt;CODE&gt;\012&lt;/CODE&gt; or &lt;CODE&gt;\015\012&lt;/CODE&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;SOCKET&amp;gt;) {
+        # ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Better:
+
+&lt;P&gt;
+&lt;PRE&gt;    use Socket qw(:DEFAULT :crlf);
+    local($/) = LF;      # not needed if $/ is already \012
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;SOCKET&amp;gt;) {
+        s/$CR?$LF/\n/;   # not sure if socket uses LF or CRLF, OK
+    #   s/\015?\012/\n/; # same thing
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+And this example is actually better than the previous one even for Unix
+platforms, because now any &lt;CODE&gt;\015&lt;/CODE&gt;'s (&lt;CODE&gt;\cM&lt;/CODE&gt;'s) are stripped out (and there was much rejoicing).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Numbers_endianness_and_Width&quot;&gt;Numbers endianness and Width&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Different CPUs store integers and floating point numbers in different
+orders (called &lt;EM&gt;endianness&lt;/EM&gt;) and widths (32-bit and 64-bit being the most common). This affects your programs if they attempt to transfer numbers in binary format from a 
+&lt;FONT SIZE=-1&gt;CPU&lt;/FONT&gt; architecture to another over some channel: either 'live' via network connections or storing the numbers to secondary storage such as a disk file.
+
+&lt;P&gt;
+Conflicting storage orders make utter mess out of the numbers: if a little-endian host (Intel, Alpha) stores 0x12345678 (305419896 in decimal), a big-endian host (Motorola, 
+&lt;FONT SIZE=-1&gt;MIPS,&lt;/FONT&gt; Sparc, 
+&lt;FONT SIZE=-1&gt;PA)&lt;/FONT&gt; reads it as 0x78563412 (2018915346 in decimal). To avoid this problem in network (socket) connections use the
+ [perlfunc:pack|pack()] and [perlfunc:unpack|unpack()] formats &lt;CODE&gt;&amp;quot;n&amp;quot;&lt;/CODE&gt;
+and &lt;CODE&gt;&amp;quot;N&amp;quot;&lt;/CODE&gt;, the ``network'' orders, they are guaranteed to be portable.
+
+&lt;P&gt;
+Different widths can cause truncation even between platforms of equal
+endianness: the platform of shorter width loses the upper parts of the
+number. There is no good solution for this problem except to avoid
+transferring or storing raw binary numbers.
+
+&lt;P&gt;
+One can circumnavigate both these problems in two ways: either transfer and
+store numbers always in text format, instead of raw binary, or consider
+using modules like &lt;CODE&gt;Data::Dumper&lt;/CODE&gt; (included in the standard distribution as of Perl 5.005) and &lt;CODE&gt;Storable&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Files&quot;&gt;Files&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Most platforms these days structure files in a hierarchical fashion. So, it
+is reasonably safe to assume that any platform supports the notion of a
+``path'' to uniquely identify a file on the system. Just how that path is
+actually written, differs.
+
+&lt;P&gt;
+While they are similar, file path specifications differ between Unix,
+Windows, Mac&amp;nbsp;OS, 
+&lt;FONT SIZE=-1&gt;OS/2,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;VMS,&lt;/FONT&gt; RISC&amp;nbsp;OS and probably others. Unix, for example, is one of the few OSes that has the
+idea of a single root directory.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;VMS,&lt;/FONT&gt; Windows, and 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; can work similarly to Unix with
+ &lt;CODE&gt;/&lt;/CODE&gt; as path separator, or in their own idiosyncratic ways (such as having several root directories and various ``unrooted'' device files such 
+&lt;FONT SIZE=-1&gt;NIL:&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;LPT:).&lt;/FONT&gt;
+
+&lt;P&gt;
+Mac&amp;nbsp;OS uses &lt;CODE&gt;:&lt;/CODE&gt; as a path separator instead of &lt;CODE&gt;/&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;CODE&gt;RISC OS&lt;/CODE&gt; perl can emulate Unix filenames with &lt;CODE&gt;/&lt;/CODE&gt; as path separator, or go native and use &lt;CODE&gt;.&lt;/CODE&gt; for path separator and &lt;CODE&gt;:&lt;/CODE&gt; to signal filing systems and disc names.
+
+&lt;P&gt;
+As with the newline problem above, there are modules that can help. The
+&lt;CODE&gt;File::Spec&lt;/CODE&gt; modules provide methods to do the Right Thing on whatever platform happens
+to be running the program.
+
+&lt;P&gt;
+&lt;PRE&gt;    use [perlman:File::Spec|File::Spec];
+    chdir([perlman:File::Spec-&amp;gt|File::Spec-&amp;gt];updir());        # go up one directory
+    $file = [perlman:File::Spec-&amp;gt|File::Spec-&amp;gt];catfile(
+        [perlman:File::Spec-&amp;gt|File::Spec-&amp;gt];curdir(), 'temp', 'file.txt'
+    );
+    # on Unix and Win32, './temp/file.txt'
+    # on Mac OS, ':temp:file.txt'
+&lt;/PRE&gt;
+&lt;P&gt;
+File::Spec is available in the standard distribution, as of version
+5.004_05.
+
+&lt;P&gt;
+In general, production code should not have file paths hardcoded; making
+them user supplied or from a configuration file is better, keeping in mind
+that file path syntax varies on different machines.
+
+&lt;P&gt;
+This is especially noticeable in scripts like Makefiles and test suites,
+which often assume &lt;CODE&gt;/&lt;/CODE&gt; as a path separator for subdirectories.
+
+&lt;P&gt;
+Also of use is &lt;CODE&gt;File::Basename&lt;/CODE&gt;, from the standard distribution, which splits a pathname into pieces (base
+filename, full path to directory, and file suffix).
+
+&lt;P&gt;
+Even when on a single platform (if you can call 
+&lt;FONT SIZE=-1&gt;UNIX&lt;/FONT&gt; a single platform), remember not to count on the
+existence or the contents of system-specific files, like &lt;EM&gt;/etc/passwd&lt;/EM&gt;, &lt;EM&gt;/etc/sendmail.conf&lt;/EM&gt;, or
+&lt;EM&gt;/etc/resolv.conf&lt;/EM&gt;. For example the &lt;EM&gt;/etc/passwd&lt;/EM&gt; may exist but it may not contain the encrypted passwords because the system is using some form of enhanced security-- or it may not contain all the accounts because the system is using 
+&lt;FONT SIZE=-1&gt;NIS.&lt;/FONT&gt; If code does need to rely on such a file, include a description of the file and its format in the code's documentation, and make it easy for the user to override the default location of the file.
+
+&lt;P&gt;
+Do not have two files of the same name with different case, like
+&lt;EM&gt;test.pl&lt;/EM&gt; and &amp;lt;Test.pl&amp;gt;, as many platforms have case-insensitive filenames. Also, try
+not to have non-word characters (except for &lt;CODE&gt;.&lt;/CODE&gt;) in the names, and keep them to the 8.3 convention, for maximum
+portability.
+
+&lt;P&gt;
+Likewise, if using &lt;CODE&gt;AutoSplit&lt;/CODE&gt;, try to keep the split functions to 8.3 naming and case-insensitive
+conventions; or, at the very least, make it so the resulting files have a
+unique (case-insensitively) first 8 characters.
+
+&lt;P&gt;
+Don't assume &lt;CODE&gt;&amp;lt;&lt;/CODE&gt; won't be the first character of a filename. Always use &lt;CODE&gt;&amp;gt;&lt;/CODE&gt; explicitly to open a file for reading:
+
+&lt;P&gt;
+&lt;PRE&gt;    open(FILE, &amp;quot;&amp;lt;$existing_file&amp;quot;) or die $!;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;System_Interaction&quot;&gt;System Interaction&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Not all platforms provide for the notion of a command line, necessarily. These are usually platforms that rely on a Graphical User Interface 
+&lt;FONT SIZE=-1&gt;(GUI)&lt;/FONT&gt; for user interaction. So a program requiring command lines might not work everywhere. But this is probably for the user of the program to deal with.
+
+&lt;P&gt;
+Some platforms can't delete or rename files that are being held open by the
+system. Remember to [perlfunc:close|close] files when you are done with them. Don't [perlfunc:unlink|unlink] or [perlfunc:rename|rename] an open file. Don't [perlfunc:tie|tie] to or [perlfunc:open|open] a file that is already tied to or opened; [perlfunc:untie|untie] or [perlfunc:close|close] first.
+
+&lt;P&gt;
+Don't open the same file more than once at a time for writing, as some
+operating systems put mandatory locks on such files.
+
+&lt;P&gt;
+Don't count on a specific environment variable existing in &lt;CODE&gt;%ENV&lt;/CODE&gt;. Don't count on &lt;CODE&gt;%ENV&lt;/CODE&gt; entries being case-sensitive, or even case-preserving.
+
+&lt;P&gt;
+Don't count on signals.
+
+&lt;P&gt;
+Don't count on filename globbing. Use [perlfunc:opendir|opendir], [perlfunc:readdir|readdir], and
+[perlfunc:closedir|closedir] instead.
+
+&lt;P&gt;
+Don't count on per-program environment variables, or per-program current
+directories.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Interprocess_Communication_IPC_&quot;&gt;Interprocess Communication (IPC)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In general, don't directly access the system in code that is meant to be
+portable. That means, no [perlfunc:system|system], [perlfunc:exec|exec], [perlfunc:fork|fork], [perlfunc:pipe|pipe], &lt;CODE&gt;``&lt;/CODE&gt;,
+[perlman:perlop], [perlfunc:open|open] with a &lt;CODE&gt;|&lt;/CODE&gt;, nor any of the other things that makes being a Unix perl hacker worth
+being.
+
+&lt;P&gt;
+Commands that launch external processes are generally supported on most
+platforms (though many of them do not support any type of forking), but the
+problem with using them arises from what you invoke with them. External
+tools are often named differently on different platforms, often not
+available in the same location, often accept different arguments, often
+behave differently, and often represent their results in a
+platform-dependent way. Thus you should seldom depend on them to produce
+consistent results.
+
+&lt;P&gt;
+One especially common bit of Perl code is opening a pipe to sendmail:
+
+&lt;P&gt;
+&lt;PRE&gt;    open(MAIL, '|/usr/lib/sendmail -t') or die $!;
+&lt;/PRE&gt;
+&lt;P&gt;
+This is fine for systems programming when sendmail is known to be
+available. But it is not fine for many non-Unix systems, and even some Unix
+systems that may not have sendmail installed. If a portable solution is
+needed, see the &lt;CODE&gt;Mail::Send&lt;/CODE&gt; and &lt;CODE&gt;Mail::Mailer&lt;/CODE&gt; modules in the &lt;CODE&gt;MailTools&lt;/CODE&gt; distribution.  &lt;CODE&gt;Mail::Mailer&lt;/CODE&gt; provides several mailing methods, including mail, sendmail, and direct 
+&lt;FONT SIZE=-1&gt;SMTP&lt;/FONT&gt; (via &lt;CODE&gt;Net::SMTP&lt;/CODE&gt;) if a mail transfer agent is not available.
+
+&lt;P&gt;
+The rule of thumb for portable code is: Do it all in portable Perl, or use
+a module (that may internally implement it with platform-specific code, but
+expose a common interface).
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;UNIX&lt;/FONT&gt; System 
+&lt;FONT SIZE=-1&gt;V&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;IPC&lt;/FONT&gt; (
+&lt;CODE&gt;msg*(), sem*(), shm*()&lt;/CODE&gt;) is not available even in all 
+&lt;FONT SIZE=-1&gt;UNIX&lt;/FONT&gt; platforms.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;External_Subroutines_XS_&quot;&gt;External Subroutines (XS)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code, in general, can be made to work with any platform; but dependent libraries, header files, etc., might not be readily available or portable, or the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code itself might be platform-specific, just as Perl code might be. If the libraries and headers are portable, then it is normally reasonable to make sure the 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code is portable, too.
+
+&lt;P&gt;
+There is a different kind of portability issue with writing 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code: availability of a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; compiler on the end-user's system. 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; brings with it its own portability issues, and writing 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; code will expose you to some of those. Writing purely in perl is a comparatively easier way to achieve portability.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Standard_Modules&quot;&gt;Standard Modules&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+In general, the standard modules work across platforms. Notable exceptions
+are &lt;CODE&gt;CPAN.pm&lt;/CODE&gt; (which currently makes connections to external programs that may not be
+available), platform-specific modules (like
+&lt;CODE&gt;ExtUtils::MM_VMS&lt;/CODE&gt;), and 
+&lt;FONT SIZE=-1&gt;DBM&lt;/FONT&gt; modules.
+
+&lt;P&gt;
+There is no one 
+&lt;FONT SIZE=-1&gt;DBM&lt;/FONT&gt; module that is available on all platforms.
+&lt;CODE&gt;SDBM_File&lt;/CODE&gt; and the others are generally available on all Unix and DOSish ports, but
+not in MacPerl, where only &lt;CODE&gt;NBDM_File&lt;/CODE&gt; and &lt;CODE&gt;DB_File&lt;/CODE&gt; are available.
+
+&lt;P&gt;
+The good news is that at least some 
+&lt;FONT SIZE=-1&gt;DBM&lt;/FONT&gt; module should be available, and
+&lt;CODE&gt;AnyDBM_File&lt;/CODE&gt; will use whichever module it can find. Of course, then the code needs to be fairly strict, dropping to the lowest common denominator (e.g., not exceeding 
+&lt;FONT SIZE=-1&gt;1K&lt;/FONT&gt; for each record).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Time_and_Date&quot;&gt;Time and Date&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The system's notion of time of day and calendar date is controlled in
+widely different ways. Don't assume the timezone is stored in &lt;CODE&gt;$ENV{TZ}&lt;/CODE&gt;, and even if it is, don't assume that you can control the timezone through
+that variable.
+
+&lt;P&gt;
+Don't assume that the epoch starts at 00:00:00, January 1, 1970, because that is OS-specific. Better to store a date in an unambiguous representation. The 
+&lt;FONT SIZE=-1&gt;ISO&lt;/FONT&gt; 8601 standard defines 
+&lt;FONT SIZE=-1&gt;YYYY-MM-DD&lt;/FONT&gt; as the date format. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; text representation (like
+ &lt;CODE&gt;1 Jan 1970&lt;/CODE&gt;) can be easily converted into an OS-specific value using a module like
+&lt;CODE&gt;Date::Parse&lt;/CODE&gt;. An array of values, such as those returned by
+[perlfunc:localtime|localtime], can be converted to an OS-specific representation using
+&lt;CODE&gt;Time::Local&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Character_sets_and_character_enc&quot;&gt;Character sets and character encoding&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Assume very little about character sets. Do not assume anything about the
+numerical values ([perlfunc:ord|ord()], [perlfunc:chr|chr()]) of characters. Do not assume that the alphabetic characters are encoded contiguously (in numerical sense). Do no assume anything about the ordering of the characters. The lowercase letters may come before or after the uppercase letters, the lowercase and uppercase may be interlaced so that both 'a' and 
+&lt;FONT SIZE=-1&gt;'A'&lt;/FONT&gt; come before the 'b', the accented and other international characters may be interlaced so that &amp;auml; comes before the 'b'.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Internationalisation&quot;&gt;Internationalisation&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you may assume 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; (a rather large assumption, that: in practise that means 
+&lt;FONT SIZE=-1&gt;UNIX)&lt;/FONT&gt; you may read more about the 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; locale system from
+
+[perlman:perllocale|the perllocale manpage]. The locale system at least attempts to make things a little bit more
+portable or at least more convenient and native-friendly for non-English
+users. The system affects character sets and encoding, and date and time
+formatting, among other things.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;System_Resources&quot;&gt;System Resources&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If your code is destined for systems with severely constrained (or
+missing!) virtual memory systems then you want to be &lt;EM&gt;especially&lt;/EM&gt; mindful of avoiding wasteful constructs such as:
+
+&lt;P&gt;
+&lt;PRE&gt;    # NOTE: this is no longer &amp;quot;bad&amp;quot; in perl5.005
+    for (0..10000000) {}                       # bad
+    for (my $x = 0; $x &amp;lt;= 10000000; ++$x) {}   # good
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @lines = &amp;lt;VERY_LARGE_FILE&amp;gt;;                # bad
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    while (&amp;lt;FILE&amp;gt;) {$file .= $_}               # sometimes bad
+    $file = join('', &amp;lt;FILE&amp;gt;);                  # better
+&lt;/PRE&gt;
+&lt;P&gt;
+The last two may appear unintuitive to most people. The first of those two
+constructs repeatedly grows a string, while the second allocates a large
+chunk of memory in one go. On some systems, the latter is more efficient
+that the former.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Security&quot;&gt;Security&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Most multi-user platforms provide basic levels of security that is usually
+felt at the file-system level. Other platforms usually don't
+(unfortunately). Thus the notion of user id, or ``home'' directory, or even
+the state of being logged-in, may be unrecognizable on many platforms. If
+you write programs that are security conscious, it is usually best to know
+what type of system you will be operating under, and write code explicitly
+for that platform (or class of platforms).
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Style&quot;&gt;Style&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+For those times when it is necessary to have platform-specific code,
+consider keeping the platform-specific code in one place, making porting to
+other platforms easier. Use the &lt;CODE&gt;Config&lt;/CODE&gt; module and the special variable &lt;CODE&gt;$^O&lt;/CODE&gt; to differentiate platforms, as described in
+&lt;A HREF=&quot;#PLATFORMS&quot;&gt;PLATFORMS&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;CPAN_Testers&quot;&gt;CPAN Testers&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Modules uploaded to 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; are tested by a variety of volunteers on different platforms. These 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; testers are notified by mail of each new upload, and reply to the list with 
+&lt;FONT SIZE=-1&gt;PASS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FAIL,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;NA&lt;/FONT&gt; (not applicable to this platform), or 
+&lt;FONT SIZE=-1&gt;UNKNOWN&lt;/FONT&gt; (unknown), along with any relevant notations.
+
+&lt;P&gt;
+The purpose of the testing is twofold: one, to help developers fix any
+problems in their code that crop up because of lack of testing on other
+platforms; two, to provide users with information about whether or not a
+given module works on a given platform.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Mailing&quot;&gt;Mailing list: cpan-testers@perl.org&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Testing&quot;&gt;Testing results: http://www.connect.net/gbarr/cpan-test/&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;PLATFORMS&quot;&gt;PLATFORMS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+As of version 5.002, Perl is built with a &lt;CODE&gt;$^O&lt;/CODE&gt; variable that indicates the operating system it was built on. This was
+implemented to help speed up code that would otherwise have to &lt;CODE&gt;use Config;&lt;/CODE&gt; and use the value of &lt;CODE&gt;$Config{'osname'}&lt;/CODE&gt;. Of course, to get detailed information about the system, looking into &lt;CODE&gt;%Config&lt;/CODE&gt; is certainly recommended.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Unix&quot;&gt;Unix&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl works on a bewildering variety of Unix and Unix-like platforms (see
+e.g. most of the files in the &lt;EM&gt;hints/&lt;/EM&gt; directory in the source code kit). On most of these systems, the value of &lt;CODE&gt;$^O&lt;/CODE&gt; (hence &lt;CODE&gt;$Config{'osname'}&lt;/CODE&gt;, too) is determined by lowercasing and stripping punctuation from the
+first field of the string returned by typing &lt;CODE&gt;uname -a&lt;/CODE&gt; (or a similar command) at the shell prompt. Here, for example, are a few of
+the more popular Unix flavors:
+
+&lt;P&gt;
+&lt;PRE&gt;    uname        $^O        $Config{'archname'}
+    -------------------------------------------
+    AIX          aix        aix
+    FreeBSD      freebsd    freebsd-i386    
+    Linux        linux      i386-linux
+    HP-UX        hpux       PA-RISC1.1
+    IRIX         irix       irix
+    OSF1         dec_osf    alpha-dec_osf
+    SunOS        solaris    sun4-solaris
+    SunOS        solaris    i86pc-solaris
+    SunOS4       sunos      sun4-sunos
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that because the &lt;CODE&gt;$Config{'archname'}&lt;/CODE&gt; may depend on the hardware architecture it may vary quite a lot, much more
+than the &lt;CODE&gt;$^O&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;DOS_and_Derivatives&quot;&gt;DOS and Derivatives&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl has long been ported to 
+&lt;FONT SIZE=-1&gt;PC&lt;/FONT&gt; style microcomputers running under systems like 
+&lt;FONT SIZE=-1&gt;PC-DOS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;MS-DOS,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;OS/2,&lt;/FONT&gt; and most Windows platforms you can bring yourself to mention (except for Windows 
+&lt;FONT SIZE=-1&gt;CE,&lt;/FONT&gt; if you count that). Users familiar with
+ &lt;EM&gt;COMMAND.COM&lt;/EM&gt; and/or &lt;EM&gt;CMD.EXE&lt;/EM&gt; style shells should be aware that each of these file specifications may
+have subtle differences:
+
+&lt;P&gt;
+&lt;PRE&gt;    $filespec0 = &amp;quot;c:/foo/bar/file.txt&amp;quot;;
+    $filespec1 = &amp;quot;c:\\foo\\bar\\file.txt&amp;quot;;
+    $filespec2 = 'c:\foo\bar\file.txt';
+    $filespec3 = 'c:\\foo\\bar\\file.txt';
+&lt;/PRE&gt;
+&lt;P&gt;
+System calls accept either &lt;CODE&gt;/&lt;/CODE&gt; or &lt;CODE&gt;\&lt;/CODE&gt; as the path separator. However, many command-line utilities of 
+&lt;FONT SIZE=-1&gt;DOS&lt;/FONT&gt; vintage treat &lt;CODE&gt;/&lt;/CODE&gt; as the option prefix, so they may get confused by filenames containing &lt;CODE&gt;/&lt;/CODE&gt;. Aside from calling any external programs, &lt;CODE&gt;/&lt;/CODE&gt; will work just fine, and probably better, as it is more consistent with
+popular usage, and avoids the problem of remembering what to backwhack and
+what not to.
+
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;DOS&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FAT&lt;/FONT&gt; filesystem can only accommodate ``8.3'' style filenames. Under the ``case insensitive, but case preserving'' 
+&lt;FONT SIZE=-1&gt;HPFS&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;(OS/2)&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;NTFS&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;(NT)&lt;/FONT&gt; filesystems you may have to be careful about case returned with functions like
+ [perlfunc:readdir|readdir] or used with functions like [perlfunc:open|open] or [perlfunc:opendir|opendir].
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;DOS&lt;/FONT&gt; also treats several filenames as special, such as 
+&lt;FONT SIZE=-1&gt;AUX,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;PRN,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;NUL,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;CON,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;COM1,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LPT1,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LPT2&lt;/FONT&gt; etc. Unfortunately these filenames won't even work if you include an explicit directory prefix, in some cases. It is best to avoid such filenames, if you want your code to be portable to 
+&lt;FONT SIZE=-1&gt;DOS&lt;/FONT&gt; and its derivatives.
+
+&lt;P&gt;
+Users of these operating systems may also wish to make use of scripts such
+as &lt;EM&gt;pl2bat.bat&lt;/EM&gt; or &lt;EM&gt;pl2cmd&lt;/EM&gt; as appropriate to put wrappers around your scripts.
+
+&lt;P&gt;
+Newline (&lt;CODE&gt;\n&lt;/CODE&gt;) is translated as &lt;CODE&gt;\015\012&lt;/CODE&gt; by 
+&lt;FONT SIZE=-1&gt;STDIO&lt;/FONT&gt; when reading from and writing to files.  [perlfunc:binmode|binmode(FILEHANDLE)] will keep &lt;CODE&gt;\n&lt;/CODE&gt; translated as &lt;CODE&gt;\012&lt;/CODE&gt; for that filehandle. Since it is a noop on other systems,
+[perlfunc:binmode|binmode] should be used for cross-platform code that deals with binary data.
+
+&lt;P&gt;
+The &lt;CODE&gt;$^O&lt;/CODE&gt; variable and the &lt;CODE&gt;$Config{'archname'}&lt;/CODE&gt; values for various DOSish perls are as follows:
+
+&lt;P&gt;
+&lt;PRE&gt;    OS            $^O        $Config{'archname'}
+    --------------------------------------------
+    MS-DOS        dos
+    PC-DOS        dos
+    OS/2          os2
+    Windows 95    MSWin32    MSWin32-x86
+    Windows NT    MSWin32    MSWin32-x86
+    Windows NT    MSWin32    MSWin32-alpha
+    Windows NT    MSWin32    MSWin32-ppc
+&lt;/PRE&gt;
+&lt;P&gt;
+Also see:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;The djgpp environment for DOS, http://www.delorie.com/djgpp/&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;The EMX environment for DOS, OS/2, etc. emx@iaehv.nl,
+http://www.juge.com/bbs/Hobb.19.html&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Build&quot;&gt;Build instructions for Win32, perlwin32.&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;The ActiveState Pages, http://www.activestate.com/&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;S_Mac_OS_&quot;&gt;Mac&amp;nbsp;OS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Any module requiring 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; compilation is right out for most people, because MacPerl is built using non-free (and non-cheap!) compilers. Some 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; modules that can work with MacPerl are built and distributed in binary form on 
+&lt;FONT SIZE=-1&gt;CPAN.&lt;/FONT&gt; See
+ &lt;EM&gt;MacPerl: Power and Ease&lt;/EM&gt; and &lt;A HREF=&quot;#CPAN_Testers&quot;&gt;CPAN Testers&lt;/A&gt;
+for more details.
+
+&lt;P&gt;
+Directories are specified as:
+
+&lt;P&gt;
+&lt;PRE&gt;    volume:folder:file              for absolute pathnames
+    volume:folder:                  for absolute pathnames
+    :folder:file                    for relative pathnames
+    :folder:                        for relative pathnames
+    :file                           for relative pathnames
+    file                            for relative pathnames
+&lt;/PRE&gt;
+&lt;P&gt;
+Files in a directory are stored in alphabetical order. Filenames are
+limited to 31 characters, and may include any character except &lt;CODE&gt;:&lt;/CODE&gt;, which is reserved as a path separator.
+
+&lt;P&gt;
+Instead of [perlfunc:flock|flock], see &lt;CODE&gt;FSpSetFLock&lt;/CODE&gt; and &lt;CODE&gt;FSpRstFLock&lt;/CODE&gt; in the
+&lt;CODE&gt;Mac::Files&lt;/CODE&gt; module.
+
+&lt;P&gt;
+In the MacPerl application, you can't run a program from the command line;
+programs that expect &lt;CODE&gt;@ARGV&lt;/CODE&gt; to be populated can be edited with something like the following, which
+brings up a dialog box asking for the command line arguments.
+
+&lt;P&gt;
+&lt;PRE&gt;    if (!@ARGV) {
+        @ARGV = split /\s+/, MacPerl::Ask('Arguments?');
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; MacPerl script saved as a droplet will populate &lt;CODE&gt;@ARGV&lt;/CODE&gt; with the full pathnames of the files dropped onto the script.
+
+&lt;P&gt;
+Mac users can use programs on a kind of command line under 
+&lt;FONT SIZE=-1&gt;MPW&lt;/FONT&gt; (Macintosh Programmer's Workshop, a free development environment from Apple). MacPerl was first introduced as an 
+&lt;FONT SIZE=-1&gt;MPW&lt;/FONT&gt; tool, and 
+&lt;FONT SIZE=-1&gt;MPW&lt;/FONT&gt; can be used like a shell:
+
+&lt;P&gt;
+&lt;PRE&gt;    perl myscript.plx some arguments
+&lt;/PRE&gt;
+&lt;P&gt;
+ToolServer is another app from Apple that provides access to 
+&lt;FONT SIZE=-1&gt;MPW&lt;/FONT&gt; tools from 
+&lt;FONT SIZE=-1&gt;MPW&lt;/FONT&gt; and the MacPerl app, which allows MacPerl programs to use
+
+[perlfunc:system|system], backticks, and piped [perlfunc:open|open].
+
+&lt;P&gt;
+``Mac&amp;nbsp;OS'' is the proper name for the operating system, but the value in &lt;CODE&gt;$^O&lt;/CODE&gt; is ``MacOS''. To determine architecture, version, or whether the application or 
+&lt;FONT SIZE=-1&gt;MPW&lt;/FONT&gt; tool version is running, check:
+
+&lt;P&gt;
+&lt;PRE&gt;    $is_app    = $MacPerl::Version =~ /App/;
+    $is_tool   = $MacPerl::Version =~ /MPW/;
+    ($version) = $MacPerl::Version =~ /^(\S+)/;
+    $is_ppc    = $MacPerl::Architecture eq 'MacPPC';
+    $is_68k    = $MacPerl::Architecture eq 'Mac68K';
+&lt;/PRE&gt;
+&lt;P&gt;
+Mac&amp;nbsp;OS&amp;nbsp;X, to be based on NeXT's OpenStep 
+&lt;FONT SIZE=-1&gt;OS,&lt;/FONT&gt; will be able to run MacPerl natively (in the Blue
+Box, and even in the Yellow Box, once some changes to the toolbox calls are
+made), but Unix perl will also run natively.
+
+&lt;P&gt;
+Also see:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;The MacPerl Pages, http://www.ptf.com/macperl/.&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;The MacPerl mailing list, mac-perl-request@iis.ee.ethz.ch.&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;VMS&quot;&gt;VMS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl on 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; is discussed in &lt;EM&gt;vms/perlvms.pod&lt;/EM&gt; in the perl distribution. Note that perl on 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; can accept either 
+&lt;FONT SIZE=-1&gt;VMS-&lt;/FONT&gt; or Unix-style file specifications as in either of the following:
+
+&lt;P&gt;
+&lt;PRE&gt;    $ perl -ne &amp;quot;print if /perl_setup/i&amp;quot; SYS$LOGIN:LOGIN.COM
+    $ perl -ne &amp;quot;print if /perl_setup/i&amp;quot; /sys$login/login.com
+&lt;/PRE&gt;
+&lt;P&gt;
+but not a mixture of both as in:
+
+&lt;P&gt;
+&lt;PRE&gt;    $ perl -ne &amp;quot;print if /perl_setup/i&amp;quot; sys$login:/login.com
+    Can't open sys$login:/login.com: file specification syntax error
+&lt;/PRE&gt;
+&lt;P&gt;
+Interacting with Perl from the Digital Command Language 
+&lt;FONT SIZE=-1&gt;(DCL)&lt;/FONT&gt; shell often requires a different set of
+quotation marks than Unix shells do. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $ perl -e &amp;quot;print &amp;quot;&amp;quot;Hello, world.\n&amp;quot;&amp;quot;&amp;quot;
+    Hello, world.
+&lt;/PRE&gt;
+&lt;P&gt;
+There are a number of ways to wrap your perl scripts in 
+&lt;FONT SIZE=-1&gt;DCL&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;.COM&lt;/FONT&gt; files if you are so inclined. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    $ write sys$output &amp;quot;Hello from DCL!&amp;quot;
+    $ if p1 .eqs. &amp;quot;&amp;quot;
+    $ then perl -x 'f$environment(&amp;quot;PROCEDURE&amp;quot;)
+    $ else perl -x - 'p1 'p2 'p3 'p4 'p5 'p6 'p7 'p8
+    $ deck/dollars=&amp;quot;__END__&amp;quot;
+    #!/usr/bin/perl
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;Hello from Perl!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    __END__
+    $ endif
+&lt;/PRE&gt;
+&lt;P&gt;
+Do take care with &lt;CODE&gt;$ ASSIGN/nolog/user SYS$COMMAND: SYS$INPUT&lt;/CODE&gt; if your perl-in-DCL script expects to do things like &lt;CODE&gt;$read = &amp;lt;STDIN&amp;gt;;&lt;/CODE&gt;.
+
+&lt;P&gt;
+Filenames are in the format ``name.extension;version''. The maximum length
+for filenames is 39 characters, and the maximum length for extensions is
+also 39 characters. Version is a number from 1 to 32767. Valid characters
+are &lt;CODE&gt;/&amp;#091;A-Z0-9$_-&amp;#093;/&lt;/CODE&gt;.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;VMS'&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;RMS&lt;/FONT&gt; filesystem is case insensitive and does not preserve case.
+
+[perlfunc:readdir|readdir] returns lowercased filenames, but specifying a file for opening remains
+case insensitive. Files without extensions have a trailing period on them,
+so doing a [perlfunc:readdir|readdir] with a file named &lt;EM&gt;A.;5&lt;/EM&gt;
+will return &lt;EM&gt;a.&lt;/EM&gt; (though that file could be opened with
+[perlfunc:open|open(FH, 'A')]).
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;RMS&lt;/FONT&gt; had an eight level limit on directory depths from any rooted logical (allowing 16 levels overall) prior to 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; 7.2. Hence
+
+&lt;CODE&gt;PERL_ROOT:&amp;#091;LIB.2.3.4.5.6.7.8&amp;#093;&lt;/CODE&gt; is a valid directory specification but
+&lt;CODE&gt;PERL_ROOT:&amp;#091;LIB.2.3.4.5.6.7.8.9&amp;#093;&lt;/CODE&gt; is not.  &lt;EM&gt;Makefile.PL&lt;/EM&gt; authors might have to take this into account, but at least they can refer
+to the former as &lt;CODE&gt;/PERL_ROOT/lib/2/3/4/5/6/7/8/&lt;/CODE&gt;.
+
+&lt;P&gt;
+The &lt;CODE&gt;VMS::Filespec&lt;/CODE&gt; module, which gets installed as part of the build process on 
+&lt;FONT SIZE=-1&gt;VMS,&lt;/FONT&gt; is a pure Perl module that can easily be installed on non-VMS platforms and can be helpful for conversions to and from 
+&lt;FONT SIZE=-1&gt;RMS&lt;/FONT&gt; native formats.
+
+&lt;P&gt;
+What &lt;CODE&gt;\n&lt;/CODE&gt; represents depends on the type of file that is open. It could be &lt;CODE&gt;\015&lt;/CODE&gt;, &lt;CODE&gt;\012&lt;/CODE&gt;, &lt;CODE&gt;\015\012&lt;/CODE&gt;, or nothing. Reading from a file translates newlines to &lt;CODE&gt;\012&lt;/CODE&gt;, unless [perlfunc:binmode|binmode] was executed on that handle, just like DOSish perls.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;TCP/IP&lt;/FONT&gt; stacks are optional on 
+&lt;FONT SIZE=-1&gt;VMS,&lt;/FONT&gt; so socket routines might not be implemented. 
+&lt;FONT SIZE=-1&gt;UDP&lt;/FONT&gt; sockets may not be supported.
+
+&lt;P&gt;
+The value of &lt;CODE&gt;$^O&lt;/CODE&gt; on OpenVMS is 
+&lt;FONT SIZE=-1&gt;``VMS''.&lt;/FONT&gt; To determine the architecture that you are
+running on without resorting to loading all of &lt;CODE&gt;%Config&lt;/CODE&gt;
+you can examine the content of the &lt;CODE&gt;@INC&lt;/CODE&gt; array like so:
+
+&lt;P&gt;
+&lt;PRE&gt;    if (grep(/VMS_AXP/, @INC)) {
+        print &amp;quot;I'm on Alpha!\n&amp;quot;;
+    } elsif (grep(/VMS_VAX/, @INC)) {
+        print &amp;quot;I'm on VAX!\n&amp;quot;;
+    } else {
+        print &amp;quot;I'm not so sure about where $^O is...\n&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+Also see:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perlvms&quot;&gt;perlvms.pod&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_vmsperl&quot;&gt;vmsperl list, vmsperl-request@newman.upenn.edu&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Put words &lt;CODE&gt;SUBSCRIBE VMSPERL&lt;/CODE&gt; in message body.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;vmsperl on the web, http://www.sidhe.org/vmsperl/index.html&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;EBCDIC_Platforms&quot;&gt;EBCDIC Platforms&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Recent versions of Perl have been ported to platforms such as 
+&lt;FONT SIZE=-1&gt;OS/400&lt;/FONT&gt; on 
+&lt;FONT SIZE=-1&gt;AS/400&lt;/FONT&gt; minicomputers as well as 
+&lt;FONT SIZE=-1&gt;OS/390&lt;/FONT&gt; for 
+&lt;FONT SIZE=-1&gt;IBM&lt;/FONT&gt; Mainframes. Such computers use 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; character sets internally (usually Character Code Set 
+&lt;FONT SIZE=-1&gt;ID&lt;/FONT&gt; 00819 for 
+&lt;FONT SIZE=-1&gt;OS/400&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;IBM-1047&lt;/FONT&gt; for 
+&lt;FONT SIZE=-1&gt;OS/390).&lt;/FONT&gt; Note that on the mainframe perl currently works under the ``Unix system services for 
+&lt;FONT SIZE=-1&gt;OS/390''&lt;/FONT&gt; (formerly known as OpenEdition).
+
+&lt;P&gt;
+As of 
+&lt;FONT SIZE=-1&gt;R2.5&lt;/FONT&gt; of 
+&lt;FONT SIZE=-1&gt;USS&lt;/FONT&gt; for 
+&lt;FONT SIZE=-1&gt;OS/390&lt;/FONT&gt; that Unix sub-system did not support the
+
+&lt;CODE&gt;#!&lt;/CODE&gt; shebang trick for script invocation. Hence, on 
+&lt;FONT SIZE=-1&gt;OS/390&lt;/FONT&gt; perl scripts can executed with a header similar
+to the following simple script:
+
+&lt;P&gt;
+&lt;PRE&gt;    : # use perl
+        eval 'exec /usr/local/bin/perl -S $0 ${1+&amp;quot;$@&amp;quot;}'
+            if 0;
+    #!/usr/local/bin/perl     # just a comment really
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;Hello from perl!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+On these platforms, bear in mind that the 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; character set may have an effect on what
+happens with some perl functions (such as [perlfunc:chr|chr],
+[perlfunc:pack|pack], [perlfunc:print|print], [perlfunc:printf|printf], [perlfunc:ord|ord], [perlfunc:sort|sort], [perlfunc:sprintf|sprintf], [perlfunc:unpack|unpack]), as well as bit-fiddling with 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; constants using operators like &lt;CODE&gt;^&lt;/CODE&gt;, &lt;CODE&gt;&amp;amp;&lt;/CODE&gt;
+and &lt;CODE&gt;|&lt;/CODE&gt;, not to mention dealing with socket interfaces to 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; computers (see &lt;A HREF=&quot;#NEWLINES&quot;&gt;NEWLINES&lt;/A&gt;).
+
+&lt;P&gt;
+Fortunately, most web servers for the mainframe will correctly translate
+the &lt;CODE&gt;\n&lt;/CODE&gt; in the following statement to its 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; equivalent (note that
+&lt;CODE&gt;\r&lt;/CODE&gt; is the same under both Unix and 
+&lt;FONT SIZE=-1&gt;OS/390):&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;Content-type: text/html\r\n\r\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+The value of &lt;CODE&gt;$^O&lt;/CODE&gt; on 
+&lt;FONT SIZE=-1&gt;OS/390&lt;/FONT&gt; is ``os390''.
+
+&lt;P&gt;
+Some simple tricks for determining if you are running on an 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; platform could include any of the following
+(perhaps all):
+
+&lt;P&gt;
+&lt;PRE&gt;    if (&amp;quot;\t&amp;quot; eq &amp;quot;\05&amp;quot;)   { print &amp;quot;EBCDIC may be spoken here!\n&amp;quot;; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if (ord('A') == 193) { print &amp;quot;EBCDIC may be spoken here!\n&amp;quot;; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    if (chr(169) eq 'z') { print &amp;quot;EBCDIC may be spoken here!\n&amp;quot;; }
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that one thing you may not want to rely on is the 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; encoding of punctuation characters since these may differ from code page to code page (and once your module or script is rumoured to work with 
+&lt;FONT SIZE=-1&gt;EBCDIC,&lt;/FONT&gt; folks will want it to work with all 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; character sets).
+
+&lt;P&gt;
+Also see:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perl&quot;&gt;perl-mvs list&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The &lt;A HREF=&quot;mailto:perl-mvs@perl.org&quot;&gt;perl-mvs@perl.org&lt;/A&gt; list is for discussion of porting issues as well as general usage issues for all 
+&lt;FONT SIZE=-1&gt;EBCDIC&lt;/FONT&gt; Perls. Send a message body of ``subscribe perl-mvs'' to &lt;A HREF=&quot;mailto:majordomo@perl.org.&quot;&gt;majordomo@perl.org.&lt;/A&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_AS&quot;&gt;AS/400 Perl information at http://as400.rochester.ibm.com/&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Acorn_RISC_OS&quot;&gt;Acorn RISC OS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+As Acorns use 
+&lt;FONT SIZE=-1&gt;ASCII&lt;/FONT&gt; with newlines (&lt;CODE&gt;\n&lt;/CODE&gt;) in text files as &lt;CODE&gt;\012&lt;/CODE&gt; like Unix and Unix filename emulation is turned on by default, it is quite
+likely that most simple scripts will work ``out of the box''. The native
+filing system is modular, and individual filing systems are free to be
+case-sensitive or insensitive, and are usually case-preserving. Some native
+filing systems have name length limits which file and directory names are
+silently truncated to fit - scripts should be aware that the standard disc
+filing system currently has a name length limit of &lt;STRONG&gt;10&lt;/STRONG&gt;
+characters, with up to 77 items in a directory, but other filing systems
+may not impose such limitations.
+
+&lt;P&gt;
+Native filenames are of the form
+
+&lt;P&gt;
+&lt;PRE&gt;    Filesystem#Special_Field::DiscName.$.Directory.Directory.File
+&lt;/PRE&gt;
+&lt;P&gt;
+where
+
+&lt;P&gt;
+&lt;PRE&gt;    Special_Field is not usually present, but may contain . and $ .
+    Filesystem =~ m|&amp;#091;A-Za-z0-9_&amp;#093;|
+    DsicName   =~ m|&amp;#091;A-Za-z0-9_/&amp;#093;|
+    $ represents the root directory
+    . is the path separator
+    @ is the current directory (per filesystem but machine global)
+    ^ is the parent directory
+    Directory and File =~ m|&amp;#091;^\0- &amp;quot;\.\$\%\&amp;amp;:\@\\^\|\177&amp;#093;+|
+&lt;/PRE&gt;
+&lt;P&gt;
+The default filename translation is roughly [perlman:perlop]
+
+&lt;P&gt;
+Note that &lt;CODE&gt;&amp;quot;ADFS::HardDisc.$.File&amp;quot; ne 'ADFS::HardDisc.$.File'&lt;/CODE&gt; and that the second stage of &lt;CODE&gt;$&lt;/CODE&gt; interpolation in regular expressions will fall foul of the &lt;CODE&gt;$.&lt;/CODE&gt; if scripts are not careful.
+
+&lt;P&gt;
+Logical paths specified by system variables containing comma-separated
+search lists are also allowed, hence &lt;CODE&gt;System:Modules&lt;/CODE&gt; is a valid filename, and the filesystem will prefix &lt;CODE&gt;Modules&lt;/CODE&gt; with each section of
+&lt;CODE&gt;System$Path&lt;/CODE&gt; until a name is made that points to an object on disc. Writing to a new
+file &lt;CODE&gt;System:Modules&lt;/CODE&gt; would only be allowed if
+&lt;CODE&gt;System$Path&lt;/CODE&gt; contains a single item list. The filesystem will also expand system
+variables in filenames if enclosed in angle brackets, so
+&lt;CODE&gt;&amp;lt;System$Dir&amp;gt;.Modules&lt;/CODE&gt; would look for the file
+&lt;CODE&gt;$ENV{'System$Dir'}&amp;nbsp;.&amp;nbsp;'Modules'&lt;/CODE&gt;. The obvious implication of this is that B&lt;fully qualified filenames can start with &lt;CODE&gt;&amp;lt;&amp;gt;&lt;/CODE&gt; and should be protected when [perlfunc:open|open] is used for input.
+
+&lt;P&gt;
+Because &lt;CODE&gt;.&lt;/CODE&gt; was in use as a directory separator and filenames could not be assumed to be unique after 10 characters, Acorn implemented the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; compiler to strip the trailing
+ &lt;CODE&gt;.c&lt;/CODE&gt;  &lt;CODE&gt;.h&lt;/CODE&gt;  [perlman:perlop] and &lt;CODE&gt;.o&lt;/CODE&gt; suffix from filenames specified in source code and store the respective
+files in subdirectories named after the suffix. Hence files are translated:
+
+&lt;P&gt;
+&lt;PRE&gt;    foo.h           h.foo
+    C:foo.h         C:h.foo        (logical path variable)
+    sys/os.h        sys.h.os       (C compiler groks Unix-speak)
+    10charname.c    c.10charname
+    10charname.o    o.10charname
+    11charname_.c   c.11charname   (assuming filesystem truncates at 10)
+&lt;/PRE&gt;
+&lt;P&gt;
+The Unix emulation library's translation of filenames to native assumes
+that this sort of translation is required, and allows a user defined list
+of known suffixes which it will transpose in this fashion. This may appear
+transparent, but consider that with these rules &lt;CODE&gt;foo/bar/baz.h&lt;/CODE&gt;
+and &lt;CODE&gt;foo/bar/h/baz&lt;/CODE&gt; both map to &lt;CODE&gt;foo.bar.h.baz&lt;/CODE&gt;, and that [perlfunc:readdir|readdir] and
+[perlfunc:glob|glob] cannot and do not attempt to emulate the reverse mapping. Other
+&lt;CODE&gt;.&lt;/CODE&gt;s in filenames are translated to &lt;CODE&gt;/&lt;/CODE&gt;.
+
+&lt;P&gt;
+As implied above the environment accessed through &lt;CODE&gt;%ENV&lt;/CODE&gt; is global, and the convention is that program specific environment
+variables are of the form &lt;CODE&gt;Program$Name&lt;/CODE&gt;. Each filing system maintains a current directory, and the current filing
+system's current directory is the &lt;STRONG&gt;global&lt;/STRONG&gt; current directory. Consequently, sociable scripts don't change the current
+directory but rely on full pathnames, and scripts (and Makefiles) cannot
+assume that they can spawn a child process which can change the current
+directory without affecting its parent (and everyone else for that matter).
+
+&lt;P&gt;
+As native operating system filehandles are global and currently are
+allocated down from 255, with 0 being a reserved value the Unix emulation
+library emulates Unix filehandles. Consequently, you can't rely on passing &lt;CODE&gt;STDIN&lt;/CODE&gt;, &lt;CODE&gt;STDOUT&lt;/CODE&gt;, or &lt;CODE&gt;STDERR&lt;/CODE&gt; to your children.
+
+&lt;P&gt;
+The desire of users to express filenames of the form
+&lt;CODE&gt;&amp;lt;Foo$Dir&amp;gt;.Bar&lt;/CODE&gt; on the command line unquoted causes problems, too: &lt;CODE&gt;``&lt;/CODE&gt; command output capture has to perform a guessing game. It assumes that a
+string &lt;CODE&gt;&amp;lt;&amp;#091;^&amp;lt;&amp;gt;&amp;#093;+\$&amp;#091;^&amp;lt;&amp;gt;&amp;#093;&amp;gt;&lt;/CODE&gt; is a reference to an environment variable, whereas anything else involving
+&lt;CODE&gt;&amp;lt;&lt;/CODE&gt; or &lt;CODE&gt;&amp;gt;&lt;/CODE&gt; is redirection, and generally manages to be 99% right. Of course, the
+problem remains that scripts cannot rely on any Unix tools being available,
+or that any tools found have Unix-like command line arguments.
+
+&lt;P&gt;
+Extensions and 
+&lt;FONT SIZE=-1&gt;XS&lt;/FONT&gt; are, in theory, buildable by anyone using free
+tools. In practice, many don't, as users of the Acorn platform are used to
+binary distribution. MakeMaker does run, but no available make currently
+copes with MakeMaker's makefiles; even if/when this is fixed, the lack of a
+Unix-like shell can cause problems with makefile rules, especially lines of
+the form &lt;CODE&gt;cd sdbm &amp;amp;&amp;amp; make all&lt;/CODE&gt;, and anything using quoting.
+
+&lt;P&gt;
+``RISC&amp;nbsp;OS'' is the proper name for the operating system, but the value in &lt;CODE&gt;$^O&lt;/CODE&gt; is ``riscos'' (because we don't like shouting).
+
+&lt;P&gt;
+Also see:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_perl&quot;&gt;perl list&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Other_perls&quot;&gt;Other perls&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl has been ported to a variety of platforms that do not fit into any of the above categories. Some, such as AmigaOS, BeOS, 
+&lt;FONT SIZE=-1&gt;QNX,&lt;/FONT&gt; and Plan 9, have been well-integrated into the standard Perl source code kit. You may need to see the
+ &lt;EM&gt;ports/&lt;/EM&gt; directory on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; for information, and possibly binaries, for the
+likes of: aos, atari, lynxos, riscos, Tandem Guardian, vos, &lt;EM&gt;etc.&lt;/EM&gt; (yes we know that some of these OSes may fall under the Unix category, but
+we are not a standards body.)
+
+&lt;P&gt;
+See also:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Atari&quot;&gt;Atari, Guido Flohr's page http://stud.uni-sb.de/~gufl0000/&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_HP&quot;&gt;HP 300 MPE/iX  http://www.cccd.edu/~markb/perlix.html&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Novell&quot;&gt;Novell Netware&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; free perl5-based 
+&lt;FONT SIZE=-1&gt;PERL.NLM&lt;/FONT&gt; for Novell Netware is available from
+
+&lt;CODE&gt;http://www.novell.com/&lt;/CODE&gt;
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;FUNCTION_IMPLEMENTATIONS&quot;&gt;FUNCTION IMPLEMENTATIONS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Listed below are functions unimplemented or implemented differently on
+various platforms. Following each description will be, in parentheses, a
+list of platforms that the description applies to.
+
+&lt;P&gt;
+The list may very well be incomplete, or wrong in some places. When in doubt, consult the platform-specific 
+&lt;FONT SIZE=-1&gt;README&lt;/FONT&gt; files in the Perl source distribution, and other documentation resources for a given port.
+
+&lt;P&gt;
+Be aware, moreover, that even among Unix-ish systems there are variations.
+
+&lt;P&gt;
+For many functions, you can also query &lt;CODE&gt;%Config&lt;/CODE&gt;, exported by default from &lt;CODE&gt;Config.pm&lt;/CODE&gt;. For example, to check if the platform has the [perlfunc:lstat|lstat]
+call, check &lt;CODE&gt;$Config{'d_lstat'}&lt;/CODE&gt;. See &lt;EM&gt;Config.pm&lt;/EM&gt; for a full description of available variables.
+
+&lt;P&gt;
+[perlman:perlport2|More...]&lt;BR&gt;
+Return to the [Library]
+</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>411</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perlport</title>
+  <createtime>1999-08-25 02:52:27</createtime>
+  <nodeupdated>2005-08-12 13:12:33</nodeupdated>
+</node>

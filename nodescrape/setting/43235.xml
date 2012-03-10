@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="43235" title="handlelinks settings" created="2000-11-24 16:05:40" updated="2005-08-11 23:36:46">
+<type id="871">
+setting</type>
+<author id="979">
+vroom</author>
+<vars count="60">
+<var name="abbr">
+acronym</var>
+<var name="acronym">
+$escsuffix ? "http://www.acronymfinder.com/af-query.asp?String=exact&amp;Acronym=$escsuffix&amp;Find=Find" : ("http://www.acronymfinder.com/", 'Acronym Finder')</var>
+<var name="aes">
+my %root = (
+      A =&gt; "http://dev.perl.org/perl6/doc/design/apo/",
+      E =&gt; "http://dev.perl.org/perl6/doc/design/exe/",
+      S =&gt; "http://perlcabal.org/syn/",
+      # default; subtly different to indicate a parsing problem
+      X =&gt; "http://www.perlcabal.org/syn/",
+);
+if (! $escsuffix) {
+   ($root{S}, "Perl 6 Synopses")
+} elsif ($escsuffix =~ m!^([aes])(\d\d?)(?:%(?:2f|3a)(.*))?$!i) {
+   my $page = uc($1).sprintf("%.02d",$2);
+   my $root = $root{uc($1)} || $root{X};
+   my $esc = $3 || "";
+   $esc =~ s/^(\d+)\z/line_$1/; # only useful for synopses
+   $esc =~ s/%20/_/g;
+   my $display = $suffix;
+   if ($suffix =~ m!^[aes]\d\d?[:/](.*\D.*)!i) {
+       $display = $1;
+   };
+   ("$root$page.html#$esc", "$display")
+} else {
+   # error in spec, just pass it through with a prefix
+   "$root{X}$escsuffix"
+};</var>
+<var name="alpha">
+wolframalpha</var>
+<var name="apc">
+my $git = "http://perl5.git.perl.org/perl.git";
+!$suffix 
+  ? ( $git, "Perl Source Code (git)" )
+: $suffix =~ /^\d+$/
+  ? ( $git."?a=search&amp;h=HEAD&amp;st=commit&amp;sr=1&amp;s=%2F%2Fdepot.*".$suffix, "find $suffix in perl.git commits" )
+: $suffix =~ /^[0-9a-f]{6,}$/
+  ? ( $git."/commit/".$suffix, "commit $suffix in perl.git" )
+: ( $git."/blob/HEAD:/".$suffix, "$suffix in perl.git" )
+</var>
+<var name="by">
+my $user = getNode( $suffix||$AUTHOR-&gt;{title}, 'user' );
+return unless $user;
+$title ||= "my writeups" if !$suffix;
+$title ||= $user-&gt;{title}."'s writeups";
+return(
+    urlGen( { node_id =&gt; 6364, user =&gt; $user-&gt;{title} }, 1 ),
+    $title,
+);
+</var>
+<var name="c2">
+my $title= join '', map ucfirst($_), split /\W+/, $suffix;
+my $mode= $title =~ y/A-Z//;
+$mode= 1==$mode ? 'search=' : '';
+return( "http://www.c2.com/cgi/wiki?$mode$title", $suffix || 'Wiki Wiki Web' );
+</var>
+<var name="cpan">
+my $mode= $VARS-&gt;{cpan_link_args} || 'mode=module';
+return $escsuffix ? "http://search.cpan.org/search?$mode&amp;query=$escsuffix" : ( "http://www.cpan.org/", 'CPAN' )</var>
+<var name="ddg">
+duckduckgo</var>
+<var name="dict">
+$escsuffix ? "http://www.dict.org/bin/Dict?Form=Dict2&amp;Database=*&amp;Query=$escsuffix" : ( "http://www.dict.org/", 'Dict.org' )</var>
+<var name="dist">
+return( "http://search.cpan.org/", 'CPAN' ) unless $suffix;
+for( my $copy= $suffix ) {
+    tr#-:/ #-#s;
+    return "http://search.cpan.org/dist/$_";
+}
+</var>
+<var name="doc">
+return( "http://perldoc.perl.org/", 'Perl documentation' ) unless $suffix;
+my $func= getVars(getNode('perl keyword list setting','setting'));
+if( $func-&gt;{$suffix} ) {
+    "http://perldoc.perl.org/functions/$escsuffix.html"
+}
+elsif( $suffix =~ /^[\$\@%]/ ) {
+    "http://perldoc.perl.org/perlvar.html#$escsuffix"
+}
+else {
+    my ( $page, $anchor ) = split '#', $suffix, 2;
+    my ( $uri, $title ) = ( "http://perldoc.perl.org/" );
+    $uri .= join '/', map $q-&gt;escape( $_ ), split /::/, $page;
+    $uri .= '.html';
+    if( defined $anchor ) {
+        $uri .= '#' . $q-&gt;escape( $anchor );
+        ( $title = $q-&gt;escapeHTML( $q-&gt;unescape( $anchor ) ) ) =~ y/-/ /;
+    }
+    ( $uri, ( $title ) x!! defined $title );
+}</var>
+<var name="docs">
+doc</var>
+<var name="duckduckgo">
+$escsuffix ? 'https://duckduckgo.com/html/?q='.$escsuffix : ( 'https://duckduckgo.com/html/', 'DuckDuckGo' )
+</var>
+<var name="e2">
+!$suffix
+  ? ( "http://www.everything2.org/", 'Everything2' )
+  : $suffix =~ /\D/
+  ? "http://www.everything2.org/?node=$escsuffix"
+  : "http://www.everything2.org/?node_id=$suffix"
+</var>
+<var name="ftp">
+http</var>
+<var name="git">
+my %repos= (
+   git =&gt; "http://git.kernel.org/?p=git/git.git",
+   p5git =&gt; "http://perl5.git.perl.org/perl.git",
+   apc =&gt; 'p5git',
+);
+my $repo= $repos{ $prefix }
+   or  return;
+$repo= $repos{ $repo }
+    while  $repos{ $repo };
+return( $repo, "$prefix://" )
+   if  ! $suffix;
+my( $search, $isRe, $pattern );
+my %desc;
+if(  $suffix =~ s/(?:^|;)(([agdn])\w*([=~])(.*)\3$)//i  ) {
+   my %type= qw( a author g grep d pickaxe n commit );
+   ( $search, $isRe, $pattern )= ( $type{ lc $2 }, '~' eq $3, $4 );
+   $desc{end}= $1;
+}
+my $commit= 'HEAD';
+my( $patch, $file, $type );
+for(  split /;/, $suffix  ) {
+   if(  /^(?:p(?:atch)?=)?(\d{1,5})$/  ) {
+       $desc{search}= "patch=$1";
+       $pattern= '//depot/[^ ]*@' . $1 . '([^0-9]|$)';
+       $search= 'commit';
+       $isRe= 1;
+   } elsif(  /^[\da-f]{3,}$/i  ) {
+       $desc{commit}= "commit=$_";
+       $commit= $_;
+   } elsif(  /^c(?:ommit)?=(.*)$/i  ) {
+       $desc{commit}= "commit=$1";
+       $commit= $1;
+   } elsif(  /^n(?:otes?)?([=~])(.*)$/i  ) {
+       $desc{search}= "notes$1$2";
+       ( $search, $isRe, $pattern ) = ( 'commit', '~' eq $1, $2 );
+   } elsif(  /^a(?:uthor)?([=~])(.*)$/i  ) {
+       $desc{search}= "author$1$2";
+       ( $search, $isRe, $pattern ) = ( 'author', '~' eq $1, $2 );
+   } elsif(  /^g(?:rep)?([=~])(.*)$/i  ) {
+       $desc{search}= "grep$1$2";
+       ( $search, $isRe, $pattern ) = ( 'grep', '~' eq $1, $2 );
+   } elsif(  /^d(?:iff)?([=~])(.*)$/i  ) {
+       $desc{search}= "diff$1$2";
+       ( $search, $isRe, $pattern ) = ( 'pickaxe', '~' eq $1, $2 );
+   } else {
+       $desc{file}= $_;
+       if(  s-/$--  ) {
+           $file= $_;  $type= 'tree';
+       } elsif(  s-!$--  ) {
+           $file= $_;  $type= 'blob_plain';
+       } elsif(  s-\.$--  ) {
+           $file= $_;  $type= 'blob';
+       } else {
+           $file= $_;  $type= 'history';
+       }
+   }
+}
+delete $desc{end}       # This gets parsed off first
+   if  $desc{search};   # Only the last-parsed search gets used
+my $desc= join ';', grep $_, @desc{ qw&lt; commit search file end &gt; };
+my $url= $repo;
+if(  $search  ) {
+   return          # Can't mix search and file path
+       if  $type;
+   $url .= join '',
+       $url =~ /\?/  ?  '&amp;'  :  '?',
+       "a=search&amp;h=$commit&amp;st=$search&amp;s=",
+       $q-&gt;escape( $pattern ),
+       $isRe ? '&amp;sr=1' : '';
+} elsif(  $type  ) {
+   $url .= join '',
+       "/$type/",
+       $q-&gt;escape( $commit ),
+       ':/',
+       $file;
+} else {
+   $url .= join '',
+       '/commit/',
+       $q-&gt;escape( $commit );
+}
+return( $url, "$prefix://$desc" );
+</var>
+<var name="google">
+$escsuffix ? "http://www.google.com/search?q=$escsuffix" : ( "http://www.google.com/", 'Google' )</var>
+<var name="href">
+!$suffix ? ( '?node_id=43037#general', '[href://]' ) : $suffix =~ /^(javascript|about|mocha):/i ? '' : $suffix
+</var>
+<var name="http">
+$suffix ? ( $linkspec, $q-&gt;escapeHTML($linkspec) ) : ( '?node_id=43037#web', "[$prefix://]" )</var>
+<var name="https">
+http</var>
+<var name="id">
+return if $suffix =~ /\D/;
+if( !$suffix ) {
+    $suffix= 17441;
+    $title ||= '&amp;#91;id://&amp;#93;';
+}
+return linkNode( $suffix, '', {}, {asList=&gt;1} );</var>
+<var name="imdb">
+$escsuffix ? "http://www.imdb.com/find?s=all&amp;q=$escsuffix" : ( "http://www.imdb.com/", 'IMDB' )</var>
+<var name="inbox">
+return('?node=Message+Inbox',$title||'Message Inbox') unless $suffix;
+( '', htmlcode( 'toInbox', $suffix, $title, '(%d)' ) )</var>
+<var name="isbn">
+$suffix =~ tr/0-9Xx//cd;
+( "http://isbn.nu/$suffix", $q-&gt;escapeHTML("ISBN $suffix") )</var>
+<var name="jargon">
+$suffix ? "http://www.dict.org/bin/Dict?Form=Dict2&amp;Database=jargon&amp;Query=$escsuffix" : ( "http://www.catb.org/~esr/jargon/html/", 'The Jargon File' )</var>
+<var name="jj">
+$escsuffix =~ /^\d+$/ ? "http://javajunkies.org/?node_id=$escsuffix" : "http://javajunkies.org/?node=$escsuffix"</var>
+<var name="kobe">
+kobes</var>
+<var name="kobes">
+$escsuffix ? "http://cpan.uwinnipeg.ca/search?query=$escsuffix&amp;mode=module" : ( "http://cpan.uwinnipeg.ca/", 'Kobesearch' )</var>
+<var name="link">
+href</var>
+<var name="lj">
+$suffix ? "http://livejournal.com/users/$suffix" : ( "http://livejournal.com/", 'LiveJournal' )</var>
+<var name="localtime">
+$suffix= ""  if $suffix =~ /^now$/i;
+return( '', htmlcode( 'parseTimeInString','', $suffix, undef, 1 ) );</var>
+<var name="lucky">
+$escsuffix ? "http://www.google.com/search?q=$escsuffix&amp;btnI=I"  : ( "http://www.google.com/", 'Google' )</var>
+<var name="man">
+my $l = 'http://www.freebsd.org/cgi/man.cgi';
+my $t = 'UNIX Man Pages';
+if(  $suffix  ) {
+    my $p= '()/,;=|';
+    my( $page, $sect, $os )= $suffix =~
+        m{^([^$p]+)(?:[$p]+(\d+|n))?(?:[$p]+([^$p].*))?$};
+    $os ||= 'suse';
+    $os =~ s{^suse[\s+]*([\d.]*)$}{
+        'SuSE+Linux/i386+' . ( $1 || '11.3' )
+    }ie;
+    $os =~ s{^(?:free)?bsd[\s+]*([\d.]*)$}{
+        'FreeBSD+' . ( $1 || '8.0' ) . '-RELEASE'
+    }ie;
+    my @a;
+    push @a, "query=$page"   if $page;
+    push @a, "sektion=$sect" if $sect;
+    push @a, "manpath=$os"   if $os;
+    $l .= '?' . join '&amp;', @a;
+    $t = $suffix;
+}
+return( $l, $t );</var>
+<var name="mathworld">
+my $mw= "http://mathworld.wolfram.com/";
+$escsuffix =~ /[.]html$/
+  ? $mw.$escsuffix :
+$escsuffix
+  ? $mw."search/?query=$escsuffix"
+  : ( $mw, 'MathWorld' )
+</var>
+<var name="metacpan">
+$escsuffix ? "http://metacpan.org/search?q=$escsuffix" : ( "http://metacpan.org/", 'MetaCPAN' )</var>
+<var name="mod">
+module</var>
+<var name="module">
+$escsuffix ? "http://search.cpan.org/perldoc?$escsuffix" : ( "http://search.cpan.org/", 'CPAN' )</var>
+<var name="msg">
+my( $user, $msg )= split /&lt;/, $suffix, 2;
+my $url= "?node_id=762476";
+my $title= "/msg";
+if( $user ) {
+    $url .= ";sendto=" . $q-&gt;escape($user);
+    $title .= $q-&gt;escapeHTML( " [$user]" );
+}
+if( $msg ) {
+    $url .= ";replytotext=" . $q-&gt;escape($msg);
+    $title .= " ?" if ! $user;
+    $title .= $q-&gt;escapeHTML( " $msg" );
+}
+return( $url, $title );
+</var>
+<var name="node">
+( '', htmlcode('node_link','',$fullspec,$suffix,$title) )</var>
+<var name="p5git">
+git</var>
+<var name="pad">
+$title ||= "my scratchpad"   if  ! $suffix;
+return( '', htmlcode( 'scratchpad_link','', $suffix||$AUTHOR-&gt;{title}, $title, {} ) );</var>
+<var name="patches">
+my $class = 'patcheslink';
+my $link = linkNodeTitle('Patch Lister|'.($title||'patches'));
+if ( $DB-&gt;sqlSelect( 'MAX(patch_id)', 'patch' ) &gt; $VARS-&gt;{patchlisterlast} ) {
+  $class .= ' updated';
+  $link .= '&lt;span class="newpatches"&gt;(*)&lt;/span&gt;';
+}
+( '', qq(&lt;span class="$class"&gt;$link&lt;/span&gt;) )
+</var>
+<var name="perldoc">
+$escsuffix
+  ? join( '',
+        "http://www.google.com/search?q=",
+        $escsuffix,
+        "%20site%3Aperldoc.perl.org"
+    )
+  : ( "http://perldoc.perl.org/", 'Perl documentation' )</var>
+<var name="pmdev">
+( '', htmlcode('pmdev_link','',$fullspec) )</var>
+<var name="rfc">
+(
+    "http://www.faqs.org/rfcs/rfc$suffix.html",
+    "RFC " . $escsuffix,
+)</var>
+<var name="rje">
+( '', htmlcode( 'linkRJE','', $title, '', $suffix ) )</var>
+<var name="rt">
+!$suffix 
+? ( "http://rt.cpan.org/", 'RT.CPAN' )
+: $suffix =~ /^\d+$/
+? ( "http://rt.cpan.org/Public/Bug/Display.html?id=$suffix", $fullspec )
+: ( $suffix =~ /-/ &amp;&amp; $suffix !~ /[^-.\w]/ )
+? ( "http://rt.cpan.org/Public/Dist/Display.html?Name=$escsuffix", $fullspec )
+: ( "http://rt.cpan.org/Public/Search/Simple.html?q=$escsuffix", $fullspec )
+</var>
+<var name="ud">
+$escsuffix 
+? "http://www.urbandictionary.com/define.php?term=$escsuffix"
+: ( "http://www.urbandictionary.com/", 'UrbanDictionary' )</var>
+<var name="wa">
+wolframalpha</var>
+<var name="wb">
+my $lang= $VARS-&gt;{wp_lang} || 'en';
+$suffix ? "http://$lang.wikibooks.org/wiki/Special:Search?search=$suffix" : ( "http://$lang.wikibooks.org/", 'Wikibooks' )</var>
+<var name="wiki">
+( '', htmlcode( 'linkWiki','', $suffix, $title, '(*)' ) )</var>
+<var name="wikipedia">
+wp</var>
+<var name="wikt">
+my $lang= $VARS-&gt;{wp_lang} || 'en';
+$escsuffix ? 
+"http://$lang.wiktionary.org/wiki/Special:Search?search=$escsuffix" : ( "http://$lang.wiktionary.org/", 'Wiktionary' )</var>
+<var name="wiktionary">
+wikt</var>
+<var name="wolframalpha">
+$escsuffix ? "http://www.WolframAlpha.com/input/?i=".$escsuffix : ( "http://www.WolframAlpha.com/examples/", 'Wolfram|Alpha' )</var>
+<var name="wp">
+my $lang= $VARS-&gt;{wp_lang} || 'en';
+$escsuffix ? 
+"http://$lang.wikipedia.org/wiki/Special:Search?search=$escsuffix" : ( "http://$lang.wikipedia.org/", 'Wikipedia' )</var>
+<var name="wq">
+my $lang= $VARS-&gt;{wp_lang} || 'en';
+$escsuffix ? 
+"http://$lang.wikiquote.org/wiki/Special:Search?search=$suffix" : ( "http://$lang.wikiquote.org/", 'Wikiquote' )</var>
+<var name="ws">
+my $lang= $VARS-&gt;{wp_lang} || 'en';
+$escsuffix ? 
+"http://$lang.wikisource.org/wiki/Special:Search?search=$suffix" : ( "http://$lang.wikisource.org/", 'Wikisource' )</var>
+<var name="xkcd">
+($suffix =~ /\D/ ?
+    "http://www.google.com/search?q=site%3Axkcd.com+$escsuffix&amp;btnI" : 
+    "http://xkcd.com/$escsuffix" . ( $suffix ? '/' : '' )
+), $q-&gt;escapeHTML($linkspec)
+</var>
+</vars>
+</node>

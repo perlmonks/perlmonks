@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="97831" title="poll vote page" created="2001-07-18 18:53:25" updated="2003-12-17 08:34:02">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+&lt;h4&gt;[% htmlcode( 'ParseLinksInContent', $NODE-&gt;{title}, simplecode =&gt; 1 ) %]&lt;/h4&gt;
+[%
+
+# Note: when patch this, don't forget to synch [Voting Booth]
+
+my @choice = split( /\n/, $NODE-&gt;{choices} );
+my @choice_votecount = split( /\n/, $NODE-&gt;{numbers} );
+
+my %labels = map {
+    $_ =&gt; htmlcode(
+        'ParseLinksInContent', '',
+        $choice[ $_ ],
+        simplecode =&gt; 1,
+    )
+} 0 .. $#choice;
+
+my $total_votes = 0;
+$total_votes += $_ foreach @choice_votecount;
+
+( $NODE-&gt;{prologue} &amp;&amp; htmlcode( 'ParseLinksInContent', '', $NODE-&gt;{prologue} ) )
+. htmlcode('openform', -displaytype =&gt; 'display')
+. "\n&lt;p&gt;\n"
+. $query-&gt;radio_group(
+    -name      =&gt; 'vote',
+    -values    =&gt; [ 0 .. $#choice ],
+    -labels    =&gt; \%labels,
+    -linebreak =&gt;'true',
+    -default   =&gt; 'n/a',
+)
+. &lt;&lt;'END_HTML'
+&lt;input type="submit" value="Vote"&gt;
+&lt;/p&gt;
+&lt;/form&gt;
+
+&lt;p&gt;
+END_HTML
+. linkNode($NODE, "Results ($total_votes votes)")
+. ', '
+. linkNodeTitle("past polls|past polls")
+. '&lt;/p&gt;'
+%]</field>
+<field name="displaytype">
+vote</field>
+</data>
+</node>

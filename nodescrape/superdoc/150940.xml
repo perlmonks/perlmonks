@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="150940" title="Re-root notes" created="2002-03-11 14:12:48" updated="2005-08-22 16:26:05">
+<type id="14">
+superdoc</type>
+<author id="106850">
+pmdev</author>
+<data>
+<field name="doctext">
+&lt;p&gt;
+This situation tends to arise when Categorized Questions are SoPWified.
+&lt;/p&gt;
+[%  linkNode( $NODE, "Count 'em", {reroot=&gt;'count'} )  %] -
+[%  linkNode( $NODE, "List 'em",  {reroot=&gt;'list'} )  %] -
+[%  linkNode( $NODE, "Fix 'em",   {reroot=&gt;'fix'} )  %]
+&lt;p&gt;
+[%
+   my $do= $q-&gt;param("reroot");
+   return   if  ! $do;
+   return   "Do what? ($do)"
+      if  "count" ne $do  &amp;&amp;  "list" ne $do  &amp;&amp;  "fix" ne $do;
+   my $st= $DB-&gt;sqlSelectMany(
+      "count" eq $do ? "count(*)" : "note.*,p.root_node 'p.root'",
+      "note,note p",
+      "note.parent_node=p.note_id
+         and note.root_node!=p.root_node
+         and p.root_node!=0",
+   );
+   return   $st-&gt;fetchrow_arrayref()-&gt;[0]
+      . " notes with incorrect root linkage found"
+      if  "count" eq $do;
+   my( $rec, @rec );
+   push @rec, $rec   while  $rec= $st-&gt;fetchrow_hashref();
+   if(  "list" eq $do  ) {
+      return "None found"   if  ! @rec;
+      return
+         $q-&gt;table(
+            $q-&gt;Tr(
+               map $q-&gt;th( $_ ), @{$st-&gt;{NAME}},
+            ),
+            map $q-&gt;Tr(
+               do {
+                  $rec= $_,
+                  map $q-&gt;td(
+                     !$_ ? "0" : linkNode( {
+                        node_id=&gt;$_,
+                        title=&gt;$_,
+                     } )
+                  ), map $rec-&gt;{$_}, @{$st-&gt;{NAME}},
+               },
+            ), @rec,
+         );
+   }
+   return 'You fix them with your intent stare, but they are unphased.'
+       if  ! isGod($USER);
+   my $st= $DB-&gt;getDatabaseHandle()-&gt;prepare(
+      "update note set root_node=? where note_id=?"
+   );
+   my $count= 0;
+   for $rec (  @rec  ) {
+      $count += $st-&gt;execute( $rec-&gt;{'p.root'}, $rec-&gt;{note_id} );
+   }
+   return "$count notes updated.";
+%]
+&lt;/p&gt;
+</field>
+</data>
+</node>

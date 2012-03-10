@@ -1,0 +1,42 @@
+<node>
+  <doctext>[{get_sitedoclet}]
+[%
+   my $pollster = Everything::isApproved($USER, getNode('pollsters', 'usergroup'));
+
+   my $type= getId( getType('poll') );
+   my $N;
+
+   my $from = ! $pollster ? &quot;node&quot; :
+      &quot;node left join polls on node_id = polls_id left join repliesinfo on node_id = parent&quot;;
+   my $csr= $DB-&gt;sqlSelectMany(
+      &quot;*&quot;,
+      $from,
+      &quot;type_nodetype=$type&quot;,
+      &quot;ORDER BY createtime DESC&quot;
+   );
+   my $str= &quot;&lt;table&gt;\n&quot;;
+   while(  $N= $csr-&gt;fetchrow_hashref()  ) {
+      $str .= &quot;&lt;tr&gt;&lt;td&gt;&quot; . linkNode($N) . &quot;&lt;/td&gt;&lt;td&gt;by &quot;
+           . linkNode( $N-&gt;{author_user} ) . &quot;&lt;/td&gt;&lt;td&gt;&quot;
+           . htmlcode( 'parsetimeinstring','', $N-&gt;{createtime}, '', '', 'short' )
+           . &quot;&lt;/td&gt;&quot;;
+
+      if ($pollster) {
+         my $votes = 0;
+         $votes += $_ for split /\r*\n/, $N-&gt;{numbers};
+         $str .= sprintf( &quot;&lt;td&gt;votes: %d replies: %d/%d&lt;/td&gt;&quot;,
+            $votes, $N-&gt;{directreplies}, $N-&gt;{repliesbelow} );
+      }
+
+      $str .= &quot;&lt;/tr&gt;\n&quot;;
+   }
+   return $str . &quot;&lt;/table&gt;\n&quot;;
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>1609</node_id>
+  <author_user>485628</author_user>
+  <title>Past Polls</title>
+  <createtime>1999-12-30 17:16:28</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

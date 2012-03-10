@@ -1,0 +1,43 @@
+<node>
+  <doctext>[%
+return &quot;Using this?  /msg tye if you miss it&quot;
+  unless  isGod($USER);
+
+my $str;
+use XML::Generator;
+my $XG = new XML::Generator;
+my $time=180;
+
+my $csr=$DB-&gt;getDatabaseHandle()-&gt;prepare(&quot;	
+	SELECT node_id, title FROM node, user
+	WHERE node_id=user_id and
+	type_nodetype=&quot;. getId ($DB-&gt;getType('user')));
+
+$csr-&gt;execute;
+my $lines;
+my @users;
+while (my $N = $csr-&gt;fetchrow_hashref) {
+  push @users, $N;
+}
+
+$str.=$XG-&gt;INFO({site =&gt; $HTMLVARS{site_url}, sitename =&gt; $HTMLVARS{site_name}}, &quot;Rendered by the Other Users XML Ticker&quot;);
+
+foreach my $N (@users) {
+  my $username=$$N{title};
+  #encode_entities($username);
+  $str.=$XG-&gt;user({user_id =&gt; getId($N),username=&gt;$username},&quot;&quot;).&quot;\n&quot;;
+}
+
+
+$str=&quot;\n&quot;.$XG-&gt;CHATTER($str.&quot;\n&quot;);
+$str=~s/([\177-\377])/&quot;&amp;#&quot;.ord($1).&quot;;&quot;/eg;
+$str;
+
+%]</doctext>
+  <type_nodetype>122</type_nodetype>
+  <node_id>74291</node_id>
+  <author_user>929</author_user>
+  <title>other users xml2 ticker</title>
+  <createtime>2000-06-01 15:14:20</createtime>
+  <nodeupdated>2005-06-22 02:52:35</nodeupdated>
+</node>

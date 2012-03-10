@@ -1,0 +1,133 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+B::Deparse - Perl compiler backend to produce perl code
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+B::Deparse is a backend module for the Perl compiler that generates perl
+source code, based on the internal compiled structure that perl itself
+creates after parsing a program. The output of B::Deparse won't be exactly
+the same as the original source, since perl doesn't keep track of comments
+or whitespace, and there isn't a one-to-one correspondence between perl's
+syntactical constructions and their compiled form, but it will often be
+close. When you use the &lt;STRONG&gt;-p&lt;/STRONG&gt;
+option, the output also includes parentheses even when they are not
+required by precedence, which can make it easy to see if perl is parsing
+your expressions the way you intended.
+
+&lt;P&gt;
+Please note that this module is mainly new and untested code and is still
+under development, so it may change in the future.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;OPTIONS&quot;&gt;OPTIONS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+As with all compiler backend options, these must follow directly after the
+'-MO=Deparse', separated by a comma but not any white space.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__p&quot;&gt;-p&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Print extra parentheses. Without this option, B::Deparse includes
+parentheses in its output only when they are needed, based on the structure
+of your program. With &lt;STRONG&gt;-p&lt;/STRONG&gt;, it uses parentheses (almost) whenever they would be legal. This can be useful if you are used to 
+&lt;FONT SIZE=-1&gt;LISP,&lt;/FONT&gt; or if you want to see how perl parses your input. If you say
+
+&lt;P&gt;
+&lt;PRE&gt;    if ($var &amp;amp; 0x7f == 65) {print &amp;quot;Gimme an A!&amp;quot;} 
+    print ($which ? $a : $b), &amp;quot;\n&amp;quot;;
+    $name = $ENV{USER} or &amp;quot;Bob&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;CODE&gt;B::Deparse,-p&lt;/CODE&gt; will print
+
+&lt;P&gt;
+&lt;PRE&gt;    if (($var &amp;amp; 0)) {
+        print('Gimme an A!')
+    };
+    (print(($which ? $a : $b)), '???');
+    (($name = $ENV{'USER'}) or '???')
+&lt;/PRE&gt;
+&lt;P&gt;
+which probably isn't what you intended (the &lt;CODE&gt;'???'&lt;/CODE&gt; is a sign that perl optimized away a constant value).
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__uPACKAGE&quot;&gt;-uPACKAGE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Normally, B::Deparse deparses the main code of a program, all the subs called by the main program (and all the subs called by them, recursively), and any other subs in the main:: package. To include subs in other packages that aren't called directly, such as 
+&lt;FONT SIZE=-1&gt;AUTOLOAD,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;DESTROY,&lt;/FONT&gt; other subs called automatically by perl, and methods, which aren't resolved to subs until runtime, use the
+ &lt;STRONG&gt;-u&lt;/STRONG&gt; option. The argument to &lt;STRONG&gt;-u&lt;/STRONG&gt; is the name of a package, and should follow directly after the 'u'.
+Multiple &lt;STRONG&gt;-u&lt;/STRONG&gt; options may be given, separated by commas. Note that unlike some other
+backends, B::Deparse doesn't (yet) try to guess automatically when &lt;STRONG&gt;-u&lt;/STRONG&gt; is needed -- you must invoke it yourself.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__l&quot;&gt;-l&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Add '#line' declarations to the output based on the line and file locations
+of the original code.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__sLETTERS&quot;&gt;-sLETTERS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Tweak the style of B::Deparse's output. At the moment, only one style
+option is implemented:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_C&quot;&gt;C&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Cuddle &lt;CODE&gt;elsif&lt;/CODE&gt;, &lt;CODE&gt;else&lt;/CODE&gt;, and [perlfunc:continue|continue] blocks. For example, print
+
+&lt;P&gt;
+&lt;PRE&gt;    if (...) {
+         ...
+    } else {
+         ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+instead of
+
+&lt;P&gt;
+&lt;PRE&gt;    if (...) {
+         ...
+    }
+    else {
+         ...
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+The default is not to cuddle.
+
+&lt;/DL&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;BUGS&quot;&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+See the 'to do' list at the beginning of the module file.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Stephen McCamant &amp;lt;&lt;A HREF=&quot;mailto:alias@mcs.com&quot;&gt;alias@mcs.com&lt;/A&gt;&amp;gt;,
+based on an earlier version by Malcolm Beattie &amp;lt;&lt;A
+HREF=&quot;mailto:mbeattie@sable.ox.ac.uk&quot;&gt;mbeattie@sable.ox.ac.uk&lt;/A&gt;&amp;gt;
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:50:09</createtime>
+  <node_id>1158</node_id>
+  <synopsis>&lt;P&gt;
+&lt;STRONG&gt;perl&lt;/STRONG&gt;  &lt;STRONG&gt;-MO=Deparse&lt;/STRONG&gt;&amp;#091;&lt;STRONG&gt;,-u&lt;/STRONG&gt;&lt;EM&gt;PACKAGE&lt;/EM&gt;&amp;#093;&amp;#091;&lt;STRONG&gt;,-p&lt;/STRONG&gt;&amp;#093;&amp;#091;&lt;STRONG&gt;,-l&lt;/STRONG&gt;&amp;#093;&amp;#091;&lt;STRONG&gt;,-s&lt;/STRONG&gt;&lt;EM&gt;LETTERS&lt;/EM&gt;&amp;#093; &lt;EM&gt;prog.pl&lt;/EM&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlman:B::Deparse</title>
+  <nodeupdated>2005-08-12 23:16:53</nodeupdated>
+</node>

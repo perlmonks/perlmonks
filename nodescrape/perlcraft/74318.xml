@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="74318" title="metadb.pl" created="2001-04-20 20:45:11" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="8867">
+dshahin</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+# daniel j shahin
+# metadb.pl - make a dbm of filenames and it's stats for later comparison
+# only a little useful, could add checksum too...
+# you may distribute this under the same terms as perl
+
+#use strict;
+use DB_File;
+use vars qw($COMMAND $DIRNAME $FILENAME $COLOR @filestats 
+            @dbstats @statnames %HASH $i $file $stat );
+if (@ARGV &lt; 3){die "usage: metadb [makedb | compare] &lt;directory&gt; &lt;dbm&gt;"}
+$COMMAND = shift;
+$DIRNAME = shift;
+$FILENAME = shift;
+
+@statnames = ('device', 'inode', 'mode', 'nlink',
+              'uid', 'gid', 'rdev', 'size', 'atime',
+              'mtime', 'ctime', 'blksize', 'blocks');
+
+if ($COMMAND eq 'makedb'){
+    dbmopen (%HASH, $FILENAME, 0666) or die "Can't open $FILENAME: $!\n";
+    opendir(DIR, $DIRNAME) or die "can't opendir $DIRNAME: $!";
+    while (defined($file = readdir(DIR))) {
+        next if $file =~ /^\.\.?$/;
+        $stat = join(':',stat("$DIRNAME/$file"));
+        $HASH{"$DIRNAME/$file"} = $stat;
+        print "$DIRNAME/$file: $stat  \n";
+    }
+    closedir(DIR);
+    dbmclose %HASH;
+}elsif($COMMAND eq 'compare'){
+    dbmopen %HASH, $FILENAME, 0666 or die "Can't open $FILENAME: $!\n";
+    opendir(DIR, $DIRNAME) or die "can't opendir $DIRNAME: $!";
+    while (defined($file = readdir(DIR))) {
+        next if $file =~ /^\.\.?$/;
+        $stat = join(':',stat("$DIRNAME/$file"));
+        if(exists $HASH{"$DIRNAME/$file"} &amp;&amp; $HASH{"$DIRNAME/$file"} ne $stat){
+            if (exists $HASH{"$DIRNAME/$file"}){
+                    print "$DIRNAME/$file\n";
+                    @filestats = split(':', $stat);
+                    @dbstats = split(':', $HASH{"$DIRNAME/$file"});
+                    for ($i=0; $i&lt;13; $i++){
+                          print "\t$statnames[$i]";
+                          print "\tfile:$filestats[$i]";
+                          print "\tdb:$dbstats[$i]\n";
+                    }
+            }
+        }
+    }
+}
+</field>
+</data>
+</node>

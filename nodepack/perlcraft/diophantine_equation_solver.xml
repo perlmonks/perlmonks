@@ -1,0 +1,68 @@
+<node>
+  <doctext># working on making it allow negative numbers via some
+# crazy form of look-behind and look-ahead
+
+# NOTE: just because you CAN use a regex to do this
+# doesn't mean you should!
+
+use Carp;
+
+if (%results = solve_dio('5x + 7y + 4z = 50')) {
+  print map &quot;$_ =&gt; $results{$_}\n&quot;, keys %results;
+}
+
+if (solve_dio(x =&gt; 3, y =&gt; 2, z =&gt; 5, 102)) {
+  print &quot;solution found!\n&quot;;
+}
+
+
+# solve_dio('3x + 2y + 5z = 102');
+# solve_dio(x =&gt; 3, y =&gt; 2, z =&gt; 5, 102);
+
+sub solve_dio {
+  my ($sum,%args,$regex,@values);
+
+  if (@_ &gt; 1) {
+    $sum = pop;
+    %args = @_;
+  }
+  elsif (@_ == 1) {
+    ($sum,%args) = parseEQN(shift);
+  }
+  else {
+    croak &lt;&lt; &quot;USAGE&quot;;
+not enough args to solve_dio()
+  solve_dio(EQN)
+  solve_dio(VAR =&gt; COEFF, [VAR =&gt; COEFF, ] SUM)
+USAGE
+  }
+
+  $regex = join &quot; &quot;, map &quot;((?:@{[ 0 x $args{$_} ]})+)&quot;, keys %args;
+
+  if (@values = (0 x $sum) =~ /^ $regex $/x) {
+    return 1 if !wantarray;
+    for (@values) {
+      my ($var) = each %args;
+      $args{$var} = length() / $args{$var};
+    }
+    return %args;
+  }
+}
+
+sub parseEQN {
+  (my $EQN = shift) =~ tr/A-Za-z0-9 //cd;
+  my (@parts,$sum,%args);
+
+  @parts = split ' ', $EQN;
+  $sum = pop @parts;
+  %args = map reverse(/(\d+)([a-z])/), @parts;
+
+  return ($sum, %args);
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>7301</node_id>
+  <author_user>1936</author_user>
+  <title>Diophantine Equation Solver</title>
+  <createtime>2000-04-11 12:25:49</createtime>
+  <nodeupdated>2005-08-04 14:24:47</nodeupdated>
+</node>

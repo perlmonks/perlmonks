@@ -1,0 +1,412 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+#  This entire file copyright (c) 2002 T. Alex Beamish. All rights
+#  reserved.  This program is free software; you can redistribute it
+#  and/or modify it under the same terms as Perl itself.
+
+
+#  Document object. Coded February 6-7, 2002. This first version has
+#  everything in one object. Future versions will pass data down to lower
+#  levels as required, going from Document to Page to Column, as the
+#  object model matures.
+#
+#  T. Alex Beamish, TAB Software -- 7 February 2002
+
+package Document;
+
+#  Code to execute roff commands are stored in a code reference hash
+#  as anonymous subroutines.
+
+my %LocalCommands =
+(
+  br =&gt; sub 		#  Break the current line
+  { 
+    my $Self = shift;
+
+    _FlushLine ( $Self );
+  },
+
+  bl =&gt; sub 		#  Insert [n|1] blank lines
+  { 
+    my $Self = shift; 
+    my $Args = shift;
+
+    if ( $Args eq &quot;&quot; ) { $Args = 1; }
+    if ( $Self-&gt;{ LINE_AOHR }-&gt;[ -1 ]-&gt;{ data } eq &quot;&quot; )
+    {
+      $Args -= 1;
+    }
+    
+    _FinishLine ( $Self );
+
+    for ( 1..$Args )
+    {
+      _StartLine (  $Self );
+      _FinishLine ( $Self );
+    }
+
+    _StartLine (  $Self );
+  },
+
+  ce =&gt; sub 		#  Center the next [n|1] input lines
+  { 
+    my $Self = shift; 
+    my $Args = shift;
+    if ( $Args eq &quot;&quot; ) { $Args = 1; }
+
+    $Self-&gt;{ CENTER_COUNT } += $Args;
+    $Self-&gt;{ RIGHT_COUNT }   = 0;
+  },
+    
+  fi =&gt; sub 		#  Enable filling between input lines
+  { 
+    my $Self = shift;
+
+    $Self-&gt;{ FILL_FLAG } = 1;
+  },
+
+  in =&gt; sub 		#  Indent by [n|0] spaces
+  { 
+    my $Self = shift; 
+    my $Args = shift;
+    if ( $Args eq &quot;&quot; ) { $Args = 0; }
+
+    _FlushLine ( $Self );
+    $Self-&gt;{ INDENT } = $Args;
+
+    my $AvailableSpace =
+      $Self-&gt;{ LINE_LENGTH } - $Self-&gt;{ INDENT };
+    $Self-&gt;{ LINE_AOHR }-&gt;[ -1 ]-&gt;{ size } = $AvailableSpace;
+  },
+
+  ll =&gt; sub 		#  Set line length to [n|64]
+  { 
+    my $Self = shift; 
+    my $Args = shift;
+    if ( $Args eq &quot;&quot; ) { $Args = 64; }
+
+    _FlushLine ( $Self );
+    $Self-&gt;{ LINE_LENGTH } = $Args;
+
+    my $AvailableSpace =
+      $Self-&gt;{ LINE_LENGTH } - $Self-&gt;{ INDENT };
+    $Self-&gt;{ LINE_AOHR }-&gt;[ -1 ]-&gt;{ size } = $AvailableSpace;
+  },
+    
+  nf =&gt; sub 		#  Disable filling between input lines
+  { 
+    my $Self = shift;
+
+    _FlushLine ( $Self );
+    $Self-&gt;{ FILL_FLAG } = 0;
+  },
+
+  nj =&gt; sub 		#  Disable center and right justification
+  { 
+    my $Self = shift;
+
+    $Self-&gt;{ CENTER_COUNT } = 0;
+    $Self-&gt;{ RIGHT_COUNT }  = 0;
+  },
+
+  rj =&gt; sub 		#  Enable right justification for [n|1] lines
+  { 
+    my $Self = shift; 
+    my $Args = shift;
+    if ( $Args eq &quot;&quot; ) { $Args = 1; }
+
+    $Self-&gt;{ RIGHT_COUNT } += $Args;
+    $Self-&gt;{ CENTER_COUNT } = 0;
+  },
+    
+);
+
+#  INTERNAL METHODS
+
+#  Object initialization routine
+
+sub _Init
+{
+  my $Self = shift;
+
+  $Self-&gt;{ LINE_LENGTH } = 72;
+  $Self-&gt;{ INDENT } = 0;
+
+  $Self-&gt;{ CENTER_COUNT } = 0;
+  $Self-&gt;{ RIGHT_COUNT } = 0;
+
+  $Self-&gt;{ FILL_FLAG } = 1;
+
+  $Self-&gt;_StartLine();
+}
+
+#  Start a new line. This calculates the available space based on the
+#  current indent and line length. Each line is stored as a hash
+#  containing the text on the line, the justification and the available
+#  space.
+
+sub _StartLine
+{
+  my $Self = shift;
+  my $Text = shift;
+  if ( !defined ( $Text ) ) { $Text = &quot;&quot;; }
+
+  my $AvailableSpace =
+    $Self-&gt;{ LINE_LENGTH } - $Self-&gt;{ INDENT };
+  my %Hash = ( data =&gt; $Text, just =&gt; &quot;L&quot;, size =&gt; $AvailableSpace );
+
+  push ( @{ $Self-&gt;{ LINE_AOHR } }, \%Hash );
+}
+
+#  Finish a line. This takes the indent and justification information and
+#  pads with spaces to get the desired look.
+
+sub _FinishLine
+{
+  my $Self = shift;
+
+  my $ThisLineHR = $Self-&gt;{ LINE_AOHR }-&gt;[ -1 ];
+
+  my $Indent = &quot; &quot; x $Self-&gt;{ INDENT };
+  $ThisLineHR-&gt;{ data } = $Indent . $ThisLineHR-&gt;{ data };
+
+  if ( $ThisLineHR-&gt;{ just } eq &quot;C&quot; )
+  {
+    my $Length = length ( $ThisLineHR-&gt;{ data } );
+    my $Padding = &quot; &quot; x ( ( $ThisLineHR-&gt;{ size } - $Length ) / 2 );
+
+    $ThisLineHR-&gt;{ data } = &quot;$Indent$Padding$ThisLineHR-&gt;{ data }&quot;;
+  } 
+  elsif ( $ThisLineHR-&gt;{ just } eq &quot;R&quot; )
+  {
+    my $Length = length ( $ThisLineHR-&gt;{ data } );
+    my $Padding = &quot; &quot; x ( $Self-&gt;{ LINE_LENGTH } - $Length );
+
+    $ThisLineHR-&gt;{ data } = &quot;$Padding$ThisLineHR-&gt;{ data }&quot;;
+  }
+}
+
+#  Flush the current line by Finishing the current one and Starting a
+#  new one. This routine does nothing if the line is empty.
+
+sub _FlushLine
+{
+  my $Self = shift;
+  my $Text = shift;
+
+  if ( $Self-&gt;{ LINE_AOHR }[ -1 ]-&gt;{ data } ne &quot;&quot; )
+  {
+    if ( !defined ( $Text ) ) { $Text = &quot;&quot;; }
+
+    _FinishLine ( $Self );
+    _StartLine (  $Self, $Text );
+  }
+}
+
+#  END OF INTERNAL METHODS
+
+#  START EXTERNAL METHODS
+
+#  Class constructor
+
+sub new
+{
+  my $Class = shift;
+  my $Self = {};
+
+  bless ( $Self, $Class );
+  $Self-&gt;_Init();
+
+  return ( $Self );
+}
+
+#  Process a dot command. We go with the assumption that a command is
+#  formed by a leading dot '.' followed by an alphanumeric command. Right
+#  now all commands are two letters, but they could be an arbitrary
+#  length. Arguments are optional and are made into &quot;&quot; if not defined;
+#  each command handles that default value in their own way.
+
+sub Cmd
+{
+  my $Self = shift;
+  my $InputText = shift;
+  chomp ( $InputText );
+
+  my ( $Cmd, $Args ) = $InputText =~ m/^\.(\w+)\s*(.*)$/;
+  if ( defined ( $LocalCommands{ $Cmd } ) )
+  {
+    if ( !defined ( $Args ) ) { $Args = &quot;&quot;; }
+    $LocalCommands{ $Cmd }-&gt;( $Self, $Args );
+  }
+  else
+  {
+    warn &quot;Roff: Command $Cmd has not yet been implemented.&quot;;
+  }
+}
+
+#  Add a line of text to the output.
+
+sub AddText
+{
+  my $Self      = shift;
+  my $InputText = shift;
+  chomp ( $InputText );
+
+  #  If there are still input lines to be centered or right justified, mark 
+  #  that for the current output line and decrement the counter for
+  #  that justification count.
+
+  if ( $Self-&gt;{ CENTER_COUNT } &gt; 0 )
+  {
+    $Self-&gt;{ LINE_AOHR }[ -1 ]-&gt;{ just } = &quot;C&quot;;
+    $Self-&gt;{ CENTER_COUNT }--;
+  }
+  elsif ( $Self-&gt;{ RIGHT_COUNT } &gt; 0 )
+  {
+    $Self-&gt;{ LINE_AOHR }[ -1 ]-&gt;{ just } = &quot;R&quot;;
+    $Self-&gt;{ RIGHT_COUNT }--;
+  }
+
+  #  Split the incoming text line into words. Check to see if the word
+  #  fits on the line, add it if it does, otherwise start a new line with
+  #  the word. This assumes that there are no words longer than the current
+  #  line length.
+
+  #  Commentary: It might be more efficient to figure out how space
+  #  there is then grab that much of the input line (moving backwards to
+  #  the first word boundary). I may add that in later versions.
+
+  foreach ( split ( / /, $InputText ) )
+  {
+    my $ThisLineHR = $Self-&gt;{ LINE_AOHR }-&gt;[ -1 ];
+    my $ThisLine   = $ThisLineHR-&gt;{ data};
+
+    if ( length ( $_ ) + length ( $ThisLine ) &gt;= $ThisLineHR-&gt;{ size } )
+    {
+      _FlushLine ( $Self, $_ );
+    }
+    else
+    {
+      if ( length ( $ThisLine ) == 0 )
+      {
+        $ThisLine = &quot;$_&quot;;
+      }
+      else
+      {
+        $ThisLine .= &quot; $_&quot;;
+      }
+      $Self-&gt;{ LINE_AOHR }-&gt;[ -1 ]-&gt;{ data } = $ThisLine;
+    }
+  }
+  
+  #  If we're doing the no-fill thing, flush the current line and get a new 
+  #  line ready.
+
+  if ( $Self-&gt;{ FILL_FLAG } == 0 )
+  {
+    _FlushLine ( $Self );
+  }
+}
+
+#  This routine is called at the end of the input text file to close
+#  off the roff procedure.
+
+sub EndOfText
+{
+  my $Self = shift;
+  _FinishLine ( $Self );
+}
+
+#  This routine is called to dump the result out to STDOUT.
+
+sub Output
+{
+  my $Self = shift;
+
+  my $LineCount = 0;
+  foreach ( @{ $Self-&gt;{ LINE_AOHR } } )
+  {
+    printf ( &quot;%3d: %s\n&quot;, $LineCount++, $_-&gt;{ data } );
+  }
+}
+
+1;
+
+#  Test bed for Document object.
+#
+#  T. Alex Beamish, TAB Software -- 6 February 2002
+
+use strict;
+
+package main;
+
+use Document;
+
+{
+  my $TestDocument = new Document;
+  
+  while (&lt;DATA&gt;)
+  {
+    if ( /^\./ )
+    {
+      $TestDocument-&gt;Cmd ( $_ );
+    }
+    else
+    {
+      $TestDocument-&gt;AddText ( $_ );
+    }
+  }
+  $TestDocument-&gt;EndOfText();
+  $TestDocument-&gt;Output();
+}
+
+__END__
+
+.ce 2
+.nf
+.ll 60
+Test Page
+OO PERL implementation of roff
+.fi
+.bl 
+.rj
+February 7, 2002
+.nj
+.bl
+The idea is to write a fairly simple roff type text formatter in the Object
+Oriented style, in not one but three languages, C, Perl and Java. This code
+would be posted on my web site as the start to a code portfolio.
+.bl
+The commands currently implemented are:
+.bl
+.in 5
+.nf
+br - break the current line
+bl [n|1] - insert n blank lines
+ce [n|1] - center the next n lines
+fi - fill output lines from input lines
+in [n|0] - indent using n spaces
+ll [n|64] - set line length to n
+nf - don't fill output lines from input lines
+nj - cancel right and center justification
+rj [n|1] - right justify the next n lines
+.fi
+.bl
+.in
+Determining what Object model to use has been tough ..
+right now I am planning to go with 
+Document -&gt; Page -&gt; Column to simplify things
+but I may decide later that I need a Paragraph/Table object
+so that I can make unbreakable tables and provide widow/orphan control.
+.bl
+Comments are welcome! You can reach me at
+talexb at tabsoft dot on dot ca.
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>143922</node_id>
+  <author_user>131279</author_user>
+  <title>Roff done as an OO exercise</title>
+  <createtime>2002-02-07 11:58:21</createtime>
+  <nodeupdated>2005-08-13 07:50:51</nodeupdated>
+</node>

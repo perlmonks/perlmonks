@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="28821" title="writeupmover" created="2000-08-21 15:55:55" updated="2005-06-06 11:19:20">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $justCheck, $noMove )= @_;
+my( @allowedTypes, %allowedTypes );
+{
+   my @v= (
+      perlquestion =&gt; "Seekers of Perl Wisdom",
+      perlmeditation =&gt; "Meditations",
+      monkdiscuss =&gt; "Perl Monks Discussion",
+      perlcraft =&gt; "Perl Craft",
+      obfuscated =&gt; "Obfuscated Code",
+      poem =&gt; "Perl Poetry",
+      CUFP =&gt; "Cool Uses For Perl",
+      perlnews =&gt; "Perl News",
+      perltutorial =&gt; "Tutorials (no rush)",
+      offtopicroot =&gt; "Off topic (w/ caution)",
+   );
+   %allowedTypes= @v;
+   @allowedTypes = @v[ grep 1&amp;~$_, 0..$#v ];
+}
+
+return ''   unless $allowedTypes{ $NODE-&gt;{type}{title} };
+{
+   my $ED= getNode('editors','usergroup');
+   unless(  $ED  &amp;&amp;  Everything::isApproved($USER,$ED)  ) {
+      return ''
+         if  "perltutorial" eq $NODE-&gt;{type}{title}
+         &amp;&amp;  "offtopicroot" eq $NODE-&gt;{type}{title};
+      delete @allowedTypes{qw/ perltutorial offtopicroot /};
+      die "allowedTypes out of sync in [writeupmover]\n"
+         unless  "offtopicroot" eq pop @allowedTypes
+             &amp;&amp;  "perltutorial" eq pop @allowedTypes;
+   }
+}
+
+my $menu = $query-&gt;popup_menu(
+    'movetotype',
+    \@allowedTypes,
+    $NODE-&gt;{type}{title},
+    \%allowedTypes
+);
+
+return $menu if( $noMove );
+
+my $movetotype = $query-&gt;param('movetotype');
+if(  $movetotype ne $NODE-&gt;{type}{title}
+and  $allowedTypes{$movetotype}  ) {
+   return 1   if  $justCheck;
+   $NODE-&gt;{type_nodetype} = getId(getType($movetotype));
+   updateNode($NODE,-1);
+}
+return 0   if  $justCheck;
+return $menu;
+</field>
+</data>
+</node>

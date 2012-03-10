@@ -1,0 +1,40 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>360807</node_id>
+  <author_user>357600</author_user>
+  <title>get_user_scratchpads</title>
+  <createtime>2004-06-04 07:03:39</createtime>
+  <code>my( $opts )= @_;
+$opts-&gt;{user} ||= $USER;
+$opts-&gt;{user}= $opts-&gt;{user}{user_id}
+    if  ref $opts-&gt;{user};
+
+if(  $opts-&gt;{one}  ) {
+    # Return just the main scratchpad node for a user.
+    my( $pad )= $DB-&gt;getNodeWhere(
+        {
+            foruser_id =&gt; $opts-&gt;{user},
+        },
+        getType(&quot;scratchpad&quot;),
+        'scratchpad_id asc',
+    );
+    return $pad;
+}
+
+# Get a list of scratchpads for a given user. (by $USER node or ID)
+# Returns the list in the $opts-&gt;{pads} and also 
+# as a comma seperated string of ids via htmlcode return
+
+my $pads= $DB-&gt;sqlSelectMany(
+    'node_id,title',
+    'node,scratchpad',
+    &quot;scratchpad_id = node_id and foruser_id = $opts-&gt;{user}&quot;,
+    'order by scratchpad_id asc',
+);
+$pads= $pads-&gt;fetchall_arrayref( {} );
+$opts-&gt;{pads}= [ map [ @$_{qw( node_id title )} ], @$pads ];
+
+return join &quot;,&quot;, map $_-&gt;{node_id}, @$pads;
+</code>
+  <nodeupdated>2004-10-13 21:04:04</nodeupdated>
+</node>

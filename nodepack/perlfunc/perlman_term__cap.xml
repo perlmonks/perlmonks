@@ -1,0 +1,104 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+Term::Cap - Perl termcap interface
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+These are low-level functions to extract and use capabilities from a
+terminal capability (termcap) database.
+
+&lt;P&gt;
+The &lt;STRONG&gt;Tgetent&lt;/STRONG&gt; function extracts the entry of the specified terminal type &lt;EM&gt;TERM&lt;/EM&gt; (defaults to the environment variable &lt;EM&gt;TERM&lt;/EM&gt;) from the database.
+
+&lt;P&gt;
+It will look in the environment for a &lt;EM&gt;TERMCAP&lt;/EM&gt; variable. If found, and the value does not begin with a slash, and the
+terminal type name is the same as the environment string &lt;EM&gt;TERM&lt;/EM&gt;, the
+&lt;EM&gt;TERMCAP&lt;/EM&gt; string is used instead of reading a termcap file. If it does begin with a
+slash, the string is used as a path name of the termcap file to search. If &lt;EM&gt;TERMCAP&lt;/EM&gt; does not begin with a slash and name is different from &lt;EM&gt;TERM&lt;/EM&gt;, &lt;STRONG&gt;Tgetent&lt;/STRONG&gt; searches the files &lt;EM&gt;$HOME/.termcap&lt;/EM&gt;, &lt;EM&gt;/etc/termcap&lt;/EM&gt;, and &lt;EM&gt;/usr/share/misc/termcap&lt;/EM&gt;, in that order, unless the environment variable &lt;EM&gt;TERMPATH&lt;/EM&gt; exists, in which case it specifies a list of file pathnames (separated by
+spaces or colons) to be searched &lt;STRONG&gt;instead&lt;/STRONG&gt;. Whenever multiple files are searched and a tc field occurs in the
+requested entry, the entry it names must be found in the same file or one
+of the succeeding files. If there is a &lt;CODE&gt;:tc=...:&lt;/CODE&gt; in the &lt;EM&gt;TERMCAP&lt;/EM&gt;
+environment variable string it will continue the search in the files as
+above.
+
+&lt;P&gt;
+&lt;EM&gt;OSPEED&lt;/EM&gt; is the terminal output bit rate (often mistakenly called the baud rate).  &lt;EM&gt;OSPEED&lt;/EM&gt; can be specified as either a 
+&lt;FONT SIZE=-1&gt;POSIX&lt;/FONT&gt; termios/SYSV termio speeds (where 9600 equals
+9600) or an old BSD-style speeds (where 13 equals 9600).
+
+&lt;P&gt;
+&lt;STRONG&gt;Tgetent&lt;/STRONG&gt; returns a blessed object reference which the user can then use to send the
+control strings to the terminal using &lt;STRONG&gt;Tputs&lt;/STRONG&gt;
+and &lt;STRONG&gt;Tgoto&lt;/STRONG&gt;. It calls [perlman:perlguts|perlguts] on failure.
+
+&lt;P&gt;
+&lt;STRONG&gt;Tgoto&lt;/STRONG&gt; decodes a cursor addressing string with the given parameters.
+
+&lt;P&gt;
+The output strings for &lt;STRONG&gt;Tputs&lt;/STRONG&gt; are cached for counts of 1 for performance.
+&lt;STRONG&gt;Tgoto&lt;/STRONG&gt; and &lt;STRONG&gt;Tpad&lt;/STRONG&gt; do not cache.  &lt;CODE&gt;$self-&amp;gt;{_xx}&lt;/CODE&gt; is the raw termcap data and &lt;CODE&gt;$self-&amp;gt;{xx}&lt;/CODE&gt; is the cached version.
+
+&lt;P&gt;
+&lt;PRE&gt;    print $terminal-&amp;gt;Tpad($self-&amp;gt;{_xx}, 1);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;Tgoto&lt;/STRONG&gt;, &lt;STRONG&gt;Tputs&lt;/STRONG&gt;, and &lt;STRONG&gt;Tpad&lt;/STRONG&gt; return the string and will also output the string to &lt;CODE&gt;$FH&lt;/CODE&gt; if
+specified.
+
+&lt;P&gt;
+The extracted termcap entry is available in the object as &lt;CODE&gt;$self-&amp;gt;{TERMCAP}&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;EXAMPLES&quot;&gt;EXAMPLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Get terminal output speed
+    require POSIX;
+    my $termios = new POSIX::Termios;
+    $termios-&amp;gt;getattr;
+    my $ospeed = $termios-&amp;gt;getospeed;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Old-style ioctl code to get ospeed:
+    #     require 'ioctl.pl';
+    #     ioctl(TTY,$TIOCGETP,$sgtty);
+    #     ($ispeed,$ospeed) = unpack('cc',$sgtty);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # allocate and initialize a terminal structure
+    $terminal = Tgetent Term::Cap { TERM =&amp;gt; undef, OSPEED =&amp;gt; $ospeed };
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # require certain capabilities to be available
+    $terminal-&amp;gt;Trequire(qw/ce ku kd/);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Output Routines, if $FH is undefined these just return the string
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Tgoto does the % expansion stuff with the given args
+    $terminal-&amp;gt;Tgoto('cm', $col, $row, $FH);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Tputs doesn't do any % expansion.
+    $terminal-&amp;gt;Tputs('dl', $count = 1, $FH);
+&lt;/PRE&gt;
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:53:18</createtime>
+  <node_id>1247</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;    require Term::Cap;
+    $terminal = Tgetent Term::Cap { TERM =&amp;gt; undef, OSPEED =&amp;gt; $ospeed };
+    $terminal-&amp;gt;Trequire(qw/ce ku kd/);
+    $terminal-&amp;gt;Tgoto('cm', $col, $row, $FH);
+    $terminal-&amp;gt;Tputs('dl', $count, $FH);
+    $termi</synopsis>
+  <title>perlman:Term::Cap</title>
+  <nodeupdated>2005-08-13 02:07:25</nodeupdated>
+</node>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="61917" title="getOrRenewLock" created="2001-03-02 21:26:53" updated="2005-04-24 12:05:54">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $locklength )= @_;
+$locklength= 10
+    if  ! $locklength  ||  $locklength =~ /\D/;
+$locklength *= 60;
+my( $now, $before )= $DB-&gt;sqlSelect(
+    "now(), from_unixtime( unix_timestamp(now()) - $locklength )",
+    "node", "", "limit 1",
+);
+
+if(     ! $NODE-&gt;{lockedby_user}
+    ||  $NODE-&gt;{lockedby_user} == getId($USER)
+    ||  $NODE-&gt;{locktime} lt $before
+) {
+    $NODE-&gt;{lockedby_user}= getId($USER);
+    $NODE-&gt;{locktime}= $now;
+    updateNode( $NODE, -1 ); # Used by [janitors] on nodes they can't directly update
+    return 1;
+}
+return 0;</field>
+</data>
+</node>

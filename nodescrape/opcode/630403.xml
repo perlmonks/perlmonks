@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="630403" title="addreadmore" created="2007-08-02 17:30:50" updated="2007-08-02 13:30:50">
+<type id="3545">
+opcode</type>
+<author id="518801">
+Co-Rion</author>
+<data>
+<field name="code">
+return 
+  unless Everything::isApproved($USER, getNode('editors','usergroup'));
+
+my ($NODE) = $query-&gt;param('node_id');
+getRef $NODE;
+
+my %readmore_type = map {$_=&gt;1} qw(
+    perlquestion
+    note
+    perlmeditation
+    CUFP
+    obfuscated
+);
+
+return 
+  unless $readmore_type{$NODE-&gt;{type}{title}}; 
+
+return 
+  unless htmlcode('getOrRenewLock');
+
+
+my $text = $NODE-&gt;{doctext};
+
+my @code;
+while(  $text =~ m[(&lt;(c(?:ode)?)&gt;.*?&lt;/\2&gt;)]sig  ) {
+   push @code, $1;
+}
+
+my $code;
+if (my $part = $q-&gt;param('part')) {
+    $code = $code[$part - 1];
+} 
+else {
+    $code = $code[0];
+}
+
+my $newcode = qq[&lt;p&gt;\n&lt;readmore&gt;\n$code\n&lt;/readmore&gt;\n&lt;/p&gt;];
+my $orig_text = $text;
+$NODE-&gt;{doctext} =~ s/\Q$code\E/$newcode/;
+updateNode($NODE,-1);
+$DB-&gt;sqlInsert(
+    'edithistory',
+    {
+        starttext      =&gt; $orig_text,
+        endtext        =&gt; $NODE-&gt;{doctext},
+        editor_user    =&gt; getId($USER),          
+        -edittime      =&gt; "now()",
+        fieldname      =&gt; 'doctext',
+        edithistory_id =&gt; getId($NODE),
+    }
+);</field>
+</data>
+</node>

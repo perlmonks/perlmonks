@@ -1,0 +1,83 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>53589</node_id>
+  <author_user>929</author_user>
+  <title>reapnode</title>
+  <createtime>2001-01-22 20:17:07</createtime>
+  <code>my ($node_id)=@_;
+my $N=getNodeById($node_id);
+return unless $N;
+my $str;
+
+#check if $node has been considered
+Everything::printLog(&quot;reapingnode&quot;);
+my $CN=$DB-&gt;sqlSelectHashref(&quot;*&quot;,&quot;considernodes&quot;,&quot;considernodes_id=$$N{node_id}&quot;);
+Everything::printLog(&quot;reapnode $$N{node_id}&quot;);
+return unless (isGod($USER) or ($$CN{del}&gt;=5 and $$CN{keep}&lt;=2));
+$str.=&quot;got this far&quot;;
+#decrement writeups
+my $AUTHOR=getNodeById($$N{author_user});
+my $AUTHVARS=getVars $AUTHOR;
+$$AUTHVARS{numwriteups}--;
+setVars $AUTHOR, $AUTHVARS;
+my $NR=$HTMLVARS{NodeReaperID};
+#/msg owner unless Anonymous Monk
+if(getId($AUTHOR)!=$HTMLVARS{default_user}){
+   my $message=&quot;I've reaped your node [id://&quot;.getId($N).&quot;].&quot;;
+   $message.=&quot; Reason: $$CN{description} &quot; if $$CN{description};
+   $DB-&gt;sqlInsert(
+      &quot;message&quot;,
+      { 
+         msgtext =&gt; $message,
+         for_user =&gt; getId($AUTHOR),
+         author_user =&gt; $NR,
+      }
+   );
+}
+
+
+#move to reaped table
+my $RN;
+use Data::Dumper;
+for(qw/del keep edit/){
+   $$RN{$_}=$$CN{$_}||0;
+}
+for(qw/createtime author_user reputation type_nodetype node_id/){
+   $$RN{$_}=$$N{$_};
+}
+$$RN{data}=Dumper($N);
+$$RN{reason}=$$CN{description}||&quot;Admin.&quot;;
+$DB-&gt;sqlInsert(&quot;reapednode&quot;,$RN);
+
+#replace doctext/ clear out other text
+require POSIX;
+my $localtime=POSIX::strftime('%Y-%m-%d %H-%M-%S',localtime(time));
+$$N{doctext} = &quot;This node was taken out by the [NodeReaper] on [localtime://$localtime]&quot;;
+$$N{doctext}.=&quot;&lt;BR&gt;Reason:  $$CN{description}&quot; if $$CN{description};
+$$N{doctext}.=
+  &quot;&lt;p&gt;You may view [href://?node=Visit%20Reaped%20Nodes&amp;nodenum=$N-&gt;{node_id}|&quot;.
+  &quot;the original node and the consideration vote tally].&lt;/p&gt;&quot;;
+
+if ($$N{type}{title} eq &quot;snippet&quot;) {
+   # snippets have no doctext
+   $$N{snippetdesc} = delete $$N{doctext};
+   # clear code also
+   $$N{snippetcode} = &quot;&quot;;
+}
+
+# review-only stuff
+for my $field (qw/itemdescription usercomment identifier/) {
+   $N-&gt;{$field} = &quot;&quot; if exists $N-&gt;{$field};
+}
+
+$$N{author_user}=$NR;
+$$N{title}=&quot;Reaped: $$N{title}&quot;;
+updateNode($N,-1);
+#remove all approved linktypes
+$DB-&gt;sqlDelete(&quot;links&quot;,&quot;to_node=&quot;.getId($N).&quot; and linktype!=0&quot;);
+
+#remove node from consideration
+$DB-&gt;sqlDelete(&quot;considernodes&quot;,&quot;considernodes_id=&quot;.getId($N));
+$str;</code>
+  <nodeupdated>2005-08-14 14:35:03</nodeupdated>
+</node>

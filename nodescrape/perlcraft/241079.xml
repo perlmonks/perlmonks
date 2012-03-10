@@ -1,0 +1,427 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="241079" title="JavaScript Dumper" created="2003-03-07 01:25:55" updated="2005-07-01 02:01:34">
+<type id="121">
+perlcraft</type>
+<author id="86555">
+mugwumpjism</author>
+<data>
+<field name="doctext">
+package JavaScript::Dumper;
+use strict;
+
+=head1 NAME
+
+JavaScript::Dumper - Dump a set of objects into JavaScript code
+
+=head1 SYNOPSIS
+
+ use JavaScript::Dumper qw(JSDump);
+
+ JavaScript::Dumper::config(object_mode =&gt; 1);
+ print JSDump(@objects);
+
+ # OO invocation
+
+ use JavaScript::Dumper;
+
+ my $jsd = JavaScript::Dumper-&gt;new(object_mode =&gt; 1);
+ print $jsd-&gt;Dump(@objects);
+
+ $jsd-&gt;set_variable_name("bert");
+ print $jsd-&gt;Dump($bert);
+
+=head1 DESCRIPTION
+
+This module performs a task analogous to the standard C&lt;Data::Dumper&gt;
+module (see L&lt;Data::Dumper&gt;), but the idea is that the resultant data
+structure is to be reconstituted within an ECMAScript interpreter.
+
+=cut
+
+use Exporter;
+use Class::Tangram;
+use Set::Object;
+
+use vars qw(@ISA @EXPORT @EXPORT_OK $class_obj $fields);
+
+BEGIN {
+    @ISA = qw(Class::Tangram Exporter);
+
+    @EXPORT    = qw(&amp;JSDump);
+    @EXPORT_OK = qw(&amp;Dumper &amp;JSDump);
+
+    $fields =
+	{
+     int =&gt; {
+	     # whether or not this dumper assumes you have JS classes
+	     # for all the objects available
+	     object_mode =&gt; undef,
+
+	     # whether or not this dumper will recurse deeply into
+	     # objects; this is off by default
+	     deep_recurse =&gt; undef,
+
+	     # internal - the count after while a variable name
+	     # becomes an extras name
+	     count =&gt; undef,
+	    },
+     string =&gt; {
+		# the variable name to use for output
+		variable_name =&gt; {
+				  init_default =&gt; "objects",
+				 },
+		extra_name =&gt; {
+			       init_default =&gt; "extras",
+			       },
+	       },
+     set =&gt; {
+	     # Dump only these objects (used internally)
+	     dump_only =&gt; undef,
+
+	     # thingies that have already been dumped (Set::Objects
+	     # are not actually Set::Objects, they are Set::RVs so can
+	     # hold hashes, arrays etc. as long as they are
+	     # references.  They don't need to be blessed.)
+	     already_dumped =&gt; undef,
+	    },
+
+     flat_hash =&gt; {
+		   # dump locations of blessed objects
+		   dump_positions =&gt; undef,
+		  },
+
+     array =&gt; {
+	       dump_these =&gt; undef,
+	      },
+
+     flat_array =&gt; {
+		    # the actual output lines
+		    output_lines =&gt; undef,
+		    # stitching calls
+		    output_stitching =&gt; undef,
+		   },
+	};
+
+    $class_obj = __PACKAGE__-&gt;new();
+
+    no strict 'refs';
+    *{__PACKAGE__."::$_"} = \&amp;{"Class::Tangram::$_"}
+	foreach qw(reftype blessed ish_int is_double is_string memid);
+}
+
+sub _obj {
+    my $stackref = shift;
+    if ( ref $stackref-&gt;[0] &amp;&amp;
+	 UNIVERSAL::isa($stackref-&gt;[0], __PACKAGE__ ) ) {
+	return shift @$stackref;
+    } elsif ( UNIVERSAL::isa($stackref-&gt;[0], __PACKAGE__ ) ) {
+	no strict "refs";
+	my $class = shift @$stackref;
+	return (${$class."::class_obj"} || $class_obj);
+    } else {
+	return $class_obj;
+    }
+}
+
+sub config {
+    my $self = _obj(\@_);
+    return $self-&gt;set(@_);
+}
+
+=head2 JSDumper(@objects)
+
+Dumps the passed objects as ECMAScript.
+
+=cut
+    # this function the item number of the passed object/array
+sub _pos {
+    my $self = shift;
+    my $item = shift;
+    my $key = memid($item);
+    if ( !$self-&gt;already_dumped-&gt;includes($item) ) {
+	push @{$self-&gt;dump_these}, $item;
+	$self-&gt;dump_positions-&gt;{$key} =
+	    (@{$self-&gt;output_lines} + @{$self-&gt;dump_these});
+	$self-&gt;already_dumped-&gt;insert($item);
+    }
+    #print "Pos of ".ref($item)." is ".$self-&gt;dump_positions-&gt;{$key}."\n";
+    return($self-&gt;dump_positions-&gt;{$key});
+}
+
+sub JSDump {
+    return JSDumper(@_);
+}
+
+sub JSDumper {
+    my $self = _obj(\@_);
+
+    $self-&gt;already_dumped_clear();
+
+    $self-&gt;set_dump_only(grep { ref($_) } @_)
+	unless $self-&gt;deep_recurse;
+
+    $self-&gt;set_count(scalar(@_));
+
+    $self-&gt;set_dump_these([ @_ ]);
+    $self-&gt;set_dump_positions({});
+
+    $self-&gt;already_dumped-&gt;insert($_) foreach (grep { ref($_) } @_);
+    my $n = 0;
+    for my $item (@_) {
+	if (ref $item) {
+	    ${ $self-&gt;dump_positions }{ memid($item) } = $n;
+	}
+	$n++;
+    }
+
+    # data is the list of objects, plus surplus objects &amp; arrays
+    $self-&gt;set_output_lines([]);
+
+    # structure is a list of statements to link up what is necessary
+    $self-&gt;set_output_stitching([]);
+
+
+    while ( my $thingy = shift @{$self-&gt;dump_these} ) {
+
+	if ( ref $thingy ) {
+
+	    if ( blessed($thingy) and !$thingy-&gt;isa("Set::Object") ) {
+		if ( $self-&gt;object_mode ) {
+		   $self-&gt;js_object($thingy);
+		} else {
+		   $self-&gt;js_structure($thingy);
+		}
+	    } else {
+		$self-&gt;js_structure($thingy);
+	    }
+	} else {
+	    #print "Dumping `$thingy'\n";
+	    push @{ $self-&gt;output_lines}, $self-&gt;js_scalar($thingy);
+	}
+    }
+
+    my $x = 0;
+    return join ("",
+		 (map { $_ = "\$_ = $_;\n";
+			s/\$_/$self-&gt;varname($x)/eg;
+			++$x; $_; }
+		  @{$self-&gt;output_lines}),
+		 (map { "$_;\n" }
+		  @{$self-&gt;output_stitching})
+		);
+}
+
+sub varname {
+    my $self = shift;
+    my $x = shift;
+
+    if ( $x &gt;= $self-&gt;count ) {
+	return $self-&gt;extra_name."[".($x-$self-&gt;count)."]";
+    } else {
+	return $self-&gt;variable_name."[".$x."]";
+    }
+}
+
+#---------------------------------------------------------------------
+#  $self-&gt;js_structure($thingy)
+# Process the passed thingy as if it were an unblessed reference.
+#---------------------------------------------------------------------
+sub js_structure {
+    my $self = shift;
+    my $thingy = shift;
+
+    my $is_set = 0;
+
+    # must be an array or hash reference
+    if ( reftype($thingy) eq "ARRAY"
+	 or (blessed($thingy) &amp;&amp; $thingy-&gt;isa("Set::Object")
+	     &amp;&amp; ($is_set = 1))) {
+
+	# an array reference; go through the array and dump each
+	# member, setting forward references where necessary.
+	my @array;
+	my $x = 0;
+
+	for my $item ( $is_set ? $thingy-&gt;members() : @$thingy ) {
+
+	    if ( ref($item) ) {
+
+		if ( $self-&gt;get_deep_recurse or
+		     $self-&gt;dump_only-&gt;includes($item)
+		   ) {
+		    # it's an object - set a forward
+		    # reference
+		    my $n = $self-&gt;_pos($item);
+		    push @array, "'_o$n'";
+		    push @{ $self-&gt;output_stitching },
+			($self-&gt;varname(scalar(@{$self-&gt;output_lines}))
+			 ."[$x] = ".$self-&gt;varname($n) );
+		} else {
+		    # stringify it &amp; hope for the best :-)
+		    push @array, "'$item'";
+		}
+
+	    } else {
+		push @array, $self-&gt;js_scalar($item);
+	    }
+
+	    $x++;
+	}
+	push @{ $self-&gt;output_lines },
+	    "[ ".join(", ", @array)." ]";
+
+    } elsif ( reftype($thingy) eq "HASH" ) {
+
+	# a hash; iterate over it, 
+	my @array;
+	my $x = 0;
+
+	while ( my ($key, $item) = each %$thingy ) {
+
+	    if ( ref($item) ) {
+
+		if ( $self-&gt;get_deep_recurse or
+		     $self-&gt;dump_only-&gt;includes($item)
+		   ) {
+
+		    # it's an object - set a forward
+		    # reference
+		    my $n = $self-&gt;_pos($item);
+		    push @array, quoscape($key).":'_o$n'";
+		    push @{ $self-&gt;output_stitching },
+			($self-&gt;varname(scalar(@{ $self-&gt;output_lines }))
+			 ."[".quoscape($key)."] = "
+			 .$self-&gt;varname($n) );
+		} else {
+		    # stringify it &amp; hope for the best :-)
+		    push @array, (quoscape($key).":"
+				  .quoscape($item));
+		}
+	    } else {
+		push @array, quoscape($key).":"
+		    .$self-&gt;js_scalar($item);
+	    }
+
+	    $x++;
+	}
+	push @{ $self-&gt;output_lines }, "{ ".join(", ", @array)." }";
+
+    } elsif ( reftype($thingy) eq "SCALAR" ) {
+	# hmm.  to be consistent let's do it this way
+	my $item = $$thingy;
+	if ( $self-&gt;get_deep_recurse or
+	     $self-&gt;dump_only-&gt;includes($item) ) {
+	    my $n = $self-&gt;_pos($item);
+	    push @{ $self-&gt;output_lines }, "'_o$n'";
+	    push @{ $self-&gt;output_stitching },
+		($self-&gt;varname(scalar(@{ $self-&gt;output_lines }))." = "
+		 .$self-&gt;varname($n));
+	} else {
+	    push @{ $self-&gt;output_lines }, "'$item'";
+	}
+    } else {
+	# eh?
+	die("Don't know how to JS'ify `".reftype($thingy)."'");
+    }
+
+}
+
+#---------------------------------------------------------------------
+#  $self-&gt;js_object($thingy)
+# Process the passed thingy as if it were a blessed reference.
+#---------------------------------------------------------------------
+sub js_object {
+    my $self = shift;
+    my $thingy = shift;
+
+    # must be an array or hash reference
+    if ( reftype($thingy) eq "ARRAY" ) {
+
+	die "Sorry, blessed arrays are too wierd for this code";
+
+    } elsif ( reftype($thingy) eq "HASH" ) {
+
+	# a hash; iterate over it, 
+	my @array;
+	my $x = 0;
+
+	while ( my ($key, $item) = each %$thingy ) {
+
+	    if ( ref($item) ) {
+
+		if ( $self-&gt;get_deep_recurse or
+		     $self-&gt;dump_only-&gt;includes($item)
+		   ) {
+
+		    # it's an object - set a forward
+		    # reference
+		    my $n = $self-&gt;_pos($item);
+		    #push @array, quoscape($key).":'_o$n'";
+		    push @{ $self-&gt;output_stitching },
+			($self-&gt;varname(scalar(@{ $self-&gt;output_lines }))
+			 .".set_"
+			 .$key."(".$self-&gt;varname($n).")");
+		} else {
+		    # stringify it &amp; hope for the best :-)
+		    push @array, (quoscape($key).":"
+				  .quoscape($item));
+		}
+	    } else {
+		push @array, quoscape($key).":"
+		    .$self-&gt;js_scalar($item);
+	    }
+
+	    $x++;
+	}
+	push @{ $self-&gt;output_lines }, "new ".ref($thingy).'(); $_.set'
+	    ."({ ".join(", ", @array)." })";
+
+    } elsif ( reftype($thingy) eq "SCALAR" ) {
+
+	die "Sorry.  Blessed scalars are too wierd for this dumper";
+
+    } else {
+	# eh?
+	die("Don't know how to JS'ify `".reftype($thingy)."'");
+    }
+
+}
+
+sub js_scalar {
+    my $self = _obj(\@_);
+
+    my $thingy = shift;
+    die "js_scalar passed reference" if ( ref($thingy) );
+
+    if ( defined(ish_int($thingy)) ) {
+	return $thingy."";
+    } elsif ( is_double($thingy) ) {
+        return sprintf("%.e", $thingy);
+    } elsif ( is_string($thingy) ) {
+	return quoscape($thingy);
+    } elsif ( !defined($thingy) ) {
+	return "null",
+    } else {
+	die("Don't know how to JS'ify scalar `$thingy'");
+    }
+}
+
+sub quoscape {
+    my $string = shift;
+    $string =~ s/\\/\\\\/g;
+    $string =~ s/"/\\"/g;
+    $string =~ s/\n/\\n/g;
+    $string =~ s/\r/\\r/g;
+    # I assume JavaScript supports C-style escaping of
+    # control characters...
+    $string =~ s/[\0-\037\200-\377]/
+	"\\".sprintf('%.3o',ord($&amp;))/eg;
+    return qq{"$string"};
+}
+
+1;
+</field>
+<field name="reputation">
+32</field>
+</data>
+</node>

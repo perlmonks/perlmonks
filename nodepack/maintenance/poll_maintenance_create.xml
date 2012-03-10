@@ -1,0 +1,61 @@
+<node>
+  <type_nodetype>868</type_nodetype>
+  <node_id>475161</node_id>
+  <author_user>474174</author_user>
+  <title>poll maintenance create</title>
+  <createtime>2005-07-15 06:04:57</createtime>
+  <code>my ($node_id) = @_;
+
+# get previous poll id and collect final popularity data for it
+my $poll_type_id = getId( getType( 'poll' ) );
+my $previous_poll = $DB-&gt;sqlSelect(
+    &quot;MAX(node_id)&quot;, 
+    &quot;node&quot;, 
+    &quot;type_nodetype = $poll_type_id AND node_id &lt; $node_id&quot;
+);
+Everything::printLog(
+    &quot;new poll $node_id,&quot; .
+    &quot; previous poll id: &quot;.
+    &quot;$previous_poll&quot;
+);
+my %pollday;
+htmlcode('get_poll_popularity','', \%pollday, $previous_poll, 1);
+for my $day_row (values %pollday) {
+   $DB-&gt;sqlInsert('pollpopularity', $day_row);
+}
+
+my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare( &quot;DELETE FROM pollvote&quot; );
+$csr-&gt;execute() or
+   Everything::printLog(
+       &quot;poll maintenance create: &quot; .
+       &quot;clearing old poll votes failed&quot;
+   );
+
+Everything::printLog(
+    &quot;poll maintenance create: &quot;.
+    &quot;deleted old poll votes&quot;
+);
+
+# this is a crude hack (and unsatisfactory, in that there's no error reporting 
+# if a name is mispelt) until [new poll] does its own node creation instead of
+# sending op=new and allows preview.
+
+if (my $author = $q-&gt;param(&quot;change_poll_author&quot;)) {
+   Everything::printLog(
+       &quot;poll maintenance create: &quot; .
+       &quot;request to change author to $author&quot; 
+   );
+   my $AUTHOR = getNode($author, 'user') || getNode($author, 'usergroup');
+   if ( $AUTHOR-&gt;{node_id} ) {
+      my $poll = $node_id;
+      getRef $poll;
+      $poll-&gt;{author_user} = $AUTHOR-&gt;{node_id};
+      updateNode($poll, -1);
+      Everything::printLog(
+          &quot;poll maintenance create: &quot; .
+          &quot;author_user set to $AUTHOR-&gt;{node_id}&quot; 
+      );
+   }
+}</code>
+  <nodeupdated>2005-08-04 21:00:35</nodeupdated>
+</node>

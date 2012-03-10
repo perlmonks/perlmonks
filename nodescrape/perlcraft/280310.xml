@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="280310" title="Organize you MP3 backup" created="2003-08-02 14:58:28" updated="2005-07-11 08:07:47">
+<type id="121">
+perlcraft</type>
+<author id="197777">
+rlb3</author>
+<data>
+<field name="doctext">
+=head1 DESCRIPTION
+
+Hello Monks,
+    I figure the only way I'm going to get better at perl is
+ by writing code and getting comments on it, so here is a
+ module to scratch a itch I had.
+
+    I've got lots of Mp3s. More that one CDs worth anyway. 
+So I needed something to separate them into CD sized directories.
+So here is my latest offering.
+
+
+package Mp3::Backup;
+use strict;
+                                                                                                                              
+BEGIN {
+        use Exporter ();
+        use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+        $VERSION     = 0.01;
+        @ISA         = qw (Exporter);
+        #Give a hoot don't pollute, do not export more than needed by default
+        @EXPORT      = qw ();
+        @EXPORT_OK   = qw ();
+        %EXPORT_TAGS = ();
+}
+                                                                                                                              
+use File::Find;
+use File::Copy;
+use Data::Dumper;
+
+                                                                                                                              
+sub new {
+        my $class = shift;
+                                                                                                                              
+        my $ref = {
+                MP3DIR       =&gt; shift,                 # The directory to backup
+                BACKUPDIR    =&gt; shift,                 # Where to backup the mp3s
+                MAXSIZE      =&gt; (shift) * 1024 * 1024, # Size in kilobyes each disk should be
+                DEBUG        =&gt; shift || 0,            # Set debug status;
+                FILELIST     =&gt; {},                    # Hash of all mp3s
+        };
+                                                                                                                              
+        my $self = bless ($ref, ref ($class) || $class);
+                                                                                                                              
+        return ($self);
+}
+
+# The sub builds the hash of mp3s to be backed up
+sub buildFileList {
+        my $class = shift;
+                                                                                                                              
+        find(
+                sub {
+                                                                                                                              
+                        return unless ($File::Find::name =~ /\.mp3$/); # Only mp3s
+                        $class-&gt;{FILELIST}{$_}{PATH} = $File::Find::name;
+                        $class-&gt;{FILELIST}{$_}{SIZE} = -s $File::Find::name;
+                },
+                $class-&gt;{MP3DIR}
+                                                                                                                              
+        );
+                                                                                                                              
+        $class-&gt;_dump if ($class-&gt;{DEBUG} == 1); # Just to check what you are getting
+                                                                                                                              
+}
+                                                                                                                              
+# Private method
+sub _dump {
+        my $class = shift;
+        print Dumper $class-&gt;{FILELIST}; # Print to STDOUT the contents of the hash
+}
+
+# Build backup
+sub fullBackup {
+        my $class = shift;
+        my $size  = 0;
+        my $name  = 'Disc';
+        my $count = 1;
+        my $flag  = 1;
+        my $dirname = '';
+                                                                                                                              
+        my $list = $class-&gt;{FILELIST};
+        my $maxsize = $class-&gt;{MAXSIZE};
+                                                                                                                              
+                                                                                                                              
+        die("This is no directory named $class-&gt;{BACKUPDIR}\n") unless -d $class-&gt;{BACKUPDIR};  # Die if no directory
+                                                                                                                              
+        foreach ( sort keys %$list) {
+                                                                                                                              
+                if ($flag) { # There has got to be a better way to do this that seting a flag
+                        $dirname = "$class-&gt;{BACKUPDIR}/$name$count"; # Create new directory name
+                        mkdir $dirname; # Create the directory
+                        print 'Creating new dir: '.$dirname."\n" if $class-&gt;{DEBUG}; # Be more verbose
+                        $flag = 0;
+                        open LIST, "&gt;$dirname/index.txt" || die ("Cannot open file for writing: $!"); # Create index of Mp3s
+                }
+                                                                                                                              
+                copy ($class-&gt;{FILELIST}{$_}{PATH},$dirname); # Copy file to new directoy
+                $size += $class-&gt;{FILELIST}{$_}{SIZE}; # Add total kilobyes in directory
+                print LIST $_."\n";
+                                                                                                                              
+                if ($size &gt;= $maxsize) { # Set up for new directory
+                        $flag = 1;
+                        $count++;
+                        $size = 0;
+                close LIST;
+                }
+                                                                                                                              
+        }
+}
+                                                                                                                              
+1; #this line is important and will help the module return a true value
+__END__
+
+</field>
+</data>
+</node>

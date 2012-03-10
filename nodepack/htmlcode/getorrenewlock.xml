@@ -1,0 +1,27 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>61917</node_id>
+  <author_user>929</author_user>
+  <title>getOrRenewLock</title>
+  <createtime>2001-03-02 21:26:53</createtime>
+  <code>my( $locklength )= @_;
+$locklength= 10
+    if  ! $locklength  ||  $locklength =~ /\D/;
+$locklength *= 60;
+my( $now, $before )= $DB-&gt;sqlSelect(
+    &quot;now(), from_unixtime( unix_timestamp(now()) - $locklength )&quot;,
+    &quot;node&quot;, &quot;&quot;, &quot;limit 1&quot;,
+);
+
+if(     ! $NODE-&gt;{lockedby_user}
+    ||  $NODE-&gt;{lockedby_user} == getId($USER)
+    ||  $NODE-&gt;{locktime} lt $before
+) {
+    $NODE-&gt;{lockedby_user}= getId($USER);
+    $NODE-&gt;{locktime}= $now;
+    updateNode( $NODE, -1 ); # Used by [janitors] on nodes they can't directly update
+    return 1;
+}
+return 0;</code>
+  <nodeupdated>2005-04-24 12:05:54</nodeupdated>
+</node>

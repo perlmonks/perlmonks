@@ -1,0 +1,410 @@
+<node>
+  <doctext>&lt;P&gt;
+&lt;B&gt;
+Update
+&lt;/B&gt;
+&lt;P&gt;
+&lt;U&gt;2002-04-09&lt;/U&gt;: The code has been updated to reflect changes in the SpamAssassin module.  Any changes have been noted in the comments, and the code as it originally appeared has been retained in the comments as well.
+&lt;P&gt;
+&lt;B&gt;
+Purpose
+&lt;/B&gt;
+&lt;P&gt;
+My purpose in writing this tutorial is &lt;B&gt;not&lt;/B&gt; to extensively cover the capabilities of Mail::Audit or Mail::SpamAssassin.  My purpose is to show how I implemented these tools in order to address my filtering needs.  I believe that my needs are not unique, and therefore, I hope this tutorial proves valuable in providing a step-by-step guide to using Perl for your mail filtering requirements.
+&lt;P&gt;
+&lt;B&gt;
+Acknowledgements
+&lt;/B&gt;
+&lt;P&gt;
+Much of the following is taken from the applicable CPAN pages and &lt;a href=&quot;http://simon-cozens.org/writings/mail-audit.html&quot;&gt;Simon Cozens' page&lt;/a&gt;, as well as a conglomeration of other pages, including the CPAN page for &lt;a href=&quot;http://search.cpan.org/search?dist=Mail-Procmail&quot;&gt;Mail::Procmail&lt;/a&gt;, which is not actually used here.  To the authors of these pages, I am eternally grateful.
+&lt;P&gt;
+&lt;B&gt;
+The History of My Problem (Or Identifying The Itch)
+&lt;/B&gt;
+&lt;P&gt;
+Recently, in the space of about 30 minutes, I received in excess of 15
+email from the same person carrying the same subject and body.  Over the
+course of the next week, I received over 200 such email.  Over the
+following month . . . well, you get the picture.
+&lt;P&gt;
+I use &lt;a
+href=&quot;http://www.tuxedo.org/%7Eesr/fetchmail/&quot;&gt;fetchmail&lt;/a&gt;, &lt;a
+href=&quot;http://www.procmail.org&quot;&gt;Procmail&lt;/a&gt; and &lt;a
+href=&quot;http://www.mutt.org&quot;&gt;Mutt&lt;/a&gt; for processing my email.  Naturally,
+fetchmail retrieves my email, Procmail filters my email into the
+appropriate folders, and Mutt reads my email.
+&lt;P&gt;
+Fetchmail serves my needs well, and I rarely have any complaints
+with Mutt.  Procmail, however, is another story.
+&lt;P&gt;
+Procmail, for those who are unfamiliar, relies on &lt;I&gt;recipies&lt;/I&gt; for
+filtering email.  For example:
+&lt;CODE&gt;
+:0
+* ^From: lll@hotmail\.com
+friends
+&lt;/CODE&gt;
+&lt;P&gt;
+will filter all email from &lt;B&gt;lll@hotmail.com&lt;/B&gt; into the &lt;B&gt;friends&lt;/B&gt; folder.  This is
+known as a &lt;I&gt;recipe&lt;/I&gt;, and must be called from ~/.procmailrc.
+&lt;P&gt;
+When I began experiencing the aforementioned flood of spam, I
+configured the following and placed it in my .procmailrc:
+&lt;CODE&gt;
+:0
+* ^From:. mortgagef6e@canada\.com
+/dev/null
+&lt;/CODE&gt;
+&lt;P&gt;
+Naturally, I expected all email from &lt;B&gt;mortgatef6e@canada.com&lt;/B&gt; to be
+routed into oblivion.  However, for reasons I have yet to
+determine (and believe me when I say that I worked &lt;I&gt;long and hard&lt;/I&gt; on this problem), it did not work.  I continued to experience the flood of
+email into my incoming folder.
+&lt;P&gt;
+The &lt;I&gt;real&lt;/I&gt; reason I couldn't solve this problem is because, in my oh-so-humble opinion, 
+&lt;I&gt;Procmail's receipes are too damned difficult&lt;/I&gt;.  Navigating this
+maze is the equivalent of a 4-hour college course.
+&lt;P&gt;
+And, frankly, filtering email just shouldn't be that difficult.
+&lt;P&gt;
+&lt;B&gt;
+Identifying the Solution (Or Finding a Back-Scratcher)
+&lt;/B&gt;
+&lt;P&gt;
+So, I began searching for a solution.  I mean, I know enough Perl to get
+through the day.  And Perl &lt;I&gt;does&lt;/I&gt; excel at pattern matching.  And
+filtering email is &lt;I&gt;nothing more than pattern matching&lt;/I&gt;, right?
+&lt;P&gt;
+A quick search of &lt;a href=&quot;http://search.cpan.org&quot;&gt;CPAN&lt;/a&gt; led me to &lt;a
+href=&quot;http://search.cpan.org/doc/SIMON/Mail-Audit-1.11/Audit.pm&quot;&gt;Mail::Audit&lt;/a&gt;.
+Perfect!  A Perl module to filter email.  Additionally, the author has &lt;a href=&quot;http://simon-cozens.org/writings/mail-audit.html&quot;&gt;provided a fairly detailed example&lt;/a&gt; of using Mail::Audit.
+&lt;P&gt;
+As I began writing the script, it quickly became obvious that, while I could easily identify and route my email, I had no mechanism for filtering spam.  And, the repetitious email that started this whole adventure &lt;I&gt;was&lt;/I&gt; spam.  I needed a solution which would allow me to separate the spam from my legitimate email, while filtering my legitimate email into the
+appropriate folders.  I certainly &lt;I&gt;did not&lt;/I&gt; want to reinvent the wheel and have to figure out all of the patterns and tricks of the trade used by spammers.  Following [tilly]'s advice that I should [Assume that Perl has what you *want*|assume that Perl has what I want], I once again hit CPAN.
+&lt;P&gt;
+A little more searching lead me to &lt;a
+href=&quot;http://search.cpan.org/search?dist=Mail-SpamAssassin&quot;&gt;Mail::SpamAssassin&lt;/a&gt;,
+a plugin for Mail::Audit that has a very high success rate for filtering
+spam.  SpamAssassin is available as a command-line utility, a daemon, and (obviously) a perl module.
+&lt;P&gt;
+Now all I needed was to modify my script to bring these pieces
+together.
+&lt;P&gt;
+&lt;B&gt;
+The Script (Or Scratching The Itch)
+&lt;/B&gt;
+&lt;P&gt;
+Following is the commented script in its entirety.
+&lt;CODE&gt;
+#!/usr/bin/perl -w
+#
+# program:     filter.pl
+# description: filters email into appropriate folders
+
+use diagnostics;
+use strict;
+use Mail::Audit;
+use Mail::SpamAssassin;
+#
+# The default mailbox for delivery
+# my $default = &quot;/var/spool/mail/&quot;.getpwuid($&gt;) is also an option.
+# However, I keep all of my email in ~/mail.  Additionally, while I
+# have a ~/mail/mbox, I route *all* of my email to a specific 
+# folder.  my mbox should never contain any email, and only exists
+# for asthetic reasons.
+#
+my $folder  = &quot;$ENV{HOME}/mail/&quot;;
+#
+####################################################################
+# Filter spam first
+# We knock the spam out of the way immediately.  This saves us from
+# wasting time processing mail which is obviously spam.
+#
+# Spam is swept to its own folder, $ENV{HOME}/mail/spam.incoming.
+# Mail::SpamAssassin will prepend *****SPAM***** to the subject line
+# of the email.  Additionally, it prepends something similar to the
+# following paragraph to the body of the email (this, as well as 
+# pattern matches, can be modified by editing the 
+# spamassassin.cf file):
+#
+# SPAM: -------------------- Start SpamAssassin results -------------
+# SPAM: This mail is probably spam.  The original message has been altered
+# SPAM: so you can recognise or block similar unwanted mail in future, using
+# SPAM: the built-in mail filtering support in your mail reader.
+# SPAM:
+# SPAM: Content analysis details:   (7.9 hits, 5 required)
+# SPAM: Hit! (2.1 points)  BODY: /http\:\/\/\d+\.\d+\.\d+\.\d+\//is
+# SPAM: Hit! (2.5 points)  BODY: Link to a URL containing &quot;remove&quot;
+# SPAM: Hit! (3.3 points)  BODY: /click here.{0,100}&lt;\/a&gt;/is
+# SPAM:
+# SPAM: -------------------- End of SpamAssassin results ------------
+####################################################################
+#
+# This statement gets the next email from the queue
+#
+# my $item = Mail::SpamAssassin::MyMailAudit-&gt;new();
+# The above line is the original code.  MyMailAudit no 
+# longer exists, so we rely on Mail::Audit to retrieve
+# the next email from the queue:
+#
+my $item = Mail::Audit-&gt;new();
+#
+# This statement sets up our handle to SpamAssassin
+#
+my $spamtest = Mail::SpamAssassin-&gt;new();
+#
+# Now we retrieve the status to determine whether the email is,
+# in fact, spam
+#
+my $status = $spamtest-&gt;check ($item);
+#
+# If the email is spam, write the email back with the aforementioned
+# subject and body modifications, then call the spam() subroutine
+# for processing (see end of script).
+#
+if ($status-&gt;is_spam ()) {
+    $status-&gt;rewrite_mail ();
+    spam(&quot;SpamAssassin&quot;,$folder);
+}
+
+####################################################################
+# Mail::Audint initialization stuff
+####################################################################
+#
+# If we get here, Spam::Assassin did not identify the email as spam
+#
+# Specify the location of our log file.  We'll be writing several
+# status messages here.
+#
+open (LOG, &quot;&gt;$ENV{HOME}/syslog/.audit_log&quot;);
+#
+# Get relevant fields from the message.  These are pretty
+# self-explanatory.
+#
+my $from    = $item-&gt;from();
+my $to      = $item-&gt;to();
+my $cc      = $item-&gt;cc();
+my $subject = $item-&gt;subject();
+my $body    = $item-&gt;body();
+chomp($from, $to, $cc, $subject);
+####################################################################
+# Note that we just retrieved $body.  Although I
+# don't use it here, this provides the ability to
+# filter based on the content of the body of the
+# email.  For example:
+#
+# if ($body =~ /some_pattern/i) { #do stuff };
+####################################################################
+#
+# Start logging.
+#
+print LOG (&quot;From:    $from\n&quot;);
+print LOG (&quot;To:      $to\n&quot;);
+print LOG (&quot;Subject: $subject\n&quot;);
+
+####################################################################
+# End initialization stuff
+####################################################################
+
+# I know certain people.  We all do.  They're L-O-S-E-R-S.  And,
+# frankly, I don't enjoy receiving email from them.  The following 
+# will identify these email addresses and route them immediately to 
+# my trash folder (via the trash() subroutine).
+#
+for (qw(gar079@yahoo.ca badguy@loser.net nasty@whimp.org enemy@hate-u.com)) {
+    if ($from =~ /$_/) {
+       trash(&quot;From a loser&quot;,$folder);
+    }
+}
+
+# I have some programs that email me from various machines.  I want
+# these email to be immediately routed to ~/mail/home.
+#
+if ($from =~ /\@exitwound.org/i) {
+    $item-&gt;accept(&quot;$folder&quot;.&quot;home&quot;);
+}
+
+# Now we come to email lists and people who commonly send me email 
+# (hi Mom!).  First, we set up a hash.  The key is a pattern to be
+# matched against the From: line.  The content is the folder name
+# where the mail should be stored.
+#
+my %lists = (
+    &quot;apache&quot;  =&gt; &quot;apache&quot;,
+    &quot;buckaroo&quot;  =&gt; &quot;buckaroo&quot;,
+    &quot;christianhusbands&quot; =&gt; &quot;christian&quot;,
+    &quot;kde-linux&quot;  =&gt; &quot;kde&quot;,
+    &quot;lawtech&quot;  =&gt; &quot;lawtech&quot;,
+    &quot;debian-user&quot; =&gt; &quot;linux&quot;,
+    &quot;linux&quot;  =&gt; &quot;linux&quot;,
+    &quot;win4lin&quot;  =&gt; &quot;linux&quot;,
+    &quot;lll\@hotmail&quot;  =&gt; &quot;Lori&quot;,
+    &quot;perlbot&quot;  =&gt; &quot;perlbot&quot;,
+    &quot;dynamite&quot;  =&gt; &quot;metal&quot;,
+    &quot;80s_Rock_Metal&quot; =&gt; &quot;metal&quot;,
+    &quot;metal&quot;  =&gt; &quot;metal&quot;,
+    &quot;screamsofabel&quot; =&gt; &quot;metal&quot;,
+    &quot;mavericks&quot;  =&gt; &quot;MomDad&quot;,
+    &quot;hargrojj&quot;  =&gt; &quot;MomDad&quot;,
+    &quot;mutt&quot;  =&gt; &quot;mutt&quot;,
+    &quot;rl2&quot;  =&gt; &quot;rl2&quot;,
+    &quot;focus-linux&quot; =&gt; &quot;security&quot;,
+);
+
+# Here, we compare the From: field with each key of the hash and
+# store the email in the corresponding folder
+#
+for my $pattern (keys %lists) {
+    if (($from =~ /$pattern/i) or
+        ($to   =~ /$pattern/i) or
+        ($cc   =~ /$pattern/i)) {
+        $item-&gt;accept(&quot;$folder&quot;.&quot;$lists{$pattern}&quot;);
+    }
+}
+
+# The following code checks whether the To: or CC: field contains the
+# phrase &quot;shock.&quot;  If not, it means that the email is being sent to a
+# list (which has not been identified in the previous section).
+# Therefore, if my email address is not in the To: or CC: field, I
+# assume that it is spam
+#
+if ($from !~ /shock/i   and $cc !~ /shock/i) {
+    spam(&quot;Apparently not to me&quot;,$folder);
+}
+
+# If we've made it this far, I'm not sure what it is.  Therefore, I
+# store it in the Bulk folder.
+#
+$item-&gt;accept(&quot;$folder&quot;.&quot;Bulk&quot;);
+
+# Bye-bye
+#
+exit;
+
+################ Subroutines ################
+#
+# This subroutine handles anything identified as spam.  It is called
+# thusly:
+#
+# spam(&quot;Reason for calling&quot;,$folder);
+#
+# The subroutine will store the email in the ~/mail/spam.incoming
+# folder.  It will also print a message to the log file identifying:
+#
+# (1) The spam subroutine;
+# (2) The line number which called the spam subroutine; and
+# (3) The reason for calling (i.e. &quot;Reason for calling&quot;).
+#
+sub spam {
+    my ($tag, $reason, $folder) = (&quot;spam&quot;, @_);
+    my $line = (caller(1))[2];
+    print LOG (&quot;$tag [$line]: $reason\n&quot;);
+    $item-&gt;accept(&quot;$folder&quot;.&quot;spam.incoming&quot;);
+}
+#
+# This subroutine handles anything identified as trash.  It is called
+# thusly:
+#
+# trash(&quot;Reason for calling&quot;,$folder);
+#
+# (1) The trash subroutine;
+# (2) The line number which called the trash subroutine; and
+# (3) The reason for calling (i.e. &quot;Reason for calling&quot;).
+#
+sub trash {
+    my ($tag, $reason, %atts) = (&quot;trash&quot;, @_);
+    my $line = (caller(1))[2];
+    print LOG (&quot;$tag [$line]: $reason\n&quot;);
+    $item-&gt;accept(&quot;$folder&quot;.&quot;trash&quot;);
+}
+&lt;/CODE&gt;
+&lt;B&gt;
+Procmail Modifications
+&lt;/B&gt;
+&lt;P&gt;
+The following modifications were necessary to my .procmailrc file in
+order to get this baby rolling.  There may be better or more efficient ways to do this, and if so, I welcome the input.
+&lt;CODE&gt;
+#
+# The following will force all messages from Procmail to be logged in
+# ~/syslog/procmail
+#
+LOGFILE=$HOME/syslog/procmail
+#
+# Turn verbose logging and log abstract off, unless you're the 
+# wordy type.
+#
+VERBOSE=off
+LOGABSTRACT=off
+#
+# From the procmailrc man page:
+#
+# By  default,  procmail returns an exitcode of zero (success) if it
+# successfully delivered the message or if the HOST variable was
+# misset and there were no more rcfiles on the command line;
+# otherwise it returns failure.  Before doing so, procmail examines
+# the value of this variable.  If it is set to a positive numeric
+# value, procmail will instead use that value as its exitcode.  If
+# this variable is set but empty and TRAP is set, procmail will set
+# the exitcode to whatever the TRAP program returns.  If this
+# variable is not set, procmail will set it shortly before calling
+# up the TRAP program.
+#
+# So, by setting EXITCODE to nothing, we can have procmail return
+# whatever exit code our filter.pl script determines is necessary.
+#
+EXITCODE=
+#
+# Point to our program to handle all of the filtering.  As mentioned,
+# by running our program as a TRAP program (see the procmailrc docs
+# for more information about this).  Procmail will assign the exit
+# code of our script to the MTA (sendmail, postfix, exim, etc.) that
+# called procmail.
+#
+TRAP=$HOME/bin/filter.pl
+#
+# The following is for safety purposes.  All email is copied to this
+# file, so if something gets lost, you can retrieve it from here.
+# Once you're comfortable with your filter.pl, you can remove the 
+# following two lines.
+:0:
+$HOME/syslog/mail
+&lt;/CODE&gt;
+&lt;P&gt;
+At this point, we're happening.  A simple fetchmail -d 90 (or
+whatever), and we're good to go.  fetchmail will retrieve the email,
+Procmail will receive it and invoke the fetch.pl script, which
+will filter the email accordingly.
+&lt;P&gt;
+&lt;B&gt;
+Conclusion (Or The Itch Has Been Scratched)
+&lt;/B&gt;
+&lt;P&gt;
+I've been running this script for a few weeks now, and Spam::Assassin is
+proving to be very reliable.  I'd estimate its accuracy somewhere around
+the high-90th percentile, and on many days, it's 100% accurate.  In conjunction with the other filters I've
+added in the script, &lt;I&gt;all&lt;/I&gt; spam that I receive is currently being
+filtered to the spam.incoming folder.
+&lt;P&gt;
+For me,
+&lt;CODE&gt;
+$item-&gt;accept(&quot;$folder&quot;.&quot;home&quot;) 
+   if ($subject =~ /\@exitwound.org/i);
+&lt;/CODE&gt;
+&lt;P&gt;
+makes &lt;I&gt;far more sense&lt;/I&gt; than
+&lt;CODE&gt;
+:0
+* ^Subject:\/.*exitwound
+home
+&lt;/CODE&gt;
+&lt;P&gt;
+or &lt;I&gt;whatever&lt;/I&gt; the hell the correct Procmail syntax might be.  Who has time
+for that?  Give me a good old Perl script any day.  After all, filtering email &lt;I&gt;just shouldn't be that hard&lt;/I&gt;.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>133023</node_id>
+  <author_user>111056</author_user>
+  <title>A Beginner's Guide to Using Mail::Audit and Mail::SpamAssassin</title>
+  <createtime>2001-12-19 04:40:04</createtime>
+  <nodeupdated>2005-08-15 11:46:33</nodeupdated>
+</node>

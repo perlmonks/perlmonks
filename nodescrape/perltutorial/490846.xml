@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="490846" title="Stepping up from XML::Simple to XML::LibXML" created="2005-09-10 03:20:31" updated="2005-09-09 23:20:31">
+<type id="956">
+perltutorial</type>
+<author id="155973">
+grantm</author>
+<data>
+<field name="doctext">
+&lt;p&gt;If your XML parsing requirements can be boiled down to "&lt;i&gt;slurp an XML file into a hash&lt;/i&gt;",
+then XML::Simple is very likely all you need.
+However,
+many people who start using [http://search.cpan.org/dist/XML-Simple/|XML::Simple] continue to cling to the module even when their requirements have outgrown it.
+Most often,
+it's fear of the unknown that keeps them from 'stepping up'; to a more capable module.
+In this article,
+I'm going to attempt to dispel some of that fear by comparing using [http://search.cpan.org/dist/XML-LibXML/|XML::LibXML] to using XML::Simple.&lt;/p&gt;
+
+&lt;readmore&gt;
+
+&lt;h2&gt;Installation&lt;/h2&gt;
+
+&lt;p&gt;If you're running Windows,
+you can get a binary build of XML::LibXML from Randy Kobes' [http://theoryx5.uwinnipeg.ca/|PPM repositories].
+If you're running Linux then things will be even simpler - just use the package from your distribution (eg: on Debian: apt-get install libxml-libxml-perl).&lt;/p&gt;
+
+&lt;p&gt;If for some reason you're unable to install XML::LibXML,
+but you have XML::Parser,
+then you might like to install XML::XPath which is a Pure Perl module that implements a very similar API to LibXML but uses XML::Parser for the parsing bit.&lt;/p&gt;
+
+&lt;h2&gt;Some Sample Data&lt;/h2&gt;
+
+&lt;p&gt;Let's start with a file that lists the details of books in a (very small) library:&lt;/p&gt;
+
+&lt;code&gt;
+  &lt;library&gt;
+    &lt;book&gt;
+      &lt;title&gt;Perl Best Practices&lt;/title&gt;
+      &lt;author&gt;Damian Conway&lt;/author&gt;
+      &lt;isbn&gt;0596001738&lt;/isbn&gt;
+      &lt;pages&gt;542&lt;/pages&gt;
+      &lt;image src="http://www.oreilly.com/catalog/covers/perlbp.s.gif"
+             width="145" height="190" /&gt;
+    &lt;/book&gt;
+    &lt;book&gt;
+      &lt;title&gt;Perl Cookbook, Second Edition&lt;/title&gt;
+      &lt;author&gt;Tom Christiansen&lt;/author&gt;
+      &lt;author&gt;Nathan Torkington&lt;/author&gt;
+      &lt;isbn&gt;0596003137&lt;/isbn&gt;
+      &lt;pages&gt;964&lt;/pages&gt;
+      &lt;image src="http://www.oreilly.com/catalog/covers/perlckbk2.s.gif"
+             width="145" height="190" /&gt;
+    &lt;/book&gt;
+    &lt;book&gt;
+      &lt;title&gt;Guitar for Dummies&lt;/title&gt;
+      &lt;author&gt;Mark Phillips&lt;/author&gt;
+      &lt;author&gt;John Chappell&lt;/author&gt;
+      &lt;isbn&gt;076455106X&lt;/isbn&gt;
+      &lt;pages&gt;392&lt;/pages&gt;
+      &lt;image src="http://media.wiley.com/product_data/coverImage/6X/07645510/076455106X.jpg"
+             width="100" height="125" /&gt;
+    &lt;/book&gt;
+  &lt;/library&gt;
+&lt;/code&gt;
+
+&lt;h2&gt;A Simple Problem&lt;/h2&gt;
+
+&lt;p&gt;As a warm-up exercise, let's list the titles of all the books from the XML file. Please assume all the code samples begin as follows:&lt;/p&gt;
+
+&lt;code&gt;
+  #!/usr/bin/perl
+
+  use strict;
+  use warnings;
+
+  my $filename = 'library.xml';
+&lt;/code&gt;
+
+&lt;p&gt;Here's one solution, using XML::Simple:&lt;/p&gt;
+
+&lt;code&gt;
+  use XML::Simple qw(:strict);
+
+  my $library  = XMLin($filename,
+    ForceArray =&gt; 1,
+    KeyAttr    =&gt; {},
+  );
+
+  foreach my $book (@{$library-&gt;{book}}) {
+    print $book-&gt;{title}-&gt;[0], "\n" 
+  }
+&lt;/code&gt;
+
+&lt;p&gt;And here's a LibXML solution that works the same way:&lt;/p&gt;
+
+&lt;code&gt;
+  use XML::LibXML;
+
+  my $parser = XML::LibXML-&gt;new();
+  my $doc    = $parser-&gt;parse_file($filename);
+
+  foreach my $book ($doc-&gt;findnodes('/library/book')) {
+    my($title) = $book-&gt;findnodes('./title');
+    print $title-&gt;to_literal, "\n" 
+  }
+&lt;/code&gt;
+
+&lt;p&gt;The &lt;code&gt;'/library/book'&lt;/code&gt; argument to &lt;code&gt;findnodes&lt;/code&gt; is called an XPath expression. If we substitute a slightly more complex XPath expression, we can factor out one line of code from inside the loop:&lt;/p&gt;
+
+&lt;code&gt;
+  foreach my $title ($doc-&gt;findnodes('/library/book/title')) {
+    print $title-&gt;to_literal, "\n" 
+  }
+&lt;/code&gt;
+
+&lt;p&gt;And if it's code brevity we're looking for, we can take things even further (this is Perl after all):&lt;/p&gt;
+
+&lt;code&gt;
+  print $_-&gt;data . "\n" foreach ($doc-&gt;findnodes('//book/title/text()'));
+&lt;/code&gt;
+
+&lt;h2&gt;A More Complex Query&lt;/h2&gt;
+
+&lt;p&gt;Now, let's select a specific book using its ISBN number and list the authors. Using XML::Simple:&lt;/p&gt;
+
+&lt;code&gt;
+  use XML::Simple qw(:strict);
+
+  my $isbn     = '0596003137';
+
+  my $library  = XMLin($filename, 
+    ForceArray =&gt; [ 'book', 'author' ], 
+    KeyAttr    =&gt; { book =&gt; 'isbn' }
+  );
+
+  my $book = $library-&gt;{book}-&gt;{$isbn};
+  print "$_\n" foreach(@{$book-&gt;{author}});
+&lt;/code&gt;
+
+&lt;p&gt;And with LibXML:&lt;/p&gt;
+
+&lt;code&gt;
+  use XML::LibXML;
+
+  my $isbn   = '0596003137';
+
+  my $parser = XML::LibXML-&gt;new();
+  my $doc    = $parser-&gt;parse_file($filename);
+
+  my $query  = "//book[isbn/text() = '$isbn']/author/text()";
+
+  print $_-&gt;data . "\n" foreach ($doc-&gt;findnodes($query));
+&lt;/code&gt;
+
+&lt;p&gt;This time, we've used a more complex XPath expression to identify both the &lt;code&gt;&lt;book&gt;&lt;/code&gt; element and the &lt;code&gt;&lt;author&gt;&lt;/code&gt; elements within it, in a single step. To understand that XPath expression, let's first consider a simpler one:&lt;/p&gt;
+
+&lt;code&gt;  //book[1]&lt;/code&gt;
+
+&lt;p&gt;This expression selects the first in a sequence of consecutive &lt;code&gt;&lt;book&gt;&lt;/code&gt; elements. The &lt;code&gt;[1]&lt;/code&gt; is actually a shorthand version of the more general form:&lt;/p&gt;
+
+&lt;code&gt;  //book[position() = 1]&lt;/code&gt;
+
+&lt;p&gt;&lt;i&gt;Note XPath positions are numbered from 1 - weird huh?.&lt;/i&gt;&lt;/p&gt;
+
+&lt;p&gt;As you can see, the square brackets enclose an expression and the XPath query will match all nodes for which the expression evaulates to true. So to return to the XPath query from our last code sample:&lt;/p&gt;
+
+&lt;code&gt;  //book[isbn/text() = '0596003137']/author/text()&lt;/code&gt;
+
+&lt;p&gt;This will match the text content of any &lt;code&gt;&lt;author&gt;&lt;/code&gt; elements within a &lt;code&gt;&lt;book&gt;&lt;/code&gt; element which also contains an &lt;code&gt;&lt;isbn&gt;&lt;/code&gt; element with the text content '0596003137'. The leading // is kind of a wildcard and will match any number of levels of element nesting. After you've re-read that a few times, it might even start to make sense.&lt;/p&gt;
+
+&lt;p&gt;The [http://search.cpan.org/dist/XML-XPath/|XML::XPath] distribution includes a command-line tool 'xpath' which you can use to test your XPath skills interactively. Here's an example of querying our file to extract the ISBN of any book over 900 pages long:&lt;/p&gt;
+
+&lt;code&gt;  xpath -q -e '//book[pages &gt; 900]/isbn/text()' library.xml&lt;/code&gt;
+
+&lt;p&gt;To achieve the same thing with XML::Simple, you'd need to iterate over the elements yourself:&lt;/p&gt;
+
+&lt;code&gt;
+  my $library  = XMLin($filename, ForceArray =&gt; [ 'book' ], KeyAttr =&gt; {});
+
+  foreach my $book (@{$library-&gt;{book}}) {
+    print $book-&gt;{isbn}, "\n" if $book-&gt;{pages} &gt; 900;
+  }
+&lt;/code&gt;
+
+&lt;h2&gt;Modifying the XML&lt;/h2&gt;
+
+&lt;p&gt;One area in which XML::Simple is particularly weak is round-tripping an XML file - reading it, modifying the data and writing it back out as XML.&lt;/p&gt;
+
+&lt;p&gt;For this example, we're going to locate the data for the book with ISBN 076455106X and correct its page count from 392 to 394:&lt;/p&gt;
+
+&lt;code&gt;
+  use XML::Simple qw(:strict);
+
+  my $isbn = '076455106X';
+
+  my $xs = XML::Simple-&gt;new(
+    ForceArray =&gt; 1,
+    KeyAttr    =&gt; { },
+    KeepRoot   =&gt; 1,
+  );
+
+  my $ref  = $xs-&gt;XMLin($filename);
+
+  my $books = $ref-&gt;{library}-&gt;[0]-&gt;{book};
+
+  my($book) = grep($_-&gt;{isbn}-&gt;[0] eq $isbn, @$books);
+
+  $book-&gt;{pages}-&gt;[0] = '394';
+
+  print $xs-&gt;XMLout($ref);
+&lt;/code&gt;
+
+&lt;p&gt;In this example I've used a number of tricks to attempt to make the output format resemble the input format as closely as possible:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;an XML::Simple object was used to ensure the exact same options were used both for input and output&lt;/li&gt;
+&lt;li&gt;the ForceArray option was turned on to ensure that elements didn't get turned into attributes - unfortunately this necessitates the use of the extra &lt;code&gt;-&gt;[0]&lt;/code&gt; indexing&lt;/li&gt;
+&lt;li&gt;the KeyAttr option was used to stop arrays being folded into hashes and thus losing the order of the &lt;code &gt;&lt;book&gt;&lt;/code&gt; elements - unfortunately this necessitates iterating through the elements rather than indexing directly by ISBN&lt;/li&gt;
+&lt;li&gt;the KeepRoot option was used to ensure the root element name was preserved - unfortunately this introduced an extra level of hash nesting&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Even after disabling all the features that make XML::Simple both simple and convenient, the results are not ideal. Although the order of the books was preserved, the order of the child elements within each book was lost.&lt;/p&gt;
+
+&lt;p&gt;By contrast, the LibXML code to perform the same update is both simpler and more accurate:&lt;/p&gt;
+
+&lt;code&gt;
+  use XML::LibXML;
+
+  my $isbn   = '076455106X';
+
+  my $parser = XML::LibXML-&gt;new();
+  my $doc    = $parser-&gt;parse_file($filename);
+
+  my $query  = "//book[isbn = '$isbn']/pages/text()";
+
+  my($node)  = $doc-&gt;findnodes($query);
+  $node-&gt;setData('394');
+
+  print $doc-&gt;toString;
+&lt;/code&gt;
+
+&lt;h2&gt;Other Operations&lt;/h2&gt;
+
+&lt;p&gt;If you need to remove an element from an XML document using XML::Simple, you'd simply delete the appropriate hash key. With LibXML, you would call the &lt;code&gt;removeChild&lt;/code&gt; method on the element's parent. For example:&lt;/p&gt;
+
+&lt;code&gt;
+  my($book)  = $doc-&gt;findnodes("//book[isbn = '$isbn']");
+  my $library = $book-&gt;parentNode;
+  $library-&gt;removeChild($book);
+&lt;/code&gt;
+
+&lt;p&gt;To add an element with XML::Simple you'd add a new key to the hash. With LibXML, you must first create the new element, add any child elements (such as text content) and add it at the right point in the tree. For example:&lt;/p&gt;
+
+&lt;code&gt;
+  my $rating = $doc-&gt;createElement('rating');
+  $rating-&gt;appendTextNode('5');
+  $book-&gt;appendChild($rating);
+&lt;/code&gt;
+
+&lt;p&gt;If that looks a bit too complex, there's also a convenience method you can use to add one element with text content in a single step:&lt;/p&gt;
+
+&lt;code&gt;
+  $book-&gt;appendTextChild('rating', '5');
+&lt;/code&gt;
+
+&lt;p&gt;XML::LibXML also provides a very handy method called &lt;code&gt;parse_balanced_chunk&lt;/code&gt; that allows you to create a collection of related DOM nodes from a string containing an XML fragment. You can then add those nodes to your document:&lt;/p&gt;
+
+&lt;code&gt;
+  my $fragment = $parser-&gt;parse_balanced_chunk(
+    '&lt;rating&gt;5&lt;/rating&gt;&lt;price&gt;32.00&lt;/price&gt;'
+  );
+  $book-&gt;appendChild($fragment);
+&lt;/code&gt;
+
+&lt;p&gt;When you call &lt;code&gt;toString&lt;/code&gt; to output the XML, you'll find the nodes you've added are not nicely indented as they would be with XML::Simple. This is hardly surprising since such indenting would require extra text nodes and if you don't add them they won't magically appear. In theory, you can call &lt;code&gt;toString(1)&lt;/code&gt; to specify you want indents added, but I haven't had any success with that. You can however pipe the output through:&lt;/p&gt;
+
+&lt;code&gt;
+  xmllint --format -
+&lt;/code&gt;
+
+&lt;p&gt;The &lt;code&gt;xmllint&lt;/code&gt; utility is part of the &lt;code&gt;libxml&lt;/code&gt; distribution.&lt;/p&gt;
+
+&lt;h2&gt;Resources&lt;/h2&gt;
+
+&lt;p&gt;The documentation for [http://search.cpan.org/dist/XML-LibXML/|XML::LibXML] is spread across a number of classes, including:&lt;/p&gt;
+
+&lt;ul&gt;
+&lt;li&gt;[http://search.cpan.org/dist/XML-LibXML/lib/XML/LibXML/Parser.pod|XML::LibXML::Parser] - methods and options for using during parsing&lt;/li&gt;
+&lt;li&gt;[http://search.cpan.org/dist/XML-LibXML/lib/XML/LibXML/Document.pod|XML::LibXML::Document] - the class returned by the parser&lt;/li&gt;
+&lt;li&gt;[http://search.cpan.org/dist/XML-LibXML/lib/XML/LibXML/Node.pod|XML::LibXML::Node] - abstract base class implementing methods common to different types of DOM nodes&lt;/li&gt;
+&lt;li&gt;[http://search.cpan.org/dist/XML-LibXML/lib/XML/LibXML/Element.pod|XML::LibXML::Element] - methods specific to Element nodes&lt;/li&gt;
+&lt;li&gt;[http://search.cpan.org/dist/XML-LibXML/lib/XML/LibXML/Attr.pod|XML::LibXML::Attr] - methods specific to Attributes nodes&lt;/li&gt;
+&lt;li&gt;[http://search.cpan.org/dist/XML-LibXML/lib/XML/LibXML/Text.pod|XML::LibXML::Text] - methods specific to Text nodes&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;Zvon.org hosts an [http://www.zvon.org/xxl/XPathTutorial/General/examples.html|XPath Tutorial] and an interactive [http://www.zvon.org:9001/saxon/cgi-bin/XLab/XML/xlabIndex.html?stylesheetFile=XSLT/xlabIndex.xslt|XPath lab].&lt;/p&gt;
+
+</field>
+</data>
+</node>

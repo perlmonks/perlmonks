@@ -1,0 +1,118 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>11751</node_id>
+  <author_user>979</author_user>
+  <title>listnodegroup</title>
+  <createtime>2000-02-10 17:42:06</createtime>
+  <code>my $str;
+use Everything::Experience;
+my $innerstr;
+my ($type,$linktype,$title,$length,@options)=@_;
+my ($showall,$navbaron,$showunapproved,$linkto);
+my ($tempkey);
+my $canconsider=Everything::isApproved($USER,'CanConsider');
+my $lt_id=getId(getNode($linktype,&quot;linktype&quot;));
+
+my $SETTING=getNode('listapproved settings','setting');
+my $LAS=getVars $SETTING;
+
+my $outercontainer= $$LAS{&quot;outerContainerForType_&quot;.$type} ? $$LAS{&quot;outerContainerForType_&quot;.$type} : $$LAS{defaultOuterContainer};
+my $innercontainer= $$LAS{&quot;innerContainerForType_&quot;.$type} ? $$LAS{&quot;innerContainerForType_&quot;.$type} : $$LAS{defaultInnerContainer};
+my $innerhtmlcode=  $$LAS{&quot;innerHtmlcodeForType_&quot;.$type} ? $$LAS{&quot;innerHtmlcodeForType_&quot;.$type} : $$LAS{defaultInnerHtmlcode};
+
+my $count = $query-&gt;param(&quot;next&quot;);
+$count ||= 0;
+$length ||=10;
+my $start=$count;
+my $max = $count + $length;
+my $numshown=0;
+
+foreach(@options){
+  if(lc($_) eq &quot;navbaron&quot;){$navbaron=1}
+  elsif(lc($_) eq &quot;showunapproved&quot;){$showunapproved=1}
+  elsif(lc($_) eq &quot;showall&quot;){$showall=1;}
+  elsif(/linkto\|(.*)\|(.*)/){
+     $HTMLVARS{listapproved}{linkto_node_id}=getId(getNode($1,$2));  
+  }
+  elsif(/outerContainerOverride:(.*)/){
+     $tempkey=$1;
+     $outercontainer=$$LAS{$tempkey};
+  } elsif(/innerContainerOverride:(.*)/){
+     $tempkey=$1;
+     $innercontainer=$$LAS{$tempkey};
+  } elsif(/innerHtmlcodeOverride:(.*)/){
+     $tempkey=$1;
+     $innerhtmlcode=$$LAS{tempkey};
+  }
+}
+
+my %approved;
+my @unapproved;
+
+
+unless($showall){
+   my $links=selectLinks $NODE;
+   foreach(@$links){
+      if($_-&gt;{linktype}==$lt_id){
+         $approved{$_-&gt;{to_node}}=1;     
+      }
+   }
+}
+
+
+$HTMLVARS{listapproved}{title}=$title;
+my $ref=selectNodeWhere({type_nodetype=&gt;getType($type)},&quot;&quot;,&quot;createtime desc&quot;);
+return unless $ref;
+my $i;
+my $j=0;
+for($i=$count; $i&lt;@$ref and $numshown&lt;$length; $i++){
+    $HTMLVARS{embed_node}=selectNode $$ref[$i];
+    if($approved{getId($HTMLVARS{embed_node})} or ($$VARS{unapprovedcontent}) and $showunapproved or $showall){
+       $numshown++;
+
+       my $csr=$DB-&gt;getDatabaseHandle-&gt;prepare_cached('select directreplies from repliesinfo where parent=?');
+       $csr-&gt;execute(getId($HTMLVARS{embed_node}));
+       my $Q=$csr-&gt;fetchrow_hashref;
+       $csr-&gt;finish;
+       $HTMLVARS{embed_node}{numreplies}=$$Q{directreplies};
+       $HTMLVARS{embed_node}{numreplies}||=&quot;0&quot;;
+       $innerstr.=containHtml($innercontainer,htmlcode($innerhtmlcode));
+       $j++;
+    } 
+    if($canconsider and !$approved{getId($HTMLVARS{embed_node})}){
+       push @unapproved, $HTMLVARS{embed_node};
+    }
+}
+
+
+$HTMLVARS{unapproved}=\@unapproved;
+$str.=containHtml($outercontainer,$innerstr);
+
+if($navbaron){
+   $str.= qq[&lt;table width=&quot;100%&quot; class=&quot;highlight&quot; border=0 cellpadding=2 cellspacing=0&gt;&lt;tr&gt;&lt;td align=left width=100&gt;];
+   my $next = $count - $length;     
+   $next = 0 if ($count - $length &lt; 0);
+   $str.= &quot;&lt;a href=&quot;.urlGen ({node_id =&gt; getId ($NODE), next =&gt; $count-$length}).&quot;&gt;&lt;--Previous entries&lt;/a&gt;&quot; if ($count &gt; 0);
+   $str.=&quot;&amp;nbsp;&quot;;
+   $str.=&quot;&quot; if($count&lt;=0);   
+
+   $str.=&quot;&lt;/td&gt;&lt;td align=center&gt;&quot;;
+   $str.=&quot;(&quot;.($count+1).&quot;-$max) of &quot; if($max&lt;int @$ref);
+   $str.=&quot;&amp;nbsp;&lt;/td&gt;&lt;td align=center&gt;(&quot;.($count+1).&quot;-&quot;.(int @$ref).&quot;) of &quot; if($max&gt;=int @$ref);
+   $str.=int (@$ref).&quot;&lt;/td&gt;&lt;td align=right width=100&gt;&quot;;
+   $next = $count+$length; 
+   my $num = $length;
+   if ($next + $length &gt; @$ref) {
+       $num = @$ref - $next;
+   }
+   $str .= &quot;&lt;a href=&quot; 
+   .urlGen ({node_id =&gt; getId ($NODE),next =&gt; $max}) 
+   .&quot;&gt;Next entries--&gt;&lt;/a&gt;&quot; if ($max &lt; @$ref);
+   $str .= &quot;&amp;nbsp;&lt;/td&gt;&lt;/tr&gt;&quot;;
+   $str.=&quot;&lt;/table&gt;&lt;/center&gt;&quot;;
+}
+$str;
+
+</code>
+  <nodeupdated>2005-03-28 22:24:47</nodeupdated>
+</node>

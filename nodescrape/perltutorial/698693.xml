@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="698693" title="A Tutorial for CGI::Application" created="2008-07-18 14:24:48" updated="2008-07-18 10:24:48">
+<type id="956">
+perltutorial</type>
+<author id="273627">
+bradcathey</author>
+<data>
+<field name="doctext">
+&lt;h4&gt;&lt;i&gt;A contact form using HTML::Template&lt;/i&gt;&lt;/h4&gt;
+&lt;p&gt;[cpan://CGI::Application|CGI::Application] falls under the category of a &lt;b&gt;framework&lt;/b&gt;. [http://www.codeproject.com/KB/architecture/WhatIsAFramework.aspx|Frameworks] enable developers to use shorter, more readable coding conventions, at least on the surface, that can be performing more complicated, and possibly combined tasks behind it. The result is faster development, more consistent style, and fewer errors, to name but a few. CGI::Application provides an addition model of mapping your Web application to "screens" (forms, etc.) and creating the functions to process by pages.&lt;/p&gt; 
+&lt;p&gt;There are more robust frameworks (with more robust learning curves), like [http://www.catalystframework.org/|Catalyst] and [http://maypole.perl.org/|Maypole], and more recently, [http://jifty.org/view/HomePage|Jifty], but CGI::Application provides a very approachable, easy-to-use, low overhead framework for Web developers who like working in a less abstracted environment and a little closer to Perl itself.&lt;/p&gt;
+&lt;p&gt;If you are convinced that [cpan://CGI::Application|CGI::Application] is the framework for you, you're in the right place. If you are still unsure, check out some additional [id://549372|rationale]. Otherwise, let's dive in.&lt;/p&gt;
+&lt;p&gt;This tutorial does not cover the installation of CGI::Application, or any of it's growing number of plug-ins, but will show how you can use [cpan://CGI::Application|CGI::Application] and [cpan://HTML::Template|HTML::Template] to build one of the most common ancillary interactive applications on the Web: a contact form. Also, this tutorial is not meant as a placement for [cpan://CGI::Application|CGI::Application]'s well-written POD, which should be required reading.&lt;/p&gt;
+&lt;h4&gt;A Word About HTML::Template&lt;/h4&gt;
+&lt;p&gt;While this is not a tutorial for [cpan://HTML::Template|HTML::Template] or [cpan://HTML::FillInForm|HTML::FillInForm], the novice Web developer will see an example of how they can all work together with CGI::Application to create more useful, dynamic, and user-friendly applications.&lt;/p&gt;
+&lt;h4&gt;Basic CGI::Application Concepts&lt;/h4&gt;
+&lt;ol&gt;
+&lt;li&gt;All CGI::Application applications are invoked by an &lt;b&gt;instance script&lt;/b&gt;, which, in test case below, is named &lt;code&gt;index.cgi&lt;/code&gt;. One of the advantages of using CGI::Application, is that it encourages "smart" URI's, e.g., &lt;code&gt;http://www.acmecorp.com/contact/&lt;/code&gt; The instance script can be named anything, but this author prefers &lt;code&gt;some__directory/index.cgi&lt;/code&gt; to take advantage of the smart URI, and using the &lt;code&gt;.cgi&lt;/code&gt; extension, reserving &lt;code&gt;.pl&lt;/code&gt;) and &lt;code&gt;.pm&lt;/code&gt; for the actual modules.&lt;/li&gt;
+&lt;li&gt;A &lt;i&gt;instance&lt;/i&gt; usually passes one &lt;b&gt;run mode&lt;/b&gt;, which can be equated to the processing of one screen or Web page. For example, the first run mode might populate and display a form, and the second run mode might validate that form upon submission. If a run mode is not passed, a default run mode can be set at the top of the actual application (more on that in a minute).&lt;/li&gt;
+&lt;li&gt;After the function is run in the application, the application must &lt;b&gt;return&lt;/b&gt; something or &lt;i&gt;to&lt;/i&gt; something: usually an HTML page through CGI::Application's &lt;i&gt;redirect&lt;/i&gt; method, or in our case, an HTML::Template template using an &lt;i&gt;output&lt;/i&gt; method.&lt;/li&gt; 
+&lt;li&gt;&lt;b&gt;$self&lt;/b&gt;, or the object, is passed throughout the application and finally returned at the end. It can be called anything, but &lt;code&gt;$self&lt;/code&gt; is common practice in the OO world.&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;h4&gt;The Layout&lt;/h4&gt;
+&lt;p&gt;The locations of your files will vary depending on your server, e.g., you could be on a shared host and using something like &lt;code&gt;/usr/home/foobar&lt;/code&gt; and &lt;code&gt;/foobar/public_html/&lt;/code&gt;. The salient point is that the CGI::Application applications (server-side) are placed "out-of-reach" of the public Web directory (client-side). &lt;/p&gt;
+&lt;p&gt;Notes:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;One programming camp would advocate putting all of one's modules in a "lib" directory as opposed to the "myapps" directory shown here. However, this author prefers to think of "lib" as a place for Perl, CPAN modules, and those modules that will not be edited and part of the general operation of Perl itsel&amp;mdash;background stuff.&lt;/li&gt;
+&lt;li&gt;
+Also, there are times when templates can and should be placed outside of the document root&amp;mdash;in a directory in "myapps" for example. However, one of the reasons for using a template system is to separate application code from presentation code. Therefore it might be best to keep the designers and HTML folks on the "client side" of things and not mucking around on the "server side." That is way the sample application shown below places the templates in the doc root.
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;code&gt;
+/opt/foobar/myapps/---+
+       |            |
+       |            |
+       |      Foobar_Super.pm
+       |            |
+       |        Common.pm
+       |            |
+       |       /Acmecorp/---+
+       |                    |
+       |                Contact.pm
+       |                    |
+       |                  /conf/---+
+       |                           | 
+       |                     acmecorp.conf
+       |
+       |
+/var/www/acmecorp/--+   
+                    |
+                 home.html                    
+                    |
+                /contact/----+
+                    |        |  
+                    |     index.cgi
+                    |
+               /templates/---+     
+                    |        |
+                    |   contact.tmpl
+                    |
+              thankyou.html
+                    
+&lt;/code&gt;
+&lt;readmore&gt;
+&lt;h3&gt;Sample Application&lt;/h3&gt; 
+&lt;h4&gt;CGI::Application, Plugin's, and HTML::Template&lt;/h4&gt;
+
+&lt;p&gt;&lt;b&gt;index.cgi&lt;/b&gt; (our &lt;i&gt;instance script&lt;/i&gt;)&lt;/p&gt;
+&lt;p&gt;Notes:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;this instance script will pass a PARAM to the application&lt;/li&gt;
+&lt;li&gt;in this example, we need to output the form that now in a .tmpl file. Though some browsers will actually display the .tmpl file without HTML::Template, we'll use an instance of our application to simply display the form.&lt;/li&gt;
+&lt;li&gt;the instance script might be evoked by a text link: &lt;br /&gt;
+&lt;code&gt;&lt;a href="http://www.acmecorp.com/contact/"&gt;Contact Us&lt;/a&gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;note that paths are relative to the location of the .tmpl file and not the instance script or application.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;code&gt;
+#!/usr/local/bin/perl -T
+
+use lib "/opt/foobar/myapps/";
+use warnings;
+use strict;
+use Acmecorp::Contact;
+
+my $app = Acmecorp::Contact-&gt;new( PARAM =&gt; 'client' );
+$app-&gt;run();
+&lt;/code&gt;
+
+&lt;p&gt;&lt;b&gt;contact.tmpl&lt;/b&gt; ('rm' is our &lt;i&gt;run mode&lt;/i&gt; and will be passed upon submission to our instance script '/contact/index.cgi')&lt;/p&gt;
+&lt;code&gt;
+   &lt;form action="/contact/index.cgi" method="post"&gt;
+      &lt;input type="hidden" name="rm" value="s" /&gt;
+      
+      &lt;tmpl_if errors&gt;
+         &lt;tmpl_loop errors&gt;
+            &lt;p style="color: red"&gt;&lt;tmpl_var error&gt;&lt;/p&gt;
+         &lt;/tmpl_loop&gt;
+      &lt;/tmpl_if&gt;
+      
+      &lt;p&gt;Today's date: &lt;tmpl_var today&gt;&lt;/p&gt;
+      
+      &lt;p&gt;Name: &lt;input name="name" type="text" value="" /&gt;&lt;/p&gt;
+      &lt;p&gt;Address: &lt;input name="address" type="text" value="" /&gt;&lt;/p&gt;
+      &lt;p&gt;City: &lt;input name="city" type="text" value="" /&gt;&lt;/p&gt;
+      &lt;p&gt;More info: &lt;input name="more_info" type="checkbox" value="yes" /&gt;&lt;/p&gt;
+      &lt;p&gt;&lt;input name="Submit" type="submit" value="Submit" /&gt;&lt;/p&gt;
+   &lt;/form&gt;
+&lt;/code&gt;
+
+&lt;p&gt;&lt;b&gt;Foobar_Super&lt;/b&gt; (a super class for CGI::Application applications)&lt;/p&gt;
+&lt;p&gt;Notes:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;because you may be creating several CGI::Application applications for other sites on your server, developing a super class eliminate repetition&lt;/li&gt;
+&lt;li&gt;CGI::Application Plugin's integrates the modules they are associated with, negating the necessity of loading the native CPAN module&lt;/li&gt;
+&lt;li&gt;&lt;b&gt;cgiapp_init&lt;/b&gt; is run before anything in the application. In the super class you can read configuration files, set paths, set sessions, etc.&lt;/li&gt;
+&lt;li&gt;the PARAM 'client' that was passed by the instance script is used by the super class to 'personalize' the instance.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;code&gt;
+package Foobar_Super;
+
+use strict;
+use warnings;
+
+use base 'CGI::Application';
+use CGI::Application::Plugin::FillInForm(qw/fill_form/);
+use CGI::Application::Plugin::Config::Simple;
+use CGI::Application::Plugin::Redirect;
+use CGI::Application::Plugin::Session;
+use CGI::Application::Plugin::DBH (qw/dbh_config dbh/);
+use HTML::Template;
+
+#--- Start CGI::APP 
+sub cgiapp_init {
+   my $self = shift;
+      
+   #--- Set Paths
+   $self-&gt;config_file( '/opt/foobar/myapps/' . ucfirst $self-&gt;param('client') .'/conf/'. $self-&gt;param('client').'.conf');;
+   $self-&gt;tmpl_path( '/var/www/' . $self-&gt;param('client') . '/templates );
+                         
+   #--- Session
+   $self-&gt;session_config( DEFAULT_EXPIRY =&gt; '+8h');
+                         
+   #--- Contact to DB  
+   $self-&gt;dbh_config( $self-&gt;config_param('db.host'), 
+                      $self-&gt;config_param('db.user'),
+                      $self-&gt;config_param('db.pass'), 
+                      {RaiseError =&gt; 1} );
+}
+1;
+&lt;/code&gt;
+&lt;p&gt;&lt;b&gt;acmecorp.conf&lt;/b&gt; (a &lt;i&gt;configuration&lt;/i&gt; file)&lt;/p&gt;
+&lt;p&gt;Note: read by CA_Super's cgiapp_init&lt;/p&gt;
+&lt;code&gt;
+#--- MySQL Server ---
+[db]
+host  = DBI:mysql:foobar:localhost
+user  = acmecorp
+pass  = AKCgKYxc
+&lt;/code&gt;
+&lt;p&gt;&lt;b&gt;Contact.pm&lt;/b&gt; (the actual application called by the instance script&lt;/p&gt;
+&lt;p&gt;Notes:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;in the method 'display', the CGI::Application convention for specifying a template is used: &lt;code&gt;$self-&gt;load_tmpl&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;in the first firing of the instance script, no run mode will be passed, so the application will use the default function defined by the &lt;code&gt;$self-&gt;start_mod('d')&lt;/code&gt; in the setup method. This will simply output, or display, the template file containing our form.&lt;/li&gt;
+&lt;li&gt;we also use the CGI::Application::Plugin::FillInForm convention for outputting the form with the fill-in-form values: &lt;code&gt;$self-&gt;fill_form&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;code&gt;
+package Acmecorp::Contact;
+use base qw(Foobar_Super Common);
+
+use strict; 
+use warnings;
+use MIME::Lite;    #load any extra modules needed
+use Date::Calc qw(Today);
+
+#--- SETUP Run modes
+
+sub setup {
+   my $self = shift;
+   $self-&gt;start_mode('d');         #if no run mode, use 'd'
+   $self-&gt;mode_param('rm');
+   $self-&gt;run_modes(
+      'd'         =&gt; 'display',
+      's'         =&gt; 'save_form'
+   );
+}
+
+#--- Display 
+
+sub display {
+   my $self = shift;
+   
+    my $template = $self-&gt;load_tmpl( 'contact.tmpl',
+                                      die_on_bad_params =&gt; 0 );
+                                      
+   $template-&gt;param( today =&gt; sprintf( '%4d-%02d-%02d', Today() ) );                                   
+
+   return $template-&gt;output();
+}
+
+#--- Process 
+
+sub save_form {
+   my $self = shift;
+   
+   my ( %sql, @errors, $error, $fifvalues );
+   
+   ($sql{'name'}, $error ) = $self-&gt;validate( $self-&gt;query-&gt;param('name') );
+      if ( $error ) { push @errors, ( { 'error' =&gt; 'Name'.$error } ); }
+   ($sql{'address'}, $error ) = $self-&gt;validate( $self-&gt;query-&gt;param('address') );
+      if ( $error ) { push @errors, ( { 'error' =&gt; 'Address'.$error } ); }
+   ($sql{'city'}, $error ) = $self-&gt;validate( $self-&gt;query-&gt;param('city') );
+      if ( $error ) { push @errors, ( { 'error' =&gt; 'City'.$error } ); }
+   $sql{'more_info'} = $self-&gt;query-&gt;param('more_info');
+
+   #if there are errors, return the form with original input and error messages 
+   if ( @errors ) { 
+      my $template = $self-&gt;load_tmpl( 'contact.tmpl',
+                                        die_on_bad_params =&gt; 0,
+                                     );
+   
+      $template-&gt;param( errors =&gt; \@errors,
+                        today  =&gt; sprintf( '%4d-%02d-%02d', Today() ),
+                      );
+   
+      for my $key ( keys %sql ) { 
+         $fifvalues-&gt;{$key} = $sql{$key}; #assign fill-in-form values
+      }
+
+      return $self-&gt;fill_form( \$template-&gt;output, $fifvalues );
+      
+   } else {
+   
+      $self-&gt;record(\%sql);  #record the input
+      
+      return $self-&gt;redirect('/thankyou.html');
+   }   
+
+}
+
+#--- Record
+
+sub record {
+   my $self = shift;
+   my $sql  = shift;
+   my %sql  = %{ $sql };
+
+	#we use CAP::DBH to connect to the DB and execute our SQL statement
+   my $stmt = 'INSERT INTO contacts (' . join(',', keys %sql) . ') 
+                  VALUES (' . join(',', ('?') x keys %sql) . ')';
+   $self-&gt;dbh-&gt;do($stmt, undef, values %sql);   
+}   
+1;
+&lt;/code&gt;
+
+&lt;p&gt;&lt;b&gt;Common.pm&lt;/b&gt; (a module with common methods)&lt;/p&gt;
+package Common;
+
+&lt;code&gt;
+sub validate {
+   my $self = shift;
+   my $to_check = shift;
+   
+   if ( $to_check !~ /^([\w ]+)$/ ) {
+      return ( $to_check, " has invalid characters or is blank" );
+   } else {
+      return $1;
+   }
+}
+1;
+&lt;/code&gt;
+
+&lt;h4&gt;Summary&lt;/h4&gt;
+&lt;p&gt;This tutorial has shown use of the basis tenents of using CGI::Application as an application framework:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;file layout and directory structure&lt;/li&gt;
+&lt;li&gt;instance scripts&lt;/li&gt;
+&lt;li&gt;run modes&lt;/li&gt;
+&lt;li&gt;cgiapp_init and redirect&lt;/li&gt;
+&lt;li&gt;integration of CGI::Application::Plugin's&lt;/li&gt;
+&lt;li&gt;use of super class&lt;/li&gt;
+&lt;li&gt;intro to the HTML::Template templating system&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;As always, you are encouraged to read the POD for CGI::Application and then take a look at the growing number of Plugins to see if CGI::Application can further streamline your coding process.&lt;/p&gt; 
+
+&lt;h4&gt;Other Resources&lt;/h4&gt;
+&lt;p&gt;[http://cgiapp.erlbaum.net/|CGI::Application Wiki]&lt;br /&gt;
+[http://www.erlbaum.net/mailman/listinfo/cgiapp|Mailing List]&lt;br /&gt;
+[http://html-template.sourceforge.net/|HTML::Template Tutorial]&lt;br /&gt;
+[http://www.redantigua.com/cgi-application1.html|Red Antiqua Tutorial]&lt;br /&gt;
+[http://www.tutorialized.com/tutorial/Using-CGI-Application/3382|Using CGI::Application]&lt;/p&gt;
+&lt;/readmore&gt;</field>
+</data>
+</node>

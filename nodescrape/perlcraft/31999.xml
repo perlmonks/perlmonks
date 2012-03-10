@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="31999" title="Update reverse DNS zone files by scanning the forward zone files" created="2000-09-11 22:03:49" updated="2005-08-13 03:07:58">
+<type id="121">
+perlcraft</type>
+<author id="28130">
+araqnid</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+# Copyright (C) Steven Haslam 2000
+# This is free software, distributable under the same terms as Perl
+# itself - see the Perl source distribution for details.
+
+# Generate reverse DNS zone files from forward zone files.
+#  e.g.:
+#   make_reverse_zones db.london.excite.com
+#    --&gt; updates db.194.216.238
+
+require 5;
+use strict;
+use IO::File;
+
+sub read_zonefile {
+  my $filename = shift;
+  my $zoneobj = shift;
+
+  my $stream = IO::File-&gt;new($filename) or die "Unable to read $filename: $!\n";
+  my $origin;
+
+  my $line = 0;
+  my $current;
+
+  #print "$filename:debug: reading zone\n";
+
+  while ($_ = $stream-&gt;getline) {
+    ++$line;
+    if (/^\$(\S+)\s+(.+)/) {
+      my($keyword, $data) = (uc($1), $2);
+      if ($keyword eq 'ORIGIN') {
+	$origin = $data;
+	#print "$filename:$line:debug: setting ORIGIN to \"$origin\"\n";
+      }
+      elsif ($keyword eq 'TTL') {
+	next;
+      }
+      else {
+	warn "$filename:$line:warning: unknown directive \"\$$keyword\"\n";
+      }
+    }
+    my @tokens = split(/\s+/);
+    next unless (@tokens);
+    my $domain = shift @tokens;
+    if ($domain eq '@') {
+      #print "$filename:$line:debug: Using origin ($origin)\n";
+      $current = $origin;
+      shift @tokens;
+    }
+    elsif ($domain eq '') {
+      #print "$filename:$line:debug: Sticking with current domain ($current)\n";
+    }
+    else {
+      if ($domain =~ /\.$/) {
+	$current = $domain;
+      }
+      else {
+	# Error to not have passed a $ORIGIN statement at this point
+	if (!defined($origin)) {
+	  die "$filename:$line: No \$ORIGIN encountered by this point\n";
+	}
+	# Skip "localhost" entries.
+	next if (lc($domain) eq 'localhost');
+	$current = "$domain.$origin";
+      }
+    }
+    if ($tokens[0] eq 'IN') {
+      shift @tokens;
+    }
+    my $type = uc(shift @tokens);
+    # Only interested in A types
+    # But SOA types need special handling for this hacked-together parser
+    # For later: AAAA types
+    if ($type eq 'SOA') {
+      while (!/\)/) {
+	$_ = $stream-&gt;getline;
+	++$line;
+      }
+      next;
+    }
+    elsif ($type ne 'A') {
+      next;
+    }
+    my $ipaddr = shift @tokens;
+    my $restofline = join(' ', @tokens);
+    if ($restofline =~ /;.*:norev:/i) {
+      next; # Admin said to skip this line
+    }
+    #print "$filename:$line:debug: $current $ipaddr\n";
+    if ($ipaddr !~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
+      warn "$filename:$line:warning: Bad IP address \"$ipaddr\"\n";
+      next;
+    }
+    # "What's the point of this?" - eradicate any variations in formatting
+    # that might have slipped through the regex above- leading zeroes being
+    # an example
+    $ipaddr = sprintf("%d.%d.%d.%d", $1, $2, $3, $4);
+    if (exists($$zoneobj{$ipaddr})) {
+      warn "$filename:$line:warning: IP address \"$ipaddr\" already used ($$zoneobj{$ipaddr})- ignoring \"$current IN A $ipaddr\"\n";
+      next;
+    }
+    $$zoneobj{$ipaddr} = $current;
+  }
+
+  $stream-&gt;close;
+}
+
+sub bump_serial {
+  my $oldserial = shift;
+  my($sec,$min,$hour,$mday,$mon,$year) = gmtime(time);
+  my $newserial = sprintf("%04d%02d%02d%02d", $year + 1900, $mon + 1, $mday, 1);
+  if (($newserial + 100) &lt; $oldserial) {
+    die "Unable to bump old serial number ($oldserial ==&gt; $newserial): something's broken\n";
+  }
+  while ($newserial &lt;= $oldserial) {
+    ++$newserial;
+  }
+  return $newserial;
+}
+
+sub update_revzonefile {
+  my $filename = shift;
+  my $nodes = shift;
+  my $tempfilename = "$filename.$$.tmp";
+
+  my $instream = IO::File-&gt;new($filename);
+
+  # Open like this because we're likely to run as root and our
+  # tempfile naming scheme isn't really very safe
+  my $outstream = IO::File-&gt;new($tempfilename, O_WRONLY|O_CREAT|O_EXCL);
+  
+  my $found_serial = 0;
+
+  my $updated = 0;
+
+  my %foundoldnodes;
+
+  while ($_ = $instream-&gt;getline) {
+    # REQUIRE the serial number to be recognisable as:
+    #       2000091101 ; Serial number
+    if (s/(\d+)(\s+; Serial number)/&amp;bump_serial($1).$2/e) {
+      $found_serial++;
+      $outstream-&gt;print($_);
+      next;
+    }
+    elsif (/^(\d+)\s+(IN\s+)?PTR\s+(\S+)$/) {
+      # Found a reverse entry
+      my($oldnode, $oldhost) = ($1, $3);
+      #print "debug: old-reverse: $oldnode = $oldhost\n";
+      $foundoldnodes{$oldnode} = 1;
+
+      # Has it changed?
+
+      # Override: if the admin says keep it, they know what they're doing :}
+      if (/;.*:keep:/) {
+	$outstream-&gt;print($_);
+	next;
+      }
+
+      if (!exists($$nodes{$oldnode})) {
+	#print "debug: $oldnode is to be removed\n";
+	$updated = 1;
+      }
+      elsif (lc($$nodes{$oldnode}) ne lc($oldhost)) {
+	#print "debug: data for $oldnode has changed ($oldhost ==&gt; $$nodes{$oldnode})\n";
+	$updated = 1;
+      }
+      next; # Filter out these lines...
+    }
+    $outstream-&gt;print($_);
+  }
+
+  while (my($node, $host) = each %$nodes) {
+    if (!$foundoldnodes{$node}) {
+      #print "debug: $node is new\n";
+      $updated = 1;
+    }
+    $outstream-&gt;print("$node\tIN\tPTR\t$host\n");
+  }
+  
+  $instream-&gt;close;
+  $outstream-&gt;close;
+
+  if ($updated) {
+    if ($found_serial) {
+      print " Updating $filename\n";
+      rename($tempfilename, $filename) or warn "rename($tempfilename, $filename): $!\n";
+    }
+    else {
+      print " Unable to update $filename: no serial number found\n";
+    }
+  }
+  else {
+    print " No changes.\n";
+    unlink($tempfilename) or warn "Unable to remove temp file (\"$tempfilename\"): $!\n";
+  }
+}
+
+use vars qw(%addrs %nets);
+
+if (!@ARGV) {
+  die &lt;&lt;EOF;
+Syntax: $0 forward-zonefile...
+
+This script will scan the DNS zone files named on the command line,
+and update reverse zone files as necessary.
+
+For more details, see the POD documentation.
+
+EOF
+}
+
+foreach (@ARGV) {
+  read_zonefile($_, \%addrs);
+}
+
+# OK, now have ip-addr =&gt; hostname mapping. So bin all the hosts into /24s
+
+while (my($ipaddr, $domain) = each %addrs) {
+  my($net, $node) = ($ipaddr =~ /^(\d+\.\d+\.\d+)\.(\d+)$/);
+  if (!defined($net) || !defined($node)) {
+    die "Hm, regexp failed on $ipaddr: this REALLY shouldn't happen!\n";
+  }
+  $nets{$net}-&gt;{$node} = $domain;
+}
+
+# For each /24, update the zone file as applicable
+
+while (my($net, $nodes) = each %nets) {
+  my $filename = "db.$net";
+  if (! -f $filename) {
+    print "*** Zone file for $net/24 ($filename) does not exist\n";
+  }
+  else {
+    print "Processing $net/24...\n";
+    update_revzonefile($filename, $nodes);
+  }
+}
+
+=head1 NAME
+
+make_reverse_zones - Update reverse DNS zone files from the forward DNS zone files
+
+=head1 SYNOPSIS
+
+  make_reverse_zones forward_zonefile...
+
+=head1 DESCRIPTION
+
+Reads the forward DNS zone files named on the command line and uses
+them to update reverse DNS zone files. Warnings will be emitted when
+two domains are specified to have the same IP address- this can be
+overridden in the zone file when necessary.
+
+The forward zone files may be named in any fashion. The reverse zone
+files B&lt;must&gt; be named as C&lt;db.NNN.NNN.NNN&gt; where each NNN is an IP
+address component. This program only supports generating reverse zones
+in /24 blocks.
+
+If the reverse zone file does not already exist, it is B&lt;not&gt;
+created. This program cannot determine the correct information to put
+in the SOA/NS records- create a "blank" reverse zone file yourself and
+rerun this program.
+
+=head2 Syntax of the forward file
+
+Currently, this program does not handle entries with TTLs specified.
+
+The basic entry looked for is of the form:
+
+   domain   IN  A  172.18.1.2    ; comments...
+
+CNAME etc. records are discarded. Entries where the domain is
+"localhost" are discarded. The C&lt;$ORIGIN&gt; directive is respected- and
+is required unless every domain in the zone file is fully-qualified.
+
+If the "comments..." section contains ":norev:" then the line is
+ignored. This allows you to override the reverse DNS generation when
+you know what you're doing (e.g. for round-robin DNS entries).
+
+=head2 Syntax of the reverse file
+
+The reverse file B&lt;must&gt; have a serial number line looking like this:
+
+       2000110901  ; Serial number
+
+The comment B&lt;is&gt; required.
+
+When processing the reverse file, all existing "IN PTR" records are
+removed. However, you can make the program leave them alone by putting
+":keep:" in a comment. This is useful if there are some addresses in
+your reverse domain that you do not have the forward zone files for.
+
+=head1 EXAMPLE
+
+    bash$ ./make_reverse_zones db.london.excite.com 
+    Processing 194.216.238/24...
+     Updating db.194.216.238
+
+=head1 BUGS
+
+The zone file parsers are janky. Particularly the reverse zone file
+reader's requirement for identifying the serial number, and the
+forward file reader's failure to recognise TTL values.
+
+IPv6 not supported.
+
+=head1 AUTHOR
+
+Steve Haslam &lt;araqnid@debian.org&gt;
+
+=cut
+</field>
+</data>
+</node>

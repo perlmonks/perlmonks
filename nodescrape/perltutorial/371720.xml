@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="371720" title="Using select and IO::Select" created="2004-07-04 12:49:47" updated="2005-08-15 17:04:16">
+<type id="956">
+perltutorial</type>
+<author id="5403">
+duff</author>
+<data>
+<field name="doctext">
+Here's a tutorial I started on using [doc://select] (primarily because I saw a [id://370963|query] from [tachyon] on it and I figured it was a good thing to do).  This is just a first cut, so be kind and send me your comments. :-)
+&lt;p&gt;
+Also, is there a way for perlmonks.org to automagically handle POD format?
+
+&lt;code&gt;
+=head1 NAME
+
+	perlselecttut - a tutorial on using select() and IO::Select
+
+=head1 DESCRIPTION
+
+This document attempts to explain how to use the 4-arg version of
+C&lt;select()&gt; and the module C&lt;IO::Select&gt; so that they are easier to
+understand.  If anything is unclear, the author
+of this document would appreciate hearing about it.
+
+=head2 What are C&lt;select()&gt;/C&lt;IO::Select&gt; and why would you use them?
+
+Without going into too much detail (none at all in fact) C&lt;select()&gt; and
+C&lt;IO::Select&gt; are useful for when you want to "watch" several
+filehandles at once to see if they are ready for reading or writing or
+if any of them have an exception condition. Now, when I say
+"filehandles" I really mean anything that can be read or written to as
+if it were a file: sockets, serial devices, pipes, fifos, etc. An
+example application that would use C&lt;select&gt; is a chat server. Each
+client that is connected to the server occupies it's own socket
+(filehandle), so the server would use C&lt;select&gt; to see what each client
+says having to wait on any particular client.
+
+Caveat lector!  This document is mostly written from a unix-centric
+point of view, but similar ideas apply on other operating systems.
+
+=head2 All about C&lt;select()&gt;
+
+Here's the canonical C&lt;select()&gt; example that you will find in the
+documentation:
+
+	($nfound,$timeleft) =
+	   select($rout=$rin, $wout=$win, $eout=$ein, $timeout);
+
+But what does it all mean?  Why the assignments?  Why those particular
+variable names?  
+
+The first 3 arguments to C&lt;select()&gt; tell it which filehandles to watch
+for reading, writing, and exceptions respectively (thus the leading r,
+w, and e on each variable).  These arguments are each a special
+bitvector where each "on" bit corresponds to the filedescriptor number
+of the filehandle that is being watched.  The fourth argument to
+C&lt;select()&gt; is how long to watch the filehandles before giving up.  The
+C&lt;select()&gt; call returns a count of how many filehandles have triggered
+one of the reading/writing/exception conditions (C&lt;$nfound&gt;) and the
+amount of time left in the timeout specified (C&lt;$timeleft&gt;).
+
+=head3 What are filedescriptors?
+
+Each time you open a file, the operating system makes an entry in
+something called a file descriptor table so that it can keep track of
+the file (things like the current position, whether or not it's
+buffered, the contents of the buffer, etc.) By default the entry at
+index 0 is STDIN, at index 1 is STDOUT and STDERR is at index 2. The
+index into the filedescriptor table is called the file descriptor number
+or L&lt;fileno&gt; for short. It's these indexes that are used as offsets into
+the bitvector to identify to C&lt;select()&gt; which filehandles you wish to
+watch.
+
+=head3 Using C&lt;vec()&gt; to build bitvectors
+
+A bitvector is an odd thing for perl because it's so low level. Having
+to fiddle with bitvectors shows how close C&lt;select()&gt; is to its C heritage.
+But luckily perl remembers its heritage through a function called
+C&lt;vec()&gt;.   To create a bitvector for use with C&lt;select()&gt; with the
+proper bit turned on for STDIN you would write:
+
+	vec($vector,fileno(STDIN),1) = 1;
+
+C&lt;fileno()&gt; is a routine that returns the index into the
+filedescriptor table for a given filehandle (aka. the fileno).  Since
+we know STDIN is at index 0, we could have written
+
+	vec($vector,0,1) = 1;
+
+But that would be I&lt;extremely&gt; unportable. If, for some reason, we
+happened to run on a system that used 0 for some other filehandle out
+program wouldn't work as expected. This I&lt;could&gt; happen if we closed
+STDIN, then opened another file. The operating system may use the first
+available free filedescriptor when you open a new file and since we
+closed STDIN, descriptor 0 would be free.
+
+Anyway, the call to C&lt;vec()&gt; means: treat $vector is a bitvector and
+access the bits starting at the bit position corresponding to the the
+index into the filedescriptor table for the filehandle STDIN for 1 bit
+and assign that bit the value 1. So, to watch several filehandles you
+would do this:
+
+	vec($vector,fileno(FOO),1) = 1;
+	vec($vector,fileno(BAR),1) = 1;
+	vec($vector,fileno(BAZ),1) = 1;
+
+and then use C&lt;$vector&gt; in the call to C&lt;select()&gt; to watch the FOO,
+BAR, and BAX filehandles.
+
+See C&lt;perldoc -f vec&gt; for more information on C&lt;vec()&gt;
+
+=head3 Why are we doing assignments in the C&lt;select()&gt; call?
+
+The reason you typically see assignments in the first three positions is
+that C&lt;select()&gt; modifies its first 3 arguments to tell you I&lt;which&gt;
+filehandles have data ready for reading or writing or exceptions and you
+usually want to continually watch the same filehandles over and over
+again. Since the following
+
+	select($rout=$rin, $wout=$win, $eout=$ein, $timeout);
+
+functions the same as 
+
+	$rout = $rin; $wout = $win; $eout = $ein;
+	select($rout, $wout, $eout, $timeout);
+
+The assignments allow $rin,$win, and $ein to keep their original values
+so that you can call it in a loop without having to continually build
+the bit vectors.  Contrast these two functionally equivalent snippets:
+
+	# Example 1, the usual idiom
+	vec($rin,fileno(FOO),1) = 1;
+	vec($rin,fileno(BAR),1) = 1;
+	vec($rin,fileno(BAZ),1) = 1;
+	while (1) {
+	   ($found) = select($rout=$rin,undef,undef,$timeout);
+	   next unless $found;
+	   # Check $rout to see which handles are ready for reading
+	}
+
+	# Example 2, building the vectors each time
+	while (1) {
+	   vec($rinout,fileno(FOO),1) = 1;
+	   vec($rinout,fileno(BAR),1) = 1;
+	   vec($rinout,fileno(BAZ),1) = 1;
+	   ($found) = select($rinout,undef,undef,$timeout);
+	   next unless $found;
+	   # Check $rinout to see which handles are ready for reading
+	}
+
+Oh, btw, you'll notice that I used C&lt;undef&gt; for the second and third
+argument to C&lt;select()&gt;. If you don't care to check any filehandles
+for reading, writing, or exceptions you can pass C&lt;undef&gt; in the
+respective position and C&lt;select()&gt; won't bother paying attention to
+that condition.  You can also pass c&lt;undef&gt; for the timeout and
+C&lt;select()&gt; will wait forever for a filehandle to trigger the
+appropriate condition.  
+
+=head3 Checking which filehandles are ready
+
+After C&lt;select()&gt; returns, the three bitvectors will have changed to
+reflect the actual filehandles that triggered the particular condition
+you were waiting for.  One way to check which filehandle is ready is
+to just use C&lt;vec()&gt; again to see if the particular bit is 1.  For
+example:
+
+	vec($rin,fileno(FH1),1) = 1;
+	vec($rin,fileno(FH2),1) = 1;
+	vec($rin,fileno(FH3),1) = 1;
+	while (1) {
+	   ($found) = select($rout=$rin,undef,undef,$timeout);
+	   next unless $found;
+	   if (vec($rout,fileno(FH1),1) == 1) {
+	      # There is data waiting to be read on FH1
+	   }
+	   if (vec($rout,fileno(FH2),1) == 1) {
+	      # There is data waiting to be read on FH2
+	   }
+	   # and so on ...
+	}
+
+Another method would be to use C&lt;select()&gt; again. 
+
+	vec($fh1,fileno(FH1),1) = 1;
+	vec($fh2,fileno(FH2),1) = 1;
+	vec($fh3,fileno(FH3),1) = 1;
+	$rin = $fh1 | $fh2 | $fh3;
+	while (1) {
+	   ($found) = select($rout=$rin,undef,undef,$timeout);
+	   next unless $found;
+	   if (select($fh1,undef,undef,$timeout)) {
+	      # There is data waiting to be read on FH1
+	   }
+	   if (select($fh2,undef,undef,$timeout)) {
+	      # There is data waiting to be read on FH2
+	   }
+	   # and so on ...
+	}
+
+By building individual bitvectors for each filehandle and then combining
+them together using a bit-wise OR, we can check whether I&lt;any&gt; of the
+filehandles are ready with the combined bitvector or whether an
+individual filahandle is ready with the individual bitvectors using
+C&lt;select()&gt;.
+
+Note that several filehandles may be ready at once, so it would be
+prudent to service as many of the filehandles that you can before
+calling C&lt;select()&gt; again.
+
+=head3 I know which filehandles are ready.  Now what?
+
+After you have setup C&lt;select()&gt; and determined which filehandles Are
+ready, you'll want to read from those filehandles that are ready for
+reading and write to those filehandles that are ready for writing and do
+whatever is necessary to those filehandles that have an exception
+condition. [ To be honest, I've never used the ability to check for
+exception conditions on filehandles and I have little understanding of
+what it may be for. The only reference I have handy at the moment,
+Stevens' U&lt;Advanced Programming in the Unix Environment&gt;, says "... an
+exception condition corresponds to (a) the arrival of out-of-band data
+on a network connection, or (b) certain conditions occuring on a psuedo
+terminal that has been placed into packet mode" ] But you must be
+careful how you read or write data to the filehandle. Buffered I/O like
+C&lt;readline()&gt; (aka, the diamond operator or &lt;&gt;) or C&lt;read()&gt;, won't work
+quite right, so you need to use C&lt;sysread()&gt; and C&lt;syswrite()&gt; to
+read/write from/to the appropriate filehandles.
+
+=head2 IO::Select
+
+As you can tell by now, C&lt;select()&gt; isn't the friendliest of routines
+to use.  Luckily you have another option: C&lt;IO::Select&gt;.  C&lt;IO::Select&gt;
+is an object oriented interface that sits on top of the basic
+C&lt;select()&gt; routine such that you never have to see bitvectors and
+strange assignments.  You deal only with C&lt;IO::Select&gt; objects and the
+filehandles themselves.  Here's a simple example:
+
+	use IO::Select;
+	my $sel = IO::Select=&gt;new;
+	$sel-&gt;add(\*FOO);
+	$sel-&gt;add(\*BAR);
+	$sel-&gt;add(\*BAZ);
+	if (@fh = $sel-&gt;can_read($timeout)) {
+	   # Each filehandle in @fh is ready to be read from
+	}
+
+The basic usage is simple:  you create a IO::Select object (possibly
+initializing it with filehandles), then add new file handles to the
+object using the C&lt;add()&gt; method, and when you're ready to "watch" the
+filehandles you call one of the C&lt;can_read()&gt;, C&lt;can_write()&gt;, or
+C&lt;has_exception()&gt; methods on the object.  Each of these methods
+returns an array of filehandles such that you can read/write from/to
+them.
+
+=head1 AUTHOR
+
+ Jonathan Scott Duff
+ duff@cpan.org
+
+&lt;/code&gt;</field>
+</data>
+</node>

@@ -1,0 +1,140 @@
+<node>
+  <doctext>package Filter::QuasiLiterate;
+use strict;
+use Carp;
+use Filter::Util::Call;
+
+sub import
+{
+    my $me =
+    {
+	sections =&gt; { },
+	defining =&gt; undef,
+    };
+    filter_add(bless $me);
+}
+
+sub filter
+{
+    my $me = shift;
+    my $status = filter_read;
+    ($status &gt; 0) or return $status;
+    
+    (/^\s*\#([&lt;&gt;])/ ?
+     (($1 eq '&lt;') ?
+      (/^\s*\#[&lt;&gt;]([a-zA-Z0-9\-.\/: ]+)(\&gt;?)(?:\#.*)?$/ ?
+       (($2 eq '&gt;') ?
+	(exists $me-&gt;{sections}-&gt;{$1} ?
+	 ($_ = $me-&gt;{sections}-&gt;{$1}) :
+	 (croak &quot;QuasiLiterate filter: chunk does not exist: \&quot;$1\&quot;&quot;)
+	 ) :
+	 (push @ {$me-&gt;{defining}},
+	  (((scalar @ {$me-&gt;{defining}}) ? $me-&gt;{defining}-&gt;[-1] . '.' : '')
+	   . $1))
+	) :
+       (croak &quot;QuasiLiterate filter: invalid command: \&quot;$_\&quot;&quot;)
+       ) :
+      (pop @ {$me-&gt;{defining}})
+      ) :
+     ((scalar @ {$me-&gt;{defining}})? do
+      {	
+	  foreach my $def (@ {$me-&gt;{defining}}) { $me-&gt;{sections}-&gt;{$def}
+					  .= $_ }
+	  $_ = '';
+      } :
+      ()));
+
+    return $status;
+}
+
+=head1 NAME
+
+Filter::QuasiLiterate
+
+=head1 SYNOPSIS
+
+    use Filter::QuasiLiterate;
+    #&lt;foo_code
+    # Put code that does foo here.
+    #&gt;
+    #&lt;foo_doc
+    It then does foo, by first calling bar...
+    #&gt;
+    # etc.
+    
+    if ($Run)
+    {
+        #&lt;foo_code&gt;
+    }
+    else
+    {
+        print &lt;&lt;'//'; # Or some other string you're sure won't be a
+                      # line in foo_doc
+        #&lt;foo_doc&gt;
+//
+    }
+    #&lt;nested-section
+    #&lt;bork
+    # now in nested-section.bork
+    bork;
+    #&gt;
+    gork;
+    #&gt;
+
+    #&lt;nested-section&gt; # Gives bork then gork
+    #&lt;nested-section.bork&gt; # Gives bork by itself
+
+    #&lt;blorple
+    xyzzy;
+    #&gt;
+    #&lt;baz
+    rumple;
+    #&gt;
+    #&lt;blorple
+    fizzy;
+    #&gt;
+    #&lt;blorple&gt; # Gives xyzzy then fizzy
+    
+
+=head1 DESCRIPTION
+
+Filter::QuasiLiterate allows you to do quasi-literate programming, using
+chunks of code / documentation / comments / whatever which can get reused,
+shuffled arbitrarily, and/or disused.  Chunks can also be defined in pieces,
+and nested.  QuasiLiterate commands are indicated by lines with any amount
+of whitespace, followed by # and then either &lt; or &gt;.  They are terminated by
+newline or #.  Chunk names may contain any of the characters a-z, A-Z, 0-9,
+or [-./: ].  #&lt;chunk-name will start defining a chunk, or adding to it if 
+a chunk with that name already exists.  If a chunk is already
+being defined, the new chunk will have the name outer.inner, where outer and
+inner are placeholders for the outer and inner chunks.  Anything inside the
+inner chunk is added to both the outer and inner chunks.  Chunks can be
+nested to an infinite (theoretically) number of levels.  #&gt; stops defining
+the innermost chunk.  Note that if a nested chunk is added to explicitly,
+i.e. with a specified name of outer.inner, the outer chunk will I&lt;not&gt; be
+added to.  #&lt;chunk-name&gt; (note the &gt;) includes the contents
+of a previously defined chunk at the current position.
+
+=head1 BUGS
+
+There should be more options.  Chunks can't be used before their definitions.
+Documentation could be I&lt;much&gt; better.
+
+There are undoubtedly more bugs lurking here somewhere.
+
+=head1 SEE ALSO
+
+This is the mandatory SEE ALSO section.  There is no useful information here.  :-)
+		    
+=cut
+
+1;
+
+__END__</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>96991</node_id>
+  <author_user>59285</author_user>
+  <title>Filter::QuasiLiterate</title>
+  <createtime>2001-07-16 10:56:52</createtime>
+  <nodeupdated>2005-07-21 01:27:35</nodeupdated>
+</node>

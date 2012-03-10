@@ -1,0 +1,407 @@
+<node>
+  <doctext>&lt;h3&gt;Highly Orthogonal Web Application Development with HTML_Tree&lt;/h3&gt;
+
+Update: the new CPAN distribution with similar and improved functionality is [cpan://HTML::Seamstress]
+
+
+&lt;blockquote&gt;
+&lt;b&gt;update:&lt;/b&gt; if you do a distribution search on
+&lt;a href=http://kobesearch.cpan.org&gt;kobesearch.cpan.org&lt;/a&gt;
+then you will find &lt;I&gt;HTML_Tree&lt;/I&gt;.
+&lt;P&gt;
+However, on &lt;a href=http://search.cpan.org&gt;search.cpan.org&lt;/a&gt;
+you had better search for
+[cpan://Apache::HTML::ClassParser] which is part of the HTML_Tree distribution
+
+
+&lt;/blockquote&gt;
+
+
+&lt;blockquote&gt;
+
+[cpan://HTML_Tree] is supposedly yet another
+templating module. However, as far as I know, it is the only one in
+which the HTML to be templated is a completely syntactically valid
+HTML file, meaning no tags exist which lead to a syntacticaly invalid
+HTML file.
+&lt;P&gt;
+The way that [cpan://HTML_Tree] works its magic is by parsing the
+HTML file to be templated and searching for &lt;code&gt;CLASS&lt;/code&gt;
+attributes within HTML tags. It presumes the &lt;code&gt;CLASS&lt;/code&gt; attribute to
+be a pointer to a method in a module with the same name as the html
+file, sans &lt;code&gt;.chtml&lt;/code&gt;, plus &lt;code&gt;.pm&lt;/code&gt;. Four examples of this type
+of usage will be explained in detail. For now, a bit more on what
+[cpan://HTML_Tree] has to offer and how.
+&lt;P&gt;
+For me, the big win of [cpan://HTML_Tree] is that it allows me to
+build a complete site and then have a graphic artist come behind and
+work with pure HTML to beautify it.
+&lt;P&gt;
+[cpan://HTML_Tree] is supposedly
+[cpan://Apache::Filter]-aware, but I had to fix a small bug in how
+it handled such filter chains. Add the recreation of &lt;code&gt;$r&lt;/code&gt;
+and you are set:
+&lt;code&gt;
+	if ( lc( $r-&gt;dir_config( 'Filter' ) ) eq 'on' ) {
+	        $r = $r-&gt;filter_register; ## add this line
+		$r-&gt;filter_input();
+
+&lt;/code&gt;
+I tried emailing the author at his advertised CPAN email about this,
+but it bounced.
+&lt;P&gt;
+And another neat thing is that it uses it's own HTML parser which is
+written entirely in C++ and is several orders of magnitude faster
+[cpan://HTML::Parser] as a result.
+&lt;P&gt;
+The final thing that I like about this module is that I can write
+Perl classes that I can run from the shell (meaning, without a
+webserver). Thus my Perl code is runnable and testable in terms of its
+text generation for the webserver without having to debug via Apache
+error logs.
+&lt;P&gt;
+Now that the introductions are done, let's work through 
+some examples using [cpan://HTML_Tree]. For your reference, for
+the next few days from &lt;code&gt;Fri Aug 24 09:36:41 EDT 2001&lt;/code&gt;, 
+the examples are at:
+
+&lt;a href=&quot;http://princepawn.perlmonk.org:8229/index.chtml&quot;&gt;this link&lt;/a&gt;.
+
+&lt;/blockquote&gt;
+&lt;READMORE&gt;
+&lt;h3&gt;Example One: dyanmic display of date and time&lt;/h3&gt;
+
+&lt;code&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;h3&gt;Date Time Page&lt;/h3&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h3&gt;Date Time Page&lt;/h3&gt;
+
+The current date and time is 
+
+&lt;span class=&quot;date_time&quot;&gt;4:44pm on the dot&lt;/span&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+&lt;/code&gt;
+
+&lt;code&gt;
+
+package index;
+
+sub new {
+    my $that = shift;
+    my $class = ref( $that ) || $that;
+    my $this = {
+    class_map =&gt; {
+                date_time =&gt; \&amp;amp;amp;amp;amp;date_time,
+            },
+            # other stuff you want here ...
+    };
+    return bless $this, $class;
+}
+
+sub date_time {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+
+    ($node-&gt;children())[0]-&gt;text( `date` );
+
+}
+&lt;/code&gt;
+
+1;
+
+&lt;/code&gt;
+
+
+&lt;p&gt;
+Ok, note in the HTML there is a &lt;code&gt;CLASS&lt;/code&gt; attribute whose value is
+&lt;code&gt;date_time&lt;/code&gt;. When [cpan://HTML_Tree] sees this attribute, it
+uses the &lt;code&gt;class_map&lt;/code&gt; of the object associated with this HTML file
+to find the method to call. In this method, we set the text aspect of
+the &lt;code&gt;SPAN&lt;/code&gt; to the date. And we are done.
+&lt;/p&gt;
+
+&lt;h3&gt;Conditional HTML&lt;/h3&gt;
+
+&lt;code&gt;
+
+
+HTML
+
+&lt;html&gt;
+&lt;head&gt;
+&lt;h3&gt;Conditional HTML&lt;/h3&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;Conditional HTML&lt;/h1&gt;
+
+This page will show a table when the calculated random numer is odd.
+Here is what we calculated : 
+
+&lt;B class=&quot;calc_random&quot;&gt;
+   &lt;span class=&quot;show_random&quot;&gt;dummy text&lt;/span&gt;
+&lt;/B&gt; which has a modulus of
+
+&lt;I CLASS=&quot;text::display&quot;&gt;dummy text&lt;/I&gt;
+
+&lt;table class=&quot;if::display&quot;&gt;
+&lt;tr&gt;&lt;th&gt;yo&lt;th&gt;ho&lt;th&gt;ho
+&lt;tr&gt;&lt;td&gt;and&lt;td&gt;a&lt;td&gt;bottle
+&lt;tr&gt;&lt;td&gt;of&lt;td&gt;rum,&lt;td&gt;son
+&lt;tr&gt;&lt;td&gt;let's&lt;td&gt;have&lt;td&gt;fun!
+&lt;/table&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+
+Perl
+
+package index;
+
+srand (time ^ $$ );
+ 
+
+sub new {
+    my $that = shift;
+    my $class = ref( $that ) || $that;
+    my $this = {
+    class_map =&gt; {
+        calc_random =&gt; \&amp;amp;amp;amp;amp;calc_random,
+	    show_random =&gt; \&amp;amp;amp;amp;amp;show_random,
+	        show_tab =&gt; \&amp;amp;amp;amp;amp;show_tab,
+            },
+            # other stuff you want here ...
+    };
+    return bless $this, $class;
+}
+
+sub calc_random {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    return 0 if $is_end_tag;
+
+    $this-&gt;{random}  = sprintf '%d', rand(1000);
+    return 1;
+}
+
+sub show_random {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    return 0 if $is_end_tag;
+    $this-&gt;{display} = ($this-&gt;{random} % 2);
+    ($node-&gt;children())[0]-&gt;text( $this-&gt;{random});
+
+    return 1;
+}
+
+1;
+&lt;/code&gt;
+
+&lt;p&gt;
+The calling of method subroutines via &lt;code&gt;class_map&lt;/code&gt; should be
+old-hat to you by now. However, two shortcut methods from
+[cpan://HTML_Tree] were used in this case to simplify the coding.
+&lt;code&gt;text::display&lt;/code&gt; is a shorthand for accessing the key
+&lt;code&gt;display&lt;/code&gt; in the object and setting the text field to it's
+value. &lt;code&gt;if::display&lt;/code&gt; access the &lt;code&gt;display&lt;/code&gt; key
+and then includes the encapsulated HTML if that key returns true.
+
+&lt;/p&gt;
+
+&lt;h3&gt;Dynamic Table Row Expansion&lt;/h3&gt;
+
+&lt;p&gt;One of the neat things about [cpan://HTML::Embperl] is that you
+can load up an array with some data and have it loop across the data
+to create table rows. In [cpan://HTML_Tree] I will only show parts
+of the HTML here, so you can get an idea of how [cpan://HTML_Tree]
+allows you to do the same thing.
+
+&lt;code&gt;
+
+&lt;tr class=&quot;next_row&quot;&gt;
+&lt;td class=text::USER&gt;billy_bob
+&lt;td class=text::PID&gt;123
+&lt;td class=text::CPU&gt;456
+&lt;td class=text::MEM&gt;789
+&lt;td class=text::TIME&gt;101
+&lt;td class=text::COMMAND&gt;666
+&lt;/tr&gt;
+
+sub next_row {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    return 1 if $is_end_tag;
+    my $row = shift @{$this-&gt;{ps_table}};
+    return 0 if !$row;
+    my @row = split /\s+/, $row;
+    @{$this}{qw(USER PID CPU MEM TIME COMMAND)} =
+    (@row[0..3],@row[9,10]);
+
+    return 1;
+}
+
+&lt;/code&gt;
+
+Basically the way this gets unrolled out into a bunch of table rows is
+handled by a few keys line. First 
+&lt;code&gt;    return 1 if $is_end_tag;&lt;/code&gt;
+What this is saying is: &quot;When you, the HTML parser sees at tr end tag,
+reparse the tr tag, thus recalling the CLASS attribute. This way, I
+can get another crack at creating another table row&quot;. Next:
+
+&lt;code&gt;
+    my $row = shift @{$this-&gt;{ps_table}};
+    return 0 if !$row;
+&lt;/code&gt;
+
+Here we try to get another line from the ps command. If there are no
+more lines, then we return 0 and the HTML parser knows that this
+element can now be skipped and document processing can continue.
+
+&lt;p&gt;Otherwise, we simply load the fields of the ps command into parts
+of the hashref so that we can print them as individual td elements.&lt;/p&gt;
+
+&lt;/p&gt;
+
+&lt;p&gt;
+So now you should have a good feel for how table rows can be expanded
+dynamically. By dynamic, I mean that the HTML and webserver had no
+predefined notions of how many rows were going to come back. It was
+only by using &lt;code&gt;next_row()&lt;/code&gt; in a callback fashion that it
+finally gave [cpan://HTML_Tree] the go-ahead to quit churning out rows.
+&lt;/p&gt;
+
+&lt;h3&gt;Dynamic Table Rows and Data via Reformed Lists&lt;/h3&gt;
+
+&lt;p&gt;Our final example in this set extends this idea one step
+further. In this case, not only are the number of rows dynamically
+determined but the number of elements &lt;I&gt;within a row&lt;/I&gt;. And this is
+trivial with [cpan://HTML_Tree] we simply make the td callback
+return 0 when we have no more row elements and the tr callback do the
+same.&lt;/p&gt; 
+
+&lt;code&gt;
+
+
+HTML
+
+&lt;html&gt;
+&lt;head&gt;
+&lt;h3&gt;The Reformed Data&lt;/h3&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;The Reformed Data&lt;/h1&gt;
+
+&lt;P&gt;You requested to have your data formatted into
+&lt;B CLASS=show_no_rows&gt;300,00&lt;/B&gt; columns:
+
+&lt;P&gt;And here is your wonderful data:
+&lt;B CLASS=show_data&gt;blah blah blah&lt;/B&gt;
+
+&lt;P&gt;And now displayed as a table:
+&lt;table class=reform_data&gt;
+&lt;tr class=table_row&gt;&lt;td class=td&gt;HOHOHO&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+
+
+Perl
+
+package index;
+
+sub new {
+    my $that = shift;
+    my $class = ref( $that ) || $that;
+    my $this = {
+    class_map =&gt; {
+        show_no_rows =&gt; \&amp;amp;amp;amp;amp;show_no_rows,
+	    show_data =&gt; \&amp;amp;amp;amp;amp;show_data,
+	        reform_data =&gt; \&amp;amp;amp;amp;amp;reform_data,
+		    table_row =&gt; \&amp;amp;amp;amp;amp;table_row,
+		        td =&gt; \&amp;amp;amp;amp;amp;td,
+            },
+            # other stuff you want here ...
+    };
+    return bless $this, $class;
+}
+
+sub show_no_rows {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    return 0 if $is_end_tag;
+
+    $this-&gt;{rows}  = $this-&gt;{ r }-&gt;param('no_rows');
+    ($node-&gt;children())[0]-&gt;text( $this-&gt;{rows} );
+    return 1;
+}
+
+sub show_data {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    return 0 if $is_end_tag;
+    $this-&gt;{data} = [ split /\s+/, $this-&gt;{ r }-&gt;param('data') ];
+    ($node-&gt;children())[0]-&gt;text( $this-&gt;{r}-&gt;param('data' ) );
+
+    return 1;
+}
+
+sub reform_data  {
+    use Array::Reform;
+    my( $this, $node, $class, $is_end_tag ) = @_;
+
+    return 0 if $is_end_tag;
+
+    warn &quot;no_rows: $this-&gt;{rows}&quot;;
+
+    $this-&gt;{reform_data} = 
+    [ Array::Reform-&gt;reform($this-&gt;{rows}, $this-&gt;{data} ) ];
+
+    use Data::Dumper;
+    warn Data::Dumper-&gt;Dump([$this-&gt;{reform_data}],['reform_data']);
+        
+    return 1;
+}
+
+
+sub table_row  {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    warn 'table_row';
+    return 1 if $is_end_tag;
+
+    my $rows= $this-&gt;{rows};
+    $this-&gt;{td} = shift @{$this-&gt;{reform_data}};
+    warn &quot;THIS_TD: @{$this-&gt;{td}}&quot;;
+    return 0 if !$this-&gt;{td};
+
+    return 1;
+}
+
+sub td  {
+    my( $this, $node, $class, $is_end_tag ) = @_;
+    warn 'td';
+    return 1 if $is_end_tag;
+
+    my $rows= $this-&gt;{rows};
+    my $td = shift @{$this-&gt;{td}};
+
+    return 0 if !$td;
+
+    ($node-&gt;children())[0]-&gt;text($td);
+
+    return 1;
+}
+
+1;
+
+&lt;/code&gt;
+
+
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>107656</node_id>
+  <author_user>10395</author_user>
+  <title>Highly Orthogonal Web Application Development with HTML_Tree</title>
+  <createtime>2001-08-24 18:03:13</createtime>
+  <nodeupdated>2005-08-13 02:54:40</nodeupdated>
+</node>

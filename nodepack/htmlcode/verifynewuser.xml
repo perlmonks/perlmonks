@@ -1,0 +1,56 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>490332</node_id>
+  <author_user>357600</author_user>
+  <title>verifyNewUser</title>
+  <createtime>2005-09-08 17:31:41</createtime>
+  <code>my( $user, $passwd, $salt, $svU )= @_;
+my $sql =     sprintf( 'title=%s and passwd=%s',
+        map $DB-&gt;quote($_), $user, $passwd );
+
+my $proto= $DB-&gt;sqlSelectHashref(
+    'title, passwd, realname, email',
+    'newuser',
+    $sql,
+);
+
+return   if  ! $proto  ||  ! $proto-&gt;{title};
+my $new_id= $DB-&gt;insertNode(
+    $proto-&gt;{title},
+    $DB-&gt;getType('user'),
+    -1,
+    $proto,
+);
+
+my $NEWUSER= getNodeById( $new_id );
+$NEWUSER-&gt;{author_user}= $new_id;
+$DB-&gt;updateNode( $NEWUSER, -1 );
+
+my $SETTINGS = getVars( $NEWUSER );
+for (
+    #[ htmlerror	=&gt; 3 ],
+    [ htmlnest	=&gt; 'on' ],
+    [ htmlpreview	=&gt; 4 ],
+    [ nullvote    =&gt; 'on' ],
+    [ msgonreply  =&gt; 'on' ],
+    [ preferred_theme =&gt; 1068 ], # Red Theme
+) {
+    $SETTINGS-&gt;{$_-&gt;[0]} = $_-&gt;[1];
+};
+setVars( $NEWUSER, $SETTINGS );
+
+htmlcode('createscratchpad','',$new_id);
+
+$HTMLVARS{newuser}= $new_id;
+
+$DB-&gt;sqlInsert('emailpwd', { 
+     user_id =&gt; $new_id,
+     ip =&gt; $ENV{REMOTE_ADDR},
+     email =&gt; $proto-&gt;{email},
+     reason =&gt; 'New user'
+});
+
+$$svU= $NEWUSER;
+</code>
+  <nodeupdated>2005-09-08 13:31:41</nodeupdated>
+</node>

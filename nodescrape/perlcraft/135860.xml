@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="135860" title="Multi-Format Log Parser - Version 2.0" created="2002-01-02 23:02:21" updated="2005-07-30 14:04:42">
+<type id="121">
+perlcraft</type>
+<author id="115954">
+cjensen</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+
+#############################
+#
+# Version 2.0
+#
+# A simple multi-format log parser which is intended to
+# to be used as a filter.  Could be faster, but it does
+# allow you to define a pretty output format.
+#
+# Author: Chris Jensen
+#
+# Update:
+#
+#     - If log format is unspecified, an attempt is
+#       made to determine the closest matching format
+#       by analyzing a log entry.
+#
+#     - Reduced amount of code; Sub-formats defined
+#       similar to log formats; Minor changes.
+#
+
+use Getopt::Long;
+
+my %optctl;
+GetOptions (\%optctl, "type|t=s", "pattern|p=s");
+
+
+my $log_formats = {
+  'common'   =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+)}, [qw(h l u t r c b)] ],
+  'virtual'  =&gt; [ qr{(\S+) (\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+)}, [qw(v h l u t r c b)] ],
+  'combined' =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+) \"([^\"]*)\" \"([^\"]*)\"}, [qw(h l u t r c b R A)] ],
+  'referer'  =&gt; [ qr{(\S+) \-\&gt; (\S+)}, [qw(R r)] ],
+  'agent'    =&gt; [ qr{(\S+)}, [qw(A)] ],
+  'extended' =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+) \"([^\"]*)\" \"([^\"]*)\" (\d+) (\d+)}, [qw(h l u t r c b R A P T)] ],
+  'custom'   =&gt; [ qr{(\S+) (\S+) (\S+) \[([^\]]*)\] \"([^\"]*)\" (\d+) (\d+) \"([^\"]*)\" \"([^\"]*)\" (\d+)}, [qw(h l u t r c b A R T)] ],
+};
+
+
+my $type = $optctl{type} || 'unknown';
+
+my $pattern = $optctl{pattern} or usage();
+
+my ($format, $control) = @{$log_formats-&gt;{$type}};
+
+my @pats;
+
+map { $_ =~ /^([^a-zA-Z\_\%]*)(.)/ &amp;&amp; push(@pats, $2) } (split(/\%/, $pattern));
+
+my $outpat = $pattern . "\n";
+$outpat =~ s/(\%[^a-zA-Z\_\%]*)([a-zA-Z\_])/$1s/g;
+
+
+# Formats and sub-formats are now defined similarly
+
+my $sub_formats = {
+  't' =&gt; [ qr{(\d+)\/(\w+)\/(\d+)\:(\d+)\:(\d+)\:(\d+)\s}, [qw(d m y H M S)] ],
+  'r' =&gt; [ qr{(\w+)\s([^\?]*)\??([^\s]*)?\s(.*)}, [qw(a f q p)] ],
+  'u' =&gt; [ qr{(\w*)\-(\w*)}, [qw(s i)] ],
+  'R' =&gt; [ qr{.*\:\/\/([^\/]+)(\/.*)}, [qw(o F)] ]
+};
+
+
+while(&lt;&gt;) {
+
+    # Attempt to automatically determine log type/format
+    # Pick the matching format with the most control entities
+
+    if ($type eq 'unknown') {
+	my ($last, $t, $p);
+	while (($t, $p) = each(%{$log_formats})) {
+            my ($f, $c) = @{$p};
+	    if (/$f/ &amp;&amp; scalar @{$c} &gt; $last) {
+		$last = scalar @{$c};
+		$format = $f;
+		$control = $c;
+		$type = $t;
+	    }
+	}
+        die "Can't auto-determine log type\n" if ($type eq 'unknown');
+    }
+
+    my @vals;
+    my %info;
+    if (/$format/) {
+        my $x = 0;
+
+        foreach my $ctl (@{$control}) {
+            $info{$ctl} = ${++$x};
+
+            my ($sfmt, $sctl) = @{$sub_formats-&gt;{$ctl}};
+
+            if (defined($sfmt)) {
+               my $y = 0;
+               $info{$ctl} =~ /$sfmt/ &amp;&amp;
+                  map { $info{$_} = ${++$y} } @{$sctl};
+            }
+	}
+
+	map { push(@vals, $info{$_}) } @pats;
+
+	printf $outpat, @vals;
+    }
+}
+
+
+sub usage {
+
+print qq{
+usage: logparse [-t=&lt;type&gt;] -p=&lt;pattern&gt;
+
+example: tail -50 access_log | logparse -t=extended -p="%H:%M  %-15o  %f"
+
+Formatting characters:
+
+  v   - The virtual host name/address
+  h   - The host IP name/address
+  l   - The remote logname
+  u   - Remote User/Session
+  t   - The time of the request
+  r   - The full request
+  c   - The HTTP code (302, 200, etc)
+  b   - Bytes
+  R   - Referrer string
+  A   - User Agent string
+  P   - Process ID
+  T   - Time taken in seconds
+
+Request string breakdown:
+
+  a   - Action/Method (GET, POST, etc)
+  f   - File path
+  q   - Query string
+  p   - HTTP protocol version
+
+Time of request breakdown:
+
+  d   - Day of the month
+  m   - Month (Apr, May, etc)
+  y   - Year
+  H   - Hour
+  M   - Minute
+  S   - Second
+
+User Session breakdown:
+
+  s   - Session ID
+  i   - User ID
+
+Referrer string breakdown:
+
+  o   - Host of referrer
+  F   - File path of referrer
+
+};
+
+   exit(0);
+
+}</field>
+</data>
+</node>

@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="215789" title="Wx ControlTutorial : Wx::ProgressDialog" created="2002-11-26 00:21:44" updated="2005-08-15 14:02:22">
+<type id="956">
+perltutorial</type>
+<author id="24736">
+boo_radley</author>
+<data>
+<field name="doctext">
+&lt;p&gt;&lt;h1&gt;Wx Control Cookbook :&lt;/h1&gt;
+&lt;H2&gt;the &lt;i&gt;Wx::ProgressDialog&lt;/i&gt;&lt;/h2&gt;&lt;br/&gt;
+The Wx toolkit contains several objects that are designed to make a
+programmer's life less difficult when it comes to communicating with a
+user. These objects are primarily dialogs, such as the Wx::ColourDialog,
+Wx::DirDialog, Wx::FileDialog, and Wx::TextEntryDialog, among
+others.&lt;/p&gt;
+
+&lt;p&gt;&lt;a href="http://boo.radley.home.attbi.com/pd.jpg"&gt;Here is an example 
+&lt;/a&gt; of a sample progress dialog. We can see the WxWindows developers
+have put together a collection of useful GUI primitives into the dialog,
+We have a configurable line of text (set to "processing item" in the
+screenshot), a progress meter, and 3 lines of text showing elapsed time,
+the estimated total time for the progress meter to reach 100 percent
+full, and the remaining time. Additionally, there's a button marked
+"Cancel". It may seem that this is a lot of information for, say,
+displaying the progress of a file copy, but this dialog has several
+configuration options which can help a developer make its appearance
+exactly what is required.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;h2&gt;Some Source Code&lt;/h2&gt;
+&lt;readmore&gt;
+		&lt;tt&gt;
+		1 : #!/usr/bin/perl &lt;br/&gt;
+		2 :  &lt;br/&gt;
+		3 : use Wx; &lt;br/&gt;
+		4 : package MyApp; &lt;br/&gt;
+		5 : use strict; &lt;br/&gt;
+		6 : use vars qw(@ISA); &lt;br/&gt;
+		7 : @ISA=qw(Wx::App); &lt;br/&gt;
+		8 : sub OnInit { &lt;br/&gt;
+		9 : &amp;nbsp;&amp;nbsp;my($this) = @_; &lt;br/&gt;
+		10 : &amp;nbsp;&amp;nbsp;my($frame) = MyFrame-&gt;new("Progress bar demo", Wx::Point-&gt;new(50, 50), Wx::Size-&gt;new(450, 350)); &lt;br/&gt;
+		11 : &amp;nbsp;&amp;nbsp;$this-&gt;SetTopWindow($frame); &lt;br/&gt;
+		12 : &amp;nbsp;&amp;nbsp;$frame-&gt;Show(1); &lt;br/&gt;
+		13 : &amp;nbsp;&amp;nbsp;1; &lt;br/&gt;
+		14 : } &lt;br/&gt;
+		15 :  &lt;br/&gt;
+		16 : package MyFrame; &lt;br/&gt;
+		17 :  &lt;br/&gt;
+		18 : use strict; &lt;br/&gt;
+		19 : use vars qw(@ISA); &lt;br/&gt;
+		20 :  &lt;br/&gt;
+		21 : @ISA=qw(Wx::Frame); &lt;br/&gt;
+		22 :  &lt;br/&gt;
+		23 : use Wx::Event qw(EVT_MENU); &lt;br/&gt;
+		24 : use Wx qw(wxBITMAP_TYPE_ICO wxMENU_TEAROFF); &lt;br/&gt;
+		25 :  &lt;br/&gt;
+		26 : sub new { &lt;br/&gt;
+		27 : &amp;nbsp;&amp;nbsp;my($class) = shift; &lt;br/&gt;
+		28 : &amp;nbsp;&amp;nbsp;my($this) = $class-&gt;SUPER::new(undef, -1, $_&amp;#91;0&amp;#93;, $_&amp;#91;1&amp;#93;, $_&amp;#91;2&amp;#93;); &lt;br/&gt;
+		29 : &amp;nbsp;&amp;nbsp;my($mfile) = Wx::Menu-&gt;new(undef, wxMENU_TEAROFF); &lt;br/&gt;
+		30 :  &lt;br/&gt;
+		31 : &amp;nbsp;&amp;nbsp;my($ID_TEST, $ID_EXIT) = (1, 2); &lt;br/&gt;
+		32 : &amp;nbsp;&amp;nbsp;$mfile-&gt;Append($ID_TEST, "&amp;Test Progress Dialog\tCtrl-T", "Display a test dialog"); &lt;br/&gt;
+		33 : &amp;nbsp;&amp;nbsp;$mfile-&gt;Append($ID_EXIT, "E&amp;xit\tAlt-X", "Quit this program"); &lt;br/&gt;
+		34 :  &lt;br/&gt;
+		35 : &amp;nbsp;&amp;nbsp;my($mbar) = Wx::MenuBar-&gt;new(); &lt;br/&gt;
+		36 : &amp;nbsp;&amp;nbsp;$mbar-&gt;Append($mfile, "&amp;Test"); &lt;br/&gt;
+		37 : &amp;nbsp;&amp;nbsp;$this-&gt;SetMenuBar($mbar); &lt;br/&gt;
+		38 : &amp;nbsp;&amp;nbsp;EVT_MENU($this, $ID_TEST, \&amp;OnTest); &lt;br/&gt;
+		39 : &amp;nbsp;&amp;nbsp;EVT_MENU($this, $ID_EXIT, \&amp;OnQuit); &lt;br/&gt;
+		40 : &amp;nbsp;&amp;nbsp;$this; &lt;br/&gt;
+		41 : } &lt;br/&gt;
+		42 :  &lt;br/&gt;
+		43 : sub OnQuit { &lt;br/&gt;
+		44 : &amp;nbsp;&amp;nbsp;my($this, $event) = @_; &lt;br/&gt;
+		45 : &amp;nbsp;&amp;nbsp;$this-&gt;Close(1); &lt;br/&gt;
+		46 : } &lt;br/&gt;
+		47 :  &lt;br/&gt;
+		48 : use Wx qw(wxOK wxICON_INFORMATION wxVERSION_STRING); &lt;br/&gt;
+		49 : use Wx qw(:progressdialog); &lt;br/&gt;
+		50 :  &lt;br/&gt;
+		&lt;b&gt;51 : sub OnTest { &lt;br/&gt;
+		52 : &amp;nbsp;&amp;nbsp;my($this, $event) = @_; &lt;br/&gt;
+		53 : &amp;nbsp;&amp;nbsp;my($max) = 10; &lt;br/&gt;
+		54 : &amp;nbsp;&amp;nbsp;my $dialog = Wx::ProgressDialog-&gt;new('Progress dialog example', &lt;br/&gt;
+		55 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;'An example', &lt;br/&gt;
+		56 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;$max, $this, &lt;br/&gt;
+		57 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;wxPD_CAN_ABORT| &lt;br/&gt;
+		58 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;wxPD_APP_MODAL|wxPD_ELAPSED_TIME| &lt;br/&gt;
+		59 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;wxPD_ESTIMATED_TIME| &lt;br/&gt;
+		60 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;wxPD_REMAINING_TIME); &lt;br/&gt;
+		61 :  &lt;br/&gt;
+		62 : &amp;nbsp;&amp;nbsp;my($usercontinue) = 1; &lt;br/&gt;
+		63 : &amp;nbsp;&amp;nbsp;foreach (1 .. $max) { &lt;br/&gt;
+		64 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;$usercontinue = $dialog-&gt;Update($_,"Processing item $_"); &lt;br/&gt;
+		65 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;#check for user interruption, then move on to data processing &lt;br/&gt;
+		66 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;last if $usercontinue==0; &lt;br/&gt;
+		67 : &amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;sleep (1); #your code here!&lt;br/&gt;
+		68 : &amp;nbsp;&amp;nbsp;} &lt;br/&gt;
+		69 : &amp;nbsp;&amp;nbsp;$dialog-&gt;Destroy;   &lt;br/&gt;
+		70 : }&lt;/b&gt;&lt;br/&gt;
+		71 :  &lt;br/&gt;
+		72 : package main; &lt;br/&gt;
+		73 :  &lt;br/&gt;
+		74 : my($app) = MyApp-&gt;new(); &lt;br/&gt;
+		75 : $app-&gt;MainLoop(); &lt;br/&gt;
+		&lt;/tt&gt;&lt;br/&gt;		
+Most of this is boilerplate taken from Mattai Barbon's minimal.pl, a
+small "hello world"-esque example script. Pressing Ctrl-T or clicking on
+the Test menu, then Test Progress Dialog menu item will bring up the
+sample dialog.
+ The real work takes place in the sub OnTest (lines 51-70), where our example progress
+dialog is initialized and displayed.  Line 52 initializes $this, and 
+$event, variables passed by Wx to our sub because the sub is an event 
+handler. $this is a reference to the window or frame that the event is
+acting upon (it may be easier if you think of $this as $self) and $event
+contains a Wx::Event object. Line 53 sets
+up the number of dummy items we'll be using to drive the process dialog.
+Lines 54 to 60 create a new Wx::ProgressDialog. This particular example
+has all of the options this particular sort of dialog can possess
+enabled. Let's examine the parameters we're passing to the constructor :
+&lt;ol&gt;
+&lt;li&gt;
+	We've got a string value that will be displayed in the
+	titlebar of the dialog. Our example value is set to "Progress Dialog 
+	Example"
+&lt;/li&gt;
+&lt;li&gt;
+	"An Example" is what the dialog will show as the initial line of 
+	text. This is a good place for, e.g., file names, tasks, whatever 
+	list of things are being processed.
+&lt;/li&gt;
+&lt;li&gt;The maximum value that the progress meter is working towards. This
+is used with the Update method, described below&lt;/li&gt;
+&lt;li&gt;A reference to a Wx::Frame (or potentially a Wx::Window) object. 
+Should be set to $this (See above)&lt;/li&gt;
+&lt;li&gt;Option flags. These flags can consist of any of the following
+	&lt;ul&gt;
+		&lt;li&gt;&lt;tt&gt;wxPD_APP_MODAL&lt;/tt&gt;The dialog will be modal to all windows
+		that have $this as a parent, and to the dialog's parent window (the 
+		$this window). If this option is not set, the dialog &lt;i&gt;will still 
+		be modal to its parent&lt;/i&gt;, but not to sibling windows. 
+		&lt;li&gt;&lt;tt&gt;wxPD_AUTO_HIDE&lt;/tt&gt; When the progress meter reaches its
+		maximum value, the dialog will close itself.
+		&lt;li&gt;&lt;tt&gt;wxPD_CAN_ABORT&lt;/tt&gt;Adds a "Cancel" button to the progress
+		dialog. When this button is pressed by the user, the dialog will
+		close. This action can be checked by examining the return value of
+		the Update method (explained below). This does not cancel any of the
+		script's processing, but simply flags the user's desire to end
+		processing.
+		&lt;/li&gt;
+		&lt;li&gt;&lt;tt&gt;wxPD_ELAPSED_TIME&lt;/tt&gt;, &lt;tt&gt;wxPD_ESTIMATED_TIME&lt;/tt&gt;, and
+		&lt;tt&gt;wxPD_REMAINING_TIME&lt;/tt&gt; These options will include the time
+		displays in the dialog. 	
+	&lt;/ul&gt;
+&lt;/ol&gt;
+If the constructor succeeds, the dialog displays automatically. &lt;br/&gt;
+Lines 62-68 are where the script processes data, and updates the dialog.
+Line 62 creates $usercontinue, a variable which will signal the user's
+interruption of the dialog (see wxPD_CAN_ABORT, above).
+Line 64 gives us the only method of communicating to the dialog, the
+&lt;tt&gt;Update method&lt;/tt&gt;. Update() takes 2 parameters 
+&lt;ol&gt;
+	&lt;li&gt;A numeric value. Should be a positive value, and equal or less
+	than the the maximum set in the constructor. Setting this value above
+	the maximum will have unintended consequences.
+	&lt;/li&gt;
+	&lt;li&gt;A string value used to update the text message in the dialog. This 
+	parameter is optional. If it's missing, the text message will remain
+	the same as when the dialog was created, or what it was set to during
+	the last update.
+	&lt;/li&gt;
+&lt;/ol&gt;
+Line 65 checks for $usercontinue. If it's set to zero, we exit the loop,
+ending our processing early. In a weightier script, you may have to
+perform clean up duties if this occurs. You may also choose to remove
+$usercontinue from scripting, and check the return value of Update()
+directly in an if statement.
+Line 66 shows where any real processing would occur. Finally, line 68
+calls Destroy, and cleans up the dialog.
+There is another method to Wx::ProgressDialog not discussed here, called
+&lt;tt&gt;Resume&lt;/tt&gt;, which should only be called after the user's chosen to abort the
+dialog. &lt;tt&gt;Resume&lt;/tt&gt; will redisplay the dialog from the point when
+the user clicked "Cancel". It is still the programmer's duty to make
+sure that the data being processed remains in sync with the dialog. Do
+not call Resume if you've already called Destroy on a dialog.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;h2&gt;An example&lt;/h2&gt;&lt;br/&gt;
+Let's say we've created the world's greatest GUI file copying utility,
+ever. We'd like to have the app display which file it's currently
+copying, and give the user the chance to stop copying if he chooses. We
+also want to show the estimated time remaining to complete the copying,
+but aren't entirely concerned about the elapsed time, nor the total time
+the copying should take. We also have an array, &lt;tt&gt;@items&lt;/tt&gt;, which
+contains the names of the files we're copying. Assume that we're looking
+in a sub called OnCopy, and $this is a reference to our parent window.&lt;br /&gt;
+Here's how the dialog would be created :
+&lt;tt&gt;
+my $progress = Wx::ProgressDialog-&gt;new( 'Copying files',&lt;br/&gt;
+$items&amp;#91;0&amp;#93;,scalar @items, $this, 
+wxPD_CAN_ABORT | wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_REMAINING_TIME); 
+&lt;/tt&gt;
+&lt;br&gt;
+and here's where we copy the files, and update the dialog :
+&lt;tt&gt;
+
+foreach (0..$#items) {&lt;br/&gt;
+    my $fn = $item&amp;#91;$_&amp;#93;];&lt;br/&gt;
+    my $destination = "$dir/$fn";&lt;br/&gt;
+    last if $progress-&gt;Update ( $_, "copying $fn to $destination") == 0;&lt;br/&gt;
+    copy ($fn, $destination); # include some GUI error handling later.&lt;br/&gt;
+    Wx::Yield(); # redraw, etc.&lt;br/&gt;
+}&lt;br/&gt;   
+&lt;/tt&gt;
+While it might seem unwieldy to use &lt;tt&gt;(0..$#items)&lt;/tt&gt; as the control
+for the loop, the alternative would be something like &lt;br/&gt;
+&lt;tt&gt;
+my $i=0; # loop incr&lt;br/&gt;
+foreach (@items) {&lt;br/&gt;		
+    my $fn = $item&amp;#91;$_&amp;#93;;&lt;br/&gt;
+    my $destination = "$dir/$fn";&lt;br/&gt;
+    last if $progress-&gt;Update ( $i, "copying $fn to $destination") == 0;&lt;br/&gt;
+    copy ($fn, $destination); # include some GUI error handling later.&lt;br/&gt;
+    Wx::Yield(); # redraw, etc.&lt;br/&gt;
+    $i++;&lt;br/&gt;
+}   
+&lt;/tt&gt;
+This has the disadvantage of using a temporary variable ($i) where none
+is needed. However, if you're dealing with a nested data structure, it
+may save you keystrokes to do the latter.
+
+&lt;h2&gt;In summary&lt;/h2&gt;
+This control is an excellent way to provide feedback to a user during
+list processing, not only because of the progress bar, but because a
+programmer can contextualize the progress bar with textual information
+and time data. There is a small amount of overhead that can occur when
+trying to implement schemes to use &lt;tt&gt;Resume&lt;/tt&gt;, but overall,
+Wx::ProgressBar is a fast and worth widget in a GUI programmers toolkit. 
+
+&lt;h2&gt;The Code for Your Downloading Pleasure&lt;/h2&gt; &lt;br/&gt;
+I chose to wrap the above code snippets in tt tags rather than code tags
+so I could use line numbering and provide several examples without
+having to worry about problems downloading code. Presented here is code
+tag wrapped source :
+&lt;code&gt;#!/usr/bin/perl
+
+use Wx;
+package MyApp;
+use strict;
+use vars qw(@ISA);
+@ISA=qw(Wx::App);
+sub OnInit {
+  my($this) = @_;
+  my($frame) = MyFrame-&gt;new("Progress bar demo", Wx::Point-&gt;new(50, 50), Wx::Size-&gt;new(450, 350));
+  $this-&gt;SetTopWindow($frame);
+  $frame-&gt;Show(1);
+  1;
+}
+
+package MyFrame;
+
+use strict;
+use vars qw(@ISA);
+
+@ISA=qw(Wx::Frame);
+
+use Wx::Event qw(EVT_MENU);
+use Wx qw(wxBITMAP_TYPE_ICO wxMENU_TEAROFF);
+
+sub new {
+  my($class) = shift;
+  my($this) = $class-&gt;SUPER::new(undef, -1, $_[0], $_[1], $_[2]);
+  my($mfile) = Wx::Menu-&gt;new(undef, wxMENU_TEAROFF);
+
+  my($ID_TEST, $ID_EXIT) = (1, 2);
+  $mfile-&gt;Append($ID_TEST, "&amp;Test Progress Dialog\tCtrl-T", "Display a test dialog");
+  $mfile-&gt;Append($ID_EXIT, "E&amp;xit\tAlt-X", "Quit this program");
+
+  my($mbar) = Wx::MenuBar-&gt;new();
+  $mbar-&gt;Append($mfile, "&amp;Test");
+  $this-&gt;SetMenuBar($mbar);
+  EVT_MENU($this, $ID_TEST, \&amp;OnTest);
+  EVT_MENU($this, $ID_EXIT, \&amp;OnQuit);
+  $this;
+}
+
+sub OnQuit {
+  my($this, $event) = @_;
+  $this-&gt;Close(1);
+}
+
+use Wx qw(wxOK wxICON_INFORMATION wxVERSION_STRING);
+use Wx qw(:progressdialog);
+
+sub OnTest {
+  my($this, $event) = @_;
+  my($max) = 10;
+  my $dialog = Wx::ProgressDialog-&gt;new('Progress dialog example',
+                                        'An example',
+                                        $max, $this,
+                                        wxPD_CAN_ABORT|
+                                        wxPD_APP_MODAL|wxPD_ELAPSED_TIME|
+                                        wxPD_ESTIMATED_TIME|
+                                        wxPD_REMAINING_TIME);
+
+  my ($usercontinue) = 1;
+  foreach (1 .. $max) {
+      $usercontinue = $dialog-&gt;Update($_);
+      print $usercontinue;
+      last if $usercontinue==0;
+      sleep (1);
+  }
+  $dialog-&gt;Destroy;  
+}
+
+package main;
+
+my($app) = MyApp-&gt;new();
+$app-&gt;MainLoop();&lt;/code&gt;
+&lt;/p&gt;</field>
+</data>
+</node>

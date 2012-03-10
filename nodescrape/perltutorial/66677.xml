@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="66677" title="Variable Scoping in Perl: the basics" created="2001-03-23 16:39:27" updated="2005-08-15 16:22:07">
+<type id="956">
+perltutorial</type>
+<author id="23317">
+arturo</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Scoping&lt;/h1&gt;
+
+&lt;p&gt;One thing you need to know to master Perl is how to deal with the scoping
+mechanisms it provides you with. You want globals?  You got 'em!  You want to avoid "collisions" (two variables with the same name clobbering each other)?  You got it, and there's more than one way to manage the trick.  But Perl's scoping rules aren't always so well understood, and it's not just the difference between &lt;code&gt;my&lt;/code&gt; and &lt;code&gt;local&lt;/code&gt; that trips people up, although clearing that up is going to be one of my purposes.
+
+&lt;p&gt;I've learned a lot from [http://perl.plover.com/FAQs/Namespaces.html|Coping
+with Scoping] and sections in various Perl books ( e.g.[Effective Perl Programming] ).  So credit has to go to those authors
+([Dominus] for the first, and Joseph N. Hall and [merlyn] for the second.  [Dominus] also provided some helpful corrections to errors (some egregious) to an earlier version of this tutorial, so he should get at least second-author credit.  However, the documentation that comes with your local perl installation is always the most up-to-date you can get, so don't be afraid to use &lt;code&gt;perldoc perlop&lt;/code&gt; and perldoc -f foo&lt;/code&gt;! on your own system.&lt;/p&gt;
+
+&lt;READMORE&gt;
+&lt;h3&gt;Summary&lt;/h3&gt;
+&lt;p&gt;Yes, at the beginning ...
+&lt;ul&gt;
+ &lt;li&gt;&lt;code&gt;my&lt;/code&gt; provides [lexical scoping]; a variable declared with &lt;code&gt;my&lt;/code&gt; is visible only within the block in which it is declared.
+ &lt;li&gt;Blocks of code are hunks within curly braces &lt;code&gt;{}&lt;/code&gt;; files are blocks.
+ &lt;li&gt;Use &lt;code&gt;use vars qw([list of var names])&lt;/code&gt; or &lt;code&gt;our ([var_names])&lt;/code&gt; to create package globals.
+ &lt;li&gt;&lt;code&gt;local&lt;/code&gt; saves away the value of a package global and substitutes a new value for all code within &lt;i&gt;and&lt;/i&gt; called from the block in which the &lt;code&gt;local&lt;/code&gt; declaration is made.
+ &lt;/ul&gt;
+
+&lt;h2&gt;Namespaces&lt;/h2&gt;
+&lt;p&gt;A basic idea, although one you need not master to write many scripts, is the
+notion of a &lt;i&gt;namespace&lt;/i&gt;.  Global variables (variables not declared with &lt;code&gt;my&lt;/code&gt; live in a package.  A package
+provides a &lt;i&gt;namespace&lt;/i&gt;, which I'm going to explain by reference to the
+metaphor of a family name.  In English speaking countries, "Robert" is a
+reasonably common name, so you (assuming you live in one) probably know more
+than one "Robert."  Usually, for us humans, the current conversational context is enough to determine for our audience which Robert we're talking about (my chums down at the pool hall know Robert the darts genius, but at work, "Robert" is the CEO of our failing dot-com).  
+
+&lt;p&gt;Of course these people have &lt;i&gt;family&lt;/i&gt; names too (yes, those can be shared by different people as well -- but you can't expect this metaphor to be &lt;i&gt;perfect&lt;/i&gt; =), and if we wanted to be fully explicit we'd add that to allow our audience to determine &lt;i&gt;which&lt;/i&gt; Robert we are talking about.  &lt;code&gt;$Smith::Robert&lt;/code&gt; is a creature distinct from
+&lt;code&gt;$Jones::Robert&lt;/code&gt;.  When you have two different variables with the
+same (as it were) 'first name', you can explicitly declare which one you want to
+refer to, no matter where you are in your code, by using the full name of the variable.  
+&lt;p&gt;Use the &lt;code&gt;package&lt;/code&gt; operator to set the current package.
+When you put &lt;code&gt;package Smith&lt;/code&gt; in your code, you are, in
+effect, saying that every unqualified variable or function name should be
+understood to belong to the &lt;code&gt;Smith&lt;/code&gt; package.  To go with our
+metaphor, you're saying "in this bit of code, I want to talk about the
+&lt;code&gt;Smith&lt;/code&gt; family." 
+&lt;p&gt;Implicitly, there's a &lt;code&gt;package main;&lt;/code&gt; at the top of your scripts;
+that is, unless you explicitly declare a different package, all the variables
+you declare (keeping the caveat about &lt;code&gt;my&lt;/code&gt; in mind) will be in
+&lt;code&gt;main&lt;/code&gt;.  Variables that live in a package are reasonably called
+"package globals", because they are accessible by default to every operator and subroutine that lives in the same package (and, if you're explicit about their names, outside the package, too).  
+&lt;p&gt;Using packages makes accessing Perl variables sort of like travelling in different circles.  For example, at work, it's
+understood that "Robert" is "Robert Szywiecki", the boss.  At the pool hall,
+it's understood that "Robert" is "Robert Yamauchi", the darts expert.  Here's a
+little code to illustrate the use of packages:&lt;/p&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+package Szywiecki;
+
+$Robert = "the boss";
+
+sub terminate {
+  my $name = shift;
+  # the following line was updated on 2004-12-29 following on aristotle73's comment
+  print "$Robert has canned ${name}'s sorry butt\n";
+}
+
+terminate("arturo"); # prints "the boss has canned arturo's sorry butt"
+
+package main;
+
+# terminate("arturo"); # produces an error if you uncomment it
+&lt;/code&gt;
+&lt;p&gt;The variable &lt;code&gt;$Robert&lt;/code&gt;'s full name, as it 
+were, is &lt;code&gt;$Szywiecki::Robert&lt;/code&gt; (note how the &lt;code&gt;$&lt;/code&gt; 
+moves out to the front of the package name, indicating that 
+this is the scalar &lt;code&gt;Robert&lt;/code&gt; that lives in package &lt;code&gt;Szywiecki&lt;/code&gt;).  To code and, most importantly, subroutines in the &lt;code&gt;Szywiecki&lt;/code&gt; package, an unqualified &lt;code&gt;$Robert&lt;/code&gt; refers to &lt;code&gt;$Szywiecki::Robert&lt;/code&gt; -- &lt;i&gt;unless&lt;/i&gt; &lt;code&gt;$Robert&lt;/code&gt; has been 'masked' by &lt;code&gt;my&lt;/code&gt; or &lt;code&gt;local&lt;/code&gt; (more on that later).
+
+&lt;p&gt;Now, if you &lt;code&gt;use strict&lt;/code&gt; (and you should, you should, you should -- see [strict.pm], for example), you'll need to declare those global variables before you can use
+them, UNLESS you want to fully qualify them.  That's why the second (apparent)
+call to &lt;code&gt;terminate&lt;/code&gt; in the above example will fail.  It's expecting
+to find a subroutine &lt;code&gt;terminate&lt;/code&gt; in the &lt;code&gt;main&lt;/code&gt; package,
+but no such critter has been defined.  That is, &lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+
+$Robert = "the boss";  # error!
+print "\$Robert = $Robert\n";
+&lt;/code&gt;
+&lt;p&gt;will produce an error, whereas if we fully qualified the name (remember that
+implicit &lt;code&gt;package main&lt;/code&gt; in there), there's no problem:&lt;/p&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+
+$main::Robert = "the boss";
+print "\$main::Robert = $main::Robert\n";
+&lt;/code&gt;
+
+&lt;p&gt;To satisfy &lt;code&gt;strict 'vars'&lt;/code&gt; (the part of &lt;code&gt;strict&lt;/code&gt; that
+    enforces variable declaration), you have two options; they
+produce different results, and one is only available in perl 5.6.0 and
+later:&lt;/p&gt;
+&lt;ol&gt;
+ &lt;li&gt;&lt;code&gt;our ($foo, $bar)&lt;/code&gt; operator (in perl 5.6.0 and above)
+  declares &lt;code&gt;$foo&lt;/code&gt; to be a variable in the current package.
+ &lt;li&gt;&lt;code&gt;use vars qw($foo $bar)&lt;/code&gt; (previous versions, but still works in
+     5.6)  tells 'strict vars' that these variables are OK to use
+ without qualification in the current package.
+&lt;/ol&gt;
+&lt;p&gt;One difference between &lt;code&gt;our&lt;/code&gt; and and the 'older' &lt;code&gt;use vars&lt;/code&gt; is that &lt;code&gt;our&lt;/code&gt; provides &lt;i&gt;lexical scoping&lt;/i&gt; (more on which in the section on &lt;code&gt;my&lt;/code&gt; below).
+
+&lt;p&gt;Another difference is that with &lt;code&gt;use vars&lt;/code&gt;, you are expected to
+give an array of variable &lt;i&gt;names&lt;/i&gt;, not the variables themselves (as with
+    &lt;code&gt;our&lt;/code&gt;).  Both mechanisms allow you to use globals while still maintaining one of the chief benefits of &lt;code&gt;strict 'vars'&lt;/code&gt;: you are protected from accidently generating a new variable via a typo.  &lt;code&gt;strict 'vars'&lt;/code&gt; demands that your variables be explicitly declared (as in "here's a list of my package globals").  Both of these mechanisms allow you to do this with package globals.&lt;/p&gt;    
+
+&lt;p&gt;A thing to remember about packages (and potentially a bad thing, depending on how big a fan you are of "privacy") is that package globals aren't
+just global to that package, but they can be accessed from &lt;i&gt;anywhere in your
+code&lt;/i&gt;, as long as the names are fully qualified.  You can talk about
+Robert the darts expert at work, if you say "Robert Yamauchi" (warning: I didn't use strict here, but it's only for purposes of brevity!):&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+package Szyewicki;
+
+$Robert = "the boss";
+
+package PoolHall;
+
+$Robert = "the darts expert";
+
+package Sywiecki; # back to work!
+
+print "Here at work, 'Robert' is $Robert, but over at the pool hall, 'Robert'
+is $PoolHall::Robert\n";
+&lt;/code&gt;
+
+&lt;p&gt;See?  Understanding packages isn't really all that hard.  Generally, a
+package is like a family of variables (and subroutines!  the full name of that
+&lt;code&gt;terminate&lt;/code&gt; in the example above is
+&lt;code&gt;&amp;Szywiecki::terminate&lt;/code&gt; -- similar remarks apply to hashes and
+arrays, of course).  
+
+&lt;h2&gt;&lt;code&gt;my&lt;/code&gt; (and a little more on &lt;code&gt;our&lt;/code&gt;) &lt;i&gt;a.k.a.&lt;/i&gt; lexical scoping&lt;/h2&gt;
+&lt;p&gt;Variables declared with &lt;code&gt;my&lt;/code&gt; are not globals, although they can
+act sort of like them.  A main use of &lt;code&gt;my&lt;/code&gt; is to operate on a variable that's only of use within a loop or subroutine, but that's by no means where it ends.  Here are some basic points about &lt;code&gt;my&lt;/code&gt;
+&lt;ul&gt;
+ &lt;li&gt;A &lt;code&gt;my&lt;/code&gt; variable has a &lt;i&gt;block&lt;/i&gt; of code as its scope (i.e. the places in which it is accessible).  
+ &lt;li&gt;A block is often declared with braces &lt;code&gt;{}&lt;/code&gt;, but as far as Perl is concerned, a file is a block.  
+ &lt;li&gt;A variable declared with &lt;code&gt;my&lt;/code&gt; &lt;i&gt;&lt;b&gt;does not
+belong to any package&lt;/b&gt;&lt;/i&gt;, it 'belongs' only to its block
+ &lt;li&gt;Although you can name blocks (e.g. &lt;code&gt;BEGIN&lt;/code&gt;, with which you may already be familiar), you can't fully qualify the name of the block to get
+to the &lt;code&gt;my&lt;/code&gt; variable.  
+ &lt;li&gt;File-level &lt;code&gt;my&lt;/code&gt; variables are those which are declared in a file outside of any block within that file.
+ &lt;li&gt;You can't access a file-level &lt;code&gt;my&lt;/code&gt; variable from outside of the file in which it is declared (&lt;b&gt;unless&lt;/b&gt; you explicitly return it from a subroutine, for example).  
+&lt;/ul&gt;
+&lt;p&gt;As long as you're writing one-file scripts (e.g. ones that don't import modules), some of these points don't matter a great deal.  But if you're heavily 
+into "privacy" and "encapsulation", and if you write modules and OO modules you
+will be, you'll need to understand all of the above.&lt;/p&gt;
+
+&lt;p&gt;Here's some commented code to explain some of these points:
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+
+#remember we're in package main
+
+use vars qw($foo);
+
+$foo = "Yo!"; # sets $main::foo
+
+print "\$foo: $foo\n"; # prints "Yo!"
+
+my $foo = "Hey!"; # this is a file-level my variable!
+
+print "\$foo: $foo\n"; # prints "Hey!" -- new declaration 'masks' the old one
+
+{ # start a block
+  my $foo = "Yacht-Z";
+  print "\$foo: $foo\n"; 
+  # prints "Yacht-Z" -- we have a new $foo in scope.
+  print "\$main::foo: $main::foo\n"; 
+  # we can still 'see' $main::foo
+  subroutine();
+} # end that block
+
+print "\$foo: $foo\n"; # there it is, our file-level $foo is visible again!
+
+print "\$main::foo: $main::foo\n"; # whew!  $main::foo is still there!
+
+sub subroutine {
+  print "\$foo: $foo\n"; # prints "Hey!" -- as the script is written
+  # why?  Because the variable declared in the naked block
+  # is no longer in scope -- we have a new set of braces.
+  # but the file-level variable is still in scope, and
+  # still 'masks' the declaration of $main::foo
+}
+
+package Bar;
+
+print "\$foo: $foo\n"; # prints "Hey!" -- the my variable's still in scope
+# if we hadn't made that declaration above, this would be an error: the
+# interpreter would tell us that Bar::foo has not been defined.
+&lt;/code&gt;
+
+&lt;p&gt;As the bottom bit in the above example shows, because they don't live in any
+package, &lt;code&gt;my&lt;/code&gt; variables &lt;i&gt;can be&lt;/i&gt; visible even though a new package has been declared &lt;i&gt;because the block is the file&lt;/i&gt; (at least for these purposes)
+&lt;p&gt;Now the example above used a 'naked' block -- there's no control structure
+(e.g. &lt;code&gt;if&lt;/code&gt; or &lt;code&gt;while&lt;/code&gt;) involved.  But of course that
+makes no difference to the scoping.  
+&lt;p&gt;File-level &lt;code&gt;my&lt;/code&gt; variables &lt;i&gt;ARE&lt;/i&gt; accessible from within
+blocks defined within that file (as the example above shows) this is one way in
+which they're sort of like globals.  If, however, &lt;code&gt;subroutine&lt;/code&gt; had
+been defined in a different file, we would have a run-time error.  Once you
+know how &lt;code&gt;my&lt;/code&gt; works, you can see, just by looking at the syntax of
+the file, where a &lt;code&gt;my&lt;/code&gt; variable is going to be accessible.  This is
+one reason the scoping it provides is called "lexical scoping."  Here's a place
+where &lt;code&gt;use vars&lt;/code&gt; and the 'new' &lt;code&gt;our&lt;/code&gt; operator differ: if
+you specify &lt;code&gt;our $foo&lt;/code&gt; in package &lt;code&gt;Bar&lt;/code&gt; but &lt;i&gt;outside of an explicit block&lt;/i&gt;, you're in effect
+saying that (until some other scoping operator comes into play) occurrences of
+&lt;code&gt;$foo&lt;/code&gt; are to be understood as referring to
+&lt;code&gt;$Bar::foo&lt;/code&gt;.  This should illustrate the difference between &lt;code&gt;use vars&lt;/code&gt; and the newer &lt;code&gt;our&lt;/code&gt;: 
+&lt;code&gt;
+#~/usr/bin/perl -w
+
+use strict;
+
+our ($bob);
+use vars qw($carol);
+$carol = "ted";
+$bob = "alice";
+
+print "Bob =&gt; $bob, Carol =&gt; $carol\n";
+
+package Movie;
+
+print "Bob =&gt; $bob, Carol =&gt; $carol\n";
+&lt;/code&gt;
+&lt;p&gt;Note that having the second &lt;code&gt;print&lt;/code&gt; will produce an error, because &lt;code&gt;$carol&lt;/code&gt; is interpreted as &lt;code&gt;$Movie::carol&lt;/code&gt;, while &lt;code&gt;$bob&lt;/code&gt; is interpreted as &lt;code&gt;$main::bob&lt;/code&gt;.
+&lt;p&gt;While this "package spanning" (which is only apparent in the case of &lt;code&gt;our&lt;/code&gt;!) is a partial functional similarity between the two different kinds of lexical scoping operators, don't
+forget the difference, which is that &lt;code&gt;our&lt;/code&gt; declares a package
+global, while &lt;code&gt;my&lt;/code&gt; does not.&lt;/p&gt;
+
+&lt;h2&gt;&lt;code&gt;local&lt;/code&gt; -- &lt;i&gt;a.k.a.&lt;/i&gt; dynamic scoping&lt;/h2&gt;
+&lt;p&gt;Now we arrive at &lt;code&gt;local&lt;/code&gt;, which is only sort of like
+&lt;code&gt;my&lt;/code&gt;, but due to its name, its function is sometimes confused with
+that of &lt;code&gt;my&lt;/code&gt;.  Here's the skinny : &lt;code&gt;local $foo&lt;/code&gt; &lt;i&gt;saves
+away&lt;/i&gt; the current value of the (package) &lt;b&gt;global&lt;/b&gt; &lt;code&gt;$foo&lt;/code&gt;, and
+determines that in the current block &lt;i&gt;and&lt;/i&gt; any code called by the current block,
+&lt;code&gt;$foo&lt;/code&gt; refers to whatever value you give it in that block (a bare
+&lt;code&gt;local $foo&lt;/code&gt; will set $foo to &lt;code&gt;undef&lt;/code&gt;;
+the same goes for &lt;code&gt;my&lt;/code&gt;).  As things now stand, &lt;code&gt;local&lt;/code&gt;
+only works on &lt;b&gt;globals&lt;/b&gt;, you can't use it on a &lt;code&gt;my&lt;/code&gt; variable.  
+&lt;p&gt;Since &lt;code&gt;local&lt;/code&gt; can affect what happens outside of the block in which it's used, &lt;code&gt;local&lt;/code&gt; provides what's called &lt;i&gt;dynamic&lt;/i&gt;
+scoping, as its effect is determined by what happens when the script is run.  That is, the compiler can't tell when &lt;code&gt;local&lt;/code&gt; is going to have its effect or not at the time it's compiling the script (which happens before the script is run).   This distinguishes dynamic scoping from the lexical scoping provided by &lt;code&gt;my&lt;/code&gt; and &lt;code&gt;our&lt;/code&gt;, the effects of which can be checked at compile time.
+
+&lt;p&gt;The basic upshot of this difference is that if you &lt;code&gt;local&lt;/code&gt;ize a variable within a block and call a subroutine from that block, that subroutine will see the value of the &lt;code&gt;local&lt;/code&gt;ized variable.  This is a major difference between &lt;code&gt;my&lt;/code&gt; and &lt;code&gt;local&lt;/code&gt;.  Compare the above example to this one:
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+
+use vars qw ($foo); # or "our $foo" if you're using 5.6
+
+$foo = "global value";
+
+print "\$foo: $foo\n"; # prints "global value"
+
+print "mysub  result '", &amp;mysub(), "'\n"; #"global value"
+print "localsub result '", &amp;localsub(), "'\n"; # "local value"
+print "no sub result '",&amp;showfoo(), "'\n"; #"global value"
+
+sub mysub {
+ my $foo = "my value";
+ showfoo(); # 
+}
+
+sub localsub {
+ local $foo = "local value";
+ showfoo(); # ALWAYS prints "local value"
+}
+
+sub showfoo {
+ return $foo;
+}
+&lt;/code&gt;
+&lt;font size=-2&gt;original example modified as per [Masem]'s note.  Thanks!&lt;/font&gt;
+&lt;p&gt;Notice that the &lt;code&gt;my&lt;/code&gt; declaration in &lt;code&gt;mysub&lt;/code&gt; gets
+(apparently) ignored by showfoo (since we've left the block in which the &lt;code&gt;my&lt;/code&gt; declaration is valid, but the &lt;code&gt;local&lt;/code&gt; declaration in &lt;code&gt;localsub&lt;/code&gt; doesn't get ignored.  But after we've left that block, the original value of &lt;code&gt;$foo&lt;/code&gt; is visible again.
+
+&lt;p&gt;I hope you learn as much from reading this as I did from writing it!</field>
+</data>
+</node>

@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="62782" title="XML::Parser Tutorial" created="2001-03-07 15:54:57" updated="2005-08-15 11:47:29">
+<type id="956">
+perltutorial</type>
+<author id="16834">
+OeufMayo</author>
+<data>
+<field name="doctext">
+&lt;p&gt;We all agree that Perl does a really good job when
+it comes to text extraction, particulary with regular 
+expressions.&lt;br /&gt;
+The XML is based on text, so one might think that it
+would be dead easy to take any XML input and have it
+converted in the way one wants.&lt;br /&gt;
+Unfortunately, that is wrong. If you think you'll be 
+able to parse a XML file with your own homegrown parser 
+you did overnight, think again, and look at the XML specs
+closely. It's as complex as the CGI specs, and you'll
+never want to waste precious time trying to do something
+that will surely end up wrong anyway. Most of the background
+discussions on why you have to use CGI.pm instead of
+your own CGI-parser apply here.&lt;/p&gt;
+
+&lt;p&gt;The aim of this tutorial is not to show you how XML
+should be structured and why you shouldn't parse it by hand
+but how to use the proper tool to do the right job.&lt;br /&gt;
+I'll focus on the most basic XML module you can find,
+[cpan://XML::Parser]. It's written by Larry Wall and Clark Cooper,
+and I'm sure we can trust the former to make good
+software (rn and patch are his most famous programs)&lt;br /&gt;
+Okay, enough talk, let's jump into the module!&lt;/p&gt;
+
+&lt;p&gt;This tutorial will only show you the basics of XML
+parsing, using the easiest (IMHO) methods. Please
+refer to the &lt;code&gt;perldoc XML::Parser&lt;/code&gt; for more
+detailed info.&lt;br /&gt;
+I'm aware that there are a lot of XML tools available,
+but knowing how to use XML::Parser can surely help
+you a lot when you don't have any other module
+to work with, and it also helped me to understand how 
+other XML modules worked, since most of them are built on
+top of XML::Parser.&lt;br /&gt;
+The example I'll use for this tutorial is the Perlmonks
+Chatterbox ticker that some of you may have already used.
+It looks like this:&lt;/p&gt;
+
+&lt;pre&gt;
+&amp;lt;CHATTER&amp;gt;&amp;lt;INFO site="http://perlmonks.org" sitename="Perl Monks"&amp;gt;
+Rendered by the Chatterbox XML Ticker&amp;lt;/INFO&amp;gt;
+	&amp;lt;message author="OeufMayo" time="20010228112952"&amp;gt;
+test&amp;lt;/message&amp;gt;
+	&amp;lt;message author="deprecated" time="20010228113142"&amp;gt;
+pong&amp;lt;/message&amp;gt;
+	&amp;lt;message author="OeufMayo" time="20010228113153"&amp;gt;
+/me test again; :)&amp;lt;/message&amp;gt;
+	&amp;lt;message author="OeufMayo" time="20010228113255"&amp;gt;
+&amp;amp;lt;a href="#"&amp;amp;gt;please note the use of HTML 
+tags&amp;amp;lt;/a&amp;amp;gt;&amp;lt;/message&amp;gt;
+&amp;lt;/CHATTER&amp;gt;
+&lt;/pre&gt;
+&lt;p&gt;&lt;i&gt;Thanks to [deprecated] for his unaware intervention here&lt;/i&gt;&lt;/p&gt;
+
+&lt;p&gt;( The astute reader will notice that in the CB ticker, a 'user_id' has shown up recently.
+Since it wasn't there when I took my 'snapshot' of the CB, I'll ignore it, but
+don't worry the code below won't break at all, precisely because
+I used a proper parser to handle that for me! )&lt;/p&gt;
+
+&lt;p&gt;Let's assume we want to output this file in a readable way (though
+it'll still be barebone). It doesn't handles links and internal HTML
+entities. It only gets the CB ticker, parses it and prints it, you have
+to launch it again to follow the wise meditations and the brilliant 
+rethoric of the other fine monks present at the moment.&lt;/p&gt;
+
+&lt;code&gt;
+1  #!/usr/bin/perl -w
+2  use strict;
+3  use XML::Parser;
+4  use LWP::Simple;  # used to fetch the chatterbox ticker
+5  
+6  my $message;      # Hashref containing infos on a message
+7  
+8  my $cb_ticker = get("http://perlmonks.org/index.pl?node=chatterbox+xml+ticker"); 
+9  # we should really check if it succeeded or not
+10   
+11  my $parser = new XML::Parser ( Handlers =&gt; {   # Creates our parser object
+12                              Start   =&gt; \&amp;hdl_start,
+13                              End     =&gt; \&amp;hdl_end,
+14                              Char    =&gt; \&amp;hdl_char,
+15                              Default =&gt; \&amp;hdl_def,
+16                            });
+17  $parser-&gt;parse($cb_ticker);
+18   
+19  # The Handlers
+20  sub hdl_start{
+21      my ($p, $elt, %atts) = @_;
+22      return unless $elt eq 'message';  # We're only interrested in what's said
+23      $atts{'_str'} = '';
+24      $message = \%atts; 
+25  }
+26   
+27  sub hdl_end{
+28      my ($p, $elt) = @_;
+29      format_message($message) if $elt eq 'message' &amp;&amp; $message &amp;&amp; $message-&gt;{'_str'} =~ /\S/;
+30  }
+31  
+32  sub hdl_char {
+33      my ($p, $str) = @_;
+34      $message-&gt;{'_str'} .= $str;
+35  }
+36  
+37  sub hdl_def { }  # We just throw everything else
+38  
+39  sub format_message { # Helper sub to nicely format what we got from the XML
+40      my $atts = shift;
+41      $atts-&gt;{'_str'} =~ s/\n//g;
+42  
+43      my ($y,$m,$d,$h,$n,$s) = $atts-&gt;{'time'} =~ m/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/;
+44  
+45      # Handles the /me
+46      $atts-&gt;{'_str'} = $atts-&gt;{'_str'} =~ s/^\/me// ?
+47      "$atts-&gt;{'author'} $atts-&gt;{'_str'}"   :
+48      "&lt;$atts-&gt;{'author'}&gt;: $atts-&gt;{'_str'}";
+49      $atts-&gt;{'_str'} = "$h:$n " . $atts-&gt;{'_str'};
+50      print "$atts-&gt;{'_str'}\n";
+51      undef $message;
+52  }
+&lt;/code&gt;
+
+&lt;p&gt;Step-by-step code walkthrough:&lt;/p&gt;
+&lt;dl&gt;
+&lt;dt&gt;Lines 1 to 4&lt;/dt&gt;
+  &lt;dd&gt;Initialisation of the basics needed for this snippet, XML::Parser, of
+course, and LWP::Simple to get the chatterbox ticker.&lt;/dd&gt;
+&lt;dt&gt;Line 8&lt;/dt&gt;
+  &lt;dd&gt;LWP::Simple get the requested URL, and put the content of the
+  page in the &lt;tt&gt;$cb_ticker&lt;/tt&gt; scalar.
+&lt;/dd&gt;
+&lt;dt&gt;Lines 11 to 16&lt;/dt&gt;
+&lt;dd&gt;
+&lt;p&gt;The most interesting part, no doubt. We create here a new XML::Parser
+object. The Parser can come in different styles, but when you have to
+deal with simple data, like the CB ticker, the Handlers way is the easiest
+(see also the Subs style, as it is really close to this one).&lt;/p&gt;
+&lt;p&gt;
+For this object, we define four handlers subs, each representing a 
+different state in the parsing process.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The 'Start' handler is called
+whenever a new element (or tag, HTML-wise) is found. The sub given is called
+with the expat object, the name of the element, and a hash containing all the
+atrributes of this element.&lt;/li&gt;
+
+&lt;li&gt; The 'End' is called whenever an element is closed, 
+and is called with the same parameters as the 'Start', minus the attributes.&lt;/li&gt;
+&lt;li&gt;The 'Char' handler is called when the parser finds something which is not
+mark-up (in our case, the text enclosed in the &amp;lt;message&amp;gt; tag).&lt;/li&gt;
+
+&lt;li&gt;Finally, the 'Default' handler is called, well, by default, when anything
+else matching the three other handlers is called.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;/dd&gt;
+&lt;dt&gt;Line 17&lt;/dt&gt;
+&lt;dd&gt;The line that does all the magic, parsing and calling all your
+subs for you at the right moment.&lt;/dd&gt;
+
+&lt;dt&gt;Lines 20-25: the Start handler&lt;/dt&gt;
+&lt;dd&gt;&lt;p&gt;We only want to deal with the &amp;lt;message&amp;gt; elements (those containing what
+it is being said in the Chatterbox) so we'll happily skip every
+other element.&lt;/p&gt;
+&lt;p&gt;We got a hash with the attributes of the element, and we're going
+to use this hash to store the string that will contain the text
+to be displayed in the &lt;tt&gt;$atts{'_str'}&lt;/tt&gt;&lt;/p&gt;&lt;/dd&gt;
+
+&lt;dt&gt;Lines 27-30: the End handler&lt;/dt&gt;
+&lt;dd&gt;Once we've reached the end of a message element, we format all the info
+we have gathered and prints them via the format_message sub.&lt;/dd&gt;
+
+&lt;dt&gt;Lines 32-35: the Char handler&lt;/dt&gt;
+&lt;dd&gt;This sub gets all the strings returned by the parser and appends it
+to the string to be finally displayed&lt;/dd&gt;
+
+&lt;dt&gt;Line 37: the Default handler&lt;/dt&gt;
+&lt;dd&gt;It does nothing, but it doesn't have to figure out what to do
+with this!&lt;/dd&gt;
+
+&lt;dt&gt;Lines 39-52&lt;/dt&gt;
+&lt;dd&gt;This subroutine mangles all the info we got from the XML file, with
+bad regexes and all, and prints the formatted text in a hopefully
+readable way. Please note that XML::Parser handled all of the 
+decoding of the &amp;amp;lt; and &amp;amp;gt; entities that
+were included in the original XML file&lt;/dd&gt;
+&lt;/dl&gt;
+&lt;p&gt;We now have a complete and simple parser, ready to analyse, extract,
+report everything inside the Chatterbox XML ticker!&lt;/p&gt;
+
+&lt;p&gt;That's all for now, here are some links you may find useful:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Most of [mirod]'s nodes (and especially his [XML::Parser|review] of XML::Parser)&lt;/li&gt;
+	&lt;li&gt;[davorg]'s &lt;a href="http://www1.fatbrain.com/asp/BookInfo/BookInfo.asp?theisbn=1930110006&amp;from=MDZ411"&gt;Data Munging with Perl&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;
+&lt;i&gt;Thanks to [mirod], [arhuman] and [danger] for the review!&lt;/i&gt;&lt;/p&gt;
+&lt;!--
+&lt;code&gt;
+#!/usr/bin/perl -w
+use strict;
+use XML::Parser;
+use LWP::Simple;  # used to fetch the chatterbox ticker
+
+my $message;      # Hashref containing infos on a message
+
+my $cb_ticker = get("http://perlmonks.org/index.pl?node=chatterbox+xml+ticker"); 
+# we should really check if it succeeded or not
+  
+my $parser = new XML::Parser ( Handlers =&gt; {   # Creates our parser object
+                             Start   =&gt; \&amp;hdl_start,
+                             End     =&gt; \&amp;hdl_end,
+                             Char    =&gt; \&amp;hdl_char,
+                             Default =&gt; \&amp;hdl_def,
+                           });
+$parser-&gt;parse($cb_ticker);
+   
+# The Handlers
+sub hdl_start{
+    my ($p, $elt, %atts) = @_;
+    return unless $elt eq 'message';  # We're only interrested in what's said
+    $atts{'_str'} = '';
+    $message = \%atts; 
+}
+   
+sub hdl_end{
+    my ($p, $elt) = @_;
+    format_message($message) if $elt eq 'message' &amp;&amp; $message &amp;&amp; $message-&gt;{'_str'} =~ /\S/;
+}
+  
+sub hdl_char {
+    my ($p, $str) = @_;
+    $message-&gt;{'_str'} .= $str;
+}
+  
+sub hdl_def { }  # We just throw everything else
+  
+sub format_message { # Helper sub to nicely format what we got from the XML
+    my $atts = shift;
+    $atts-&gt;{'_str'} =~ s/\n//g;
+
+    my ($y,$m,$d,$h,$n,$s) = $atts-&gt;{'time'} =~ m/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/;
+  
+    # Handles the /me
+    $atts-&gt;{'_str'} = $atts-&gt;{'_str'} =~ s/^\/me// ?
+    "$atts-&gt;{'author'} $atts-&gt;{'_str'}"   :
+    "&lt;$atts-&gt;{'author'}&gt;: $atts-&gt;{'_str'}";
+    $atts-&gt;{'_str'} = "$h:$n " . $atts-&gt;{'_str'};
+    print "$atts-&gt;{'_str'}\n";
+    undef $message;
+}
+&lt;/code&gt;
+--&gt;</field>
+</data>
+</node>

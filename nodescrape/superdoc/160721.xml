@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="160721" title="New Perl Monks User Search" created="2002-04-19 21:47:15" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+
+  if(  $query-&gt;param("usersearch")
+   &amp;&amp; !$query-&gt;param("user")  ) {
+    $query-&gt;param( user =&gt; $query-&gt;param("usersearch") );
+  }
+
+  my %order= (
+    nf =&gt; 'createtime DESC',
+    of =&gt; 'createtime ASC',
+    bt =&gt; 'title ASC',
+    rt =&gt; 'title DESC',
+    hr =&gt; 'reputation DESC',
+    lr =&gt; 'reputation ASC',
+    rn =&gt; 'RAND()',
+  );
+
+  my %labels = (
+    nf =&gt; 'Newest First',
+    of =&gt; 'Oldest First',
+    bt =&gt; 'By Title',
+    rt =&gt; 'By Title Reverse',
+    hr =&gt; 'Highest Reputation First',
+    lr =&gt; 'Lowest Reputation First',
+    rn =&gt; 'Random',
+  );
+
+  my $str= '';
+  if(  $query-&gt;param("orderby") =~ / /  ) {
+    my %redro= reverse %order;
+    $str .= "\n&lt;!-- " . $query-&gt;param("orderby") . "--&gt;\n";
+    $query-&gt;param( orderby =&gt;
+      ( $redro{ $query-&gt;param("orderby") } || 'nf' ) );
+  }
+
+  $str .= qq[
+    &lt;p&gt;
+      This is where you can search for all the writeups contributed by any user.  Just enter the user name and
+      select the order for the search.
+    &lt;/p&gt;
+    &lt;p&gt;
+      &lt;form action="$ENV{SCRIPT_NAME}" method="get" enctype="application/x-www-form-urlencoded" &gt;
+        &lt;input type="hidden" name="node_id" value="] . getId($NODE) . qq[" /&gt;
+        &lt;table&gt;
+          &lt;tr&gt;
+            &lt;td style="text-align:right"&gt;
+              Author:
+            &lt;/td&gt;
+            &lt;td&gt;
+              &lt;input type="text" name="user" value="] .( $query-&gt;param('user') || htmlcode('randomusername') ). qq[" /&gt;
+            &lt;/td&gt;
+            &lt;td width="5%"&gt;&lt;/td&gt;
+            &lt;td style="text-align:right"&gt;
+              Show &lt;input type="text" name="length" value="] .( $query-&gt;param('length') || $VARS-&gt;{pmuslen} || 50 ). qq[" size="3" /&gt;
+            &lt;/td&gt;
+            &lt;td&gt;
+              nodes
+            &lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr&gt;
+            &lt;td style="text-align:right"&gt;
+              Order by:
+            &lt;/td&gt;
+            &lt;td&gt;
+              ] . $query-&gt;popup_menu(
+                -name=&gt;"orderby",
+                -values=&gt;[qw(nf of bt rt hr lr rn)],
+                -labels=&gt;\%labels ) . qq[
+            &lt;/td&gt;
+            &lt;td&gt;&lt;/td&gt;
+            &lt;td style="text-align:right"&gt;
+              starting at &lt;input type="text" name="start" value="] .( $query-&gt;param('start') || '0 ' ). qq[" size="3" /&gt;
+            &lt;/td&gt;
+            &lt;td&gt;.&lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr&gt;
+            &lt;td style="text-align:right"&gt;
+              ] . $query-&gt;checkbox( -name=&gt;"showqa", -label=&gt;'' ) . qq[
+            &lt;/td&gt;
+            &lt;td&gt;
+              Show Categorized Q&amp;amp;A ([id://162297|Why?])
+            &lt;/td&gt;
+            &lt;td&gt;&lt;/td&gt;
+            &lt;td style="text-align:right"&gt;
+              &lt;input type="submit" name="sexisgood" value="Search" /&gt;
+            &lt;/td&gt;
+          &lt;/tr&gt;
+        &lt;/table&gt;
+      &lt;/form&gt;
+    &lt;hr /&gt;];
+
+  my $showqa  = $query-&gt;param('showqa')     || 0;
+
+  my $orderby = $query-&gt;param('orderby');
+  $orderby= 'nf'   if  ! exists $order{$orderby};
+  my $start   = abs $query-&gt;param('start')  || 0;
+  my $length  = abs $query-&gt;param('length') || 50;
+
+  my $max     = $VARS-&gt;{maxtitlelen}        || 60;
+
+  if (  $query-&gt;param('user')  ) {
+    my $user = getNode($query-&gt;param('user'), 'user')
+     or return $str . sprintf q[It seems that "%s" does not exist.  How very, very strange...],
+       $query-&gt;param('user');
+
+    my $count   = getVars($user)-&gt;{numwriteups};
+    my $showrep = getId($user) == getId($USER) || isGod($USER) ? 1 : 0;
+
+    my %types = (
+      'note'                 =&gt; 'Reply',
+      'categorized answer'   =&gt; 'Q&amp;amp;A Answer',
+      'categorized question' =&gt; 'Q&amp;amp;A Question',
+      'snippet'              =&gt; 'Snippet',
+      'sourcecode'           =&gt; 'Source code',
+      'perlquestion'         =&gt; 'Seekers of Perl Wisdom',
+      'perlcraft'            =&gt; 'Craft',
+      'perlmeditation'       =&gt; 'Meditation',
+
+      'poem'                 =&gt; 'Perl Poetry',
+      'CUFP'                 =&gt; 'Cool Uses for Perl',
+      'obfuscated'           =&gt; 'Obfuscation',
+      'perltutorial'         =&gt; 'Tutorial',
+      'monkdiscuss'          =&gt; 'Perl Monks Discussion',
+      'modulereview'         =&gt; 'Module Review',
+      'bookreview'           =&gt; 'Book Review'
+    );
+
+    my @types = map {
+      getId getType($_)
+    } ($query-&gt;param('type') || keys %types);
+
+    my $sql;
+
+    if ( $showqa ) {
+      $sql = &lt;&lt;'END';
+        SELECT    node_id
+        FROM      node
+        LEFT JOIN contributor
+           ON     contributor_id = node_id
+        WHERE     (author_user = ? AND (%s))
+           OR     original_author = ?
+        ORDER BY  %s
+        LIMIT     %d, %d
+END
+    } else {
+      $sql = &lt;&lt;'END';
+        SELECT    node_id
+        FROM      node
+        WHERE     author_user = ?
+          AND     (%s)
+        ORDER BY  %s
+        LIMIT     %d, %d
+END
+    }
+
+    my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare( sprintf $sql, join(' OR ', ('type_nodetype = ?') x @types), $order{$orderby}, $start, $length );
+
+    if ( $showqa ) {
+      $sth-&gt;execute( getId($user), @types, getId($user) );
+    } else {
+      $sth-&gt;execute( getId($user), @types );
+
+    }
+
+    my @nodes;
+    while ( my $id = $sth-&gt;fetchrow ) {
+      push @nodes, $id;
+    }
+
+    return $str . sprintf q[%s has no writeups, it seems.], linkNode($user)
+      if not @nodes;
+
+    my @writeups;
+
+    my $i = 0;
+    for my $id (@nodes) {
+      my $writeup = getNodeById($id, 'light');
+      my $title   = $writeup-&gt;{title};
+
+      push @writeups, sprintf &lt;&lt;'END',
+        &lt;tr%s&gt;
+          &lt;td&gt;%d&lt;/td&gt;
+          &lt;td&gt;&lt;a href="%s"&gt;%s&lt;/a&gt;&lt;/td&gt;
+          &lt;td&gt;%s&lt;/td&gt;
+          &lt;td align="right"&gt;%s&lt;/td&gt;
+        &lt;/tr&gt;
+END
+      $i % 2 == 0 ? ' class="highlight"' : '',
+      getId($writeup),
+      urlGen({ node_id =&gt; getId($writeup) }, -1),
+      (length($title) &gt; $max ? substr($title, 0, $max) . '...' : $title),
+      ($showrep ? $writeup-&gt;{reputation} : ''),
+      $writeup-&gt;{createtime};
+
+      $i++;
+    }
+
+    my %params = map { $_ =&gt; $query-&gt;param($_) } $query-&gt;param();
+    my $links= '';
+
+    if ( $start ) {
+      $links .= sprintf q[
+        &lt;td&gt;Previous &lt;a href="%s"&gt;%d&lt;/a&gt;&lt;/td&gt;],
+      urlGen(
+      {
+        %params,
+        start    =&gt; $start - $length &lt; 0 ? 0 : $start - $length,
+        length   =&gt; $start - $length &lt;= 0 ? $start : $length
+      }, -1),
+      $start - $length &lt;= 0 ? $start : $length;
+    }
+
+    if ( $start + $length &lt; $count ) {
+      $links .= sprintf q[
+        &lt;td style="text-align:right"&gt;Next &lt;a href="%s"&gt;%d&lt;/a&gt;&lt;/td&gt;],
+        urlGen(
+        {
+          %params,
+          start    =&gt; $start + $length,
+          length   =&gt; $start + $length*2 &gt; $count ? $count - ($start + $length) : $length
+        }, -1),
+        $start + $length*2 &gt; $count ? $count - ($start + $length) : $length;
+    }
+
+    $links = qq[&lt;table width="100%"&gt;&lt;tr&gt;$links&lt;/tr&gt;&lt;/table&gt;]
+      if  $links;
+
+    $str .= sprintf &lt;&lt;'END',
+      &lt;p&gt;
+        These nodes all have stuff by %s (showing %d-%d out of %d):
+      &lt;/p&gt;
+      %s
+      &lt;table id="writeups" width="100%" cellspacing="0" cellpadding="2"&gt;
+        &lt;tr&gt;
+          &lt;td width="10%"&gt;Node ID&lt;/td&gt;
+          &lt;td&gt;Writeup&lt;/td&gt;
+          &lt;td width="5%"&gt;Rep&lt;/td&gt;
+          &lt;td align="right" width="25%"&gt;Created&lt;/td&gt;
+        &lt;/tr&gt;
+%s
+      &lt;/table&gt;
+      %s
+END
+      linkNode($user),
+      $start,
+      $start + $length &gt; $count ? $count : $start + $length,
+      $count,
+      $links,
+      join('', @writeups),
+      $links;
+
+  }
+  return $str;
+%]</field>
+</data>
+</node>

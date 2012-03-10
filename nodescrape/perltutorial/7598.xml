@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="7598" title="Web Logs Using DBI" created="2000-04-14 06:38:21" updated="2005-08-14 14:50:15">
+<type id="956">
+perltutorial</type>
+<author id="2675">
+btrott</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Web Logs Using DBI&lt;/h1&gt;
+
+If you're running mod_perl under Apache, you can do some
+neat tricks with DBI and your access logs. Instead of just
+logging accesses to a flat file, you can stuff the
+information into a relational database (like MySQL or
+Oracle).&lt;p&gt;
+
+Then you can use SQL select statements to pull the
+information back out and generate reports, much more easily
+(in my opinion) than if you had the data stored in a
+flat file. For example, you could select all accesses from
+a particular day with one select statement.&lt;p&gt;
+
+&lt;h2&gt;Apache Log Handling&lt;/h2&gt;
+
+To start with, it's helpful to understand that Apache handles
+requests in phases, with each phase being "handled" by a
+particular handler. mod_perl lets you tie a Perl program into
+that API--thus you can use a specialized logging program to
+log accesses. We're going to associate our logging program
+with the "PerlLogHandler" phase; you can do so by adding a line
+to your httpd.conf file:
+
+&lt;code&gt;
+    PerlLogHandler Foo::DBILogger
+&lt;/code&gt;
+
+You should change "Foo" to some unique identifier for your
+particular site; you don't have to do this, but it helps to
+organize your Perl libraries.&lt;p&gt;
+
+Foo::DBILogger will be
+a Perl module that you'll write and install somewhere in your
+@INC ("/usr/local/lib/perl5/site_perl/Foo/DBILogger.pm", for
+example). It must contain a subroutine called "handler"--this
+sub will be called by Apache for each request.&lt;p&gt;
+
+&lt;h2&gt;Creating the Database Table&lt;/h2&gt;
+
+Next we'll need to create the database table in which we'll
+store the log data. For this example, we'll assume that we're
+working with MySQL, but this should work with any relational
+database. You'll need to create the table in the mysql
+interactive program:
+
+&lt;code&gt;
+    create table log (
+    stamp datetime not null,
+    host varchar(255) not null,
+    method varchar(8) not null,
+    url varchar(255) not null,
+    user varchar(50),
+    browser varchar(255),
+    referer varchar(255),
+    status smallint(3),
+    bytes int(8)
+    );
+&lt;/code&gt;
+
+&lt;h2&gt;Writing the Handler&lt;/h2&gt;
+
+This'll create the database table; now you just need to write
+the module that will populate it. So let's create that module,
+then. We'll start with the following statements:
+
+&lt;code&gt;
+    package Foo::DBILogger;
+
+    use Apache::DBI;
+    use DBI;
+    use POSIX 'strftime';
+    use Apache::Constants qw/OK/;
+&lt;/code&gt;
+
+The first says that we're starting the [package] Foo::DBILogger.
+This should be, of course, whatever you called your log handler
+in the "PerlLogHandler" statement above. The next two lines pull
+in Apache::DBI (for persistent database connections, so that our
+logger is fast enough to handle many simultaneous accesses), and
+DBI, which provides our database connectivity. The POSIX line
+pulls in the strftime function to format the timestamp as MySQL
+likes to receive its timestamps. And the final line pulls in
+an Apache-specific constant that we'll want to send back to
+Apache after we've finished handling the logging.&lt;p&gt;
+ 
+Now we'll define our handler subroutine, starting with this:
+
+&lt;code&gt;
+    sub handler {
+        my $r = shift;
+&lt;/code&gt;
+
+When Apache invokes the handler subroutine, it gives it as
+an argument an Apache::Request object, which contains all sorts
+of information about the request. It's from this information
+that we'll populate the table.&lt;p&gt;
+
+Next, we set up our database and our statement handle:
+
+&lt;code&gt;
+        my $dbh = DBI-&gt;connect('dsn', 'user', 'password', 'mysql',
+            { RaiseError =&gt; 1 })
+            or die "Can't connect: ", $DBI::errstr;
+
+        my $sth = $dbh-&gt;prepare_cached(&lt;&lt;SQL) or die $dbh-&gt;errstr;
+insert into log
+(stamp, host, method, url, user, browser, referer, status, bytes)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+SQL
+&lt;/code&gt;
+
+Remember, we're using Apache::DBI, which gives us persistent
+database connections, so we can just set up our database
+normally. Also note that we're using the prepare_cached method
+so that we're most likely using a pre-compiled version of
+our SQL statement.&lt;p&gt;
+
+Now all that remains is to fetch the information from the
+request object and insert it into the database by executing
+the statement. We can do that quite easily:
+
+&lt;code&gt;
+        $sth-&gt;execute(
+            strftime("%Y-%m-%d %H:%M:%S", localtime),
+            $r-&gt;get_remote_host,
+            $r-&gt;method,
+            $r-&gt;uri,
+            $r-&gt;connection-&gt;user,
+            $r-&gt;header_in('Referer'),
+            $r-&gt;header_in('User-agent'),
+            $r-&gt;status,
+            $r-&gt;bytes_sent
+        );
+        $sth-&gt;finish;
+&lt;/code&gt;
+
+This should be fairly self-explanatory, considering that
+the method names that we're calling are quite clear. Then
+we dispose of the statement handle by calling finish
+on it.&lt;p&gt;
+
+So we're done, and all that's left to do is return the
+OK message and finish up our module:
+
+&lt;code&gt;
+        return OK;
+    }
+ 
+    1;
+&lt;/code&gt;
+
+Ending, of course, with "1;".
+
+&lt;h2&gt;The Whole Thing&lt;/h2&gt;
+
+So, putting the whole thing together, we get:
+
+&lt;code&gt;
+    package Foo::DBILogger;
+
+    use Apache::DBI;
+    use DBI;
+    use POSIX 'strftime';
+    use Apache::Constants qw/OK/;
+
+    sub handler {
+        my $r = shift;
+
+        my $dbh = DBI-&gt;connect('dsn', 'user', 'password', 'mysql',
+            { RaiseError =&gt; 1 })
+            or die "Can't connect: ", $DBI::errstr;
+
+        my $sth = $dbh-&gt;prepare_cached(&lt;&lt;SQL) or die $dbh-&gt;errstr;
+insert into log
+(stamp, host, method, url, user, browser, referer, status, bytes)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+SQL
+
+        $sth-&gt;execute(
+            strftime("%Y-%m-%d %H:%M:%S", localtime),
+            $r-&gt;get_remote_host,
+            $r-&gt;method,
+            $r-&gt;uri,
+            $r-&gt;connection-&gt;user,
+            $r-&gt;header_in('Referer'),
+            $r-&gt;header_in('User-agent'),
+            $r-&gt;status,
+            $r-&gt;bytes_sent
+        );
+        $sth-&gt;finish;
+
+        return OK;
+    }
+ 
+    1;
+&lt;/code&gt;
+
+&lt;h2&gt;Getting Data Back&lt;/h2&gt;
+
+So now you're getting data into your database; suppose you
+want to get some back out. Let's say that you want to get
+all of the hosts that have accessed pages in the
+last day. Use something like this:
+
+&lt;code&gt;
+    select host, url
+    from log
+    where to_days(now()) - to_days(stamp) &lt;= 1;
+&lt;/code&gt;
+
+&lt;h2&gt;See Also&lt;/h2&gt;
+
+Take a look at Randal Schwartz's
+&lt;a href=http://www.stonehenge.com/merlyn/WebTechniques/col48.html&gt;Web access logs with DBI&lt;/a&gt;,
+which includes some more stuff to put into your database,
+including data on the CPU time spent handling the
+transaction; and also at Lincoln Stein's
+&lt;a href=http://www.modperl.com/perl_conference/cool_tricks/handout.html&gt;Cool Tricks with Perl and Apache&lt;/a&gt;.</field>
+</data>
+</node>

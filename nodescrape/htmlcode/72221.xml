@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="72221" title="wikipermissionmenu" created="2001-04-12 22:25:35" updated="2005-06-12 18:38:15">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $field, $label )= @_;
+return   if
+       ! isGod($USER)
+  and      getId($USER) == $HTMLVARS{guest_user}
+       ||  getId($USER) != $$NODE{author_user};
+
+my %labels;
+my @choices;
+my $TITLES = getVars(getNode('level titles', 'setting'));
+for( sort { $a &lt;=&gt; $b } keys %$TITLES ) {
+   push @choices, "lvl_$_";
+   $labels{ "lvl_" . $_ } = "&gt;=Level $_ ($TITLES-&gt;{$_})";
+}
+
+my @GROUPS= getNodeWhere( {}, "usergroup" );
+foreach( @GROUPS ) {
+   if(  $DB-&gt;isApproved($USER,$_)  ) {
+       push @choices, "ug_".getId($_);
+       $labels{ "ug_" . getId($_) } = $_-&gt;{title};
+   }
+}
+if(  $query-&gt;param("set_$field")  ) {
+   Everything::printLog(
+     "setting wikipermission: $field to "
+     . $query-&gt;param("set_$field") );
+   $$NODE{$field}= $query-&gt;param("set_$field");
+   updateNode($NODE,$USER);
+}
+$label= "\u$field"   if  "1" eq $label;
+$label &amp;&amp;= "$label: ";
+return $label
+  . $query-&gt;popup_menu(
+      -name=&gt;"set_$field",
+      -values=&gt;\@choices,
+      -labels=&gt;\%labels,
+      -default=&gt;$$NODE{$field},
+  );</field>
+</data>
+</node>

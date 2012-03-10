@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="524790" title="log_ticker" created="2006-01-22 10:12:11" updated="2006-01-22 05:12:11">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ( $tickerkey, $tickerdata, $node_id,)=@_;
+
+$node_id||=$NODE-&gt;{node_id};
+$tickerkey="" unless defined $tickerkey;
+$tickerdata="" unless defined $tickerdata;
+
+my $user_id= $USER-&gt;{node_id};
+my $useraddr= $ENV{REMOTE_ADDR};
+my $userclient= $ENV{HTTP_USER_AGENT};
+
+my $dbh=$DB-&gt;getDatabaseHandle();
+
+if ( time % 10 == 0 ) {
+    $dbh-&gt;do('delete from tickerlog where fetchtime &lt; DATE_SUB(now(),INTERVAL 1 HOUR)');
+}
+
+$dbh-&gt;do('delete from tickerlog where fetchtime &lt; DATE_SUB(now(),INTERVAL 60 MINUTE)'.
+         ' and node_id=? and tickerkey=? and user_id=? and useraddr=? and userclient=?',{},
+         $node_id,$tickerkey,$user_id,$useraddr,$userclient);
+
+my $ok= $dbh-&gt;do('insert into tickerlog (node_id,tickerkey,tickerdata,user_id,useraddr,userclient)'
+                 . ' values (?,?,?,?,?,?)',
+                 {},$node_id,$tickerkey, $tickerdata, $user_id, $useraddr, $userclient);
+
+return $ok</field>
+</data>
+</node>

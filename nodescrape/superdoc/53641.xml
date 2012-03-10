@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="53641" title="Visit Reaped Nodes" created="2001-01-23 00:08:15" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+  my $nodenum = $query-&gt;param('nodenum') || 3937;
+
+  return 'No "nodenum" parameter supplied' if !$nodenum;
+  return 'Not a valid node id' if $nodenum =~ /\D/ or $nodenum !~ /\S/;
+  return 'Anonymous users are not allowed to view reaped node contents'
+    if  getId($USER) == $HTMLVARS{guest_user};
+
+  my $node = $DB-&gt;sqlSelectHashref(
+    '*',
+    'reapednode',
+    "node_id = $nodenum"
+  );
+
+  return "Looks like you aren't trying to visit a reaped node" unless $node;
+
+  my $reason = $node-&gt;{reason} || 'No reason (sorry)';
+  $reason =~ s/^\((.+)\)(.*)/sprintf '(%s) %s', linkNodeTitle($1), $2/eg;
+
+  my $VAR1;
+  my $data = eval($node-&gt;{data});
+
+  my $doctext;
+
+  if ($data-&gt;{type}{title} ne "snippet") {
+    $doctext = $data-&gt;{doctext};
+    $HTMLVARS{embed_node}{doctext} = $doctext;
+    $doctext = htmlcode('parselinksinstring');
+  } else {
+    local $NODE-&gt;{snippetcode} = $data-&gt;{snippetcode};
+    local $NODE-&gt;{snippetdesc} = $data-&gt;{snippetdesc};
+    $doctext = sprintf(
+'&lt;table&gt;
+  &lt;tr class="highlight"&gt;
+  &lt;td&gt;Description:&lt;/td&gt;
+  &lt;td&gt;%s
+  &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+  &lt;td colspan="2"&gt;%s&lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;',
+      htmlcode("parselinks","snippetdesc"),
+      htmlcode("parsecode","snippetcode")
+    );
+  }
+
+  my $info = &lt;&lt;'END';
+  &lt;table&gt;
+    &lt;tr&gt;
+      &lt;td class="bold"&gt;Title&lt;/td&gt;
+      &lt;td&gt;%s&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td class="bold"&gt;Author&lt;/td&gt;
+      &lt;td&gt;%s&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td class="bold"&gt;Reputation&lt;/td&gt;
+      &lt;td&gt;%s&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td class="bold"&gt;Reason for reaping&lt;/td&gt;
+      &lt;td&gt;%s&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td class="bold"&gt;Votes (keep/reap/edit)&lt;/td&gt;
+      &lt;td&gt;%d/%d/%d&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/table&gt;
+
+  &lt;hr /&gt;
+
+  %s
+END
+
+  return sprintf $info,
+           $data-&gt;{title},
+           linkNode($data-&gt;{author_user} || 8948),
+           $data-&gt;{reputation},
+           $reason,
+           @{$node}{'keep', 'del', 'edit'},
+           $doctext;
+
+%]</field>
+</data>
+</node>

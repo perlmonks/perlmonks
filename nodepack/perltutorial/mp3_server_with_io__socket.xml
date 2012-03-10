@@ -1,0 +1,224 @@
+<node>
+  <doctext>I was surprised to discover how easy it was to write a fairly robust server that
+will wow your friends, and impress your colleagues. Well maybe.  
+&lt;BR&gt;&lt;BR&gt;
+The IO::Socket package provides a very easy object oriented interface to the 
+nitty-gritty details of socket control.  To start, all servers need a listening
+socket, that is a socket to which clients connect to.  Creating a listen socket
+is trivial:
+&lt;CODE&gt;#create the listen socket
+my $listen_socket = IO::Socket::INET-&gt;new(LocalPort =&gt; 8000,
+                                          Listen =&gt; 10,
+                                          Proto =&gt; 'tcp',
+                                          Reuse =&gt; 1);
+&lt;/CODE&gt;
+This will create a listening socket on localhost port 8000, using the tcp
+protocal.  The 'Listen' is the max number of client requests to queue.  And
+'Reuse' will let you stop then start the server rebinding to port 8000.  With
+'Reuse=&gt;0' it could take several minutes before the kernal allows the port to be
+reused.  These are the basic paramaters that you will need.  For the full
+details reference the [perlman:IO::Socket|IO::Socket perldoc pages].
+&lt;BR&gt;&lt;BR&gt;
+To actually deal will a client trying to connect, the following line will create
+the client socket:
+&lt;CODE&gt;my $connection = $listen_socket-&gt;accept&lt;/CODE&gt;
+Here $connection is a socket object, which can be treated as a normal file
+handle.  So you can print to it or read from is as a normal file handle:
+&lt;CODE&gt;#write to the client socket
+print $connection &quot;Hello Client!&quot;;
+
+#read from the client socket
+my $message = &lt;$connection&gt;;
+&lt;/CODE&gt;
+The last little tidbit of knowledge which is really relevent does not have to do
+with sockets exactly, but has to do with forking servers.  When a child process
+dies, it does not free system resources until the parent recognizes that it is
+dead with a 'wait' or 'waitpid' function call.  Since servers generally run a
+long time, and fork off many children, it becomes necessary to make sure the 
+parent notices that children are dead  If the parent does not notice then the
+child process will become 'zombies'.  Servers 
+generally spend most of their time at the 'accept' call just waiting for a 
+client to connect.  But the problem is that it also has to be waiting for the children
+to die, so how can it wait for two different things at once?  Easy: signals.
+Whenever a child dies it sends a SIGCHLD to the parent.  So our server just has 
+to register a signal handler which calls waitpid every time the SIGCHLD is sent:
+&lt;CODE&gt;#set the sig handler for when a child dies 
+$SIG{CHLD} = \&amp;REAPER;
+
+#signal routine to wait for all children (prevents zombies)
+sub REAPER
+{   
+    #WNOHANG means to return immediately if no child has exited.
+    while ((waitpid(-1, WNOHANG)) &gt;0 ){} 
+    
+    #reset the sig for the next child to die;
+    $SIG{CHLD} = \&amp;REAPER;
+}
+&lt;/CODE&gt;
+An easier alternative to this is to use:
+&lt;CODE&gt;$SIG{CHLD} = 'IGNORE';
+&lt;/CODE&gt;
+This will prevent zombie processes like the above signal handling routine,
+but it is all implicit.  No explicit signal handling is necessary.&lt;BR&gt;&lt;BR&gt;
+
+I just got a report that &lt;CODE&gt;$SIG{'CHLD'}&lt;/CODE&gt; does not get used
+on Solaris but &lt;CODE&gt;$SIG{'CHILD'}&lt;/CODE&gt; does, so if you are
+getting zombies on Solaris try changing CHLD to CHILD.&lt;BR&gt;&lt;BR&gt;
+
+So for the mp3 player there is not a lot to add.  Basically the server starts
+up, then a client comes in (like xmms or mpg123) opening up a socket.  Then the
+server forks and hands off the socket to the child process.  Finally the parent goes
+back to listening for another client.  The child will simply go into an endless
+loop playing random songs from your playlist until the client stops listening. 
+The child dies when the client closes its half of the socket.  To create a
+playlist the easy way (assuming you have mp3s on your disk) do some like:
+&lt;CODE&gt;find / -name &quot;*.mp3&quot; &gt; playlist.m3u&lt;/CODE&gt;
+Here is the server in all it glory:
+&lt;CODE&gt;#!/usr/bin/perl -w
+use strict;
+use IO::Socket;
+
+#get the port to bind to or default to 8000
+my $port = $ARGV[0] || 8000;
+
+#ignore child processes to prevent zombies
+$SIG{CHLD} = 'IGNORE';
+
+#create the listen socket
+my $listen_socket = IO::Socket::INET-&gt;new(LocalPort =&gt; $port,
+                                          Listen =&gt; 10,
+                                          Proto =&gt; 'tcp',
+                                          Reuse =&gt; 1);
+#make sure we are bound to the port
+die &quot;Cant't create a listening socket: $@&quot; unless $listen_socket;
+
+warn &quot;Server ready. Waiting for connections ... \n&quot;;
+
+#wait for connections at the accept call
+while (my $connection = $listen_socket-&gt;accept)
+{   
+    my $child;
+    # perform the fork or exit
+    die &quot;Can't fork: $!&quot; unless defined ($child = fork());
+    if ($child == 0)
+    {   #i'm the child!
+    
+        #close the child's listen socket, we dont need it.
+        $listen_socket-&gt;close;
+        
+        #call the main child rountine
+        play_songs($connection);
+        
+        #if the child returns, then just exit;
+        exit 0;
+    } 
+    else
+    {   #i'm the parent!
+    
+        #who connected?
+        warn &quot;Connecton recieved ... &quot;,$connection-&gt;peerhost,&quot;\n&quot;;
+
+        #close the connection, the parent has already passed
+        #   it off to a child.
+        $connection-&gt;close();
+        
+    }
+    #go back and listen for the next connection!
+} 
+
+sub play_songs
+{   
+    my $socket = shift;
+    
+    #get all the possible songs
+    open PLAYLIST, &quot;playlist.m3u&quot; or die;
+    my @songs = &lt;PLAYLIST&gt;;   
+    close PLAYLIST;
+    chomp @songs;
+
+    #seed the rand number generator
+    srand(time / $$);
+    
+    #loop forever (or until the client closes the socket)
+    while()
+    {
+        
+        #print the HTTP header.  The only thing really necessary
+        #   is the first line and the trailing &quot;\n\n&quot;
+        #   depending on your client (like xmms) you can also
+        #   send song title etc.
+        print $socket &quot;HTTP/1.0 200 OK\n&quot;;
+        print $socket &quot;Content-Type: audio/x-mp3stream\n&quot;;
+        print $socket &quot;Cache-Control: no-cache \n&quot;;
+        print $socket &quot;Pragma: no-cache \n&quot;;
+        print $socket &quot;Connection: close \n&quot;;
+        print $socket &quot;x-audiocast-name: My MP3 Server\n\n&quot;;
+        
+        #get a random song from your playlist
+        my $song = $songs[ rand @songs ];
+        
+        #what song are we playing
+        warn( &quot;play song: $song\n&quot;);
+        
+        #open the song, or continue to try another one
+        open (SONG, $song) || next;
+
+        binmode(SONG); #for windows users
+
+        my $read_status = 1;
+        my $print_status = 1;
+        my $chunk;
+
+        # This parts print the binary to the socket
+        #   as fast as it can.  The buffering will
+        #   take place on the client side (it blocks when full)
+        #   because this is *not* non-blocking IO
+        #
+        #the read will return 0 if it has reached eof
+        #
+        #the print will return undef if it fails
+        #   (ie the client stopped listening)
+        #
+        while( $read_status  &amp;&amp; $print_status )
+        {   
+            $read_status = read (SONG, $chunk, 1024);
+            if( defined $chunk &amp;&amp; defined $read_status)
+            {   
+                $print_status = print $socket $chunk;
+            }
+            undef $chunk;
+        }
+        close SONG;
+        
+        unless( defined $print_status )
+        {   
+            $socket-&gt;close();
+            exit(0);
+        }
+    }
+}
+&lt;/CODE&gt;
+So now you can start up there server and connect to it with your client.  I 
+suggest xmms.  In xmms just do a 'Play Location', then enter 
+&quot;http://localhost:8000&quot; or whatever port you started it on.  To see who is
+listening use netstat to look at the open connections:
+&lt;CODE&gt;netstat | grep 8000&lt;/CODE&gt;
+You can completely ellaborate on this code with out too much trouble.  I have it
+hooked up at my work to play custom playlists depending on what the IP address is
+of the client, so my friends can listen to only the music they want to.  So 
+have fun, and remember: If you cant do it with perl it is not worth doing.
+&lt;BR&gt;
+Update: I removed the signal handler and set $SIG{CHLD} = 'IGNORE'.
+This is an easier way to prevent zombies, and from reports that
+I have got, the old signal hanlder failed on some versions
+of Solaris.&lt;BR&gt;
+Update: I added in the binmode, and the Solaris CHILD comment
+per dicussions in subnodes or private email.</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>8650</node_id>
+  <reputation>128</reputation>
+  <author_user>7995</author_user>
+  <title>MP3 server with IO::Socket</title>
+  <createtime>2000-04-23 08:56:24</createtime>
+  <nodeupdated>2005-08-15 12:08:05</nodeupdated>
+</node>

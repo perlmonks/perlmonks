@@ -1,0 +1,85 @@
+<node>
+  <parent_container>20</parent_container>
+  <type_nodetype>9</type_nodetype>
+  <author_user>929</author_user>
+  <createtime>2002-07-02 20:41:05</createtime>
+  <node_id>179033</node_id>
+  <title>New Keyword Nodelet</title>
+  <nlcode>[%
+  return
+    unless isGod($USER)
+    or getId($USER) == $NODE-&gt;{author_user};
+
+  my $keywords = $q-&gt;param('keywords');
+
+  if ( $keywords ) {
+    my $dbh = $DB-&gt;getDatabaseHandle;
+
+    my $get = $dbh-&gt;prepare('
+      SELECT keyword_id
+      FROM   keyword
+      WHERE  word = ?
+    ');
+
+    for my $word ( split /\s+/, $keywords ) {
+      $get-&gt;execute($word);
+
+      my $kid = $get-&gt;fetchrow;
+
+      unless ( $kid ) {
+        my $ins = $dbh-&gt;prepare('
+          INSERT INTO keyword (word) VALUES (?)
+        ');
+
+        $ins-&gt;execute($word);
+
+        $kid = $dbh-&gt;{mysql_insertid};
+      }
+
+      if ( $kid ) {
+        my $kwn = $dbh-&gt;prepare('
+          REPLACE INTO keywordnode (keyword_id, node_id, user_id) VALUES (?, ?, ?)
+        ');
+
+        $kwn-&gt;execute( $kid, getId($NODE), getId($USER) );
+      }
+    }
+  }
+
+  return '';
+%][%
+
+  my @words;
+
+  my $get = $DB-&gt;getDatabaseHandle-&gt;prepare('
+    SELECT keyword.keyword_id, word
+    FROM   keywordnode
+    LEFT JOIN keyword ON keyword.keyword_id = keywordnode.keyword_id 
+    WHERE  node_id = ?  
+  ');
+
+  $get-&gt;execute( getId($NODE) );
+
+  while ( my $w = $get-&gt;fetchrow_hashref ) {
+    push @words, $w;
+  }
+
+  return join '', map {
+    $q-&gt;div(
+      sprintf '&amp;nbsp;&amp;bull; &lt;a href=&quot;%s&quot;&gt;%s&lt;/a&gt;', urlGen({ node =&gt; 'related nodes', w =&gt; $_-&gt;{keyword_id} }, -1), $_-&gt;{word}
+    )
+  } @words;
+
+%][%
+
+  return
+    unless isGod($USER)
+    or getId($USER) == $NODE-&gt;{author_user};
+
+  return join '',
+    htmlcode('openform'),
+    $q-&gt;textfield( -name =&gt; 'keywords', -value =&gt; '', -force =&gt; 1 ),
+    htmlcode('closeform', 'add');
+%]</nlcode>
+  <nodeupdated>2002-12-27 14:46:44</nodeupdated>
+</node>

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="8259" title="Blessables -- What Can You Make Into Objects?" created="2000-04-20 19:52:13" updated="2005-08-15 11:59:21">
+<type id="956">
+perltutorial</type>
+<author id="1382">
+chromatic</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Blessables&lt;/h1&gt;
+
+Creating a Perl object is tremendously easy -- you just bless a reference.  While most objects you'll run across are built out of anonymous hashes, there are (at least) six other things you can bless.  Here's a list of the whats, the hows, and at least some of the whys.
+
+&lt;h2&gt;Arrays&lt;/h2&gt;
+It's surprisingly easy to build a workable class out of an array.  There are two strong benefits and one minor drawback to this.  On the plus side, internal access performance improves as the overhead of hashing a key and doing a lookup on the key is avoided.  Another benefit is that data is more protected via encapsulation (a user of your class will have a more difficult time autovivifying a data member of your class accidentally or purposefully with an array).  The drawback is that you will have to know which data member is stored in which slot of the array.
+
+Here's an example:
+&lt;code&gt;package Soldier;
+
+use constant NAME =&gt; 0;
+use constant RANK =&gt; 1;
+use constant SERIAL =&gt; 2;
+
+sub new {
+	my $class = shift;
+	$class = ref($class) || $class;
+	my $self = [ "", "Private", 000 ];
+	bless($self, $class);
+	return $self;
+}
+
+sub name {
+	my $self = shift;
+	if (@_) {
+		$self-&gt;[NAME] = shift;
+	}
+	return $self-&gt;[NAME];
+}
+
+# similar methods for RANK and SERIAL&lt;/code&gt;
+
+&lt;h2&gt;Scalars&lt;/h2&gt;
+An excellent example provided in Damian Conway's &lt;a href="http://www.manning.com/conway/"&gt;Object Oriented Perl&lt;/a&gt; is that of an object oriented password.  All that is necessary in the way of data is the password string, so why not use a simple scalar?
+&lt;code&gt;package Password;
+
+use Digest::MD5 qw(md5_base64);		# based on an idea by jbontje
+
+sub new {
+	my $class = shift;
+	$class = ref($class) || $class;
+	my $self = shift;		# takes a cleartext string for the password
+	$self = md5_base64($self);
+	bless($self, $class);
+	return $self;
+}
+
+sub verify {
+	my $self = shift;
+	my $candidate = shift;
+	return ($self eq md5_base64($candidate));
+}&lt;/code&gt;
+
+Any cryptographic implementation would do -- in fact, one could extend this class to use a different technique, if desires.  Simply add an encrypt() method, and call that in new() and verify().	
+	
+&lt;h2&gt;Regular Expressions&lt;/h2&gt;
+Perl 5.005's new qr{} operand allows regular expressions to be precompiled.  (Maybe someday s{}{} will work for substitutions.  I thought it might when I first prepared this tutorial, but it doesn't.)  They're now fair game for blessing.  One might code a word search problem something like this:
+&lt;code&gt;package WordMatch;
+
+sub new {
+	my $class = shift;
+	$class = ref($class) || $class;
+	my $word = shift;	# word to match
+	my $self = qr/\[$word\]/;
+	bless($self, $class);
+	return $self;
+}
+
+sub match {
+	my $self = shift;
+	my $string = shift;
+    	return $string =~ $self ? "Matches!" : "Doesn't match!";
+}
+
+package main;
+
+my $wm = WordMatch-&gt;new("hi");
+
+print $wm-&gt;match("[hi] how are you?"), "\n";
+print $wm-&gt;match("hi how are you?"), "\n";
+&lt;/code&gt;
+
+&lt;h2&gt;Typeglobs&lt;/h2&gt;
+This is the method used in many IO:: packages, such as IO::File.  The reason for blessing a typeglob is usually to get at the filehandle associated with that typeglob.  We might build a file reader like this:
+&lt;code&gt;
+package ReadFile;
+
+use Symbol;
+
+sub new {
+	my $class = shift;
+	$class = ref($class) || $class;
+	my $file = shift;
+	my $self = gensym;
+	open ($self, $file) || die;
+	bless($self, $class);
+	return $self;
+}
+
+sub read_record {
+	my $self = shift;
+	local $/ = shift || $/;
+	my $line = &lt;$self&gt;;
+	return  $line;
+}&lt;/code&gt;
+To test it, you might use:
+&lt;code&gt;my $file = ReadFile-&gt;new("obself.pl");
+print $file-&gt;read_record("package");
+print $file-&gt;read_record();&lt;/code&gt;
+The constructor takes the name of the file to open, and the read_record() method takes an alternate input record separator. (Symbol::gensym returns a reference to an anonymous typeglob -- if you were wondering.)  It would be good to add a DESTROY method to close the typeglob:
+&lt;code&gt;sub DESTROY {
+	my $self = shift;
+	close $self;
+	print "Closed!\n";		# just to prove that it's working
+}&lt;/code&gt;
+&lt;h2&gt;Subroutines&lt;/h2&gt;
+
+Consider a subroutine browser.  Delving deeply into your source code, you might be able to extract argument lists and return values, if you comment diligently and intelligently:
+&lt;code&gt;package SubBrowser;
+
+sub new {
+	my $class = shift;
+	$class = ref($class) || $class;
+	my $package = shift;
+	my $subname = shift;
+	# assume $package is a reference to a hash of in-memory source code, 
+	#	keyed by subroutine name
+	my $sub;
+	eval {	$sub = $package-&gt;{$subname}; };	# ooh, tricky
+	bless($sub, $class);
+	return $sub;
+}
+	
+sub display_args {
+	# get data from $package
+}
+
+sub display_returns {
+	# get data from $package
+}
+
+sub test {
+	my $self = shift;
+	return &amp;$self;
+}&lt;/code&gt;
+The methods display_args() and display_returns() can search through the comments at the start of the sub, matching however you mark the arguments passed and the return values.  Build a hash of an object for each subroutine in your project, and you can iterate through them quickly and easily.  This might be part of your test suite.
+
+&lt;h2&gt;Objects&lt;/h2&gt;
+At the most bizarre end of the scale, one can even bless a reference to an object.  Here's a quick example showing what can be done with our WordMatch object above:
+&lt;code&gt;package Wrapper;
+
+use vars '$AUTOLOAD';
+
+sub new {
+    	my $class = shift;
+	$class = ref($class) || $class;
+    	my $obj = shift;
+    	my $self = \$obj;
+    	bless($self, $class);
+    	return $self;
+}
+
+sub AUTOLOAD {
+    	my $self = shift;
+    	return if $AUTOLOAD =~ /::DESTROY/;
+    	$AUTOLOAD =~ s/.*:://;
+    	no strict 'refs';
+    	print "Do something interesting here.\n";
+    	return $$self-&gt;$AUTOLOAD(@_);
+}
+
+package main;
+
+# as before
+my $wm = WordMatch-&gt;new("hi");
+print $wm-&gt;match("[hi] how are you?"), "\n";
+print $wm-&gt;match("hi how are you?"), "\n";
+
+# our new version
+my $wm2 = Wrapper-&gt;new(WordMatch-&gt;new("Hello"));
+print $wm2-&gt;match("[Hello] little girl"), "\n";&lt;/code&gt;
+What does this give us over inheritance?  Not a whole lot, at first glance.  The AUTOLOAD mechanism uses symbolic references and has a performance penalty.  (This can be alleviated somewhat by mucking about in the symbol table.)
+&lt;p&gt;What if the Wrapper class enforced security, though?  If the only interface to an otherwise-private-only-by-politeness object were through this Wrapper class, no one would be able to reach inside the object and do bad things.  We could hold a reference to the wrapped object in a variable declared in the use vars statement, making it accessible only through the defined Wrapper interface.  We could write some an exception handling wrapper around modules known to be buggy or insecure.
+&lt;p&gt;You could do lots of things....  You may never need any of these trickeries, but aren't you glad to know they're available?</field>
+</data>
+</node>

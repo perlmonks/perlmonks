@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3627" title="nodesWithinDays" created="2000-01-13 17:11:47" updated="2005-03-16 04:38:55">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $type, $days, $descon, $authoron, $hdr, $optsref )= @_;
+my $maxdays= 60;
+
+$days = 1  if $days !~ /^\d+$/;
+$days = $maxdays
+  if  $maxdays &lt; $days;
+
+$hdr= '&lt;h3&gt;'.$hdr.'&lt;/h3&gt;' 
+  if $hdr;
+
+return $hdr."&lt;i&gt;Skipping huge list of notes&lt;/i&gt;"
+   if $days &gt; 7  &amp;&amp;  $type eq 'note';
+
+my $tid = getId( getType($type) );
+
+my $nodereaper = $HTMLVARS{NodeReaperID};
+
+my @tables = ( 'node pn' );
+my @wheres = ( "pn.type_nodetype = $tid" );
+
+if ( $type eq 'patch' ) {
+  push @tables, 'patch p';
+  push @wheres, 'p.patch_id = pn.node_id';
+}
+
+my $limit = "pn.createtime &gt;= DATE_ADD(NOW(),INTERVAL -$days DAY)";
+
+if ( my $when= $VARS-&gt;{lastviewednewestnodes} ) {
+  return $hdr."&lt;i&gt;Skipping huge list of notes&lt;/i&gt;"
+    if  $type eq 'note'
+    and $when &lt; time()-7*24*60*60;
+
+  # limit when generally? Let them do super search if they really want?
+  $when= time() - $maxdays*24*60*60
+    if  $when &lt; time() - $maxdays*24*60*60;
+
+  $limit = "pn.createtime &gt;= FROM_UNIXTIME($when)";
+}
+
+my $more_order = '';
+$more_order = "$VARS-&gt;{order_nn_by} ASC,"
+  if $VARS-&gt;{order_nn_by} &amp;&amp;
+     $VARS-&gt;{order_nn_by} ne 'createtime';
+
+my $sql = 'SELECT * FROM '
+  . join(', ',@tables)
+  . ' WHERE '
+  . join(' AND ',$limit,@wheres)
+  . " ORDER BY $more_order pn.createtime DESC";
+
+my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare($sql);
+
+return $hdr.'OOPS'
+  unless $sth-&gt;execute;
+
+my @nodes;
+while ( my $node = $sth-&gt;fetchrow_hashref ) {
+  push @nodes, $node;
+}
+
+@nodes= grep {
+    $_-&gt;{author_user} != $nodereaper
+  } @nodes
+  if  ! $VARS-&gt;{showreaped};
+
+$optsref-&gt;{count}=@nodes;
+
+my $row_num = 0;
+return $hdr . $q-&gt;table(
+    ( $descon ? $q-&gt;Tr(
+      { colspan =&gt; 2 },
+      $q-&gt;td( $type )
+    ) : () ),
+    map {
+      $q-&gt;Tr(
+        $row_num++ % 2 ? { class =&gt; 'NN-highlight' } : {},
+        $q-&gt;td(
+          { class =&gt; "node-from-" . $_-&gt;{author_user} },
+          join $/,
+            linkNode( $_, '', { -title =&gt; $_-&gt;{createtime} } ),
+            $type ne 'patch' ? '' : htmlcode(
+              'parselinksinchatter','', $_-&gt;{reason}, 1, 40, 20 ),
+        ),
+        !$authoron ? () : $q-&gt;td(
+          { class =&gt; "node-from-" . $_-&gt;{author_user} },
+          'by ',
+          linkNode( $_-&gt;{author_user} )
+        )
+      )
+    } @nodes
+) if @nodes;
+
+return $optsref-&gt;{return_header_anyway} ? $hdr : '';</field>
+</data>
+</node>

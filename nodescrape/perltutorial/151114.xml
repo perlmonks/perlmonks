@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="151114" title="Getting Started with Inline::C" created="2002-03-12 08:52:19" updated="2005-08-15 10:31:17">
+<type id="956">
+perltutorial</type>
+<author id="8930">
+derby</author>
+<data>
+<field name="doctext">
+I like [cpan://Inline] and I especially like [cpan://Inline::C]. There is great
+power for good and evil with [cpan://Inline] so below is my quick guide to using
+and hopefully not abusing it.
+&lt;H3&gt;What is Inline&lt;/H3&gt;
+[cpan://Inline] allows you to simply &lt;i&gt;embed&lt;/i&gt; other languages inside of
+perl.  Right now there are about ten languages you can [cpan://Inline] - 
+Assembly, Awk, Basic, C++, Guile, Java, Octave, Python, Ruby, Tcl
+and of course C. There are other things you can do with [cpan://Inline] (like
+reverse it and embed perl in C) but I'm going to stick with the more common
+form.
+&lt;H3&gt;Why&lt;/H3&gt;
+Why would you want to use [cpan://Inline]? That's a good question and
+I can think of three answers:
+&lt;ol&gt;
+&lt;li&gt;You wish to expose an existing non-perl library to perl
+&lt;li&gt;You wish to increase run-time speed 
+&lt;li&gt;Its just plain fun
+&lt;/ol&gt;
+&lt;H3&gt;Why Not&lt;/H3&gt;
+Of course there are reasons you shouldn't be using [cpan://Inline]:
+&lt;ol&gt;
+&lt;li&gt;There are all ready existing, viable CPAN modules that do the task
+&lt;li&gt;You're a purist and wish all solutions to be perl alone
+&lt;li&gt;You should concentrate on optimizations last not first
+&lt;/ol&gt;
+That purist issue really is a good one. You have to remember that
+in order to use [cpan://Inline], not only do you need the CPAN modules but you
+also need the necessary tools and libraries for the other language
+as well.
+&lt;H3&gt;Competition&lt;/H3&gt;
+[cpan://Inline] is the new kid on the block. There are other mechanism
+for embedding other languages into your code. There is the venerable
+[perldoc://perlxs] as well as &lt;a href="http://www.swig.org"&gt;swig&lt;/a&gt;. I 
+cannot comment too much on swig but I can say that [cpan://Inline] is much
+easier to start with than XS.
+&lt;H3&gt;Where to start&lt;/H3&gt;
+You should do a lot of reading before you decide to [cpan://Inline]. Here's a
+good list:
+&lt;br&gt;
+&lt;ul&gt;
+&lt;li&gt;[perldoc://perlguts] - You need an overview of perl's internals
+&lt;li&gt;[perldoc://perlapi] -  You need to know the API
+&lt;li&gt;[cpan://Inline] - of course
+&lt;li&gt;[cpan://Inline::C] - that's what we're focusing on here
+&lt;li&gt;Inline::C-Cookbook - great starting recipes (included in [cpan://Inline::C])
+&lt;li&gt;[isbn://1565922204|Advanced Perl Programming] - especially chapters 18,19, and 20.
+&lt;/ul&gt;
+&lt;H3&gt;Tools Needed for Inline::C&lt;/H3&gt;
+To continue with the rest of this tutorial, you should ensure you have a
+&lt;a href="http://gcc.gnu.org"&gt;c compiler&lt;/a&gt; and the [cpan://Inline] module 
+(which includes the [cpan://Inline::C] module).
+&lt;H3&gt;Examples&lt;/H3&gt;
+&lt;H4&gt;The cannonical&lt;/H4&gt;
+The following code is just a simple straight forward snippet of [cpan://Inline] 
+that prints everyones favorite line:
+&lt;H5&gt;hello.pl&lt;/H5&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use Inline C;
+use strict;
+
+hello_inline();
+
+__END__
+__C__
+#include &lt;stdio.h&gt;
+
+void hello_inline( ) {
+        printf( "Hello World. Best Regards from Inline\n" );
+}
+&lt;/code&gt;
+&lt;H4&gt;Exposing a Library&lt;/H4&gt;
+There is a nice little &lt;a href="http://distro.conectiva.com/projetos/47/"&gt;
+library&lt;/a&gt; that exposes the services file and lets you view, add, delete
+of modify entries in it. 
+&lt;p&gt;
+In order to use the rest of the examples, download and install the services
+library. Make sure you install it in a directory where your compiler/loader can
+find the header and library. You can still use [cpan://Inline] if the files are in an odd
+location but you would need to configure your [cpan://Inline] properly.
+&lt;p&gt;
+This next snippet of [cpan://Inline] just exposes that part
+of the services library that reads the file. (This is also a sub-benefit of
+[cpan://Inline], you can pare-down or wrapper only those parts of a library which
+you deem important).
+&lt;H5&gt;services_print.pl&lt;/H5&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+
+use Inline C =&gt; DATA =&gt;
+       LIBS =&gt; '-lservices';
+
+# Here's how we would configure Inline if our headers and
+# libraries are in a non-standard location 
+
+#use Inline C =&gt; DATA =&gt;
+#           INC  =&gt; '-I/usr/local/include' =&gt;
+#           LIBS =&gt; '-L/usr/local/lib -lservices';
+
+my_services();
+
+__END__
+__C__
+
+#include &lt;libservices.h&gt;
+
+int my_services( ) {
+   struct serv *serv_list = serv_load(NULL);
+   struct serv *serv = serv_list;
+
+   for (; serv; serv = serv-&gt;next) {
+      printf("%s %s %s \n", serv-&gt;name, serv-&gt;port, serv-&gt;proto );
+   }
+  serv_destroy(serv_list);
+  return 1;
+}
+&lt;/code&gt;
+&lt;br&gt;
+If you run this code, you will see a listing of all the services contained
+in your services file. But this isn't really useful. Let's slightly modify this
+example to add the services to the stack, thus returning an array of
+of services that we can work on in perl world:
+&lt;H5&gt;services_stack.pl&lt;/H5&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use Inline C =&gt; DATA =&gt;
+       LIBS =&gt; '-lservices';
+
+my( @srvs ) = my_services();
+
+foreach( @srvs ) {
+   foreach( @$_ ) {
+      print $_, " ";
+   }
+   print "\n";
+}
+
+__END__
+__C__
+
+#include &lt;libservices.h&gt;
+
+void my_services( ) {
+   struct serv *serv_list = serv_load(NULL);
+   struct serv *serv = serv_list;
+
+   SV *record[3];
+   AV *entry;
+
+   Inline_Stack_Vars;
+   Inline_Stack_Reset;
+
+   for (; serv; serv = serv-&gt;next) {
+      record[0] = newSVpv(serv-&gt;name, 0 );
+      record[1] = newSVpv(serv-&gt;port, 0 );
+      record[2] = newSVpv(serv-&gt;proto, 0 );
+      Inline_Stack_Push(newRV_noinc((SV*)av_make(3,record)));
+   }
+  serv_destroy(serv_list);
+  Inline_Stack_Done;
+}
+&lt;/code&gt;
+&lt;br&gt;
+Now that's pretty powerful.
+&lt;br&gt;
+&lt;H3&gt;Speed&lt;/H3&gt;
+Now we could parse the /etc/services ourselves and just have 
+a pure perl approach. The next snippet of [cpan://Inline] shows that and
+bench marks the two approaches:
+&lt;H5&gt;services_bm.pl&lt;/H5&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use Benchmark;
+use Inline C =&gt; DATA =&gt;
+       LIBS =&gt; '-lservices';
+
+use strict;
+
+timethese( 500, {
+   'inline' =&gt; sub{ &amp;inline(); },
+   'pure'   =&gt; sub{ &amp;pure(); },
+   }
+);
+
+sub pure {
+   my( $serv, $pp, $rst, $port, $proto, $array, @all );
+   open( SERVICES, "&lt;/etc/services" ) or die "Cannot open: $!\n";
+   while( &lt;SERVICES&gt; ) {
+      next if /^#/;
+      next if /^\s+$/;
+      ( $serv, $pp, $rst ) = split( /\s+/, $_ );
+      ( $port, $proto ) = split( /\//, $pp );
+      #print $serv, " ", $port, " ", $proto, " ", "\n";
+      push( @all, [$serv,$port,$proto] );
+   }
+   close( SERVICES );
+   @all;
+}
+
+sub inline {
+   my( @srvs ) = my_services();
+}
+
+__END__
+__C__
+
+#include &lt;libservices.h&gt;
+
+void my_services( ) {
+   struct serv *serv_list = serv_load(NULL);
+   struct serv *serv = serv_list;
+
+   SV *record[3];
+   AV *entry;
+
+   Inline_Stack_Vars;
+   Inline_Stack_Reset;
+
+   for (; serv; serv = serv-&gt;next) {
+      record[0] = newSVpv(serv-&gt;name, 0 );
+      record[1] = newSVpv(serv-&gt;port, 0 );
+      record[2] = newSVpv(serv-&gt;proto, 0 );
+      Inline_Stack_Push(newRV_noinc((SV*)av_make(3,record)));
+   }
+  serv_destroy(serv_list);
+  Inline_Stack_Done;
+}
+&lt;/code&gt;
+&lt;br&gt;
+And the results of benchmarking are:
+&lt;p&gt;
+&lt;code&gt;
+Benchmark: timing 500 iterations of inline, pure...
+    inline:  3 wallclock secs ( 2.67 usr +  0.38 sys =  3.05 CPU) @ 163.93/s (n=500)
+      pure:  8 wallclock secs ( 8.65 usr +  0.16 sys =  8.81 CPU) @ 56.75/s (n=500)
+Benchmark: timing 500 iterations of inline, pure...
+    inline:  3 wallclock secs ( 2.58 usr +  0.46 sys =  3.04 CPU) @ 164.47/s (n=500)
+      pure:  9 wallclock secs ( 8.64 usr +  0.11 sys =  8.75 CPU) @ 57.14/s (n=500)
+Benchmark: timing 500 iterations of inline, pure...
+    inline:  3 wallclock secs ( 2.63 usr +  0.41 sys =  3.04 CPU) @ 164.47/s (n=500)
+      pure:  8 wallclock secs ( 8.62 usr +  0.15 sys =  8.77 CPU) @ 57.01/s (n=500)
+&lt;/code&gt;
+&lt;br&gt;
+So we can see the [cpan://Inline] version is much faster than the perl version
+(but I'm sure there are other pure perl implementations which would be
+faster than what I've done here).
+&lt;H3&gt;Thanks and Credits&lt;/H3&gt;
+[cpan://Inline] would not have been possible without the hardwork
+and dedication of &lt;a href="http://www.perl.com/pub/au/Ingerson_Brian Ingerson"&gt;Brian Ingerson&lt;/a&gt;.
+Also, check out the official [cpan://Inline] &lt;a href="http://inline.perl.org"&gt;site&lt;/a&gt;.
+&lt;p&gt;
+-derby
+&lt;p&gt;
+&lt;b&gt;updated:&lt;/b&gt; return type for hello_inline function was incorrect (thanks [id://43894]). Also just recently read [id://22609] remarks about posting snippets to pm should
+cannocalize the shebang to /usr/bin/perl (I just wish I
+could find that node again - no luck with search or supersearch).
+</field>
+</data>
+</node>

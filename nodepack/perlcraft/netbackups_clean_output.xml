@@ -1,0 +1,69 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+#Use instead of the un-human-readable output from the #bpdbjobs -report -all_columns command.
+&lt;code&gt;
+use strict;
+$ENV{PATH} = 
+'/bin:/usr/bin:/usr/openv/netbackup/bin:/usr/openv/netbackup/bin/admincmd:/usr/openv/volmgr/bin';
+sub formattime {
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)
+= localtime(shift);
+return sprintf('%04d/%02d/%02d %02d:%02d:%02d',
+$year + 1900, $mon + 1, $mday,
+$hour, $min, $sec);
+}sub formathour {
+my $sec  = shift;
+my $min  = $sec / 60; $sec %= 60;
+my $hour = $min / 60; $min %= 60;
+return sprintf('%02d:%02d:%02d', $hour, $min, $sec);
+}my %images;
+open(BPIMAGELIST, join(' ', &quot;bpimagelist -l&quot;, @ARGV, '|'))
+or die &quot;Can't exec bpimagelist: $@\n&quot;;
+my $image;
+while (&lt;BPIMAGELIST&gt;) {
+if (/^IMAGE/) {
+my ($client, $id, $class, $sched, $started,
+$elapsed, $kbytes, $files, $keyword) =
+(split)[1, 5, 6, 10, 13, 14, 18, 19, 31];
+my $idsuffix = $id;
+$idsuffix =~ s/.*_//;
+$image = $images{$id} = {
+client  =&gt; $client,
+id      =&gt; $idsuffix,
+class   =&gt; $class,
+sched   =&gt; $sched,
+started =&gt; $started,
+elapsed =&gt; $elapsed,
+kbytes  =&gt; $kbytes,
+files   =&gt; $files,
+keyword =&gt; $keyword,
+tapes   =&gt; {},
+};
+} elsif (/^FRAG/) {
+++$image-&gt;{tapes}{(split)[8]};
+}}close(BPIMAGELIST);
+$= = 2 + scalar keys %images;
+my ($i, $tapes);
+foreach $i (sort { $a-&gt;{started} &lt;=&gt; $b-&gt;{started} } values %images) {
+$tapes = join(' ', sort keys %{$i-&gt;{tapes}});
+write;
+}format STDOUT_TOP =
+Client       ID         Class       Schedule    Started             Elapsed  Keyword            Kbytes    Files Tapes
+------------ ---------- ----------- ----------- ------------------- -------- ------------ ------------ -------- -------------------- 
+.
+format STDOUT =
+@&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; @&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; @&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; @&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; @&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; @&lt;&lt;&lt;&lt;&lt;&lt;&lt; @&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; @&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt; @&gt;&gt;&gt;&gt;&gt;&gt;&gt; ^&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;
+$i-&gt;{client}, $i-&gt;{id}, $i-&gt;{class}, $i-&gt;{sched}, formattime($i-&gt;{started}), formathour($i-&gt;{elapsed}), $i-&gt;{keyword}, $i-&gt;{kbytes}, $i-&gt;{files}, $tapes
+~~                                                                                                              ^&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;
+$tapes
+&lt;/code&gt;
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>177814</node_id>
+  <author_user>57097</author_user>
+  <title>Netbackups Clean Output</title>
+  <createtime>2002-06-27 15:03:13</createtime>
+  <nodeupdated>2005-07-21 01:31:52</nodeupdated>
+</node>

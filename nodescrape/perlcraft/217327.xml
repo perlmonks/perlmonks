@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="217327" title="Solution to $ENV{HTTPS} Problems with mod_perl" created="2002-12-03 15:01:08" updated="2005-06-08 11:48:12">
+<type id="121">
+perlcraft</type>
+<author id="961">
+Anonymous Monk</author>
+<data>
+<field name="doctext">
+I'm writing a PerlAccessHandler for Apache in mod_perl 
+that need to verify if you are coming in on HTTPS or 
+HTTP.  Because the PerlAccessHandler is declared in the 
+main site configuration, it is inherited by the SSL 
+virutal host running at the same FQDN.
+
+I've found that the $ENV{HTTPS} mechanism is flaky.  Even 
+$r-&gt;subprocess_env('HTTPS') is sorta flaky.  Sometimes 
+$ENV{HTTPS} is showing up on requests from HTTP and 
+sometimes from HTTPS.
+
+My solution is in the VirtualHost config for the SSL server to add:
+
+&lt;code&gt;
+&lt;Location /&gt;
+        AuthName "Intranet"
+        AuthType Basic
+        require valid-user 
+        PerlSetVar HTTPS "ON"
+        SSLOptions +StdEnvVars
+&lt;/Location&gt;
+&lt;/code&gt;
+
+In my PerlAccessHandler, I check:
+
+&lt;code&gt;
+        if ($r-&gt;dir_config('HTTPS') eq "ON") {
+                return DECLINED;
+        } else {
+                return OK;
+        }
+&lt;/code&gt;
+
+Mechanism now works flawlessly.  If you're http at this 
+point in the logic, we know you're ok and can bypass the 
+PerlAuthenHandler and PerlAuthzHandler.
+
+Of course before that I perform this check:
+
+&lt;code&gt;
+        if (($d-&gt;{nav_url_secure_flag} == 1) &amp;&amp; ($r-&gt;dir_config('HTTPS') ne "ON")) {
+                $r-&gt;header_out( Location =&gt; "https://portal/$url" );
+                return REDIRECT;
+        }
+&lt;/code&gt;
+
+Just to make sure that the content needs to be secure and 
+is coming over HTTPS, if not then redirect.</field>
+</data>
+</node>

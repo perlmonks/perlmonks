@@ -1,0 +1,113 @@
+<node>
+  <doctext>[%
+    my $size= $q-&gt;param('size');
+    my $modulo= $q-&gt;param('modulo');
+    my $notate= $q-&gt;param('notate');
+
+    use Everything::Experience;
+    my $level= isGod($USER) ? 'gods' : getLevel($USER); # can`t accessrule
+    my $maxSize= getVars(getNode('Modular Pascal Triangle Level Settings','setting'))-&gt;{$level};
+
+    $size= 20   if  &quot;&quot; == $size;
+    $modulo= 3   if  &quot;&quot; == $modulo;
+
+    $q-&gt;param('size',$size);
+    $q-&gt;param('modulo',$modulo);
+
+    my $raw= &quot;raw&quot; eq lc( $q-&gt;param(&quot;displaytype&quot;) );
+    my $html= '';
+    $html .= &quot;&lt;h3&gt;Pascal's Triangle modulo N using colors&lt;/h3&gt;\n&quot;;
+    $html .= qq[&lt;form action=&quot;?&quot; method=&quot;get&quot;&gt;\n]
+      . $q-&gt;hidden( node_id =&gt; $NODE-&gt;{node_id} ) . $/
+      . $q-&gt;hidden( displaytype =&gt; &quot;display&quot; ) . $/
+      . &quot;Size: &quot; . $q-&gt;textfield(&quot;size&quot;,'',6) . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . &quot;Modulo: &quot; . $q-&gt;textfield(&quot;modulo&quot;,'',6) . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . $q-&gt;checkbox( 'notate', 0, 1, &quot;Show&amp;nbsp;numbers&quot; )
+      . &quot; &amp;nbsp; &amp;nbsp;\n&quot;
+      . $q-&gt;submit(&quot;&quot;,&quot;draw&quot;) . qq[ &amp;nbsp; &amp;nbsp;\n]
+      . linkNode(
+            $NODE,
+            $/ . ( $raw ? &quot;Show&quot; : &quot;Hide&quot; ) . &quot;&amp;nbsp;nodelets&quot;, {
+                $notate ? ( notate =&gt; 1 ) : ( ),
+                displaytype =&gt; $raw ? 'display' : 'raw',
+                size =&gt; $size,
+                modulo =&gt; $modulo,
+            }
+        ) . $/
+      . qq[&lt;/form&gt;&lt;br /&gt;\n];
+
+    my @color= qw(
+        0000ff 00ff00 ff0000 00ffff ff00ff ffff00
+        000088 008800 880000 008888 880088 888800
+        4488ff ff4488 88ff44 8844ff ff8844 44ff88
+        000044 004400 440000 004444 440044 444400
+        0000dd 00dd00 dd0000 00dddd dd00dd dddd00
+        cccccc 333333
+    );
+    my @font= map {
+        my $h= hex($_);
+        ($h&amp;0xff) + 2*(($h&gt;&gt;8)&amp;0xff) + (($h&gt;&gt;16)&amp;0xff) &lt; 2*0xff
+            ? qq[&lt;tt&gt;&lt;font color=&quot;#ffffff&quot;&gt;]
+            : qq[&lt;tt&gt;&lt;font color=&quot;#000000&quot;&gt;]
+    } @color;
+    return $html . &quot;Please use a modulo between 2 and &quot; . (0+@color) . &quot;.&quot;
+        if  $modulo &lt; 2  ||  @color &lt; $modulo;
+
+    return $html . &quot;Please use a size between 1 and $maxSize&quot;
+       if  $size &lt; 1;
+
+    if(  $maxSize &lt; $size  ) {
+        $html .= &quot;You only have access to display $maxSize rows.&lt;br /&gt;\n&quot;;
+        $size= $maxSize
+    }
+
+    $html .= qq[&lt;table cellpadding=&quot;0&quot; cellspacing=&quot;1&quot; border=&quot;0&quot;&gt;\n];
+    $html .= qq[&lt;tr&gt;];
+    $html .= ( qq[&lt;td&gt;] . &quot;&amp;nbsp;&quot;x2 . qq[&lt;/td&gt;] ) x ( 2*$size );
+    $html .= qq[&lt;/tr&gt;&lt;tr&gt;\n];
+    for my $index (  0..$modulo-1  ) {
+        $html .= qq[&lt;td bgcolor=&quot;#$color[$index]&quot; colspan=&quot;2&quot;&gt;]
+            . ( ! $notate
+                ? &quot;&lt;tt&gt;&amp;nbsp;&amp;nbsp;&lt;/tt&gt;&quot;
+                : $font[$index]
+                    . ( grep s/ /&amp;nbsp;/g || 1,
+                        sprintf &quot;%2d&quot;, $index )[0]
+                    . &quot;&lt;/font&gt;&lt;/tt&gt;&quot;
+              )
+            . qq[&lt;/td&gt;];
+    }
+    $html .= qq[&lt;/tr&gt;\n];
+    my @row= ( 1 );
+    for my $row (  1 .. $size  ) {
+        $html .= qq[&lt;tr&gt;];
+        $html .= qq[&lt;td colspan=&quot;] . ($size-$row) . qq[&quot;&gt;&lt;/td&gt;]
+            if  0 &lt; $size-$row;
+        $html .= $/;
+        unshift @row, 0;
+        for my $col (  1 .. $row  ) {
+            $html .= qq[&lt;td colspan=&quot;2&quot; bgcolor=&quot;#$color[$row[$col]]&quot;&gt;]
+                . ( ! $notate
+                    ? &quot;&amp;nbsp;&quot; x 5
+                    : $font[$row[$col]]
+                        . ( grep s/ /&amp;nbsp;/g || 1,
+                            sprintf &quot;%2d&quot;, $row[$col] )[0]
+                        . &quot;&lt;/font&gt;&lt;/tt&gt;&quot;
+                  )
+                . qq[&lt;/td&gt;\n];
+            $row[$col-1] += $row[$col];
+            $row[$col-1] %= $modulo;
+        }
+        $html .= qq[&lt;td colspan=&quot;] . ($size-$row) . qq[&quot;&gt;&lt;/td&gt;]
+            if  0 &lt; $size-$row;
+        $html .= qq[&lt;/tr&gt;\n];
+    }
+    $html .= qq[&lt;/table&gt;\n];
+    return $html;
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>171092</node_id>
+  <author_user>485628</author_user>
+  <title>Modular Pascal's Triangle</title>
+  <createtime>2002-06-02 21:16:03</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

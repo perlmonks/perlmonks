@@ -1,0 +1,503 @@
+<node>
+  <doctext>&lt;p&gt;
+We're routinely facing situations where we need to quickly master to a functional competency level a particular module usage. What can greatly influence
+the depth of the learning curve and the retention of information afterwards is the module documentation; exceedingly technical documentation is dry and 
+maybe discouraging to revisit over and over, sparse documentation doesn't do justice to the module capabilities and leaves much unexplained, lack of code 
+illustrations makes it uneasy for the example-oriented readers. The size of the module too plays a role on how efficient and clear it is documented, however
+there are some very large modules with very great documentation and support. Much kudos go to all the Perl community for all the selfless efforts and to 
+the Monastery for providing a place to learn more and add more to the community in ways that compensate for these caveats and say &lt;i&gt;thank you&lt;/i&gt; to all the
+whole entire Perl initiative.     
+&lt;/p&gt;
+
+&lt;p&gt;
+In Perl there exists many different approaches to handling textual input and then (re)formatting the output to assume an intelligible design 
+(or a mysteriously cabalistic one!). Perl text processing capabilities are well established, this is reflected in many areas like 
+[http://perldoc.perl.org/perlre.html|Regular Expressions],[http://perldoc.perl.org/perlvar.html|Predefined Variables], 
+Functions and Operators such as &lt;c&gt;cmp, eq, uc,lc, pack,unpack...etc&lt;/c&gt;, and the existence of many  [http://search.cpan.org/|CPAN] 
+[http://search.cpan.org/modlist/String_Language_Text_Processing|categories and namespaces] to modules that take text processing and output formatting 
+capabilities to skylimits.
+&lt;/p&gt;
+
+&lt;p&gt;
+Unarguably, tabulated representation of data has significant values, cluttered or clumsy reports can make for grumby colleagues, a lashing boss,
+and a ruined day (&lt;i&gt;if not career&lt;/i&gt;), Perl springs to the rescue, programming interfaces libraries to enable carrying out of such represntation jobs 
+easier are abundantly spread across many CPAN namespaces too; [http://search.cpan.org/~drolsky/Alzabo-0.92/lib/Alzabo/Table.pm|Alzabo::Table],
+[http://search.cpan.org/~ztang/Text-PORE-1.02/PORE/Table.pm|Table], [http://search.cpan.org/~omega/PDF-Table-0.9.3/lib/PDF/Table.pm|PDF::Table],
+[http://search.cpan.org/~srezic/Tk-804.029/pod/Table.pod|Tk::Table],[http://search.cpan.org/~jmcnamara/Spreadsheet-WriteExcel-2.37/lib/Spreadsheet/WriteExcel.pm|Spreadsheet::WriteExcel]
+ and [http://search.cpan.org/~anno/Text-Table-1.114/lib/Text/Table.pm#Status_Information|Text::Table] are all but few examples of libraries to handle 
+tabulation tasks with efficiency.  
+&lt;/p&gt;
+&lt;p&gt;
+Here I am attempting to provide a quick jumpstart to the module [http://search.cpan.org/~anno/Text-Table-1.114/lib/Text/Table.pm#Status_Information|Text::Table]
+This tutorial in no way does attempt to replace the original documentation to the module rather than to add to it.
+&lt;/p&gt;
+&lt;p&gt;
+The best thing about this module is that it allows you to generate flexible tables with dynamic column alignment attributes, that is, the column width is 
+dictated by the size of the widest item it has, and data items within the column can be aligned to the left, right or center from the column boundary. This
+lifts off from the burden a bit of the trial and re-trial of different spacing arrangements via &lt;c&gt;sprintf&lt;/c&gt; for example.
+&lt;/p&gt;
+&lt;p&gt;What you need before we get started is a general knowledge level regarding OOP, [References|Referencing and Dereferencing] and the module 
+&lt;c&gt;Text::Table&lt;/c&gt; installed, check [Installing Modules] if you are not familiar with installing Perl non-core modules, then you need a dataset to 
+play with while wading along, this is brought to you from the &lt;i&gt;Martian Blossoms Juniors&lt;/i&gt; saved in &lt;i&gt;Kindergarten.txt&lt;/i&gt;&lt;/p&gt;
+&lt;readmore&gt;
+&lt;c&gt;
+Acklay
+10
+genetics
+2051
+Bith
+12
+anthropology
+2053
+Blistmok
+14
+metaphysics
+2051
+Chiilak
+17
+
+2051
+Lylek
+
+
+2053
+Massiff
+13
+botany
+2053
+&lt;/c&gt;
+&lt;/readmore&gt;
+Reading this dataset into two hashes of anonymous hashes, &lt;c&gt;%students_51&lt;/c&gt; and &lt;c&gt;%students_53&lt;/c&gt; each with the student names as keys whose values are
+anonymous hashes with the keys (name, age, topic, class). ALL these keys are your variables (table headers) while their values are data for your table. 
+Each table represents a class year, 2051 or 2053. Note the [http://search.cpan.org/~smueller/Data-Dumper-2.126/Dumper.pm|Data::Dumper] output has empty values for some of the students at some of
+the variables since the parsing code below reads a line per line through the dataset and whereof blanks are taken to correspond to empty values for the 
+corresponding variables,
+&lt;readmore&gt;
+&lt;c&gt;
+#!/usr/local/bin/perl
+use strict;
+use warnings;
+use Data::Dumper;
+my $file = &quot;C:/Documents and Settings/franciscor/Desktop/Kindergarten.txt&quot;;
+open my $fh, '&lt;', $file or die(&quot;Error opening file $!&quot;);
+
+my %students_51;
+my %students_53;
+
+until ( eof($fh) ) {
+    chomp( my $name  = &lt;$fh&gt; );
+    chomp( my $age   = &lt;$fh&gt; );
+    chomp( my $topic = &lt;$fh&gt; );
+    chomp( my $class = &lt;$fh&gt; );
+    if ( $class == 2051 ) {
+        $students_51{$name}-&gt;{'age'}   = $age;
+        $students_51{$name}-&gt;{'topic'} = $topic;
+        $students_51{$name}-&gt;{'class'} = $class;
+    }
+    elsif ( $class == 2053 ) {
+        $students_53{$name}-&gt;{'age'}   = $age;
+        $students_53{$name}-&gt;{'topic'} = $topic;
+        $students_53{$name}-&gt;{'class'} = $class;
+    }
+}
+
+close $fh;
+print Dumper(\%students_51,\%students_53);
+&lt;/c&gt;
+&lt;c&gt;
+#OUTPUT:
+
+$VAR1 = {
+          'Chiilak' =&gt; {
+                         'topic' =&gt; '',
+                         'class' =&gt; 2051,
+                         'age' =&gt; '17'
+                       },
+          'Blistmok' =&gt; {
+                          'topic' =&gt; 'metaphysics',
+                          'class' =&gt; 2051,
+                          'age' =&gt; '14'
+                        },
+          'Acklay' =&gt; {
+                        'topic' =&gt; 'genetics',
+                        'class' =&gt; 2051,
+                        'age' =&gt; '10'
+                      }
+        };
+$VAR2 = {
+          'Lylek' =&gt; {
+                       'topic' =&gt; '',
+                       'class' =&gt; 2053,
+                       'age' =&gt; ''
+                     },
+          'Massiff' =&gt; {
+                         'topic' =&gt; 'botany',
+                         'class' =&gt; 2053,
+                         'age' =&gt; '13'
+                       },
+          'Bith' =&gt; {
+                      'topic' =&gt; 'anthropology',
+                      'class' =&gt; 2053,
+                      'age' =&gt; '12'
+                    }
+        };
+&lt;/c&gt;
+&lt;/readmore&gt;
+Now, lets create tables for each of our two classes, later we will merge these tables together. Creating tables involves creating a table object of the module
+&lt;c&gt;Text::Table&lt;/c&gt; foreach student from &lt;i&gt;Martian Blossoms Juniors&lt;/i&gt; and this entails (in part) looping through the hashes &lt;c&gt;%students_51&lt;/c&gt; and 
+&lt;c&gt;students_53&lt;/c&gt;. Creating a table object can also allow you to create table column-heads on the go:
+&lt;c&gt;
+use Text::Table;
+my  $table_51 = Text::Table-&gt;new(&quot;NAME&quot;,&quot;AGE&quot;,&quot;TOPIC&quot;,&quot;CLASS&quot;);
+&lt;/c&gt;
+ 
+&lt;c&gt;Text::Table&lt;/c&gt; adds data to the table in line-wise or in bulk fashions, there are two functions achieving this, the &lt;c&gt;add()&lt;/c&gt; and &lt;c&gt;load()&lt;/c&gt;, 
+with the later being the bulk loader of a group of datalines to the table at once. &lt;i&gt;&lt;b&gt;Interestingly&lt;/b&gt;&lt;/i&gt;, &lt;c&gt;Text::Table&lt;/c&gt; performance doesn't crumble on empty values.
+&lt;readmore&gt;
+&lt;c&gt;
+foreach my $key(keys %students_51){
+        #Direct interpolation to the add function of Text::Table
+        $table_51-&gt;add(
+                       $key,
+                       &quot;$students_51{$key}-&gt;{'age'}&quot;,
+                       &quot;$students_51{$key}-&gt;{topic}&quot;,
+                       &quot;$students_51{$key}-&gt;{class}&quot;
+                       );    # a record of data
+        }
+$table_51-&gt;add(' ');   #ADD AN EMPTY Record
+print $table_51;
+&lt;/c&gt;
+&lt;c&gt;
+#OUTPUT:
+
+NAME     AGE TOPIC       CLASS
+Chiilak  17              2051 
+Blistmok 14  metaphysics 2051 
+Acklay   10  genetics    2051 
+&lt;/c&gt;
+&lt;/readmore&gt;
+Every call to &lt;c&gt;add()&lt;/c&gt; inserts a line of values into the table, this line corresponds to a table record, a white-space fed to either &lt;c&gt;add()&lt;/c&gt; or
+&lt;c&gt;load()&lt;/c&gt; is an empty table record, this comes in handy if you're &lt;i&gt;manually&lt;/i&gt; merging tables together as a measure to ensure that they have the 
+same number of lines (records). &lt;c&gt;Text::Table&lt;/c&gt; has taken care of formatting and aligning its own cells in columns efficienty, since &lt;i&gt;Chiilak&lt;/i&gt;
+didn't have any info filled in the &lt;i&gt;topic&lt;/i&gt; section for her entry that cell was left blank. 
+&lt;p&gt;
+Let's add data in bulk to the table &lt;c&gt;table_53&lt;/c&gt; this is simply achievable by passing an array reference or an anonymous array to &lt;c&gt;load()&lt;/c&gt;,
+the headers to this table are somewhat fancy that they are underlined. A fourth student named Zuxu whose incomplete information record is provided in an 
+array named &lt;c&gt;@zuxu_data&lt;/c&gt; is added simply by passing a reference to &lt;c&gt;@zuxu_data&lt;/c&gt; from within &lt;c&gt;load()&lt;/c&gt; sufficing its requirement and adding 
+that record to the table in return.  
+&lt;/p&gt;
+&lt;readmore&gt;
+&lt;c&gt;
+#Zuxu record
+my @Zuxu_data = (&quot;Zuxo&quot;,&quot; &quot;,&quot; &quot;,&quot;2053&quot;); #blanks serve as placeholders here
+&lt;/c&gt;
+&lt;c&gt;
+my $table_53 = Text::Table-&gt;new( &quot;NAME\n-----&quot;, &quot;AGE\n---&quot;, &quot;TOPIC\n-----&quot;, &quot;CLASS\n-----&quot; );
+
+my @Zuxu_data = ( &quot;Zuxo&quot;, &quot; &quot;, &quot; &quot;, &quot;2053&quot; );
+$table_53-&gt;load(
+    [
+        &quot;Bith&quot;,                          &quot;$students_53{Bith}-&gt;{'age'}&quot;,
+        &quot;$students_53{Bith}-&gt;{'topic'}&quot;, &quot;$students_53{Bith}-&gt;{'class'}&quot;
+    ],
+    [
+        &quot;Lylek&quot;,                          &quot;$students_53{Lylek}-&gt;{'age'}&quot;,
+        &quot;$students_53{Lylek}-&gt;{'topic'}&quot;, &quot;$students_53{Lylek}-&gt;{'class'}&quot;
+    ],
+    [
+        &quot;Massiff&quot;,
+        &quot;$students_53{Massiff}-&gt;{'age'}&quot;,
+        &quot;$students_53{Massiff}-&gt;{'topic'}&quot;,
+        &quot;$students_53{Massiff}-&gt;{'class'}&quot;
+    ],
+    \@Zuxu_data
+);
+
+print $table_53;
+
+&lt;/c&gt; 
+&lt;c&gt;
+#OUTPUT:
+
+NAME    AGE TOPIC        CLASS
+-----   --- -----        -----
+Bith    12  anthropology 2053 
+Lylek                    2053 
+Massiff 13  botany       2053 
+Zuxo                     2053 
+&lt;/c&gt;
+
+&lt;p&gt;
+Each record in the table is a standalone data line that can be accessed/retrieved individually, also any cell that has a new line character would be taken
+as a two-line cell, so here, our header for the table &lt;c&gt;$table_53&lt;/c&gt; has in fact two lines. Passing the line number to the function &lt;c&gt;table()&lt;/c&gt;
+would return that line (or those group of lines as in the following example), did we need &lt;c&gt;\n&lt;/c&gt; in the &lt;c&gt;print&lt;/c&gt; statement inside the
+&lt;c&gt;foreach&lt;/c&gt; loop? Why (not)?.
+&lt;c&gt;
+#print the header for $table_53 and Massiff's record.
+foreach(0,1,4){
+        print $table_53-&gt;table($_);
+        }
+&lt;/c&gt; 
+&lt;c&gt;
+#OUTPUT:
+
+NAME    AGE TOPIC        CLASS
+-----   --- -----        -----
+Massiff 13  botany       2053 
+&lt;/c&gt;
+Another variation to &lt;c&gt;table()&lt;/c&gt; allows you to print a selection of lines together starting from a given table line:
+&lt;c&gt;
+#show me 3 records starting from line 2
+print $table_53-&gt;table(2,3);
+&lt;/c&gt;
+&lt;c&gt;
+#OUTPUT:
+
+Bith    12  anthropology 2053 
+Lylek                    2053 
+Massiff 13  botany       2053 
+&lt;/c&gt;
+If you really cared less about the entire table but more about its body, then invoking the more becoming function &lt;c&gt;body()&lt;/c&gt; is more direct forward and 
+it can be used in essentially the same way &lt;c&gt;table()&lt;/c&gt; can.
+&lt;/p&gt;
+
+&lt;p&gt;
+Another approach to invoking the above two functions is without passing a subscript as an argument, this way you can assign the entire table to an array with
+or without its headers. The table data alignment is uniformly intact as well 
+&lt;c&gt;
+my @headed_table   = $table_53-&gt;table();
+my @headless_table = $table_53-&gt;body();
+
+print @headless_table;
+print &quot;+&quot; x 50, &quot;\n&quot;;
+print @headed_table;
+&lt;/c&gt;
+&lt;c&gt;
+#OUTPUT:
+
+Bith    12  anthropology 2053 
+Lylek                    2053 
+Massiff 13  botany       2053 
+Zuxo                     2053 
+++++++++++++++++++++++++++++++++++++++++++++++++++
+NAME    AGE TOPIC        CLASS
+-----   --- -----        -----
+Bith    12  anthropology 2053 
+Lylek                    2053 
+Massiff 13  botany       2053 
+Zuxo                     2053 
+
+&lt;/c&gt;
+or assign a record thereof to a variable and the alignment and spacing is maintained too.
+&lt;/p&gt;
+&lt;p&gt;
+&lt;c&gt;
+print $table_53-&gt;body();
+print &quot;\n\n&quot;;
+my $third_record = $table_53-&gt;body(2);
+print $third_record;
+&lt;/c&gt;
+&lt;c&gt;
+#OUTPUT:
+
+Bith    12  anthropology 2053 &lt;---The entire table body
+Lylek                    2053 
+Massiff 13  botany       2053 
+Zuxo                     2053 
+
+
+Massiff 13  botany       2053 &lt;----Third Record only
+&lt;/c&gt;
+Check the function &lt;c&gt;select()&lt;/c&gt; from [http://search.cpan.org/~anno/Text-Table-1.114/lib/Text/Table.pm|Text::Table]
+&lt;/p&gt;
+
+&lt;p&gt;
+Let's piece the code we have so far together:
+&lt;c&gt;
+#!/usr/local/bin/perl
+use strict;
+use warnings;
+use Data::Dumper;
+my $file = &quot;C:/Documents and Settings/franciscor/Desktop/Kindergarten.txt&quot;;
+open my $fh, '&lt;', $file or die(&quot;Error opening file $!&quot;);
+
+my %students_51;
+my %students_53;
+
+until ( eof($fh) ) {
+    chomp( my $name  = &lt;$fh&gt; );
+    chomp( my $age   = &lt;$fh&gt; );
+    chomp( my $topic = &lt;$fh&gt; );
+    chomp( my $class = &lt;$fh&gt; );
+    if ( $class == 2051 ) {
+        $students_51{$name}-&gt;{'age'}   = $age;
+        $students_51{$name}-&gt;{'topic'} = $topic;
+        $students_51{$name}-&gt;{'class'} = $class;
+    }
+    elsif ( $class == 2053 ) {
+        $students_53{$name}-&gt;{'age'}   = $age;
+        $students_53{$name}-&gt;{'topic'} = $topic;
+        $students_53{$name}-&gt;{'class'} = $class;
+    }
+}
+
+close $fh;
+print Dumper(\%students_51,\%students_53);
+
+use Text::Table;
+my $table_51 =
+  Text::Table-&gt;new( &quot;NAME\n-----&quot;, &quot;AGE\n---&quot;, &quot;TOPIC\n-----&quot;, &quot;CLASS\n-----&quot; );
+
+foreach my $key ( keys %students_51 ) {
+
+    #Direct interpolation to the add function of Text::Table
+    $table_51-&gt;add( $key, &quot;$students_51{$key}-&gt;{'age'}&quot;,
+        &quot;$students_51{$key}-&gt;{topic}&quot;, &quot;$students_51{$key}-&gt;{class}&quot; );
+}
+$table_51-&gt;add(' ');    #ADD AN EMPTY LINE
+
+print $table_51;
+
+#since we are using a bulk loader we don't need to loop through %students_53
+#Of course this is inefficient if your table has many rows and columns
+my $table_53 =
+  Text::Table-&gt;new( &quot;NAME\n-----&quot;, &quot;AGE\n---&quot;, &quot;TOPIC\n-----&quot;, &quot;CLASS\n-----&quot; );
+
+my @Zuxu_data = ( &quot;Zuxo&quot;, &quot; &quot;, &quot; &quot;, &quot;2053&quot; );
+$table_53-&gt;load(
+    [
+        &quot;Bith&quot;,                          &quot;$students_53{Bith}-&gt;{'age'}&quot;,
+        &quot;$students_53{Bith}-&gt;{'topic'}&quot;, &quot;$students_53{Bith}-&gt;{'class'}&quot;
+    ],
+    [
+        &quot;Lylek&quot;,                          &quot;$students_53{Lylek}-&gt;{'age'}&quot;,
+        &quot;$students_53{Lylek}-&gt;{'topic'}&quot;, &quot;$students_53{Lylek}-&gt;{'class'}&quot;
+    ],
+    [
+        &quot;Massiff&quot;,
+        &quot;$students_53{Massiff}-&gt;{'age'}&quot;,
+        &quot;$students_53{Massiff}-&gt;{'topic'}&quot;,
+        &quot;$students_53{Massiff}-&gt;{'class'}&quot;
+    ],
+    \@Zuxu_data
+);
+
+print $table_53;
+&lt;/c&gt;
+&lt;/p&gt;
+&lt;/readmore&gt;
+&lt;p&gt;
+If we loaded our two tables bodies into the arrays &lt;c&gt;@headless_51&lt;/c&gt; and &lt;c&gt;@headless_53&lt;/c&gt; respectively and attempted to conceptually merge them
+ -side by side- we will not get the merging that we want since each table record is a standlone line.
+&lt;c&gt;
+my @headless_51 = $table_51-&gt;body();
+my @headless_53 = $table_53-&gt;body();
+print &quot;@headless_51 @headless_53&quot;;
+&lt;/c&gt;
+&lt;c&gt;
+#OUTPUT:
+
+Chiilak  17              2051 
+ Blistmok 14  metaphysics 2051 
+ Acklay   10  genetics    2051 
+                               
+ Bith    12  anthropology 2053 
+ Lylek                    2053 
+ Massiff 13  botany       2053 
+ Zuxo                     2053 
+
+&lt;/c&gt;
+As you've noticed all the indices for these functions from &lt;c&gt;Text::Table&lt;/c&gt; that accept indices for their arguements are zero based, &lt;c&gt;select()&lt;/c&gt; is
+not an exception too. It allows you to quickly generate subtables from your tables and merge them in the ordering you want simply by passing column numbers
+from the parent tables to be selected into the subtable, It is also possible to rearrange the columns in the subtable in the ordering that you want or make 
+a column appear more than once just by passing to &lt;c&gt;select()&lt;/c&gt; that column index more than once!. 
+&lt;/p&gt;
+&lt;p&gt;
+&lt;readmore&gt;
+Let's use the &lt;c&gt;select()&lt;/c&gt; function to quickly generate 6 subtables from &lt;c&gt;table_51&lt;/c&gt; and &lt;c&gt;table_53&lt;/c&gt; and merge them together.
+This is just to show you the possibilities out there, however, you can extend on it and provide measures for skipping empty records and all that jazz.
+&lt;c&gt;
+my $merged_tables = Text::Table-&gt;new(&quot;\tTABLE 51 &quot;,&quot;\tTABLE 53&quot;);
+$merged_tables-&gt;add($table_51-&gt;select(0,1,2,3),$table_53-&gt;select(3,2,1,0));
+print $merged_tables;
+
+#OUTPUT:
+
+	TABLE 51                      	TABLE 53                     
+NAME     AGE TOPIC       CLASS CLASS TOPIC        AGE NAME   
+-----    --- -----       ----- ----- -----        --- -----  
+Chiilak  17              2051  2053  anthropology 12  Bith   
+Blistmok 14  metaphysics 2051  2053                   Lylek  
+Acklay   10  genetics    2051  2053  botany       13  Massiff
+                               2053                   Zuxo   
+&lt;/c&gt;
+&lt;c&gt;
+my $merged_name_age=Text::Table-&gt;new(&quot;\tAGES OF CLASSES&quot;,&quot;&quot;);
+$merged_name_age-&gt;add($table_51-&gt;select(0,1),$table_53-&gt;select(0,1));
+print $merged_name_age;
+
+#OUTPUT:
+
+	AGES OF CLASSES            
+NAME     AGE     NAME    AGE
+-----    ---     -----   ---
+Chiilak  17      Bith    12 
+Blistmok 14      Lylek      
+Acklay   10      Massiff 13 
+                 Zuxo       
+
+&lt;/c&gt;
+&lt;c&gt;
+my $class_topic=Text::Table-&gt;new(&quot;Subjects Of Classes&quot;,&quot;&quot;);
+$class_topic-&gt;add($table_51-&gt;select(2,3),$table_53-&gt;select(2,3));
+print $class_topic;
+
+#OUTPUT:
+
+	Subjects Of Classes                   
+TOPIC       CLASS    TOPIC        CLASS
+-----       -----    -----        -----
+            2051     anthropology 2053 
+metaphysics 2051                  2053 
+genetics    2051     botany       2053 
+                                  2053 
+
+&lt;/c&gt;
+If generating your own merging protocol is preferrable you might want to loop through the tables, spliting each record into individual values and conditionally 
+select matching values that will be added to your new table. It'd prove nightmarish IF the tables don't have the same number of records for that matter hence
+you could pad the original tables by adding empty records here and there to ensure that they have equal number of records.
+&lt;br&gt;Check the following conditional merge code listing.
+&lt;c&gt;
+# @Dlines  = $table1-&gt;body();
+# @DPlines = $table2-&gt;body();
+
+my $alignedTable = Text::Table-&gt;new();
+for(my $i = 0 .. $#Dlines){   
+
+        my($D1) = split(/\s{2,}/,$Dlines[$i])  if ($Dlines[$i] !~/^\s*+$/);
+        my($D2) = split(/\s{2,}/,$DPlines[$i]) if ($DPlines[$i]!~/^\s*+$/);;
+        $alignedTable-&gt;load([$D1, $D2]);
+        }
+print $alignedTable;
+&lt;/c&gt; 
+&lt;/p&gt;
+&lt;/readmore&gt;
+&lt;p&gt;
+Thank you and I hope that this tutorial is going to be successful at taking you to tackling bigger and bigger tasks galaxy-wide.
+&lt;/p&gt;
+
+
+&lt;p&gt;Original RFC published [RFC(Tutorial):Text::Table Enable] on Jun 14, 2010&lt;/p&gt;
+
+&lt;div class=&quot;pmsig&quot;&gt;&lt;div class=&quot;pmsig-769448&quot;&gt;
+&lt;hr&gt;
+Excellence is an Endeavor of Persistence.
+A Year-Old Monk :D .
+&lt;/div&gt;&lt;/div&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>846667</node_id>
+  <author_user>769448</author_user>
+  <title>Text::Table Tutorial</title>
+  <createtime>2010-06-26 08:26:27</createtime>
+  <nodeupdated>2010-06-26 08:26:27</nodeupdated>
+</node>

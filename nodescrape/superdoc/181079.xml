@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="181079" title="approval log" created="2002-07-11 13:12:48" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+    my %actions = (
+      ok =&gt; 'Approved',
+      unok =&gt; 'Unapproved',
+      fp =&gt; 'Frontpaged',
+      unfp =&gt; 'Unfrontpaged'
+    );
+  
+    my $sth = $DB-&gt;sqlSelectMany(
+      'node_id,user_id,action,tstamp',
+      'approved',
+      '',
+      'ORDER BY tstamp DESC LIMIT 500',
+    );
+    my @nodes;
+    my %approved;
+    while( my $n = $sth-&gt;fetchrow_hashref() ) {
+      my $id= $n-&gt;{node_id};
+      if( $approved{$id} ) {
+        push @{$approved{$id}}, $n;
+      } else {
+        push @nodes, $id;
+        $approved{$id}= [ $n ];
+      }
+    }
+  
+    return $q-&gt;table(
+      { width =&gt; '100%', border =&gt; '1' },
+      map {
+        my $entries = $approved{$_};
+        map {
+             $q-&gt;Tr(
+                  $_  ? () 
+                      : $q-&gt;td( { valign =&gt; 'top', rowspan=&gt;0+@$entries }, 
+                                linkNode($entries-&gt;[$_]{node_id}) ),
+                  $q-&gt;td( $actions{ $entries-&gt;[$_]{action} } ),
+                  $q-&gt;td( htmlcode( 'parseTimeInString','', $entries-&gt;[$_]{tstamp}, '', '', 'short' ) ),
+                  $q-&gt;td( linkNode($entries-&gt;[$_]{user_id}) ),
+              )
+        } 0..$#$entries,
+      } @nodes,
+    );
+%]</field>
+</data>
+</node>

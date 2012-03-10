@@ -1,0 +1,152 @@
+<node>
+  <doctext>#!/usr/bin/zsh
+#
+# This is a Zsh script for downloading, building, and
+# installing SDL-Perl 1.17.4.  I wrote it for a friend who
+# was having a hard time installing SDL-Perl, and I
+# figured there might be someone on here who would find it
+# useful.  I didn't want all this work to go to waste,
+# afterall.  
+#
+# Think of it as a poor man's qx(apt-get install libsdl-perl), 
+# and get it while it's hot, because it only works for
+# SDL-Perl 1.17.4.  You won't want to use it after Dave
+# releases a newer version.  (At least not without modifications).
+
+# -------------------------------------------------------
+#
+# In order for this script to work, you must have the
+# following things installed:
+#
+# [ debian packages ]
+#   - sudo
+#   - wget
+#   - libsdl1.2-dev
+#   - libsdl1.2-debian
+#   - zsh
+#   - and the rest of the usual suspects
+#     like g++, autoconf, patch, etc.
+
+# After you have all that set up, just run this script and
+# it will download and install a pretty decent SDL-Perl
+# for you.  
+
+# You might not like the way it does certain things, but I
+# think this script is layed out simply enough that you
+# can make certain tweaks to it that will make it just
+# right for your system.
+
+# [ extra libs ]
+#   x SDL_gfx-2.0.3.tar.gz
+#   x SDL_image-1.2.2.tar.gz
+#   x SDL_mixer-1.2.3.tar.gz
+#   x SDL_net-1.2.4.tar.gz
+#   x SDL_ttf-2.0.5.tar.gz
+#   o smpeg-0.4.4.tar.gz	:-( c++ was uncooperative )
+# 
+# [ gl from sgi ]
+#   o ogl-sample.20000807.tgz	mesa is good enough for now
+
+alias p print
+
+url=&quot;http://www.sdlperl.org/downloads&quot;
+
+sdl_src=SDL_perl-1.17.4.tar.gz
+
+src=(
+    SDL_gfx-2.0.3.tar.gz
+    SDL_image-1.2.2.tar.gz
+    SDL_mixer-1.2.3.tar.gz
+    SDL_net-1.2.4.tar.gz
+    SDL_ttf-2.0.5.tar.gz
+)
+
+deb=(
+    wget
+    patch
+    mikmod
+    timidity
+    vorbis-tools
+    libfreetype6-dev
+    libjpeg62-dev
+    libpng2-dev
+    libtiff3g-dev
+    libungif4-dev
+    xlibmesa-dev
+)
+
+typeset -A cfg
+cfg[SDL_gfx]=&quot;&quot;
+cfg[SDL_image]=&quot;--enable-tif --enable-xcf&quot;
+cfg[SDL_mixer]=&quot;&quot;
+cfg[SDL_net]=&quot;--disable-gui&quot;
+cfg[SDL_ttf]=&quot;&quot;
+
+p install debian packages
+[ -e /etc/alternatives ] &amp;&amp; sudo apt-get install $deb
+
+p get sources
+for i in $src ; do 
+    [ -e $i ] || wget $url/utils/$i
+done
+[ -e $sdl_src ] || wget $url/$sdl_src
+
+p untar sources
+for i in $src $sdl_src ; do 
+    pkg=${i/.tar.gz/}
+    if [ -d $pkg ] ; then
+	pushd $pkg &amp;&amp; make clean
+	popd
+    else
+	tar zxvf $i
+    fi
+done
+
+p build auxiliary packages
+for i in $src ; do
+    # pkg
+    pkg=${i/.tar.gz/}
+
+    # prefix
+    prefix=/opt/$pkg
+
+    # build
+    pushd $pkg
+    echo $pkg ./configure ${cfg[${pkg/-*/}]}
+    sleep 3
+    ./configure ${cfg[${pkg/-*/}]}
+    make
+    
+    # install (normal)
+    sudo make install
+    
+    # install (symlink tree from /opt to /usr/local)
+    # [note] google knows how to find &quot;lncp&quot;
+    #sudo make install prefix=$prefix
+    #cd /opt
+    #sudo lncp $pkg /usr/local
+    popd
+done 
+
+p build sdlperl
+cd SDL_perl*(/)
+
+#
+# LOOK!  Perl code, below!  ;-)  I'm not entirely off-topic.
+#
+( echo '37a38;' ;
+  echo '&gt; $inc_flags .= join(&quot; &quot;, map { &quot;-I$_&quot; } @dirs);' ) \
+  | patch Makefile.linux
+
+perl Makefile.linux
+make
+sudo make install
+
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>168331</node_id>
+  <author_user>15528</author_user>
+  <title>SDL-Perl Installation Script</title>
+  <createtime>2002-05-21 22:39:17</createtime>
+  <nodeupdated>2005-08-14 23:20:23</nodeupdated>
+</node>

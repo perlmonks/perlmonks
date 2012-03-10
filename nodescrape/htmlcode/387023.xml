@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="387023" title="pmdev_link" created="2004-08-30 16:28:15" updated="2005-06-12 20:11:05">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+my ($inner)=@_;
+
+my ($nodeloc,$title,$alt)=$inner=~m#^pmdev://([^|]+)(?:\|([^|]*)(?:\|([^|]*))?)?$#;
+
+return "[$inner]" unless $nodeloc &amp;&amp; $USER-&gt;{user_id};
+my $N;
+my ($textlink, $display, $comment)=('') x 3;
+
+if ($nodeloc=~/^\?/) {
+    $textlink=qq(&lt;a href="$nodeloc"&gt;);
+    if (!$title and $nodeloc=~/node(?:_id)?=([^&amp;;]+)/) {
+       $title=$1;
+    }
+} elsif ($nodeloc=~/\D/) {
+    my ($node,$view,$type)=split /;/,$nodeloc;
+    if ($type) {
+        $comment="&lt;!-- gN $node|$type --&gt;";
+        my $T=getType($type);
+        $N=getNode($node,$T) if $T;
+    } elsif ($node=~/\D/) {
+        $comment="&lt;!-- gNW $node --&gt;";
+        ($N)=getNodeWhere({title=&gt;$node});
+    } else {
+        $comment="&lt;!-- gNBI $node --&gt;";
+        $N=getNodeById($node);
+    }
+    $display=$view;
+} else {
+    $comment="&lt;!-- gNBI $nodeloc --&gt;";
+    $N=getNodeById($nodeloc);
+};
+
+
+my $PMDEV=getNode( 'pmdev', 'usergroup' );
+return join '',$comment,
+       defined($alt) ? $alt : $title||$N-&gt;{title}||""
+  unless Everything::isApproved($USER,$PMDEV);
+
+return "[$inner]" unless $textlink || $N;
+if ( !$textlink &amp;&amp; !$title ) {
+  $title= $N-&gt;{title};
+  $title.= " : " . $N-&gt;{reason}
+          if $N-&gt;{type}{title} eq 'patch'; 
+}
+                    
+return join '',$comment,
+       $textlink 
+        ? $textlink. $q-&gt;escapeHTML( $title || $nodeloc )."&lt;/a&gt;"
+        : linkNode($N, $title,
+                   $display ? { displaytype =&gt; $display } : ()
+          )
+       ;
+</field>
+</data>
+</node>

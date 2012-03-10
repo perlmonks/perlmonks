@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="627917" title="get_poll_popularity" created="2007-07-20 21:19:36" updated="2007-07-20 17:19:37">
+<type id="4">
+htmlcode</type>
+<author id="474174">
+yitzchak</author>
+<data>
+<field name="code">
+# $pollday - ref to HoH to return popularity stats; outer key is day of poll
+# $node_id - id of poll
+# $check_pollvotes - true if to check poll votes, only possible for current poll
+my ($pollday, $node_id, $check_pollvotes) = @_;
+
+my $poll_created = $DB-&gt;sqlSelect("UNIX_TIMESTAMP(createtime)", "node", "node_id = $node_id");
+
+my $dbh = $DB-&gt;getDatabaseHandle();
+
+my @queries = (
+    "select floor((unix_timestamp(createtime)-$poll_created)/86400)+1 as pollday, count(*) as comments from note inner join node on note_id = node_id where root_node = $node_id group by pollday",
+    "select floor((unix_timestamp(votetime)-$poll_created)/86400)+1 as pollday, count(*) as rootvotes from vote where vote_id = $node_id group by pollday",
+    "select floor((unix_timestamp(votetime)-$poll_created)/86400)+1 as pollday, count(*) as notevotes from note inner join vote on note_id = vote_id where root_node = $node_id group by pollday",
+);
+
+push @queries,
+    "select floor((unix_timestamp(tstamp)-$poll_created)/86400)+1 as pollday, count(*) as pollvotes from pollvote where polls_id = $node_id group by pollday"
+    if $check_pollvotes;
+
+for my $query (@queries) {
+    my $rows = $dbh-&gt;selectall_arrayref( $query, { Slice =&gt; {} } );
+    %{ $pollday-&gt;{$_-&gt;{pollday}} } = ( %{ $pollday-&gt;{$_-&gt;{pollday}} || {} }, %$_, polls_id =&gt; $node_id ) for @$rows;
+}
+</field>
+</data>
+</node>

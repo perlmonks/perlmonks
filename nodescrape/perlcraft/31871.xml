@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="31871" title="perl in multiple dimensions" created="2000-09-11 13:10:55" updated="2005-07-19 14:08:39">
+<type id="121">
+perlcraft</type>
+<author id="19316">
+jimt</author>
+<data>
+<field name="doctext">
+=pod
+Well, I was bored the other day and started playing around with one of the silly pastimes that I
+amuse myself with (ASCII art).  Then I thought, "Hey, I can incorporate another one of the things
+I amuse myself with!"  That was Perl, and so I started fiddling aroud with Perl scripts to make
+ASCII Art.  Then I though, "Hey, I can incorporate another one of the things I amuse myself with!"
+That was n-dimensional geometry, and that was also 4 days ago.  This is the net-result.
+
+Just run this little puppy, and it will happily print out objects up to 6 dimensions.  It can
+only draw cubes, and at the moment it can't go higher than 6 dimensions (since there aren't many
+characters after that that look good unless you want to duplicate things)
+
+I'm sure this could be written more prettily, compactly, extensibly, and so on.  It's fairly dumb
+at the moment.  But gosh-darn it, it does do this one thing pretty well.
+
+And I just *know* that you've been dying to see an ASCII hyper cube, so take a look at it.  :)
+
+The thing that I'm most pleased with, is that they're actually drawn by their mathematical definitions.
+So a point is zero dimensional, a line is a moving point, a plane a moving line, and so on.  It 
+places the objects and then connects them to form the next higher dimension.  No lame-o caching
+of previously created ASCII for me!  No sir.
+
+If, for some arcane reason, someone wants a more robust version of this thing, I may look into it.  But,
+realistically, such endeavors are best left as an exercise for the reader.  ;)
+
+More intelligent methods to add are the ability to have more complex objects, the difference between
+'front' and 'back' and a couple of other things.  I'll email ideas I have about it, if you'd like, but
+otherwise the weekend is over and I'm done with this little diversion.
+
+=cut
+
+use strict;
+
+#define the ascii characters for each direction
+my @hor = qw(- =);
+my @ver = qw(| !);
+my @ud  = qw(/);
+my @dd  = qw(\\);
+
+#create our universe
+make_space();
+
+#well, a zero dimensional object is a point
+my $point = "+";        
+
+#take a point,
+place_in_space($point, 0, 0);  
+#move it somewhere else,
+place_in_space($point, 7,0);  
+#and draw a line between them, and you have:
+make_path();          
+
+#a one dimensional object (a line)
+my $line = space_rip();      
+
+#take a line,
+place_in_space($line, 4, 5);  
+#move it somewhere else,
+place_in_space($line, 4, 10);  
+#and draw a line between them, and you have:
+make_path();          
+
+#a two dimensional object (a square)
+my $square = space_rip();    
+
+#take a square,
+place_in_space($square, 4, 5);  
+#move it somwhere else,
+place_in_space($square, 7, 8);  
+#and draw a line between them, and you have:
+make_path();          
+
+#a three dimensional object (a cube)
+my $cube = space_rip();      
+
+#take a cube,
+place_in_space ($cube,5,12);  
+#move it somewhere else,
+place_in_space ($cube,15,2);   
+#and draw a line between them, and you have:
+make_path();          
+
+#a four dimensional object (a hyper cube)
+my $hypercube = space_rip();  
+
+#take a hypercube,
+place_in_space($hypercube, 5, 12);  
+#move it somewhere else,
+place_in_space($hypercube, 30, 12);  
+#and draw a line between them, and you have:
+make_path();            
+
+#a five dimensional object (hyper hyper cube)
+my $cube5d = space_rip();      
+
+#take a 5d cube,
+place_in_space($cube5d, 5, 12);    
+#move it somewhere else,
+place_in_space($cube5d, 5, 34);    
+#and draw a line between them, and you have:
+make_path();            
+
+#a six dimensional object (hyper hyper hyper cube)
+my $cube6d = space_rip();      
+
+#and we'll just stop at 6 dimensions, what with 
+#the lack of good ascii characters and all...
+
+#let's see what we made!
+
+print "=====\nPoint:\n=====\n\n$point\n\n=====\n\n\n";
+print "=====\nLine:\n=====\n$line\n\n=====\n\n\n";
+print "=====\nSquare:\n=====\n$square\n\n=====\n\n\n";
+print "=====\nCube:\n=====\n$cube\n\n=====\n\n\n";
+print "=====\nHyper Cube:\n=====\n$hypercube\n\n=====\n\n\n";
+print "=====\n5d Cube:\n=====\n$cube5d\n\n=====\n\n\n";
+print "=====\n6d Cube:\n=====\n$cube6d\n\n=====";              
+
+BEGIN {
+
+  my @space = ();
+
+  sub make_space () {
+    foreach my $x (0..100){
+      foreach my $y (0..100){
+        $space[$x]-&gt;[$y] = " ";
+      };
+    };
+  };
+  
+  my %space  = ();
+  my $which  = 0;
+  my $node   = 0;
+  my $min_x = 10000;
+  
+  sub place_in_space {
+    my ($cube, $x, $y) = @_;
+    
+    $min_x = $x if $x &lt; $min_x;
+    
+    my @cube = map {[split // ]} split(/\n/,$cube);
+    
+    my $node = 0;
+    
+    foreach (@cube){
+      foreach my $z (0..$#$_){
+        next if $_-&gt;[$z] =~ /^\s*$/;
+        my $i = $x + $z;
+        $space[$y]-&gt;[$i] = $_-&gt;[$z];
+        $space{"space" . $which . "p" . $node++} 
+          = [$y, $i] if $_-&gt;[$z] eq "+";
+      };
+      $y++;
+    };
+    
+    $which++;
+    
+  };
+  
+  sub space_rip() {
+    my $rip = undef;
+    foreach (@space){
+      my $dim = join ("", @$_);
+      next if $dim =~ /^\s*$/;
+      $dim =~ s/(^\s{$min_x}|\s+$)//g;
+      $rip .= "\n$dim";
+    };
+    make_space();
+    $min_x = 100000;
+    return $rip;
+  };
+  
+  sub make_path() {
+    my $htoken = shift @hor;
+    my $vtoken = shift @ver;
+    my $utoken = shift @ud;
+    my $dtoken = shift @dd;
+    my ($use_h, $use_v, $use_ud, $use_dd) = (0,0,0,0);
+    foreach my $cube (0..$which){
+      my $node = 0;
+      
+      while (defined (my $alpha_node = 
+          $space{"space" . $cube . "p" . $node})){
+        my $cube2 = $cube + 1;
+        my $beta_node = 
+          $space{"space" . $cube2 . "p" . $node} or last;
+        
+        my ($ax, $ay) = @$alpha_node;
+        my ($bx, $by) = @$beta_node;
+        
+        
+        my $max_y = max($ay, $by);
+        my $min_y = min($ay, $by);
+        
+        my $max_x = max($ax, $bx);
+        my $min_x = min($ax, $bx);
+      
+        if ($ax == $bx){  #horizontal
+          $use_h++;
+          foreach (1..($max_y - $min_y - 1)){
+            $space[$ax]-&gt;[$min_y + $_] = $htoken
+              unless $space[$ax]-&gt;[$min_y + $_] 
+                =~ /[$htoken@hor+]/o;
+          };
+        }
+        elsif ($ay == $by){  #vertical
+          $use_v++;
+          foreach (1..($max_x - $min_x - 1)){
+            $space[$min_x + $_]-&gt;[$ay] = $vtoken
+              unless $space[$min_x + $_]-&gt;[$ay] 
+                =~ /[$vtoken@ver+]/o;
+          };
+        }
+        elsif ($by &gt; $ay &amp;&amp; $bx &gt; $ax) {  #down diagonal
+          return undef unless delta($ax, $bx) == 
+            delta($ay, $by);
+          $use_dd++;
+          foreach (1..($max_x - $min_x - 1)){
+              $space[$min_x + $_]-&gt;[$min_y + $_] = $dtoken
+                unless $space[$min_x + $_]-&gt;[$min_y + $_] 
+                  =~ /[$dtoken@dd+]/o;
+          };
+        }
+        else {        #up diagonal
+          return undef unless delta($ax, $bx) == 
+            delta($ay, $by);
+          $use_ud++;
+          foreach (1..($max_x - $min_x - 1)){
+              $space[$min_x + $_]-&gt;[$max_y - $_] = $utoken
+                unless $space[$min_x + $_]-&gt;[$max_y - $_] 
+                  =~ /[$utoken@ud+]/o;
+          };
+        };
+        delete $space{"space" . $cube2 . "p" . $node};
+        delete $space{"space" . $cube . "p" . $node};
+        $node++;
+      };
+    };
+    
+    unshift @hor, $htoken unless $use_h;
+    unshift @ver, $vtoken unless $use_v;
+    unshift @dd, $dtoken unless $use_dd;
+    unshift @ud, $utoken unless $use_ud;
+  };
+  
+  sub max {
+    my ($a, $b) = @_;
+    return $a &gt; $b ? $a : $b;
+  };
+  
+  
+  sub min {
+    my ($a, $b) = @_;
+    return $a &gt; $b ? $b : $a;
+  };
+  
+  
+  sub delta {
+    my ($a, $b) = @_;
+    return abs($a - $b);
+  };
+};
+
+</field>
+</data>
+</node>

@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="357923" title="Archive::Tar" created="2004-06-01 00:06:18" updated="2005-08-09 23:03:37">
+<type id="31663">
+modulereview</type>
+<author id="44715">
+graff</author>
+<data>
+<field name="doctext">
+Requires IO::Zlib in order to handle compressed tar files.
+&lt;P&gt;
+
+For just about any operating system you'll ever use, you should be able
+to find some command-line utility or GUI application that knows how to
+read unix tar files (even those that have been compressed), list the
+names and sizes of directories and files that they contain, and extract
+their contents.  Many of these utilities also know how to create tar
+files from a chosen directory tree or list of files.  So why does anyone
+need a Perl module that can do this?
+
+&lt;P&gt;
+
+Well what if you're on a system where the available tools don't support
+the creation of a tar file?  In this case, Archive::Tar will allow you
+to create such a tool yourself, so when some remote colleague says "just
+send me a tar file with the stuff you're working on", you can do that --
+rather than embarrass yourself by replying with something like "I only
+have pkzip / WinZIP / Stuff-it / Toys-R-Us Archiver / ...  Will that
+format be okay?"
+
+&lt;P&gt;
+
+(To be honest, that's not really much of a problem these days -- most
+archiving file formats have supporting utilities ported to most OS's,
+and the definitive command-line "tar" utility is available and fully
+functional for every version of Microsoft OS and MacOSX, as well as
+being intrinsic to every type of unix system.  There must be one for
+Amiga as well...)
+
+&lt;P&gt;
+
+But there is one feature of the definitive "tar" tool that can be a bit
+limiting at times: whether creating or extracting tar file contents, it
+is completely, inescapably faithful to its source.  In creation,
+whatever is on disk goes directly into the tar set, sticking to the path
+and file names provided; on extraction, whatever is in the tar set goes
+right into directories and files on disk, again, sticking to the names
+provided.  There are ways to (de)select particular paths/files, but
+that's about all the flexibility you get.  Usually, this is exactly what
+everyone wants, but sometimes you might just wish you could do something
+a little different when you create or extract from a tar file, like:
+
+&lt;UL&gt;
+&lt;LI&gt; - rename files and/or directories
+&lt;LI&gt; - simplify an overly complicated directory layout
+&lt;LI&gt; - sort files into a more elaborate directory layout 
+&lt;LI&gt; - modify file content, or skip certain files
+&lt;LI&gt; - do any (combination) of the above based on any available
+information, including path/name, date, size, ownership, permissions
+and/or content, or even some other source, like a database or log file.
+&lt;/UL&gt;
+
+&lt;P&gt;
+
+There's also a situation not envisioned when "tar" was first conceived
+decades ago, but common today: you may want to accumulate a set of
+resources from the web and save them all in one tar file, without ever
+bothering to write each one to a separate local disk file first -- tar
+is just a really handy format for this sort of thing.
+
+&lt;P&gt;
+
+Unfortunately, as of this writing (Archive::Tar v1.08), the flexibility
+you get with this module is limited by one major design issue: the
+entire content of a tar set (all the uncompressed data files contained
+in the tar file) must reside in memory.  Presumably, this approach was
+chosen so that both compressed and uncompressed tar files would be
+handled in the same way.
+
+&lt;P&gt;
+
+If people only dealt with uncompressed tar files, then the module could
+be designed to scan a tar image and get the path names, sizes, other
+metadata, and the byte offsets to each individual data file in the set,
+so that only the indexing info would be memory resident.  But you can't
+do that very well when the tar file is compressed, and tar files tend to
+be compressed more often than not.  And since there is no inherent upper
+bound on the size of tar files -- and tar is often used to package really
+big data sets -- users of Archive::Tar need to be careful not to use this
+module on the really big ones.  (This can be awkward when a compressed
+tar file contains stuff that "compresses really well", like XML data
+with overly-verbose tagging -- I've seen compression ratios of 10:1 on
+such data.)
+
+&lt;P&gt;
+
+When you install Archive::Tar, you also get Archive::Tar::File, which is
+the object used to contain each individual data file in a tar set.  When
+you do:
+
+&lt;code&gt;
+my $tar_obj = Archive::Tar-&gt;new;
+$tar_obj-&gt;read( "my.tar")
+
+# or just: my $tar_obj = Archive::Tar-&gt;new( "my.tar" );
+&lt;/code&gt;
+
+this creates an array of Archive::Tar::File objects.  Called in a list
+context, "read" returns the list of these objects (and as you would
+expect, when called in a scalar context, it returns the number of File
+objects).  When you are creating a tar set, each call to the "add_data"
+or "add_files" method will append to the list of File objects currently
+in memory.  When you call the "write" method, all the File objects
+currently in the set are written as a tar stream to a file name that you
+provide (or the stream is returned to the caller as a scalar, if you do
+not provide an output file name).
+
+&lt;P&gt;
+
+There are also three class methods that provide just the basic operations
+of listing and extracting tar-set contents, and creating a tar set from
+a list of data file names.  These methods avoid the memory load, because
+they don't bother holding the data files in memory as objects.  This
+also means that you give up a lot of detailed control on individual data
+files.
+
+&lt;P&gt;
+
+The Archive::Tar::File objects provide a lot of handy features,
+including accessors for file name, mode, linkname, user-name/uid,
+group-name/gid, size, mtime, cksum, type, etc.  You can rename a file or
+replace its data content, check for empty files using "has_content", and
+choose between getting a copy of the file content or a reference to the
+content ("get_content" or "get_content_by_ref").
+
+&lt;P&gt;
+
+Getting back to the use of the Archive::Tar object itself, I did come
+across one potential trap when trying to do a "controlled" extraction of
+data from an input tar file.  Most of the object methods related to
+reading/extracting are presented in terms of using one or more
+individual file names as the means for specifying which data file to
+handle -- in fact, after the "new" and "read" methods, the next three methods
+described are "contains_file( $filename )", "extract( &amp;#91;@filenames]
+)" and "list_files()".  Most of the remaining methods also need or allow
+file names as args, which leads one to assume that the "easiest" way to
+use the object is to do everything in terms of file names.
+
+&lt;P&gt;
+
+But the problem is that each time you specify a file name for one of
+these object methods, the Archive::Tar module needs to search through
+its list of Archive::Tar::File objects to find the file with that name.
+This gets painfully slow when you're dealing with a set of many files,
+and doing something with each of them.
+
+&lt;P&gt;
+
+Obviously, there are bound to be situations where you will need to
+do things by specifying particular data file names in a tar set, but 
+more often, you'll want to work directly with the File objects.  A
+couple of examples will suffice to show the difference:
+
+&lt;code&gt;
+use Archive::Tar;
+
+# here's the slow approach to mucking with files in a tar set:
+
+my $tar = Archive::Tar-&gt;new( "some.tar" );
+
+my @filenames = $tar-&gt;list_files;
+
+for my $filename ( @filenames ) {
+    my $filedata = $tar-&gt;get_content( $filename );
+    # do other stuff...
+}
+&lt;/code&gt;
+
+The problem there is that each call to "tar-&gt;get_content( $filename )"
+invokes a linear search through the set of data files, in order to
+locate the File object having that name.  The following approach goes
+much faster, because it just iterates through the list of File objects
+directly:
+
+&lt;code&gt;
+use Archive::Tar;
+
+my $tar = Archive::Tar-&gt;new( "some.tar" );
+
+my @files = $tar-&gt;get_files;  # returns list of Archive::Tar::File objects
+
+for my $file ( @files ) {
+    my $data = $file-&gt;get_content;  # same as above, but no searching involved
+    # do other stuff...
+}
+&lt;/code&gt;
+
+And of course, given the list of File objects, you have much better
+control over the selection and handling of files -- here are a few
+examples:
+
+&lt;code&gt;
+my %cksums;
+
+for my $file ( grep { $_-&gt;has_content } @files ) # only do non-empty files
+{
+   next if $file-&gt;uname eq 'root';  # let's leave these alone
+
+   if ( $file-&gt;name =~ /\.[ch]$/ ) {
+      # do things with source code files here...
+   }
+   elsif ( exists( $cksums{ $file-&gt;cksum } )) {
+      # file's content duplicates another file we've already seen...
+   }
+   else {
+      $cksum{$file-&gt;cksum} = undef; # keep track of cksums
+   }
+}
+&lt;/code&gt;
+
+To conclude: on the whole, if fine-grained control of tar file i/o is
+something that would be helpful to you, and if you can limit yourself to
+dealing with tar files that fit in available memory, then you really
+should be using this module.  It's good.
+&lt;P&gt;
+(updated to fix some typos and simple mistakes.)</field>
+<field name="itemdescription">
+Module for manipulating tar file contents</field>
+<field name="usercomment">
+Despite some limitations in design, the module provides functions that are difficult or impossible to do by other means</field>
+<field name="identifier">
+</field>
+</data>
+</node>

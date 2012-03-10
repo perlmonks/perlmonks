@@ -1,0 +1,655 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="389" title="perlman:perlbot" created="1999-08-25 02:28:13" updated="2005-08-11 19:17:26">
+<type id="116">
+perlman</type>
+<author id="114">
+gods</author>
+<data>
+<field name="doctext">
+
+
+&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME="NAME"&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perlbot - Bag'o Object Tricks (the 
+&lt;FONT SIZE=-1&gt;BOT)&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DESCRIPTION"&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The following collection of tricks and hints is intended to whet curious
+appetites about such things as the use of instance variables and the
+mechanics of object and class relationships. The reader is encouraged to
+consult relevant textbooks for discussion of Object Oriented definitions
+and methodology. This is not intended as a tutorial for object-oriented
+programming or as a comprehensive guide to Perl's object oriented features,
+nor should it be construed as a style guide.
+
+&lt;P&gt;
+The Perl motto still holds: There's more than one way to do it.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="OO_SCALING_TIPS"&gt;OO SCALING TIPS&lt;/A&gt;&lt;/H1&gt;
+&lt;OL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+Do not attempt to verify the type of $self. That'll break if the class is
+inherited, when the type of &lt;CODE&gt;$self&lt;/CODE&gt; is valid but its package
+isn't what you expect. See rule 5.
+
+&lt;P&gt;&lt;LI&gt;
+
+If an object-oriented 
+&lt;FONT SIZE=-1&gt;(OO)&lt;/FONT&gt; or indirect-object 
+&lt;FONT SIZE=-1&gt;(IO)&lt;/FONT&gt; syntax was used, then the object is probably the correct type and there's no need to become paranoid about it. Perl isn't a paranoid language anyway. If people subvert the 
+&lt;FONT SIZE=-1&gt;OO&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;IO&lt;/FONT&gt; syntax then they probably know what they're doing and you should let them do it. See rule 1.
+
+&lt;P&gt;&lt;LI&gt;
+
+Use the two-argument form of 
+&lt;CODE&gt;bless().&lt;/CODE&gt; Let a subclass use
+your constructor. See &lt;A HREF="#INHERITING_A_CONSTRUCTOR"&gt;INHERITING A CONSTRUCTOR&lt;/A&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+The subclass is allowed to know things about its immediate superclass, the
+superclass is allowed to know nothing about a subclass.
+
+&lt;P&gt;&lt;LI&gt;
+
+Don't be trigger happy with inheritance. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; ``using'', ``containing'', or ``delegation''
+relationship (some sort of aggregation, at least) is often more
+appropriate. See &lt;A HREF="#OBJECT_RELATIONSHIPS"&gt;OBJECT RELATIONSHIPS&lt;/A&gt;, &lt;A HREF="#USING_RELATIONSHIP_WITH_SDBM"&gt;USING RELATIONSHIP WITH SDBM&lt;/A&gt;, and &lt;A HREF="#DELEGATION"&gt;DELEGATION&lt;/A&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+The object is the namespace. Make package globals accessible via the
+object. This will remove the guess work about the symbol's home package.
+See &lt;A HREF="#CLASS_CONTEXT_AND_THE_OBJECT"&gt;CLASS CONTEXT AND THE OBJECT&lt;/A&gt;.
+
+&lt;P&gt;&lt;LI&gt;
+
+
+&lt;FONT SIZE=-1&gt;IO&lt;/FONT&gt; syntax is certainly less noisy, but it is also prone to ambiguities that can cause difficult-to-find bugs. Allow people to use the sure-thing 
+&lt;FONT SIZE=-1&gt;OO&lt;/FONT&gt; syntax, even if you don't like it.
+
+&lt;P&gt;&lt;LI&gt;
+
+Do not use function-call syntax on a method. You're going to be bitten
+someday. Someone might move that method into a superclass and your code
+will be broken. On top of that you're feeding the paranoia in rule 2.
+
+&lt;P&gt;&lt;LI&gt;
+
+Don't assume you know the home package of a method. You're making it
+difficult for someone to override that method. See &lt;A HREF="#THINKING_OF_CODE_REUSE"&gt;THINKING OF CODE REUSE&lt;/A&gt;.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="INSTANCE_VARIABLES"&gt;INSTANCE VARIABLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+An anonymous array or anonymous hash can be used to hold instance
+variables. Named parameters are also demonstrated.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Foo;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my %params = @_;
+                my $self = {};
+                $self-&amp;gt;{'High'} = $params{'High'};
+                $self-&amp;gt;{'Low'}  = $params{'Low'};
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my %params = @_;
+                my $self = &amp;#091;&amp;#093;;
+                $self-&amp;gt;&amp;#091;0&amp;#093; = $params{'Left'};
+                $self-&amp;gt;&amp;#091;1&amp;#093; = $params{'Right'};
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = Foo-&amp;gt;new( 'High' =&amp;gt; 42, 'Low' =&amp;gt; 11 );
+        print &amp;quot;High=$a-&amp;gt;{'High'}\n&amp;quot;;
+        print &amp;quot;Low=$a-&amp;gt;{'Low'}\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $b = Bar-&amp;gt;new( 'Left' =&amp;gt; 78, 'Right' =&amp;gt; 40 );
+        print &amp;quot;Left=$b-&amp;gt;&amp;#091;0&amp;#093;\n&amp;quot;;
+        print &amp;quot;Right=$b-&amp;gt;&amp;#091;1&amp;#093;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="SCALAR_INSTANCE_VARIABLES"&gt;SCALAR INSTANCE VARIABLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+An anonymous scalar can be used when only one instance variable is needed.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Foo;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self;
+                $self = shift;
+                bless \$self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = Foo-&amp;gt;new( 42 );
+        print &amp;quot;a=$$a\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="INSTANCE_VARIABLE_INHERITANCE"&gt;INSTANCE VARIABLE INHERITANCE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This example demonstrates how one might inherit instance variables from a
+superclass for inclusion in the new class. This requires calling the
+superclass's constructor and adding one's own instance variables to the new
+object.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = {};
+                $self-&amp;gt;{'buz'} = 42;
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Foo;
+        @ISA = qw( Bar );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = Bar-&amp;gt;new;
+                $self-&amp;gt;{'biz'} = 11;
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = Foo-&amp;gt;new;
+        print &amp;quot;buz = &amp;quot;, $a-&amp;gt;{'buz'}, &amp;quot;\n&amp;quot;;
+        print &amp;quot;biz = &amp;quot;, $a-&amp;gt;{'biz'}, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="OBJECT_RELATIONSHIPS"&gt;OBJECT RELATIONSHIPS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The following demonstrates how one might implement ``containing'' and
+``using'' relationships between objects.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = {};
+                $self-&amp;gt;{'buz'} = 42;
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Foo;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = {};
+                $self-&amp;gt;{'Bar'} = Bar-&amp;gt;new;
+                $self-&amp;gt;{'biz'} = 11;
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = Foo-&amp;gt;new;
+        print &amp;quot;buz = &amp;quot;, $a-&amp;gt;{'Bar'}-&amp;gt;{'buz'}, &amp;quot;\n&amp;quot;;
+        print &amp;quot;biz = &amp;quot;, $a-&amp;gt;{'biz'}, &amp;quot;\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="OVERRIDING_SUPERCLASS_METHODS"&gt;OVERRIDING SUPERCLASS METHODS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The following example demonstrates how to override a superclass method and
+then call the overridden method. The &lt;STRONG&gt;SUPER&lt;/STRONG&gt; pseudo-class allows the programmer to call an overridden superclass method
+without actually knowing where that method is defined.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Buz;
+        sub goo { print &amp;quot;here's the goo\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Bar; @ISA = qw( Buz );
+        sub google { print &amp;quot;google here\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Baz;
+        sub mumble { print &amp;quot;mumbling\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Foo;
+        @ISA = qw( Bar Baz );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                bless &amp;#091;&amp;#093;, $type;
+        }
+        sub grr { print &amp;quot;grumble\n&amp;quot; }
+        sub goo {
+                my $self = shift;
+                $self-&amp;gt;SUPER::goo();
+        }
+        sub mumble {
+                my $self = shift;
+                $self-&amp;gt;SUPER::mumble();
+        }
+        sub google {
+                my $self = shift;
+                $self-&amp;gt;SUPER::google();
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $foo = Foo-&amp;gt;new;
+        $foo-&amp;gt;mumble;
+        $foo-&amp;gt;grr;
+        $foo-&amp;gt;goo;
+        $foo-&amp;gt;google;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="USING_RELATIONSHIP_WITH_SDBM"&gt;USING RELATIONSHIP WITH SDBM&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This example demonstrates an interface for the 
+&lt;FONT SIZE=-1&gt;SDBM&lt;/FONT&gt; class. This creates a ``using'' relationship between the 
+&lt;FONT SIZE=-1&gt;SDBM&lt;/FONT&gt; class and the new class Mydbm.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Mydbm;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        require SDBM_File;
+        require Tie::Hash;
+        @ISA = qw( Tie::Hash );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub TIEHASH {
+            my $type = shift;
+            my $ref  = SDBM_File-&amp;gt;new(@_);
+            bless {'dbm' =&amp;gt; $ref}, $type;
+        }
+        sub FETCH {
+            my $self = shift;
+            my $ref  = $self-&amp;gt;{'dbm'};
+            $ref-&amp;gt;FETCH(@_);
+        }
+        sub STORE {
+            my $self = shift;
+            if (defined $_&amp;#091;0&amp;#093;){
+                my $ref = $self-&amp;gt;{'dbm'};
+                $ref-&amp;gt;STORE(@_);
+            } else {
+                die &amp;quot;Cannot STORE an undefined key in Mydbm\n&amp;quot;;
+            }
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+        use Fcntl qw( O_RDWR O_CREAT );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        tie %foo, &amp;quot;Mydbm&amp;quot;, &amp;quot;Sdbm&amp;quot;, O_RDWR|O_CREAT, 0640;
+        $foo{'bar'} = 123;
+        print &amp;quot;foo-bar = $foo{'bar'}\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        tie %bar, &amp;quot;Mydbm&amp;quot;, &amp;quot;Sdbm2&amp;quot;, O_RDWR|O_CREAT, 0640;
+        $bar{'Cathy'} = 456;
+        print &amp;quot;bar-Cathy = $bar{'Cathy'}\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="THINKING_OF_CODE_REUSE"&gt;THINKING OF CODE REUSE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+One strength of Object-Oriented languages is the ease with which old code
+can use new code. The following examples will demonstrate first how one can
+hinder code reuse and then how one can promote code reuse.
+
+&lt;P&gt;
+This first example illustrates a class which uses a fully-qualified method call to access the ``private'' method 
+&lt;CODE&gt;BAZ().&lt;/CODE&gt; The second example will show that it is impossible to override the 
+&lt;CODE&gt;BAZ()&lt;/CODE&gt; method.
+
+&lt;P&gt;
+&lt;PRE&gt;        package FOO;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                bless {}, $type;
+        }
+        sub bar {
+                my $self = shift;
+                $self-&amp;gt;FOO::private::BAZ;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package FOO::private;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub BAZ {
+                print &amp;quot;in BAZ\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = FOO-&amp;gt;new;
+        $a-&amp;gt;bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+Now we try to override the 
+&lt;CODE&gt;BAZ()&lt;/CODE&gt; method. We would like FOO::bar() to call 
+&lt;FONT SIZE=-1&gt;GOOP::BAZ(),&lt;/FONT&gt; but this cannot happen because FOO::bar() explicitly calls FOO::private::BAZ().
+
+&lt;P&gt;
+&lt;PRE&gt;        package FOO;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                bless {}, $type;
+        }
+        sub bar {
+                my $self = shift;
+                $self-&amp;gt;FOO::private::BAZ;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package FOO::private;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub BAZ {
+                print &amp;quot;in BAZ\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package GOOP;
+        @ISA = qw( FOO );
+        sub new {
+                my $type = shift;
+                bless {}, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub BAZ {
+                print &amp;quot;in GOOP::BAZ\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = GOOP-&amp;gt;new;
+        $a-&amp;gt;bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+To create reusable code we must modify class 
+&lt;FONT SIZE=-1&gt;FOO,&lt;/FONT&gt; flattening class FOO::private. The next example shows a reusable class 
+&lt;FONT SIZE=-1&gt;FOO&lt;/FONT&gt; which allows the method 
+&lt;FONT SIZE=-1&gt;GOOP::BAZ()&lt;/FONT&gt; to be used in place of 
+&lt;FONT SIZE=-1&gt;FOO::BAZ().&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        package FOO;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                bless {}, $type;
+        }
+        sub bar {
+                my $self = shift;
+                $self-&amp;gt;BAZ;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub BAZ {
+                print &amp;quot;in BAZ\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package GOOP;
+        @ISA = qw( FOO );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                bless {}, $type;
+        }
+        sub BAZ {
+                print &amp;quot;in GOOP::BAZ\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = GOOP-&amp;gt;new;
+        $a-&amp;gt;bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="CLASS_CONTEXT_AND_THE_OBJECT"&gt;CLASS CONTEXT AND THE OBJECT&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Use the object to solve package and class context problems. Everything a
+method needs should be available via the object or should be passed as a
+parameter to the method.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; class will sometimes have static or global data to be used by the methods. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; subclass may want to override that data and replace it with new data. When this happens the superclass may not know how to find the new copy of the data.
+
+&lt;P&gt;
+This problem can be solved by using the object to define the context of the
+method. Let the method look in the object for a reference to the data. The
+alternative is to force the method to go hunting for the data (``Is it in
+my class, or in a subclass? Which subclass?''), and this can be
+inconvenient and will lead to hackery. It is better just to let the object
+tell the method where that data is located.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Bar;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        %fizzle = ( 'Password' =&amp;gt; 'XYZZY' );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = {};
+                $self-&amp;gt;{'fizzle'} = \%fizzle;
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub enter {
+                my $self = shift;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # Don't try to guess if we should use %Bar::fizzle
+                # or %Foo::fizzle.  The object already knows which
+                # we should use, so just ask it.
+                #
+                my $fizzle = $self-&amp;gt;{'fizzle'};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                print &amp;quot;The word is &amp;quot;, $fizzle-&amp;gt;{'Password'}, &amp;quot;\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package Foo;
+        @ISA = qw( Bar );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        %fizzle = ( 'Password' =&amp;gt; 'Rumple' );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = Bar-&amp;gt;new;
+                $self-&amp;gt;{'fizzle'} = \%fizzle;
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = Bar-&amp;gt;new;
+        $b = Foo-&amp;gt;new;
+        $a-&amp;gt;enter;
+        $b-&amp;gt;enter;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="INHERITING_A_CONSTRUCTOR"&gt;INHERITING A CONSTRUCTOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+An inheritable constructor should use the second form of 
+&lt;CODE&gt;bless()&lt;/CODE&gt; which allows blessing directly into a specified class. Notice in this example that the object will be a 
+&lt;FONT SIZE=-1&gt;BAR&lt;/FONT&gt; not a 
+&lt;FONT SIZE=-1&gt;FOO,&lt;/FONT&gt; even though the constructor is in class 
+&lt;FONT SIZE=-1&gt;FOO.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;        package FOO;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub new {
+                my $type = shift;
+                my $self = {};
+                bless $self, $type;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub baz {
+                print &amp;quot;in FOO::baz()\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package BAR;
+        @ISA = qw(FOO);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub baz {
+                print &amp;quot;in BAR::baz()\n&amp;quot;;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        $a = BAR-&amp;gt;new;
+        $a-&amp;gt;baz;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME="DELEGATION"&gt;DELEGATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Some classes, such as SDBM_File, cannot be effectively subclassed because
+they create foreign objects. Such a class can be extended with some sort of
+aggregation technique such as the ``using'' relationship mentioned earlier
+or by delegation.
+
+&lt;P&gt;
+The following example demonstrates delegation using an 
+&lt;CODE&gt;AUTOLOAD()&lt;/CODE&gt; function to perform message-forwarding. This will allow the Mydbm object to behave exactly like an SDBM_File object. The Mydbm class could now extend the behavior by adding custom 
+&lt;CODE&gt;FETCH()&lt;/CODE&gt; and 
+&lt;CODE&gt;STORE()&lt;/CODE&gt; methods, if this is desired.
+
+&lt;P&gt;
+&lt;PRE&gt;        package Mydbm;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        require SDBM_File;
+        require Tie::Hash;
+        @ISA = qw(Tie::Hash);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub TIEHASH {
+                my $type = shift;
+                my $ref = SDBM_File-&amp;gt;new(@_);
+                bless {'delegate' =&amp;gt; $ref};
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        sub AUTOLOAD {
+                my $self = shift;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # The Perl interpreter places the name of the
+                # message in a variable called $AUTOLOAD.
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # DESTROY messages should never be propagated.
+                return if $AUTOLOAD =~ /::DESTROY$/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # Remove the package name.
+                $AUTOLOAD =~ s/^Mydbm:://;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                # Pass the message to the delegate.
+                $self-&amp;gt;{'delegate'}-&amp;gt;$AUTOLOAD(@_);
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        package main;
+        use Fcntl qw( O_RDWR O_CREAT );
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        tie %foo, &amp;quot;Mydbm&amp;quot;, &amp;quot;adbm&amp;quot;, O_RDWR|O_CREAT, 0640;
+        $foo{'bar'} = 123;
+        print &amp;quot;foo-bar = $foo{'bar'}\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</field>
+</data>
+</node>

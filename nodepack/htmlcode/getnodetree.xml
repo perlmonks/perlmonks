@@ -1,0 +1,80 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>783204</node_id>
+  <author_user>518801</author_user>
+  <title>getNodeTree</title>
+  <createtime>2009-07-25 14:50:36</createtime>
+  <code>=head2 getNodeTree
+
+Accepts a node id or an array ref of node ids, a depth, threshold, and order by clause.
+
+Typical usage is
+
+    my $data = htmlcode('getNodeTree', '', $NODE-&gt;{node_id}, 0, $notedepth, $orderby);
+
+Returns a node tree of hash references
+
+The returned structure is an AoH. The hashes have the following
+keys:
+
+    id       - node_id of the current node
+    children - AoH of the children of this node
+
+The results will respect the &quot;Show Reaped Nodes&quot; setting of the current user.
+
+=cut
+
+my( $id, $depth, $threshold, $orderby )= @_;
+$id= [ getId( $id )] unless ref $id eq 'ARRAY';
+
+$orderby ||= &quot;createtime&quot;;
+
+return [] unless (@$id);
+for( @$id ) {
+    $_= getId($_); # all our node ids must be numbers
+};
+for( @$id ) {
+    $_= 0+$_; # all our node ids must be numbers
+};
+
+my $nodereaper= $HTMLVARS{NodeReaperID};
+my $exclude_reaper= 
+       $VARS-&gt;{showreapednotes} 
+       ? ''
+       : &quot; and (author_user &lt;&gt; $nodereaper)&quot;;
+
+my $id_str= join &quot;,&quot;,@$id;
+
+# Now, find all children of @$id
+my $csr= $DB-&gt;sqlSelectMany(
+   &quot;note_id, parent_node&quot;,
+   &quot;note left join node on note_id=node_id&quot;,
+   &quot;parent_node in ($id_str)&quot;,
+   &quot;order by parent_node, $orderby&quot;,
+);
+my $tree= $csr-&gt;fetchall_arrayref;
+
+# and fetch their content
+my $children;
+if( $depth &lt; $threshold ) {
+    $children= htmlcode('getNodeTree', '', [ map { $_-&gt;[0] } @$tree ], $depth +1, $threshold, $orderby );
+};
+
+# Now, distribute all children to their relevant @$id
+my %parent_node = map { @$_ } @$tree;
+for my $c ( @$children ) {
+    $c-&gt;{parent_node} = $parent_node{ $c-&gt;{id} };
+};
+
+# Now fill the requested nodes with the data and their children
+for my $requested_node ( @$id ) {
+    $requested_node = { 
+	id =&gt; $requested_node,
+	children =&gt; [ grep { $_-&gt;{parent_node} == $requested_node } @$children ] 
+    };
+};
+
+return $id
+</code>
+  <nodeupdated>2009-07-25 14:50:36</nodeupdated>
+</node>

@@ -1,0 +1,1577 @@
+<node>
+  <doctext>&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_FILE_UPLOAD_FIELD&quot;&gt;CREATING A FILE UPLOAD FIELD&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;filefield(-name=&amp;gt;'uploaded_file',
+                            -default=&amp;gt;'starting value',
+                            -size=&amp;gt;50,
+                            -maxlength=&amp;gt;80);
+        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;filefield('uploaded_file','starting value',50,80);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;filefield()&lt;/CODE&gt; will return a
+file upload field for Netscape 2.0 browsers. In order to take full
+advantage of this &lt;EM&gt;you must use the new 
+multipart encoding scheme&lt;/EM&gt; for the form. You can do this either by calling &lt;STRONG&gt;startform()&lt;/STRONG&gt; with an encoding type of &lt;STRONG&gt;$CGI::MULTIPART&lt;/STRONG&gt;, or by calling the new method &lt;STRONG&gt;start_multipart_form()&lt;/STRONG&gt; instead of vanilla &lt;STRONG&gt;startform()&lt;/STRONG&gt;.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first parameter is the required name for the field (-name).  
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional second parameter is the starting value for the field contents
+to be used as the default file name (-default).
+
+&lt;P&gt;
+The beta2 version of Netscape 2.0 currently doesn't pay any attention to this field, and so the starting value will always be blank. Worse, the field loses its ``sticky'' behavior and forgets its previous contents. The starting value field is called for in the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; specification, however, and possibly later versions of Netscape will honor it.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third parameter is the size of the field in characters
+(-size).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth parameter is the maximum number of characters the field
+will accept (-maxlength).
+
+&lt;/DL&gt;
+&lt;P&gt;
+When the form is processed, you can retrieve the entered filename by calling 
+&lt;CODE&gt;param().&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;       $filename = $query-&amp;gt;param('uploaded_file');
+&lt;/PRE&gt;
+&lt;P&gt;
+In Netscape Navigator 2.0, the filename that gets returned is the full
+local filename on the &lt;STRONG&gt;remote user's&lt;/STRONG&gt; machine. If the remote user is on a Unix machine, the filename will follow
+Unix conventions:
+
+&lt;P&gt;
+&lt;PRE&gt;        /path/to/the/file
+&lt;/PRE&gt;
+&lt;P&gt;
+On an MS-DOS/Windows and 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; machines, the filename will follow 
+&lt;FONT SIZE=-1&gt;DOS&lt;/FONT&gt; conventions:
+
+&lt;P&gt;
+&lt;PRE&gt;        C:\PATH\TO\THE\FILE.MSW
+&lt;/PRE&gt;
+&lt;P&gt;
+On a Macintosh machine, the filename will follow Mac conventions:
+
+&lt;P&gt;
+&lt;PRE&gt;        HD 40:Desktop Folder:Sort Through:Reminders
+&lt;/PRE&gt;
+&lt;P&gt;
+The filename returned is also a file handle. You can read the contents of
+the file using standard Perl file reading calls:
+
+&lt;P&gt;
+&lt;PRE&gt;        # Read a text file and print it out
+        while (&amp;lt;$filename&amp;gt;) {
+           print;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # Copy a binary file to somewhere safe
+        open (OUTFILE,&amp;quot;&amp;gt;&amp;gt;/usr/local/web/users/feedback&amp;quot;);
+        while ($bytesread=read($filename,$buffer,1024)) {
+           print OUTFILE $buffer;
+        }
+&lt;/PRE&gt;
+&lt;P&gt;
+When a file is uploaded the browser usually sends along some information along with it in the format of headers. The information usually includes the 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; content type. Future browsers may send other information as well (such as modification date and size). To retrieve this information, call 
+&lt;CODE&gt;uploadInfo().&lt;/CODE&gt; It returns a reference to an associative array containing all the document headers.
+
+&lt;P&gt;
+&lt;PRE&gt;       $filename = $query-&amp;gt;param('uploaded_file');
+       $type = $query-&amp;gt;uploadInfo($filename)-&amp;gt;{'Content-Type'};
+       unless ($type eq 'text/html') {
+          die &amp;quot;HTML FILES ONLY!&amp;quot;;
+       }
+&lt;/PRE&gt;
+&lt;P&gt;
+If you are using a machine that recognizes ``text'' and ``binary'' data
+modes, be sure to understand when and how to use them (see the Camel book).
+Otherwise you may find that binary files are corrupted during file uploads.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; The &lt;STRONG&gt;-onChange&lt;/STRONG&gt;, &lt;STRONG&gt;-onFocus&lt;/STRONG&gt;, &lt;STRONG&gt;-onBlur&lt;/STRONG&gt;,
+&lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt; and &lt;STRONG&gt;-onSelect&lt;/STRONG&gt; parameters are recognized. See 
+&lt;CODE&gt;textfield()&lt;/CODE&gt; for details.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_POPUP_MENU&quot;&gt;CREATING A POPUP MENU&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;popup_menu('menu_name',
+                            &amp;#091;'eenie','meenie','minie'&amp;#093;,
+                            'meenie');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;      -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   %labels = ('eenie'=&amp;gt;'your first choice',
+              'meenie'=&amp;gt;'your second choice',
+              'minie'=&amp;gt;'your third choice');
+   print $query-&amp;gt;popup_menu('menu_name',
+                            &amp;#091;'eenie','meenie','minie'&amp;#093;,
+                            'meenie',\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or (named parameter style)-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;popup_menu(-name=&amp;gt;'menu_name',
+                            -values=&amp;gt;&amp;#091;'eenie','meenie','minie'&amp;#093;,
+                            -default=&amp;gt;'meenie',
+                            -labels=&amp;gt;\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;popup_menu()&lt;/CODE&gt; creates a
+menu.
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The required first argument is the menu's name (-name).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The required second argument (-values) is an array &lt;STRONG&gt;reference&lt;/STRONG&gt;
+containing the list of menu items in the menu. You can pass the method an
+anonymous array, as shown in the example, or a reference to a named array,
+such as ``\@foo''.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third parameter (-default) is the name of the default menu
+choice. If not specified, the first item will be the default. The values of
+the previous choice will be maintained across queries.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth parameter (-labels) is provided for people who want to
+use different values for the user-visible label inside the popup menu nd
+the value returned to your script. It's a pointer to an associative array
+relating menu values to user-visible labels. If you leave this parameter
+blank, the menu values will be displayed by default. (You can also leave a
+label undefined if you want to).
+
+&lt;/OL&gt;
+&lt;P&gt;
+When the form is processed, the selected value of the popup menu can be
+retrieved using:
+
+&lt;P&gt;
+&lt;PRE&gt;      $popup_menu_value = $query-&amp;gt;param('menu_name');
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; 
+&lt;CODE&gt;popup_menu()&lt;/CODE&gt; recognizes the following event handlers:
+
+&lt;STRONG&gt;-onChange&lt;/STRONG&gt;, &lt;STRONG&gt;-onFocus&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt;, and
+&lt;STRONG&gt;-onBlur&lt;/STRONG&gt;. See the 
+&lt;CODE&gt;textfield()&lt;/CODE&gt; section for
+details on when these handlers are called.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_SCROLLING_LIST&quot;&gt;CREATING A SCROLLING LIST&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;scrolling_list('list_name',
+                                &amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                                &amp;#091;'eenie','moe'&amp;#093;,5,'true');
+      -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;scrolling_list('list_name',
+                                &amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                                &amp;#091;'eenie','moe'&amp;#093;,5,'true',
+                                \%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;scrolling_list(-name=&amp;gt;'list_name',
+                                -values=&amp;gt;&amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                                -default=&amp;gt;&amp;#091;'eenie','moe'&amp;#093;,
+                                -size=&amp;gt;5,
+                                -multiple=&amp;gt;'true',
+                                -labels=&amp;gt;\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;scrolling_list()&lt;/CODE&gt;
+creates a scrolling list.  
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first and second arguments are the list name (-name) and values
+(-values). As in the popup menu, the second argument should be an array
+reference.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third argument (-default) can be either a reference to a list
+containing the values to be selected by default, or can be a single value
+to select. If this argument is missing or undefined, then nothing is
+selected when the list first appears. In the named parameter version, you
+can use the synonym ``-defaults'' for this parameter.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth argument is the size of the list (-size).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fifth argument can be set to true to allow multiple
+simultaneous selections (-multiple). Otherwise only one selection will be
+allowed at a time.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional sixth argument is a pointer to an associative array containing
+long user-visible labels for the list items (-labels). If not provided, the
+values will be displayed.
+
+&lt;P&gt;
+When this form is processed, all selected list items will be returned as a
+list under the parameter name 'list_name'. The values of the selected items
+can be retrieved with:
+
+&lt;P&gt;
+&lt;PRE&gt;      @selected = $query-&amp;gt;param('list_name');
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; 
+&lt;CODE&gt;scrolling_list()&lt;/CODE&gt; recognizes the following event handlers:
+ &lt;STRONG&gt;-onChange&lt;/STRONG&gt;, &lt;STRONG&gt;-onFocus&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOver&lt;/STRONG&gt;, &lt;STRONG&gt;-onMouseOut&lt;/STRONG&gt;
+and &lt;STRONG&gt;-onBlur&lt;/STRONG&gt;. See 
+&lt;CODE&gt;textfield()&lt;/CODE&gt; for the
+description of when these handlers are called.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_GROUP_OF_RELATED_CHEC&quot;&gt;CREATING A GROUP OF RELATED CHECKBOXES&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;checkbox_group(-name=&amp;gt;'group_name',
+                                -values=&amp;gt;&amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                                -default=&amp;gt;&amp;#091;'eenie','moe'&amp;#093;,
+                                -linebreak=&amp;gt;'true',
+                                -labels=&amp;gt;\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;checkbox_group('group_name',
+                                &amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                                &amp;#091;'eenie','moe'&amp;#093;,'true',\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   HTML3-COMPATIBLE BROWSERS ONLY:
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;checkbox_group(-name=&amp;gt;'group_name',
+                                -values=&amp;gt;&amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                                -rows=2,-columns=&amp;gt;2);
+    
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt;
+creates a list of checkboxes that are related by the same name.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first and second arguments are the checkbox name and values,
+respectively (-name and -values). As in the popup menu, the second argument
+should be an array reference. These values are used for the user-readable
+labels printed next to the checkboxes as well as for the values passed to
+your script in the query string.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third argument (-default) can be either a reference to a list
+containing the values to be checked by default, or can be a single value to
+checked. If this argument is missing or undefined, then nothing is selected
+when the list first appears.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth argument (-linebreak) can be set to true to place line
+breaks between the checkboxes so that they appear as a vertical list.
+Otherwise, they will be strung together on a horizontal line.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fifth argument is a pointer to an associative array relating
+the checkbox values to the user-visible labels that will be printed next to
+them (-labels). If not provided, the values will be used as the default.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+&lt;STRONG&gt;HTML3-compatible browsers&lt;/STRONG&gt; (such as Netscape) can take advantage of the optional parameters &lt;STRONG&gt;-rows&lt;/STRONG&gt;, and &lt;STRONG&gt;-columns&lt;/STRONG&gt;. These parameters cause 
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt; to return an 
+&lt;FONT SIZE=-1&gt;HTML3&lt;/FONT&gt; compatible table containing the checkbox group formatted with the specified number of rows and columns. You can provide just the -columns parameter if you wish; checkbox_group will calculate the correct number of rows for you.
+
+&lt;P&gt;
+To include row and column headings in the returned table, you can use the &lt;STRONG&gt;-rowheaders&lt;/STRONG&gt; and &lt;STRONG&gt;-colheaders&lt;/STRONG&gt; parameters. Both of these accept a pointer to an array of headings to use.
+The headings are just decorative. They don't reorganize the interpretation
+of the checkboxes -- they're still a single named unit.
+
+&lt;/DL&gt;
+&lt;P&gt;
+When the form is processed, all checked boxes will be returned as a list
+under the parameter name 'group_name'. The values of the ``on'' checkboxes
+can be retrieved with:
+
+&lt;P&gt;
+&lt;PRE&gt;      @turned_on = $query-&amp;gt;param('group_name');
+&lt;/PRE&gt;
+&lt;P&gt;
+The value returned by 
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt; is
+actually an array of button elements. You can capture them and use them
+within tables, lists, or in other creative ways:
+
+&lt;P&gt;
+&lt;PRE&gt;    @h = $query-&amp;gt;checkbox_group(-name=&amp;gt;'group_name',-values=&amp;gt;\@values);
+    &amp;amp;use_in_creative_way(@h);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; 
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt; recognizes the
+ &lt;STRONG&gt;-onClick&lt;/STRONG&gt;
+parameter. This specifies a JavaScript code fragment or function call to be
+executed every time the user clicks on any of the buttons in the group. You
+can retrieve the identity of the particular button clicked on using the
+``this'' variable.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_STANDALONE_CHECKBOX&quot;&gt;CREATING A STANDALONE CHECKBOX&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;checkbox(-name=&amp;gt;'checkbox_name',
+                           -checked=&amp;gt;'checked',
+                           -value=&amp;gt;'ON',
+                           -label=&amp;gt;'CLICK ME');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;checkbox('checkbox_name','checked','ON','CLICK ME');
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;checkbox()&lt;/CODE&gt; is used to
+create an isolated checkbox that isn't logically related to any others.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first parameter is the required name for the checkbox (-name). It will
+also be used for the user-readable label printed next to the checkbox.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional second parameter (-checked) specifies that the checkbox is
+turned on by default. Synonyms are -selected and -on.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third parameter (-value) specifies the value of the checkbox
+when it is checked. If not provided, the word ``on'' is assumed.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth parameter (-label) is the user-readable label to be
+attached to the checkbox. If not provided, the checkbox name is used.
+
+&lt;/DL&gt;
+&lt;P&gt;
+The value of the checkbox can be retrieved using:
+
+&lt;P&gt;
+&lt;PRE&gt;    $turned_on = $query-&amp;gt;param('checkbox_name');
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; 
+&lt;CODE&gt;checkbox()&lt;/CODE&gt; recognizes the
+ &lt;STRONG&gt;-onClick&lt;/STRONG&gt;
+parameter. See 
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt; for
+further details.
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_RADIO_BUTTON_GROUP&quot;&gt;CREATING A RADIO BUTTON GROUP&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;radio_group(-name=&amp;gt;'group_name',
+                             -values=&amp;gt;&amp;#091;'eenie','meenie','minie'&amp;#093;,
+                             -default=&amp;gt;'meenie',
+                             -linebreak=&amp;gt;'true',
+                             -labels=&amp;gt;\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;radio_group('group_name',&amp;#091;'eenie','meenie','minie'&amp;#093;,
+                                          'meenie','true',\%labels);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   HTML3-COMPATIBLE BROWSERS ONLY:
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;radio_group(-name=&amp;gt;'group_name',
+                             -values=&amp;gt;&amp;#091;'eenie','meenie','minie','moe'&amp;#093;,
+                             -rows=2,-columns=&amp;gt;2);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;radio_group()&lt;/CODE&gt; creates a
+set of logically-related radio buttons (turning one member of the group on
+turns the others off)
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first argument is the name of the group and is required (-name).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The second argument (-values) is the list of values for the radio buttons.
+The values and the labels that appear on the page are identical. Pass an
+array &lt;EM&gt;reference&lt;/EM&gt; in the second argument, either using an anonymous array, as shown, or by
+referencing a named array as in ``\@foo''.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional third parameter (-default) is the name of the default button
+to turn on. If not specified, the first item will be the default. You can
+provide a nonexistent button name, such as ``-'' to start up with no
+buttons selected.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fourth parameter (-linebreak) can be set to 'true' to put line
+breaks between the buttons, creating a vertical list.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The optional fifth parameter (-labels) is a pointer to an associative array
+relating the radio button values to user-visible labels to be used in the
+display. If not provided, the values themselves are displayed.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+&lt;STRONG&gt;HTML3-compatible browsers&lt;/STRONG&gt; (such as Netscape) can take advantage of the optional parameters &lt;STRONG&gt;-rows&lt;/STRONG&gt;, and &lt;STRONG&gt;-columns&lt;/STRONG&gt;. These parameters cause 
+&lt;CODE&gt;radio_group()&lt;/CODE&gt; to return an 
+&lt;FONT SIZE=-1&gt;HTML3&lt;/FONT&gt; compatible table containing the radio group formatted with the specified number of rows and columns. You can provide just the -columns parameter if you wish; radio_group will calculate the correct number of rows for you.
+
+&lt;P&gt;
+To include row and column headings in the returned table, you can use the &lt;STRONG&gt;-rowheader&lt;/STRONG&gt; and &lt;STRONG&gt;-colheader&lt;/STRONG&gt; parameters. Both of these accept a pointer to an array of headings to use.
+The headings are just decorative. They don't reorganize the interpetation
+of the radio buttons -- they're still a single named unit.
+
+&lt;/DL&gt;
+&lt;P&gt;
+When the form is processed, the selected radio button can be retrieved
+using:
+
+&lt;P&gt;
+&lt;PRE&gt;      $which_radio_button = $query-&amp;gt;param('group_name');
+&lt;/PRE&gt;
+&lt;P&gt;
+The value returned by 
+&lt;CODE&gt;radio_group()&lt;/CODE&gt; is
+actually an array of button elements. You can capture them and use them
+within tables, lists, or in other creative ways:
+
+&lt;P&gt;
+&lt;PRE&gt;    @h = $query-&amp;gt;radio_group(-name=&amp;gt;'group_name',-values=&amp;gt;\@values);
+    &amp;amp;use_in_creative_way(@h);
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_SUBMIT_BUTTON&quot;&gt;CREATING A SUBMIT BUTTON&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;submit(-name=&amp;gt;'button_name',
+                        -value=&amp;gt;'value');
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;submit('button_name','value');
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;submit()&lt;/CODE&gt; will create the
+query submission button. Every form should have one of these.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first argument (-name) is optional. You can give the button a name if
+you have several submission buttons in your form and you want to
+distinguish between them. The name will also be used as the user-visible
+label. Be aware that a few older browsers don't deal with this correctly
+and
+&lt;STRONG&gt;never&lt;/STRONG&gt; send back a value from a button.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The second argument (-value) is also optional. This gives the button a
+value that will be passed to your script in the query string.
+
+&lt;/DL&gt;
+&lt;P&gt;
+You can figure out which button was pressed by using different values for
+each one:
+
+&lt;P&gt;
+&lt;PRE&gt;     $which_one = $query-&amp;gt;param('button_name');
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; 
+&lt;CODE&gt;radio_group()&lt;/CODE&gt; recognizes the
+ &lt;STRONG&gt;-onClick&lt;/STRONG&gt;
+parameter. See 
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt; for
+further details.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_RESET_BUTTON&quot;&gt;CREATING A RESET BUTTON&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;reset
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;reset()&lt;/CODE&gt; creates the ``reset'' button. Note that it restores the form to its value from the last time the script was called, 
+&lt;FONT SIZE=-1&gt;NOT&lt;/FONT&gt; necessarily to the defaults.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_DEFAULT_BUTTON&quot;&gt;CREATING A DEFAULT BUTTON&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;   print $query-&amp;gt;defaults('button_label')
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;defaults()&lt;/CODE&gt; creates a button
+that, when invoked, will cause the form to be completely reset to its
+defaults, wiping out all the changes the user ever made.
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_HIDDEN_FIELD&quot;&gt;CREATING A HIDDEN FIELD&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;hidden(-name=&amp;gt;'hidden_name',
+                             -default=&amp;gt;&amp;#091;'value1','value2'...&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;                -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;hidden('hidden_name','value1','value2'...);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;hidden()&lt;/CODE&gt; produces a text
+field that can't be seen by the user. It is useful for passing state
+variable information from one invocation of the script to the next.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first argument is required and specifies the name of this field
+(-name).
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The second argument is also required and specifies its value (-default). In
+the named parameter style of calling, you can provide a single value here
+or a reference to a whole list
+
+&lt;/DL&gt;
+&lt;P&gt;
+Fetch the value of a hidden field this way:
+
+&lt;P&gt;
+&lt;PRE&gt;     $hidden_value = $query-&amp;gt;param('hidden_name');
+&lt;/PRE&gt;
+&lt;P&gt;
+Note, that just like all the other form elements, the value of a hidden
+field is ``sticky''. If you want to replace a hidden field with some other
+values after the script has been called once you'll have to do it manually:
+
+&lt;P&gt;
+&lt;PRE&gt;     $query-&amp;gt;param('hidden_name','new','values','here');
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_CLICKABLE_IMAGE_BUTTO&quot;&gt;CREATING A CLICKABLE IMAGE BUTTON&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $query-&amp;gt;image_button(-name=&amp;gt;'button_name',
+                                -src=&amp;gt;'/source/URL',
+                                -align=&amp;gt;'MIDDLE');      
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $query-&amp;gt;image_button('button_name','/source/URL','MIDDLE');
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;image_button()&lt;/CODE&gt; produces
+a clickable image. When it's clicked on the position of the click is
+returned to your script as ``button_name.x'' and ``button_name.y'', where
+``button_name'' is the name you've assigned to it.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;JAVASCRIPTING:&lt;/FONT&gt; 
+&lt;CODE&gt;image_button()&lt;/CODE&gt; recognizes the
+ &lt;STRONG&gt;-onClick&lt;/STRONG&gt;
+parameter. See 
+&lt;CODE&gt;checkbox_group()&lt;/CODE&gt; for
+further details.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;Parameters:&lt;/STRONG&gt;&lt;DD&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+The first argument (-name) is required and specifies the name of this
+field.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+The second argument (-src) is also required and specifies the 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt;
+
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_The_third_option_align_option&quot;&gt;The third option (-align, optional) is an alignment type, and may be
+TOP, BOTTOM or MIDDLE&lt;/A&gt;&lt;/STRONG&gt;
+&lt;/DL&gt;
+&lt;P&gt;
+Fetch the value of the button this way: &lt;CODE&gt;$x&lt;/CODE&gt; =
+$query-&amp;gt;param('button_name.x'); &lt;A
+HREF=&quot;../pod/perlop.html#item__y&quot;&gt;$y&lt;/A&gt; =
+$query-&amp;gt;param('button_name.y');
+
+&lt;H2&gt;&lt;A NAME=&quot;CREATING_A_JAVASCRIPT_ACTION_BUT&quot;&gt;CREATING A JAVASCRIPT ACTION BUTTON&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $query-&amp;gt;button(-name=&amp;gt;'button_name',
+                          -value=&amp;gt;'user visible label',
+                          -onClick=&amp;gt;&amp;quot;do_something()&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        -or-
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     print $query-&amp;gt;button('button_name',&amp;quot;do_something()&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;CODE&gt;button()&lt;/CODE&gt; produces a button
+that is compatible with Netscape 2.0's JavaScript. When it's pressed the
+fragment of JavaScript code pointed to by the &lt;STRONG&gt;-onClick&lt;/STRONG&gt; parameter will be executed. On non-Netscape browsers this form element will
+probably not even display.
+
+&lt;H1&gt;&lt;A NAME=&quot;NETSCAPE_COOKIES&quot;&gt;NETSCAPE COOKIES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Netscape browsers versions 1.1 and higher support a so-called ``cookie''
+designed to help maintain state within a browser session. CGI.pm has
+several methods that support cookies.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; cookie is a name=value pair much like the named parameters in a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; query string. 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts create one or more cookies and send them to the browser in the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header. The browser maintains a list of cookies that belong to a particular Web server, and returns them to the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script during subsequent interactions.
+
+&lt;P&gt;
+In addition to the required name=value pair, each cookie has several
+optional attributes:
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_an_expiration_time&quot;&gt;an expiration time&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+This is a time/date string (in a special 
+&lt;FONT SIZE=-1&gt;GMT&lt;/FONT&gt; format) that indicates when a cookie expires. The
+cookie will be saved and returned to your script until this expiration date
+is reached if the user exits Netscape and restarts it. If an expiration
+date isn't specified, the cookie will remain active until the user quits
+Netscape.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_a_domain&quot;&gt;a domain&lt;/A&gt;&lt;/STRONG&gt;
+
+This is a partial or complete domain name for which the cookie is valid.
+The browser will return the cookie to any host that matches the partial
+domain name. For example, if you specify a domain name of
+``.capricorn.com'', then Netscape will return the cookie to Web servers
+running on any of the machines ``www.capricorn.com'',
+``www2.capricorn.com'', ``feckless.capricorn.com'', etc. Domain names must
+contain at least two periods to prevent attempts to match on top level
+domains like ``.edu''. If no domain is specified, then the browser will
+only return the cookie to servers on the host the cookie originated from.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_a_path&quot;&gt;a path&lt;/A&gt;&lt;/STRONG&gt;
+
+If you provide a cookie path attribute, the browser will check it against your script's 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; before returning the cookie. For example, if you specify the path ``/cgi-bin'', then the cookie will be returned to each of the scripts ``/cgi-bin/tally.pl'', ``/cgi-bin/order.pl'', and ``/cgi-bin/customer_service/complain.pl'', but not to the script ``/cgi-private/site_admin.pl''. By default, path is set to ``/'', which causes the cookie to be sent to any 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script on your site.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_a_secure_flag&quot;&gt;a &amp;quot;secure&amp;quot; flag&lt;/A&gt;&lt;/STRONG&gt;
+
+If the ``secure'' attribute is set, the cookie will only be sent to your script if the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; request is occurring on a secure channel, such as 
+&lt;FONT SIZE=-1&gt;SSL.&lt;/FONT&gt;
+
+&lt;/OL&gt;
+&lt;P&gt;
+The interface to Netscape cookies is the &lt;STRONG&gt;cookie()&lt;/STRONG&gt; method:
+
+&lt;P&gt;
+&lt;PRE&gt;    $cookie = $query-&amp;gt;cookie(-name=&amp;gt;'sessionID',
+                             -value=&amp;gt;'xyzzy',
+                             -expires=&amp;gt;'+1h',
+                             -path=&amp;gt;'/cgi-bin/database',
+                             -domain=&amp;gt;'.capricorn.org',
+                             -secure=&amp;gt;1);
+    print $query-&amp;gt;header(-cookie=&amp;gt;$cookie);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;cookie()&lt;/STRONG&gt; creates a new cookie. Its parameters include:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__name&quot;&gt;-name&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The name of the cookie (required). This can be any string at all. Although
+Netscape limits its cookie names to non-whitespace alphanumeric characters,
+CGI.pm removes this restriction by escaping and unescaping cookies behind
+the scenes.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__value&quot;&gt;-value&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The value of the cookie. This can be any scalar value, array reference, or
+even associative array reference. For example, you can store an entire
+associative array into a cookie this way:
+
+&lt;P&gt;
+&lt;PRE&gt;        $cookie=$query-&amp;gt;cookie(-name=&amp;gt;'family information',
+                               -value=&amp;gt;\%childrens_ages);
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;-path&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The optional partial path for which this cookie will be valid, as described
+above.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__domain&quot;&gt;-domain&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The optional partial domain for which this cookie will be valid, as
+described above.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__expires&quot;&gt;-expires&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The optional expiration date for this cookie. The format is as described in
+the section on the &lt;STRONG&gt;header()&lt;/STRONG&gt; method:
+
+&lt;P&gt;
+&lt;PRE&gt;        &amp;quot;+1h&amp;quot;  one hour from now
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__secure&quot;&gt;-secure&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If set to true, this cookie will only be used within a secure 
+&lt;FONT SIZE=-1&gt;SSL&lt;/FONT&gt; session.
+
+&lt;/DL&gt;
+&lt;P&gt;
+The cookie created by 
+&lt;CODE&gt;cookie()&lt;/CODE&gt; must be incorporated into the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header within the string returned by the 
+&lt;CODE&gt;header()&lt;/CODE&gt; method:
+
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;header(-cookie=&amp;gt;$my_cookie);
+&lt;/PRE&gt;
+&lt;P&gt;
+To create multiple cookies, give 
+&lt;CODE&gt;header()&lt;/CODE&gt; an array reference:
+
+&lt;P&gt;
+&lt;PRE&gt;        $cookie1 = $query-&amp;gt;cookie(-name=&amp;gt;'riddle_name',
+                                  -value=&amp;gt;&amp;quot;The Sphynx's Question&amp;quot;);
+        $cookie2 = $query-&amp;gt;cookie(-name=&amp;gt;'answers',
+                                  -value=&amp;gt;\%answers);
+        print $query-&amp;gt;header(-cookie=&amp;gt;&amp;#091;$cookie1,$cookie2&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+To retrieve a cookie, request it by name by calling 
+&lt;CODE&gt;cookie()&lt;/CODE&gt; method without the &lt;STRONG&gt;-value&lt;/STRONG&gt; parameter:
+
+&lt;P&gt;
+&lt;PRE&gt;        use CGI;
+        $query = new CGI;
+        %answers = $query-&amp;gt;cookie(-name=&amp;gt;'answers');
+        # $query-&amp;gt;cookie('answers') will work too!
+&lt;/PRE&gt;
+&lt;P&gt;
+The cookie and 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; namespaces are separate. If you have a parameter named 'answers' and a cookie named 'answers', the values retrieved by 
+&lt;CODE&gt;param()&lt;/CODE&gt; and 
+&lt;CODE&gt;cookie()&lt;/CODE&gt; are independent of each other. However, it's simple to turn a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; parameter into a cookie, and vice-versa:
+
+&lt;P&gt;
+&lt;PRE&gt;   # turn a CGI parameter into a cookie
+   $c=$q-&amp;gt;cookie(-name=&amp;gt;'answers',-value=&amp;gt;&amp;#091;$q-&amp;gt;param('answers')&amp;#093;);
+   # vice-versa
+   $q-&amp;gt;param(-name=&amp;gt;'answers',-value=&amp;gt;&amp;#091;$q-&amp;gt;cookie('answers')&amp;#093;);
+&lt;/PRE&gt;
+&lt;P&gt;
+See the &lt;STRONG&gt;cookie.cgi&lt;/STRONG&gt; example script for some ideas on how to use cookies effectively.
+
+&lt;P&gt;
+&lt;STRONG&gt;NOTE:&lt;/STRONG&gt; There appear to be some (undocumented) restrictions on Netscape cookies. In Netscape 2.01, at least, 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; haven't been able to set more than three cookies at a time. There may also be limits on the length of cookies. If you need to store a lot of information, it's probably better to create a unique session 
+&lt;FONT SIZE=-1&gt;ID,&lt;/FONT&gt; store it in a cookie, and use the session 
+&lt;FONT SIZE=-1&gt;ID&lt;/FONT&gt; to locate an external file/database saved on the server's side of the connection.
+
+&lt;H1&gt;&lt;A NAME=&quot;WORKING_WITH_NETSCAPE_FRAMES&quot;&gt;WORKING WITH NETSCAPE FRAMES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+It's possible for CGI.pm scripts to write into several browser panels and
+windows using Netscape's frame mechanism. There are three techniques for
+defining new frames programmatically:
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Create_a_Frameset_document&quot;&gt;Create a &amp;lt;Frameset&amp;gt; document&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+After writing out the 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header, instead of creating a standard 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; document using the 
+&lt;CODE&gt;start_html()&lt;/CODE&gt; call, create a 
+&lt;FONT SIZE=-1&gt;&amp;lt;FRAMESET&amp;gt;&lt;/FONT&gt; document that defines the frames on the page. Specify your 
+&lt;CODE&gt;script(s)&lt;/CODE&gt; (with appropriate parameters) as the 
+&lt;FONT SIZE=-1&gt;SRC&lt;/FONT&gt; for each of the frames.
+
+&lt;P&gt;
+There is no specific support for creating 
+&lt;FONT SIZE=-1&gt;&amp;lt;FRAMESET&amp;gt;&lt;/FONT&gt; sections in CGI.pm, but the 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; is very simple to write. See the frame documentation in Netscape's home pages for details
+ 
+
+&lt;P&gt;
+&lt;PRE&gt;  [perlman:lib:frames|frames]
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Specify_the_destination_for_the_&quot;&gt;Specify the destination for the document in the HTTP header&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+You may provide a &lt;STRONG&gt;-target&lt;/STRONG&gt; parameter to the 
+&lt;CODE&gt;header()&lt;/CODE&gt; method: print
+$q-&amp;gt;header(-target=&amp;gt;'ResultsWindow');
+
+&lt;P&gt;
+This will tell Netscape to load the output of your script into the frame
+named ``ResultsWindow''. If a frame of that name doesn't already exist,
+Netscape will pop up a new window and load your script's document into
+that. There are a number of magic names that you can use for targets. See
+the frame documents on Netscape's home pages for details.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Specify_the_destination_for_the_&quot;&gt;Specify the destination for the document in the &amp;lt;FORM&amp;gt; tag&lt;/A&gt;&lt;/STRONG&gt;
+
+You can specify the frame to load in the 
+&lt;FONT SIZE=-1&gt;FORM&lt;/FONT&gt; tag itself. With CGI.pm it looks like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $q-&amp;gt;startform(-target=&amp;gt;'ResultsWindow');
+&lt;/PRE&gt;
+&lt;P&gt;
+When your script is reinvoked by the form, its output will be loaded into
+the frame named ``ResultsWindow''. If one doesn't already exist a new
+window will be created.
+
+&lt;/OL&gt;
+&lt;P&gt;
+The script ``frameset.cgi'' in the examples directory shows one way to
+create pages in which the fill-out form and the response live in
+side-by-side frames.
+
+&lt;H1&gt;&lt;A NAME=&quot;LIMITED_SUPPORT_FOR_CASCADING_ST&quot;&gt;LIMITED SUPPORT FOR CASCADING STYLE SHEETS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+CGI.pm has limited support for HTML3's cascading style sheets (css). To incorporate a stylesheet into your document, pass the 
+&lt;CODE&gt;start_html()&lt;/CODE&gt; method a
+ &lt;STRONG&gt;-style&lt;/STRONG&gt; parameter. The value of this parameter may be a scalar, in which case it is
+incorporated directly into a &amp;lt;
+&lt;FONT SIZE=-1&gt;STYLE&amp;gt;&lt;/FONT&gt; section, or it may be a hash reference. In
+the latter case you should provide the hash with one or more of &lt;STRONG&gt;-src&lt;/STRONG&gt; or
+&lt;STRONG&gt;-code&lt;/STRONG&gt;.  &lt;STRONG&gt;-src&lt;/STRONG&gt; points to a 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; where an externally-defined stylesheet can be
+found.  &lt;STRONG&gt;-code&lt;/STRONG&gt; points to a scalar value to be incorporated into a &amp;lt;
+&lt;FONT SIZE=-1&gt;STYLE&amp;gt;&lt;/FONT&gt; section. Style definitions in &lt;STRONG&gt;-code&lt;/STRONG&gt;
+override similarly-named ones in &lt;STRONG&gt;-src&lt;/STRONG&gt;, hence the name ``cascading.''
+
+&lt;P&gt;
+You may also specify the type of the stylesheet by adding the optional
+&lt;STRONG&gt;-type&lt;/STRONG&gt; parameter to the hash pointed to by &lt;STRONG&gt;-style&lt;/STRONG&gt;. If not specified, the style defaults to 'text/css'.
+
+&lt;P&gt;
+To refer to a style within the body of your document, add the
+&lt;STRONG&gt;-class&lt;/STRONG&gt; parameter to any 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; element:
+
+&lt;P&gt;
+&lt;PRE&gt;    print h1({-class=&amp;gt;'Fancy'},'Welcome to the Party');
+&lt;/PRE&gt;
+&lt;P&gt;
+Or define styles on the fly with the &lt;STRONG&gt;-style&lt;/STRONG&gt; parameter:
+
+&lt;P&gt;
+&lt;PRE&gt;    print h1({-style=&amp;gt;'Color: red;'},'Welcome to Hell');
+&lt;/PRE&gt;
+&lt;P&gt;
+You may also use the new &lt;STRONG&gt;span()&lt;/STRONG&gt; element to apply a style to a section of text:
+
+&lt;P&gt;
+&lt;PRE&gt;    print span({-style=&amp;gt;'Color: red;'},
+               h1('Welcome to Hell'),
+               &amp;quot;Where did that handbasket get to?&amp;quot;
+               );
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that you must import the ``:html3'' definitions to have the
+&lt;STRONG&gt;span()&lt;/STRONG&gt; method available. Here's a quick and dirty example of using CSS's. See the 
+&lt;FONT SIZE=-1&gt;CSS&lt;/FONT&gt; specification at &lt;A
+HREF=&quot;http://www.w3.org/pub/WWW/TR/Wd-css-1.html&quot;&gt;http://www.w3.org/pub/WWW/TR/Wd-css-1.html&lt;/A&gt;
+for more information.
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI qw/:standard :html3/;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    #here's a stylesheet incorporated directly into the page
+    $newStyle=&amp;lt;&amp;lt;END;
+    &amp;lt;!-- 
+    P.Tip {
+        margin-right: 50pt;
+        margin-left: 50pt;
+        color: red;
+    }
+    P.Alert {
+        font-size: 30pt;
+        font-family: sans-serif;
+      color: red;
+    }
+    --&amp;gt;
+    END
+    print header();
+    print start_html( -title=&amp;gt;'CGI with Style',
+                      -style=&amp;gt;{-src=&amp;gt;'&lt;A HREF=&quot;http://www.capricorn.com/style/st1.css&quot;&gt;http://www.capricorn.com/style/st1.css&lt;/A&gt;',
+                               -code=&amp;gt;$newStyle}
+                     );
+    print h1('CGI with Style'),
+          p({-class=&amp;gt;'Tip'},
+            &amp;quot;Better read the cascading style sheet spec before playing with this!&amp;quot;),
+          span({-style=&amp;gt;'color: magenta'},
+               &amp;quot;Look Mom, no hands!&amp;quot;,
+               p(),
+               &amp;quot;Whooo wee!&amp;quot;
+               );
+    print end_html;
+&lt;/PRE&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DEBUGGING&quot;&gt;DEBUGGING&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+If you are running the script from the command line or in the perl
+debugger, you can pass the script a list of keywords or parameter=value
+pairs on the command line or from standard input (you don't have to worry
+about tricking your script into reading from environment variables). You
+can pass keywords like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    your_script.pl keyword1 keyword2 keyword3
+&lt;/PRE&gt;
+&lt;P&gt;
+or this:
+
+&lt;P&gt;
+&lt;PRE&gt;   your_script.pl keyword1+keyword2+keyword3
+&lt;/PRE&gt;
+&lt;P&gt;
+or this:
+
+&lt;P&gt;
+&lt;PRE&gt;    your_script.pl name1=value1 name2=value2
+&lt;/PRE&gt;
+&lt;P&gt;
+or this:
+
+&lt;P&gt;
+&lt;PRE&gt;    your_script.pl name1=value1&amp;amp;name2=value2
+&lt;/PRE&gt;
+&lt;P&gt;
+or even as newline-delimited parameters on standard input.
+
+&lt;P&gt;
+When debugging, you can use quotes and backslashes to escape characters in
+the familiar shell manner, letting you place spaces and other funny
+characters in your parameter=value pairs:
+
+&lt;P&gt;
+&lt;PRE&gt;   your_script.pl &amp;quot;name1='I am a long value'&amp;quot; &amp;quot;name2=two\ words&amp;quot;
+&lt;/PRE&gt;
+&lt;H2&gt;&lt;A NAME=&quot;DUMPING_OUT_ALL_THE_NAME_VALUE_P&quot;&gt;DUMPING OUT ALL THE NAME/VALUE PAIRS&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;CODE&gt;dump()&lt;/CODE&gt; method produces a string
+consisting of all the query's name/value pairs formatted nicely as a nested
+list. This is useful for debugging purposes:
+
+&lt;P&gt;
+&lt;PRE&gt;    print $query-&amp;gt;dump
+    
+&lt;/PRE&gt;
+&lt;P&gt;
+Produces something that looks like:
+
+&lt;P&gt;
+&lt;PRE&gt;    &amp;lt;UL&amp;gt;
+    &amp;lt;LI&amp;gt;name1
+        &amp;lt;UL&amp;gt;
+        &amp;lt;LI&amp;gt;value1
+        &amp;lt;LI&amp;gt;value2
+        &amp;lt;/UL&amp;gt;
+    &amp;lt;LI&amp;gt;name2
+        &amp;lt;UL&amp;gt;
+        &amp;lt;LI&amp;gt;value1
+        &amp;lt;/UL&amp;gt;
+    &amp;lt;/UL&amp;gt;
+&lt;/PRE&gt;
+&lt;P&gt;
+You can pass a value of 'true' to 
+&lt;CODE&gt;dump()&lt;/CODE&gt; in order to get it to print the results out as plain text, suitable for incorporating into a 
+&lt;FONT SIZE=-1&gt;&amp;lt;PRE&amp;gt;&lt;/FONT&gt; section.
+
+&lt;P&gt;
+As a shortcut, as of version 1.56 you can interpolate the entire 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; object into a string and it will be replaced with the a nice 
+&lt;FONT SIZE=-1&gt;HTML&lt;/FONT&gt; dump shown above:
+
+&lt;P&gt;
+&lt;PRE&gt;    $query=new CGI;
+    print &amp;quot;&amp;lt;H2&amp;gt;Current Values&amp;lt;/H2&amp;gt; $query\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;H1&gt;&lt;A NAME=&quot;FETCHING_ENVIRONMENT_VARIABLES&quot;&gt;FETCHING ENVIRONMENT VARIABLES&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Some of the more useful environment variables can be fetched through this
+interface. The methods are as follows:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_accept&quot;&gt;accept()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return a list of 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; types that the remote browser accepts. If you give this method a single argument corresponding to a 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type, as in $query-&amp;gt;accept('text/html'), it will return a floating point value corresponding to the browser's preference for this type from 0.0 (don't want) to 1.0. Glob types (e.g. text/*) in the browser's accept list are handled correctly.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_raw_cookie&quot;&gt;raw_cookie()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;HTTP_COOKIE&lt;/FONT&gt; variable, an 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; extension implemented by Netscape browsers version 1.1 and higher. Cookies have a special format, and this method call just returns the raw form (?cookie dough). See 
+&lt;CODE&gt;cookie()&lt;/CODE&gt; for ways of setting and retrieving cooked cookies.
+
+&lt;P&gt;
+Called with no parameters, 
+&lt;CODE&gt;raw_cookie()&lt;/CODE&gt; returns the
+packed cookie structure. You can separate it into individual cookies by
+splitting on the character sequence ``; ''. Called with the name of a
+cookie, retrieves the &lt;STRONG&gt;unescaped&lt;/STRONG&gt; form of the cookie. You can use the regular 
+&lt;CODE&gt;cookie()&lt;/CODE&gt; method to get the names, or use the 
+&lt;CODE&gt;raw_fetch()&lt;/CODE&gt; method from the CGI::Cookie module.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_user_agent&quot;&gt;user_agent()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the 
+&lt;FONT SIZE=-1&gt;HTTP_USER_AGENT&lt;/FONT&gt; variable. If you give this method a
+single argument, it will attempt to pattern match on it, allowing you to do
+something like $query-&amp;gt;user_agent(netscape);
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_path_info&quot;&gt;path_info()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns additional path information from the script 
+&lt;FONT SIZE=-1&gt;URL.&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;E.G.&lt;/FONT&gt; fetching /cgi-bin/your_script/additional/stuff will result in $query-&amp;gt;path_info() returning ``additional/stuff''.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NOTE:&lt;/FONT&gt; The Microsoft Internet Information Server is broken with respect to additional path information. If you use the Perl 
+&lt;FONT SIZE=-1&gt;DLL&lt;/FONT&gt; library, the 
+&lt;FONT SIZE=-1&gt;IIS&lt;/FONT&gt; server will attempt to execute the additional path information as a Perl script. If you use the ordinary file associations mapping, the path information will be present in the environment, but incorrect. The best thing to do is to avoid using additional path information in 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts destined for use with 
+&lt;FONT SIZE=-1&gt;IIS.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_path_translated&quot;&gt;path_translated()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+As per 
+&lt;CODE&gt;path_info()&lt;/CODE&gt; but returns
+the additional path information translated into a physical path, e.g.
+``/usr/local/etc/httpd/htdocs/additional/stuff''.
+
+&lt;P&gt;
+The Microsoft 
+&lt;FONT SIZE=-1&gt;IIS&lt;/FONT&gt; is broken with respect to the translated path as
+well.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_remote_host&quot;&gt;remote_host()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns either the remote host name or 
+&lt;FONT SIZE=-1&gt;IP&lt;/FONT&gt; address. if the former is unavailable.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_script_name&quot;&gt;script_name()
+Return the script name as a partial URL, for self-refering
+scripts.&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_referer&quot;&gt;referer()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return the 
+&lt;FONT SIZE=-1&gt;URL&lt;/FONT&gt; of the page the browser was viewing prior to
+fetching your script. Not available for all browsers.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_auth_type&quot;&gt;auth_type ()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return the authorization/verification method in use for this script, if
+any.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_server_name&quot;&gt;server_name ()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the name of the server, usually the machine's host name.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_virtual_host&quot;&gt;virtual_host ()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+When using virtual hosts, returns the name of the host that the browser
+attempted to contact
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_server_software&quot;&gt;server_software ()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the server software and version number.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_remote_user&quot;&gt;remote_user ()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Return the authorization/verification name used for user verification, if
+this script is protected.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_user_name&quot;&gt;user_name ()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Attempt to obtain the remote user's name, using a variety of different
+techniques. This only works with older browsers such as Mosaic. Netscape
+does not reliably report the user name!
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_request_method&quot;&gt;request_method()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the method used to access your script, usually one of 
+&lt;FONT SIZE=-1&gt;'POST',&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;'GET'&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;'HEAD'.&lt;/FONT&gt;
+
+&lt;/DL&gt;
+&lt;H1&gt;&lt;A NAME=&quot;USING_NPH_SCRIPTS&quot;&gt;USING NPH SCRIPTS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NPH,&lt;/FONT&gt; or ``no-parsed-header'', scripts bypass the server completely by sending the complete 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; header directly to the browser. This has slight performance benefits, but is of most use for taking advantage of 
+&lt;FONT SIZE=-1&gt;HTTP&lt;/FONT&gt; extensions that are not directly supported by your server, such as server push and 
+&lt;FONT SIZE=-1&gt;PICS&lt;/FONT&gt; headers.
+
+&lt;P&gt;
+Servers use a variety of conventions for designating 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts as 
+&lt;FONT SIZE=-1&gt;NPH.&lt;/FONT&gt; Many Unix servers look at the beginning of the script's name for the prefix ``nph-''. The Macintosh WebSTAR server and Microsoft's Internet Information Server, in contrast, try to decide whether a program is an 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; script by examining the first line of script output.
+
+&lt;P&gt;
+CGI.pm supports 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; scripts with a special 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; mode. When in this mode, CGI.pm will output the necessary extra header information when the 
+&lt;CODE&gt;header()&lt;/CODE&gt; and 
+&lt;CODE&gt;redirect()&lt;/CODE&gt; methods are called.
+
+&lt;P&gt;
+The Microsoft Internet Information Server requires 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; mode. As of version 2.30, CGI.pm will automatically detect when the script is running under 
+&lt;FONT SIZE=-1&gt;IIS&lt;/FONT&gt; and put itself into this mode. You do not need to do this manually, although it won't hurt anything if you do.
+
+&lt;P&gt;
+There are a number of ways to put CGI.pm into 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; mode:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_In&quot;&gt;In the use statement&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Simply add the ``-nph'' pragmato the list of symbols to be imported into
+your script:
+
+&lt;P&gt;
+&lt;PRE&gt;      use CGI qw(:standard -nph)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_By&quot;&gt;By calling the nph() method:&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Call &lt;STRONG&gt;nph()&lt;/STRONG&gt; with a non-zero parameter at any point after using CGI.pm in your program.
+
+&lt;P&gt;
+&lt;PRE&gt;      CGI-&amp;gt;nph(1)
+&lt;/PRE&gt;
+&lt;DT&gt;&lt;STRONG&gt;By using -nph parameters in the header() and redirect()  statements:&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;      print $q-&amp;gt;header(-nph=&amp;gt;1);
+&lt;/PRE&gt;
+&lt;/DL&gt;
+&lt;H1&gt;&lt;A NAME=&quot;Server_Push&quot;&gt;Server Push&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+CGI.pm provides three simple functions for producing multipart documents of the type needed to implement server push. These functions were graciously provided by Ed Jordan &amp;lt;&lt;A HREF=&quot;mailto:ed@fidalgo.net&quot;&gt;ed@fidalgo.net&lt;/A&gt;&amp;gt; To import these into your namespace, you must import the ``:push'' set. You are also advised to put the script into 
+&lt;FONT SIZE=-1&gt;NPH&lt;/FONT&gt; mode and to set $| to 1 to avoid buffering problems.
+
+&lt;P&gt;
+Here is a simple script that demonstrates server push:
+
+&lt;P&gt;
+&lt;PRE&gt;  #!/usr/local/bin/perl
+  use CGI qw/:push -nph/;
+  $| = 1;
+  print multipart_init(-boundary=&amp;gt;'----------------here we go!');
+  while (1) {
+      print multipart_start(-type=&amp;gt;'text/plain'),
+            &amp;quot;The current time is &amp;quot;,scalar(localtime),&amp;quot;\n&amp;quot;,
+            multipart_end;
+      sleep 1;
+  }
+&lt;/PRE&gt;
+&lt;P&gt;
+This script initializes server push by calling &lt;STRONG&gt;multipart_init()&lt;/STRONG&gt;. It then enters an infinite loop in which it begins a new multipart
+section by calling &lt;STRONG&gt;multipart_start()&lt;/STRONG&gt;, prints the current local time, and ends a multipart section with &lt;STRONG&gt;multipart_end()&lt;/STRONG&gt;. It then sleeps a second, and begins again.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_multipart_init&quot;&gt;multipart_init()
+     
+  multipart_init(-boundary=&amp;gt;$boundary);&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Initialize the multipart system. The -boundary argument specifies what 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; boundary string to use to separate parts of the
+document. If not provided, CGI.pm chooses a reasonable boundary for you.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_multipart_start&quot;&gt;multipart_start()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  multipart_start(-type=&amp;gt;$type)
+&lt;/PRE&gt;
+&lt;P&gt;
+Start a new part of the multipart document using the specified 
+&lt;FONT SIZE=-1&gt;MIME&lt;/FONT&gt; type. If not specified, text/html is assumed.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_multipart_end&quot;&gt;multipart_end()&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+&lt;PRE&gt;  multipart_end()
+&lt;/PRE&gt;
+&lt;P&gt;
+End a part. You must remember to call 
+&lt;CODE&gt;multipart_end()&lt;/CODE&gt; once for each 
+&lt;CODE&gt;multipart_start().&lt;/CODE&gt;
+
+&lt;/DL&gt;
+&lt;P&gt;
+Users interested in server push applications should also have a look at the
+CGI::Push module.
+
+&lt;H1&gt;&lt;A NAME=&quot;Avoiding_Denial_of_Service_Attac&quot;&gt;Avoiding Denial of Service Attacks&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; potential problem with CGI.pm is that, by default, it attempts to process form POSTings no matter how large they are. 
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; wily hacker could attack your site by sending a 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; script a huge 
+&lt;FONT SIZE=-1&gt;POST&lt;/FONT&gt; of many megabytes. CGI.pm will attempt to read the entire 
+&lt;FONT SIZE=-1&gt;POST&lt;/FONT&gt; into a variable, growing hugely in size until it runs out of memory. While the script attempts to allocate the memory the system may slow down dramatically. This is a form of denial of service attack.
+
+&lt;P&gt;
+Another possible attack is for the remote user to force CGI.pm to accept a
+huge file upload. CGI.pm will accept the upload and store it in a temporary
+directory even if your script doesn't expect to receive an uploaded file.
+CGI.pm will delete the file automatically when it terminates, but in the
+meantime the remote user may have filled up the server's disk space,
+causing problems for other programs.
+
+&lt;P&gt;
+The best way to avoid denial of service attacks is to limit the amount of memory, 
+&lt;FONT SIZE=-1&gt;CPU&lt;/FONT&gt; time and disk space that 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; scripts can use. Some Web servers come with built-in facilities to accomplish this. In other cases, you can use the shell
+ &lt;EM&gt;limit&lt;/EM&gt; or &lt;EM&gt;ulimit&lt;/EM&gt;
+commands to put ceilings on 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; resource usage.
+
+&lt;P&gt;
+CGI.pm also has some simple built-in protections against denial of service attacks, but you must activate them before you can use them. These take the form of two global variables in the 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; name space:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__CGI_POST_MAX&quot;&gt;$CGI::POST_MAX&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If set to a non-negative integer, this variable puts a ceiling on the size of POSTings, in bytes. If CGI.pm detects a 
+&lt;FONT SIZE=-1&gt;POST&lt;/FONT&gt; that is greater than the ceiling, it will immediately exit with an error message. This value will affect both ordinary POSTs and multipart POSTs, meaning that it limits the maximum size of file uploads as well. You should set this to a reasonably high value, such as 1 megabyte.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__CGI_DISABLE_UPLOADS&quot;&gt;$CGI::DISABLE_UPLOADS&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+If set to a non-zero value, this will disable file uploads completely.
+Other fill-out form values will work as usual.
+
+&lt;/DL&gt;
+&lt;P&gt;
+You can use these variables in either of two ways.
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_On_a_script_by_script_basis&quot;&gt;On a script-by-script basis&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Set the variable at the top of the script, right after the ``use''
+statement:
+
+&lt;P&gt;
+&lt;PRE&gt;    use CGI qw/:standard/;
+    use CGI::Carp 'fatalsToBrowser';
+    $CGI::POST_MAX=1024 * 100;  # max 100K posts
+    $CGI::DISABLE_UPLOADS = 1;  # no uploads
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Globally_for_all_scripts&quot;&gt;Globally for all scripts&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+Open up CGI.pm, find the definitions for &lt;CODE&gt;$POST_MAX&lt;/CODE&gt; and 
+&lt;FONT SIZE=-1&gt;$DISABLE_UPLOADS,&lt;/FONT&gt; and set them to the desired values. You'll find them towards the top of the file in a subroutine named 
+&lt;CODE&gt;initialize_globals().&lt;/CODE&gt;
+
+&lt;/OL&gt;
+&lt;P&gt;
+Since an attempt to send a 
+&lt;FONT SIZE=-1&gt;POST&lt;/FONT&gt; larger than &lt;CODE&gt;$POST_MAX&lt;/CODE&gt; bytes will
+cause a fatal error, you might want to use CGI::Carp to echo the fatal
+error message to the browser window as shown in the example above.
+Otherwise the remote user will see only a generic ``Internal Server'' error
+message. See the [perlman:CGI::Carp|CGI::Carp] manual page for more details.
+
+&lt;H1&gt;&lt;A NAME=&quot;COMPATIBILITY_WITH_CGI_LIB_PL&quot;&gt;COMPATIBILITY WITH CGI-LIB.PL&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+To make it easier to port existing programs that use cgi-lib.pl the
+compatibility routine ``ReadParse'' is provided. Porting is simple:
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;OLD&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; require ``cgi-lib.pl''; &amp;amp;ReadParse; print ``The value of the antique is $in{antique}.\n'';
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;NEW&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;VERSION&lt;/FONT&gt; use 
+&lt;FONT SIZE=-1&gt;CGI;&lt;/FONT&gt; CGI::ReadParse print ``The value of the antique is $in{antique}.\n'';
+
+&lt;P&gt;
+CGI.pm's 
+&lt;CODE&gt;ReadParse()&lt;/CODE&gt; routine
+creates a tied variable named %in, which can be accessed to obtain the
+query variables. Like ReadParse, you can also provide your own variable.
+Infrequently used features of ReadParse, such as the creation of
+&lt;CODE&gt;@in&lt;/CODE&gt; and &lt;CODE&gt;$in&lt;/CODE&gt; variables, are not supported.
+
+&lt;P&gt;
+Once you use ReadParse, you can retrieve the query object itself this way:
+
+&lt;P&gt;
+&lt;PRE&gt;    $q = $in{CGI};
+    print $q-&amp;gt;textfield(-name=&amp;gt;'wow',
+                        -value=&amp;gt;'does this really work?');
+&lt;/PRE&gt;
+&lt;P&gt;
+This allows you to start using the more interesting features of CGI.pm
+without rewriting your old scripts from scratch.
+
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR_INFORMATION&quot;&gt;AUTHOR INFORMATION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Copyright 1995-1997, Lincoln 
+&lt;FONT SIZE=-1&gt;D.&lt;/FONT&gt; Stein. All rights reserved. It may be used and modified freely, but 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; do request that this copyright notice remain attached to the file. You may modify this module as you wish, but if you redistribute a modified version, please attach a note listing the modifications you have made.
+
+&lt;P&gt;
+Address bug reports and comments to: &lt;A
+HREF=&quot;mailto:lstein@genome.wi.mit.edu&quot;&gt;lstein@genome.wi.mit.edu&lt;/A&gt;
+
+&lt;H1&gt;&lt;A NAME=&quot;CREDITS&quot;&gt;CREDITS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Thanks very much to:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Matt&quot;&gt;Matt Heffron (heffron@falstaff.css.beckman.com)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_James&quot;&gt;James Taylor (james.taylor@srs.gov)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Scott&quot;&gt;Scott Anguish &amp;lt;sanguish@digifix.com&amp;gt;&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Mike&quot;&gt;Mike Jewell (mlj3u@virginia.edu)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Timothy&quot;&gt;Timothy Shimmin (tes@kbs.citri.edu.au)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Joergen&quot;&gt;Joergen Haegg (jh@axis.se)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Laurent&quot;&gt;Laurent Delfosse (delfosse@csgrad1.cs.wvu.edu)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Richard&quot;&gt;Richard Resnick (applepi1@aol.com)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Craig&quot;&gt;Craig Bishop (csb@barwonwater.vic.gov.au)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Tony&quot;&gt;Tony Curtis (tc@vcpc.univie.ac.at)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Tim&quot;&gt;Tim Bunce (Tim.Bunce@ig.co.uk)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Tom&quot;&gt;Tom Christiansen (tchrist@convex.com)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Andreas&quot;&gt;Andreas Koenig (k@franz.ww.TU-Berlin.DE)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;Tim MacKenzie (Tim.MacKenzie@fulcrum.com.au)&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Kevin&quot;&gt;Kevin B. Hendricks (kbhend@dogwood.tyler.wm.edu)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Stephen&quot;&gt;Stephen Dahmen (joyfire@inxpress.net)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Ed&quot;&gt;Ed Jordan (ed@fidalgo.net)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_David&quot;&gt;David Alan Pisoni (david@cnation.com)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Doug&quot;&gt;Doug MacEachern (dougm@opengroup.org)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_Robin&quot;&gt;Robin Houston (robin@oneworld.org)&lt;/A&gt;&lt;/STRONG&gt;&lt;DD&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__and&quot;&gt;...and many many more...&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+for suggestions and bug fixes.
+
+&lt;/DL&gt;
+&lt;H1&gt;&lt;A NAME=&quot;A_COMPLETE_EXAMPLE_OF_A_SIMPLE_F&quot;&gt;A COMPLETE EXAMPLE OF A SIMPLE FORM-BASED SCRIPT&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;PRE&gt;        #!/usr/local/bin/perl
+     
+        use CGI;
+ 
+        $query = new CGI;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print $query-&amp;gt;header;
+        print $query-&amp;gt;start_html(&amp;quot;Example CGI.pm Form&amp;quot;);
+        print &amp;quot;&amp;lt;H1&amp;gt; Example CGI.pm Form&amp;lt;/H1&amp;gt;\n&amp;quot;;
+        &amp;amp;print_prompt($query);
+        &amp;amp;do_work($query);
+        &amp;amp;print_tail;
+        print $query-&amp;gt;end_html;
+ 
+        sub print_prompt {
+           my($query) = @_;
+ 
+           print $query-&amp;gt;startform;
+           print &amp;quot;&amp;lt;EM&amp;gt;What's your name?&amp;lt;/EM&amp;gt;&amp;lt;BR&amp;gt;&amp;quot;;
+           print $query-&amp;gt;textfield('name');
+           print $query-&amp;gt;checkbox('Not my real name');
+ 
+           print &amp;quot;&amp;lt;P&amp;gt;&amp;lt;EM&amp;gt;Where can you find English Sparrows?&amp;lt;/EM&amp;gt;&amp;lt;BR&amp;gt;&amp;quot;;
+           print $query-&amp;gt;checkbox_group(
+                                 -name=&amp;gt;'Sparrow locations',
+                                 -values=&amp;gt;&amp;#091;England,France,Spain,Asia,Hoboken&amp;#093;,
+                                 -linebreak=&amp;gt;'yes',
+                                 -defaults=&amp;gt;&amp;#091;England,Asia&amp;#093;);
+ 
+           print &amp;quot;&amp;lt;P&amp;gt;&amp;lt;EM&amp;gt;How far can they fly?&amp;lt;/EM&amp;gt;&amp;lt;BR&amp;gt;&amp;quot;,
+                $query-&amp;gt;radio_group(
+                        -name=&amp;gt;'how far',
+                        -values=&amp;gt;&amp;#091;'10 ft','1 mile','10 miles','real far'&amp;#093;,
+                        -default=&amp;gt;'1 mile');
+ 
+           print &amp;quot;&amp;lt;P&amp;gt;&amp;lt;EM&amp;gt;What's your favorite color?&amp;lt;/EM&amp;gt;  &amp;quot;;
+           print $query-&amp;gt;popup_menu(-name=&amp;gt;'Color',
+                                    -values=&amp;gt;&amp;#091;'black','brown','red','yellow'&amp;#093;,
+                                    -default=&amp;gt;'red');
+ 
+           print $query-&amp;gt;hidden('Reference','Monty Python and the Holy Grail');
+ 
+           print &amp;quot;&amp;lt;P&amp;gt;&amp;lt;EM&amp;gt;What have you got there?&amp;lt;/EM&amp;gt;&amp;lt;BR&amp;gt;&amp;quot;;
+           print $query-&amp;gt;scrolling_list(
+                         -name=&amp;gt;'possessions',
+                         -values=&amp;gt;&amp;#091;'A Coconut','A Grail','An Icon',
+                                   'A Sword','A Ticket'&amp;#093;,
+                         -size=&amp;gt;5,
+                         -multiple=&amp;gt;'true');
+ 
+           print &amp;quot;&amp;lt;P&amp;gt;&amp;lt;EM&amp;gt;Any parting comments?&amp;lt;/EM&amp;gt;&amp;lt;BR&amp;gt;&amp;quot;;
+           print $query-&amp;gt;textarea(-name=&amp;gt;'Comments',
+                                  -rows=&amp;gt;10,
+                                  -columns=&amp;gt;50);
+ 
+           print &amp;quot;&amp;lt;P&amp;gt;&amp;quot;,$query-&amp;gt;reset;
+           print $query-&amp;gt;submit('Action','Shout');
+           print $query-&amp;gt;submit('Action','Scream');
+           print $query-&amp;gt;endform;
+           print &amp;quot;&amp;lt;HR&amp;gt;\n&amp;quot;;
+        }
+ 
+        sub do_work {
+           my($query) = @_;
+           my(@values,$key);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;           print &amp;quot;&amp;lt;H2&amp;gt;Here are the current settings in this form&amp;lt;/H2&amp;gt;&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;           foreach $key ($query-&amp;gt;param) {
+              print &amp;quot;&amp;lt;STRONG&amp;gt;$key&amp;lt;/STRONG&amp;gt; -&amp;gt; &amp;quot;;
+              @values = $query-&amp;gt;param($key);
+              print join(&amp;quot;, &amp;quot;,@values),&amp;quot;&amp;lt;BR&amp;gt;\n&amp;quot;;
+          }
+        }
+ 
+        sub print_tail {
+           print &amp;lt;&amp;lt;END;
+        &amp;lt;HR&amp;gt;
+        &amp;lt;ADDRESS&amp;gt;Lincoln D. Stein&amp;lt;/ADDRESS&amp;gt;&amp;lt;BR&amp;gt;
+        &amp;lt;A HREF=&amp;quot;/&amp;quot;&amp;gt;Home Page&amp;lt;/A&amp;gt;
+        END
+        }
+&lt;/PRE&gt;
+&lt;H1&gt;&lt;A NAME=&quot;BUGS&quot;&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+This module has grown large and monolithic. Furthermore it's doing many things, such as handling URLs, parsing 
+&lt;FONT SIZE=-1&gt;CGI&lt;/FONT&gt; input, writing 
+&lt;FONT SIZE=-1&gt;HTML,&lt;/FONT&gt; etc., that are also done in the 
+&lt;FONT SIZE=-1&gt;LWP&lt;/FONT&gt; modules. It should be discarded in favor of the 
+&lt;FONT SIZE=-1&gt;CGI::*&lt;/FONT&gt; modules, but somehow 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; continue to work on it.
+
+&lt;P&gt;
+Note that the code is truly contorted in order to avoid spurious warnings
+when programs are run with the &lt;STRONG&gt;-w&lt;/STRONG&gt; switch.
+
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+[perlman:CGI::Carp|CGI::Carp], &lt;EM&gt;URI&lt;/EM&gt;, [perlman:CGI::Request|CGI::Request], [perlman:CGI::MiniSvr|CGI::MiniSvr],
+[perlman:CGI::Base|CGI::Base], [perlman:CGI::Form|CGI::Form], [perlman:CGI::Apache|CGI::Apache], [perlman:CGI::Switch|CGI::Switch],
+[perlman:CGI::Push|CGI::Push], [perlman:CGI::Fast|CGI::Fast]
+
+&lt;/DL&gt;
+&lt;HR&gt;
+&lt;H1&gt;DISCLAIMER&lt;/H1&gt; 
+We are painfully aware that these documents may contain incorrect links and
+misformatted HTML.  Such bugs lie in the automatic translation process
+that automatically created the hundreds and hundreds of separate documents that you find here.  Please &lt;B&gt;do
+not report&lt;/B&gt; link or formatting bugs, because we cannot fix
+per-document problems.  The only bug reports that will help us are those
+that supply working patches to the &lt;I&gt;installhtml&lt;/I&gt; or &lt;I&gt;pod2html&lt;/I&gt;
+programs, or to the &lt;TT&gt;Pod::HTML&lt;/TT&gt; module itself, for which I and the entire
+Perl community will shower you with thanks and praises.  
+&lt;P&gt;
+If rather than formatting bugs, you encounter substantive content errors in these documents, such as mistakes in
+the explanations or code, please use the &lt;I&gt;perlbug&lt;/I&gt; utility included
+with the Perl distribution.
+&lt;P&gt;
+&lt;DL&gt;&lt;DD&gt;--Tom Christiansen, Perl Documentation Compiler and Editor&lt;/DL&gt; 
+&lt;P&gt;
+&lt;HR&gt;
+Return to the [perlman:lib:index|index].
+&lt;BR&gt;
+Return to the &lt;A HREF=&quot;http://www.perl.com/&quot;&gt;Perl Home Page&lt;/A&gt;.
+&lt;/BODY&gt;
+
+&lt;/HTML&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>1312</node_id>
+  <author_user>113</author_user>
+  <title>perlman:lib:CGI:2</title>
+  <createtime>1999-12-22 21:39:44</createtime>
+  <nodeupdated>2005-08-15 03:04:39</nodeupdated>
+</node>

@@ -1,0 +1,195 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>478</node_id>
+  <author_user>114</author_user>
+  <title>listandmoderate</title>
+  <createtime>1999-09-07 15:56:02</createtime>
+  <code>(my %settings)=@_;
+    $settings{defaultlength}||=20;
+    $settings{listlength}||=$settings{defaultlength};
+    $settings{replytag}||=&quot;replies&quot;;
+    $settings{responsetag}||=&quot;Comment&quot;;
+    $settings{titletag}||=&quot;Title&quot;;
+    $settings{texttag}||=&quot;Text&quot;;
+    $settings{datatitle}||=&quot;Approved Nodes&quot;;
+    $settings{addnewtitle}||=&quot;Add New&quot;;
+    
+
+sub display{
+   (my $text)=@_;
+   if($settings{display} eq &quot;code&quot;){
+      $text =~ s/\&amp;/\&amp;amp\;/g;
+      $text =~ s/\&lt;/\&amp;lt\;/g;
+      $text =~ s/\&gt;/\&amp;gt\;/g;
+      $text =~ s/\&quot;/\&amp;quot\;/g;
+
+      my @lines = split /\n/, $text;
+      my $count2 = 1;
+      foreach my $ln (@lines) {
+	 $ln = $count2++ . &quot;: $ln&quot;;
+      }   	
+      return &quot;&lt;PRE&gt;&quot; . join (&quot;\n&quot;, @lines) . &quot;&lt;/PRE&gt;&quot;;
+   }
+   else {return $text;}
+}
+
+my $str;
+
+if($settings{nodetype} and $settings{linktype}){
+   my $gods=canUpdateNode($USER,$NODE);
+   my(@params)=$query-&gt;param();
+   my $dt=$query-&gt;param(&quot;displaytype&quot;);
+   my $nodeid=$query-&gt;param(&quot;node_id&quot;);
+   my $count = $query-&gt;param(&quot;next&quot;);
+   $count ||= 0;
+   my $length = $settings{listlength};
+   my $max = $count + $length;
+
+#generate the prev...count...next row
+   my $navbegin;
+   $navbegin .= &quot;&lt;table width=90%&gt;&lt;tr&gt;&lt;td align=left&gt;&quot;;
+	
+   my $next = $count - $length;	
+   $next = 0 if ($count - $length &lt; 0);
+	
+   $navbegin .= &quot;&lt;a href=&quot; 
+	.urlGen ({node_id =&gt; getId ($NODE),
+	next =&gt; 0}) 
+        .&quot;&gt;Previous entries...&lt;/a&gt;&quot; if ($count &gt; 0);
+   $navbegin.=&quot;&amp;nbsp;&quot; if($count&lt;=0);   
+
+   foreach(@params){
+      if(/^\d/){  
+         my $curid=$_;
+         my(@operations)=$query-&gt;param($curid);
+         foreach(@operations){
+           if($_ eq &quot;frontpage&quot;){
+             # updateLinks($curid,10,1539);
+           }
+           if($_ eq &quot;ok&quot; or $_ eq &quot;frontpage&quot;){
+#              updateLinks($curid,$nodeid,$settings{linktype});
+           }
+           elsif($_ eq &quot;delete&quot;){
+#              my $ref=selectNodeWhere({node_id=&gt;$curid},&quot;&quot;,&quot;&quot;);
+#              foreach(@$ref){
+#                 nukeNode($_,$USER);
+#              }
+           }        
+        }
+     }
+   }
+   my %approved;
+   my @unapproved;
+   
+   my $ref; 
+   #$ref=selectLinks $NODE;
+   foreach(@$ref){
+       if($_-&gt;{linktype}==$settings{linktype}){
+          $approved{$_-&gt;{to_node}}=1;
+      }
+   }
+   undef $ref;
+   my $ref;
+   $ref=selectNodeWhere({type_nodetype=&gt;getId($NODETYPES{$settings{nodetype}})}, &quot;&quot;, &quot;createtime&quot;);
+
+   my $navend;
+   $navend.=&quot;&lt;/td&gt;&lt;td align=center&gt;(&quot;.($count+1).&quot;-$max) of &quot; if($max&lt;int @$ref);
+   $navend.=&quot;&lt;/td&gt;&lt;td align=center&gt;(&quot;.($count+1).&quot;-&quot;.(int @$ref).&quot;) of &quot; if($max&gt;=int @$ref);
+   $navend.=int (@$ref).&quot;&lt;/td&gt;&lt;td align=right&gt;&quot;;
+   $next = $count+$length; 
+   my $num = $length;
+      if ($next + $length &gt; @$ref) {
+         $num = @$ref - $next;
+      }
+   $navend .= &quot;&lt;a href=&quot; 
+	.urlGen ({node_id =&gt; getId ($NODE),
+	next =&gt; $max}) 
+	.&quot;&gt;Next entries...&lt;/a&gt;&quot; if ($max &lt; @$ref);
+	$navend .= &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&quot;;
+
+   $str.=&quot;&lt;TABLE BGCOLOR=#FFFFFF WIDTH=100%&gt;&lt;TR BGCOLOR=1f2f80&gt;&lt;TD colspan=3&gt;&lt;FONT COLOR=#ffffff&gt;&lt;B&gt;$settings{datatitle}&lt;/B&gt;&lt;/font&gt;&lt;/TD&gt;&lt;/TR&gt;&quot;;
+   my $j=-1;
+   for(my $i=$count; $i&lt;$max and $i&lt;@$ref and $j&lt;$count; $i++){
+#   foreach(@$ref){
+      my $N=selectNode $$ref[$i];
+#      my $N=selectNode $_;
+       my $title=$$N{title};
+       my $id=getId($N);
+       my $text=$$N{doctext};
+       if($approved{$id}){    
+         $str.=&quot;&lt;TR BGCOLOR=EEEEEE&gt;&lt;TD&gt;[$title]&lt;/TD&gt;&quot;;
+         my (@notes)=getNodeWhere({'parent_node' =&gt; $id}, $NODETYPES{note});
+         $str.=&quot;&lt;TD&gt;&quot;;
+         $str.=scalar(@notes);
+         $str.=&quot; $settings{replytag}&lt;/TD&gt;&quot;;
+         $str.=&quot;&lt;TD align=right&gt;by &quot;;
+         $str.=linkNode($$N{author_user});
+         $str.=&quot;&lt;/TD&gt;&lt;/TR&gt;\n&quot;;
+         if($text){
+            $str.=&quot;&lt;TR BGCOLOR=FFFFFF&gt;&lt;TD colspan=2&gt;&lt;UL&gt;&quot;.display($text).&quot;&lt;/TD&gt;&quot;;
+            $str.=&quot;&lt;TD align=right&gt;&lt;font size=2&gt;&quot;;
+            $str.= &quot;&lt;A HREF=&quot;;
+            $str.=urlGen ({node =&gt; &quot;RE: $$N{title}&quot;, type=&gt; 'note', lastnode_id =&gt; getId ($N), op =&gt; 'new', displaytype =&gt; 'edit'});
+            $str.=&quot;&gt;&amp;#091$settings{responsetag}&amp;#093&lt;/a&gt;&quot;;
+            $str.=&quot;&lt;/font&gt;&lt;/TD&gt;&lt;/TR&gt;\n&quot;;
+         }
+         my (@notes) = getNodeWhere ({'parent_node' =&gt; $id}, $NODETYPES{note});
+         
+      } elsif($gods){
+         push @unapproved, $N;
+      }
+   }
+   $str.=&quot;&lt;/TABLE&gt;&lt;BR&gt;&quot;;
+   $str.=$navbegin.$navend;
+   if($gods){
+      for(my $i=$max; $i&lt;@$ref; $i++){
+         my $N=selectNode $$ref[$i];
+         unless($approved{getId($N)}){
+              push @unapproved, $N;
+          }
+      }
+   }
+   if($gods and @unapproved){
+      $str.=&quot;&lt;TABLE width=100% bgcolor=ffffff&gt;&quot;;
+      $str.=htmlcode('openform','',-method =&gt; 'get');
+      $str.=$query-&gt;hidden(&quot;displaytype&quot;,&quot;display&quot;);
+      $str.=$query-&gt;hidden(&quot;node_id&quot;,1442);
+      $str.=&quot;&lt;TR bgcolor=B0003f&gt;&lt;TD colspan=2&gt;&lt;B&gt;&lt;FONT COLOR=ffffff&gt;Unapproved Nodes&lt;/font&gt;&lt;/B&gt;&lt;/TD&gt;&lt;TD&gt;&lt;/TD&gt;&lt;/TR&gt;&quot;;
+      foreach(@unapproved){
+         my $title=$_-&gt;{title};
+         my $id=$_-&gt;{node_id};
+         my $text=$_-&gt;{doctext};
+         $str.=&quot;&lt;TR BGCOlOR=EEEEEE&gt;&lt;TD&gt;[$title]&lt;/TD&gt;&lt;TD&gt;&quot;;
+         my @list=(&quot;frontpage&quot;,&quot;ok&quot;,&quot;delete&quot;);    
+         $str.=$query-&gt;checkbox_group($id,\@list);
+         $str.=&quot;&lt;/TD&gt;&quot;;
+         $str.=&quot;&lt;/TR&gt;&quot;;
+         $str.=&quot;&lt;TR&gt;&lt;TD&gt;&lt;UL&gt;$text&lt;/TD&gt;&lt;TD&gt;&lt;/TD&gt;&lt;/TR&gt;&quot;;
+      }
+      $str.=&quot;&lt;/TABLE&gt;&lt;BR&gt;\n&quot;;
+      $str.=$query-&gt;submit(&quot;Submit&quot;);
+      $str.=$query-&gt;endform;
+    }
+     $str.=&quot;&lt;BR&gt;&lt;TABLE&gt;&lt;TR BGCOLOR=1f2f80&gt;&lt;TD&gt;&quot;;
+     $str.=&quot;&lt;FONT COLOR=ffffff&gt;&lt;B&gt;$settings{addnewtitle}&lt;/B&gt;&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&lt;TR&gt;&lt;TD&gt;&quot;;
+     $str.=htmlcode('openform','',-method =&gt; 'get').
+     $query-&gt;hidden(&quot;type&quot;, $settings{nodetype}).
+     $query-&gt;hidden(&quot;lastnode_id&quot;, getId($NODE)).
+     $query-&gt;hidden(&quot;op&quot;,&quot;new&quot;).
+     &quot;&lt;font size=2&gt;&lt;b&gt;$settings{titletag}&lt;/b&gt;&lt;/font&gt;&quot;.
+     $query-&gt;textfield(&quot;node&quot;,&quot;&quot;).&quot;&lt;BR&gt;&quot;.
+     &quot;&lt;font size=2&gt;&lt;b&gt;&lt;br&gt;$settings{texttag}&lt;br&gt;&lt;/b&gt;&lt;/font&gt;&quot;.
+     $query-&gt;textarea(&quot;document_doctext&quot;,&quot;&quot;,10,60).&quot;&lt;BR&gt;&quot;.
+     $query-&gt;submit(&quot;Submit&quot;).
+     $query-&gt;endform;
+     $str.=&quot;&lt;/TD&gt;&lt;/TR&gt;&lt;/TABLE&gt;&quot;;
+    
+}
+     $str;
+
+
+
+ 
+</code>
+  <nodeupdated>2005-04-20 05:32:39</nodeupdated>
+</node>

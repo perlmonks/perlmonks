@@ -1,0 +1,81 @@
+<node>
+  <doctext>[%
+  my $html= '';
+  my $img = $THEME-&gt;{pollImage};
+  $img ||= &quot;redbox.gif&quot;;
+
+  my $V= {
+
+ 1 =&gt;       -10000000,
+ 2 =&gt;       45,
+ 3 =&gt;       74,
+ 4 =&gt;      109,
+ 5 =&gt;      150,
+ 6 =&gt;      201,
+ 7 =&gt;      263,
+ 8 =&gt;      340,
+ 9 =&gt;      436,
+10 =&gt;      558,
+11 =&gt;      716,
+12 =&gt;      921,
+13 =&gt;     1191,
+14 =&gt;     1554,
+15 =&gt;     2047,
+16 =&gt;     2728,
+17 =&gt;     3686,
+18 =&gt;     5057,
+19 =&gt;     7055,
+20 =&gt;    10027,
+21 =&gt;  1000000,
+22 =&gt;  1000000000000
+         };
+  for my $h ( [
+      &quot; who have logged within the past 24 hours&quot;,
+      &quot; and unix_timestamp(now())&lt;(unix_timestamp(lasttime)+86400)&quot;
+    ], [&quot;&quot;,&quot;&quot;]
+  ) {
+    $html .= qq[&lt;center&gt;&lt;b&gt;Breakdown by level
+      of Registered Monks$h-&gt;[0]&lt;/b&gt;&lt;/center&gt;\n];
+    my %numAtLevel;
+    my %avgAtLevel;
+    my %minAtLevel;
+    my %maxAtLevel;
+    my $csr= $DB-&gt;getDatabaseHandle-&gt;prepare_cached(
+      &quot;select count(user_id), avg(experience), max(experience),
+       min(experience) from user where experience between ? and ?&quot;
+      . $h-&gt;[1] );
+    my $maxheight= 1;
+    for my $i (  1..21  ) {
+      $csr-&gt;execute( $V-&gt;{$i}, $V-&gt;{$i+1}-1 );
+      my $B= $csr-&gt;fetchrow_hashref();
+      $numAtLevel{$i}= $B-&gt;{'count(user_id)'};
+      $avgAtLevel{$i}= int $B-&gt;{'avg(experience)'};
+      $minAtLevel{$i}= $B-&gt;{'min(experience)'};
+      $maxAtLevel{$i}= $B-&gt;{'max(experience)'};
+      $csr-&gt;finish();
+      $maxheight= $numAtLevel{$i}
+        if  $maxheight &lt; $numAtLevel{$i} and $i&gt;1;
+    }
+    $html .= qq[&lt;table&gt;&lt;tr&gt;&lt;td valign=&quot;bottom&quot;&gt;
+      Number:&lt;br /&gt;Min XP:&lt;br /&gt;Avg XP:&lt;br /&gt;Max XP:&lt;/td&gt;];
+    for my $i (  1..21  ) {
+       my $height= 1 + int( $numAtLevel{$i} / $maxheight * 300 );
+       $height = 300 if $i == 1;
+       $html .= qq[&lt;td valign=&quot;bottom&quot;&gt;]
+         . qq[&lt;img src=&quot;/images/$img&quot; alt=&quot;box&quot; ]
+         . qq[width=&quot;20&quot; height=&quot;$height&quot;&gt;&lt;br /&gt;Level&amp;nbsp;$i&lt;br /&gt;]
+         . qq[($numAtLevel{$i})&lt;br /&gt;($minAtLevel{$i})&lt;br /&gt;]
+         . qq[($avgAtLevel{$i})&lt;br /&gt;($maxAtLevel{$i})&lt;/td&gt;];
+    }
+    $html .= qq[
+      &lt;/tr&gt;&lt;/table&gt;&lt;br /&gt;&lt;br /&gt;];
+  }
+  return $html;
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>334039</node_id>
+  <author_user>485628</author_user>
+  <title>Number of Monks by Level Experimental</title>
+  <createtime>2000-06-08 23:50:18</createtime>
+  <nodeupdated>2005-08-22 15:36:03</nodeupdated>
+</node>

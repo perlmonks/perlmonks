@@ -1,0 +1,41 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>182616</node_id>
+  <author_user>929</author_user>
+  <title>chatrepeated</title>
+  <createtime>2002-05-03 17:13:07</createtime>
+  <code>my( $text, $to, $from )= @_;
+   $to ||= 0;
+   $from ||= getId($USER);
+   if(  $to == $HTMLVARS{default_user}  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         &quot;&lt;i&gt;You can't send messages to &quot;
+         . linkNode($to) . &quot;&lt;/i&gt;&quot;
+      );
+      return 1;
+   }
+   my $dbh = $DB-&gt;getDatabaseHandle();
+   my $sth = $dbh-&gt;prepare_cached( &quot;select * from message&quot;
+      . &quot; where author_user=? and msgtext=? and for_user=? and tstamp&quot;
+      . &quot; and unix_timestamp(now())-unix_timestamp(tstamp) &lt; 500 &quot;
+   );
+   $sth-&gt;execute( $from, $text, $to );
+   my $isDup= $sth-&gt;fetchrow_hashref;
+   $sth-&gt;finish();
+
+   if(  $isDup  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         &quot;&lt;i&gt;Whoa, Cowboy!  You said that already.  Don't 'reload'?&lt;/i&gt;&quot;
+      );
+      return 1;
+   }
+   if(  $to  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;You said &quot;] . $query-&gt;escapeHTML($text)
+         . qq[&quot; to ] . linkNode($to) . &quot;&lt;/i&gt;&quot; );
+   }
+
+   return !1;
+</code>
+  <nodeupdated>2004-03-22 09:02:12</nodeupdated>
+</node>

@@ -1,0 +1,77 @@
+<node>
+  <doctext>&lt;h1&gt;Introduction&lt;/h1&gt;
+&lt;p&gt;You've probably used the Unix &lt;code&gt;diff&lt;/code&gt; program, or one of its Win32 descendants, or some program that depends directly on it, such as &lt;code&gt;patch&lt;/code&gt;, or the [http://cvshome.org|CVS] source code maintenance system.  All of these require calculating the smallest set of differences between two sequences (or equivalently, figuring out the longest subsequences that are the same).  It's an intuitively simple problem, but surprisingly difficult to solve and implement correctly.  That's what this module does, and it does it well.&lt;/p&gt;
+&lt;h1&gt;Genealogy&lt;/h1&gt;
+&lt;p&gt;The algorithm implemented in the module was originally published in a May 1977 &lt;i&gt;Communications of the ACM&lt;/i&gt; article entitled &quot;A Fast Algorithm for Computing Longest Common Subsequences&quot; by J. W. Hunt and T. G. Szymanski.  The Unix &lt;code&gt;diff&lt;/code&gt; program was originally written by D. McIlroy and J. W. Hunt, who described their work in Bell Laboratories Technical Report 41 in 1976.  This module was originally written by [Dominus|Mark-Jason Dominus], but the existing version is by [bikeNomad|Ned Konz].  It's available on [cpan://Algorithm::Diff|CPAN] ([kobe://Algorithm::Diff|alternate]).&lt;/p&gt;
+&lt;h1&gt;Details&lt;/h1&gt;
+&lt;p&gt;The difficulty of the algorithm precludes sitting down and just &quot;grinding it out&quot;; when you need it, this module's a life-saver.  It provides three separate ways to get at the algorithm -- in other words, three interfaces to the core functionality.  The documentation mentions these in order of increasing generality, but they're also slightly different in what they do.  They are:
+&lt;dl&gt;&lt;dt&gt;&lt;code&gt;LCS&lt;/code&gt;&lt;/dt&gt;
+&lt;dd&gt;This routine takes two array references, and returns the longest common subsequence.  In other words, the returned result is an array (or a reference to one) containing the longest run of elements which are &lt;em&gt;not&lt;/em&gt; different.&lt;/dd&gt;
+&lt;dt&gt;&lt;code&gt;diff&lt;/code&gt;&lt;/dt&gt;
+&lt;dd&gt;The output of this routine is the smallest set of changes that are required to bring the two input arrays into agreement.  It's similar to &lt;code&gt;diff&lt;/code&gt; output.  The result is a multidimensional array; each element is a so-called &quot;hunk&quot; -- that is, one logical group of differences.  Within each hunk are one or more arrays of three elements each: a &lt;code&gt;+&lt;/code&gt; or &lt;code&gt;-&lt;/code&gt; sign, the index of the item to be inserted or deleted, and the data itself.&lt;/p&gt;
+&lt;p&gt;This is a lot easier to show than to describe.  This example appears in the POD, although I've reformatted it very slightly.  Suppose the two input arrays contain:
+&lt;code&gt;a b c   e h j   l m n p
+  b c d e f j k l m r s t
+&lt;/code&gt;(spaces added for clarity).  Then the routine will return the following result:
+&lt;code&gt; [ 
+   [ [ '-', 0, 'a'  ] ],
+
+   [ [ '+', 2, 'd'  ] ],
+
+   [ [ '-', 4, 'h'  ] , 
+     [ '+', 4, 'f'  ] ],
+
+   [ [ '+', 6, 'k'  ] ],
+
+   [ [ '-', 8, 'n'  ], 
+     [ '-', 9, 'p'  ], 
+     [ '+', 9, 'r'  ], 
+     [ '+', 10, 's' ], 
+     [ '+', 11, 't' ],
+   ]
+]
+&lt;/code&gt;&lt;/p&gt;&lt;/dd&gt;
+&lt;dt&gt;&lt;code&gt;traverse_sequences&lt;/code&gt;&lt;/dt&gt;
+&lt;dd&gt;This function works in a callback style: it examines each input array an element at a time, and calls a supplied routine depending on whether the element is an element of the LCS or not.  Up to five callbacks may be defined; referring to the input sequences as A and B, they are:
+&lt;dl&gt;&lt;dt&gt;&lt;code&gt;MATCH&lt;/code&gt;&lt;/dt&gt;
+&lt;dd&gt;Called when the element under consideration is a member of the LCS;&lt;/dd&gt;
+&lt;dt&gt;&lt;code&gt;DISCARD_A&lt;/code&gt; and &lt;code&gt;DISCARD_B&lt;/code&gt;&lt;/dt&gt;
+&lt;dd&gt;Called when the item in the respective array has to be discarded to bring the lists into agreement; and&lt;/dd&gt;
+&lt;dt&gt;&lt;code&gt;A_FINISHED&lt;/code&gt; and &lt;code&gt;B_FINISHED&lt;/code&gt;&lt;/dt&gt;
+&lt;dd&gt;This is really a special case of the above.  When one array &amp;lq;runs out&amp;rq; of elements, this routine is called if it is available (otherwise the &lt;code&gt;DISCARD&lt;/code&gt; callback for the other is invoked).&lt;/dd&gt;&lt;/dl&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;/p&gt;
+&lt;p&gt;When would you use each one?  You might consider using &lt;code&gt;LCS&lt;/code&gt; if all you need is the longest match between the arrays.  You could use &lt;code&gt;diff&lt;/code&gt; to print diff-like output.  For example, here's an extremely simple &lt;code&gt;diff&lt;/code&gt; program (more for illustration than usefulness):
+&lt;code&gt;# Suppose @i1 and @i2 contain the slurped contents
+# of two input files.
+foreach my $hunk (Algorithm::Diff::diff(\@i1, \@i2))
+{
+    print &quot;---\n&quot;;
+    foreach my $element (@$hunk)
+    {
+        printf &quot;line %d %s %s&quot;,
+            $element-&gt;[1]+1,
+            ($element-&gt;[0] eq '+'? '&gt;' : '&lt;'),
+            $element-&gt;[2];
+    }
+}&lt;/code&gt;
+Finally, &lt;code&gt;traverse_sequences&lt;/code&gt; is very handy when you already know what you need to do in response to a difference (say, delete an item).
+&lt;p&gt;All of these routines accept a &quot;key generation function&quot; as an optional final argument.  This is needed because internally the routine uses numeric comparison (the &lt;code&gt;&lt;=&gt;&lt;/code&gt; operator, in principle).  But what if the values you have are not numeric?  Or if you have a more complicated data structure, such as an array of hashes (such as object instances)?  The key generation function should, given a reference to an object in your array, return a numeric value that can be used to meaningfully compare it to another element.  That is, it should return some sort of hash or key that represents the element.  If the elements are logically the same, it should return the same value (note that the &lt;code&gt;ref&lt;/code&gt; operator would almost never be a good choice.)&lt;/p&gt;
+&lt;h1&gt;Drawbacks&lt;/h1&gt;
+&lt;p&gt;To me, the key generation functions have always seemed unnatural.  I'm more used to being able to supply the actual comparison function, in the style of &lt;code&gt;sort&lt;/code&gt; or &lt;code&gt;grep&lt;/code&gt;.  But that may cause a significant performance hit -- I don't know.&lt;/p&gt;
+&lt;p&gt;Another seeming inflexibility is that the input arrays have to be in memory.  It would be nice to be able to process files without having to slurp them, by providing routines which returned the next element for the given array.  (But my guess is that in the worst case -- having no elements in common -- that would still end up reading both files completely into memory.)&lt;/p&gt;
+&lt;p&gt;The above two are minor nit-picks; the only real problem I have with this module is that the documentation is hard to understand.  The first time I downloaded it from CPAN, it took a good deal of trial-and-error to figure out what it was really doing.  But once I got the hang of it, it's been extremely useful.  Hopefully this node will help in that direction.&lt;/p&gt;
+&lt;h1&gt;Summary&lt;/h1&gt;
+&lt;p&gt;&lt;code&gt;Algorithm::Diff&lt;/code&gt; is fast and relatively flexible.  It implements a difficult algorithm in a nice package.  Take the time to read and understand the documentation, and it will serve you well.
+&lt;/p&gt;
+&lt;h2&gt;Update 2002-Aug-21&lt;/h2&gt;
+&lt;p&gt;Brother [tye] has written an instructive node discussing the interfaces for returning data in [id://191668].  There he also shows code for a more simplified interface that may be incorporated into the module in the future.  If you're trying to figure out how to use the module, that code may be of great help.&lt;/p&gt;
+</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>72267</author_user>
+  <createtime>2002-03-24 19:42:04</createtime>
+  <itemdescription>Find differences in two sequences &quot;intelligently&quot;</itemdescription>
+  <identifier></identifier>
+  <node_id>153980</node_id>
+  <usercomment></usercomment>
+  <title>Algorithm::Diff</title>
+  <nodeupdated>2005-08-14 19:11:25</nodeupdated>
+</node>

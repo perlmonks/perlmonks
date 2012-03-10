@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="54172" title="Practical joke" created="2001-01-24 23:56:02" updated="2005-08-09 04:56:18">
+<type id="121">
+perlcraft</type>
+<author id="8307">
+DrManhattan</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+
+# This script is a fun joke you can play on coworkers
+# who leave their terminals unattended.  It prints a
+# fake shell prompt, and every time the victim presses
+# a key, it outputs the next letter of the sentence you
+# set at the top.  At the end of the sentence, it prints
+# a "command not found" error and gives them another fake
+# prompt.
+#
+# For best results, add a line that runs this script to the
+# end of the victim's .profile
+#
+# - Matt Carothers &lt;matt@telepath.com&gt;
+
+use strict;
+use Term::ReadKey;
+
+$| = 1;
+
+# Change these around as necessary
+my $sentence   = 'My momma wears combat boots.';
+my $prompt     = 'bash-2.02$ ';
+my $notfound   = 'bash: command not found:';
+
+my $index      = 0;
+my $length     = length($sentence);
+(my $firstword = $sentence) =~ s/\s.*//;
+my $key;
+
+# Switch terminal to raw mode
+ReadMode "raw";
+
+# print a phony shell prompt
+print "$prompt";
+while (1)
+{
+        # Wait for a key press
+        if ($key = ReadKey(-1))
+        {
+                # Exit on a ^D.  Remove or change this for
+                # added cruelty.
+                last if ($key eq "\x04");
+
+                # Print the next character of the sentence.  Wrap
+                # around when the end of the sentence is reached.
+                print substr($sentence, $index++ % $length, 1);
+
+                # At the end of the sentence, print a phony
+                # "command not found" error message
+                if (!($index % $length))
+                {
+                        print "\n$notfound $firstword\n$prompt";
+                }
+        }
+}
+
+# Put the terminal back the way it was
+ReadMode "restore";
+print "\n";
+
+# EOF</field>
+</data>
+</node>

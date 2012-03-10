@@ -1,0 +1,188 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>363665</node_id>
+  <author_user>357600</author_user>
+  <title>synch_nodelet_handler</title>
+  <createtime>2004-06-12 18:38:46</createtime>
+  <code># [synch_nodelet_handler]
+#use strict;
+#use warnings;
+#my ($q,$NODE,$USER,$DB,$VARS);
+
+length($q-&gt;param(&quot;set_$_&quot;)) and $VARS-&gt;{$_}=$q-&gt;param(&quot;set_$_&quot;)
+   for qw(hide_passwd_box external_passwd external_user);
+
+my $pin_opts={ pinned_id =&gt; $q-&gt;param('pin_pinned_id') };
+my $pinned_id=htmlcode('handle_node_pin','',$pin_opts);
+my $pin=$pin_opts-&gt;{pin};
+
+my ($for_node,$pm_for_node,$pin_for_node_opts,$pin_for_node);
+
+if ($NODE-&gt;{type}{title} eq 'patch') {
+   $for_node=$NODE-&gt;{for_node};
+   $pin_for_node_opts={node_id=&gt;$for_node};
+   $pm_for_node=htmlcode('handle_node_pin','',$pin_for_node_opts);
+   $pin_for_node=$pin_for_node_opts-&gt;{pin};
+}
+
+
+my ($other_site,$OSN); #other site name
+if ($ENV{HTTP_HOST}=~/flux8/i) {
+  $other_site=&quot;perlmonks.org&quot;;
+  $OSN=&quot;PM&quot;;
+} else {
+  $other_site=&quot;pmdev.flux8.com&quot;;
+  $OSN=&quot;DEV&quot;; 
+}
+
+
+
+
+my $ret=htmlcode('openform').
+        join(&quot;&lt;br /&gt;\n&quot;,
+     ( !$VARS-&gt;{external_passwd} || !$VARS-&gt;{hide_passwd_box}
+       ? (
+          ($VARS-&gt;{external_user} ? &quot;Change&quot; : &quot;Set&quot;).&quot; your $OSN User:&quot;,
+          $q-&gt;textfield( &quot;set_external_user&quot;, ($VARS-&gt;{external_user}||$USER-&gt;{title}), 25, 128 ),
+          ($VARS-&gt;{external_passwd} ? &quot;Change&quot; : &quot;Set&quot;).&quot; your $OSN Password:&quot;,
+          $q-&gt;password_field( &quot;set_external_passwd&quot;, &quot;&quot;, 25, 128 ),
+          $q-&gt;checkbox('set_hide_passwd_box',$VARS-&gt;{hide_passwd_box},
+                       'hideit',&quot;Hide password box.&quot;),
+          )
+       :  (
+            $q-&gt;checkbox('set_hide_passwd_box','',
+                         0,&quot;Show password box.&quot;),
+          )
+     ),
+     ( !$pin
+       ? (
+          &quot;Pin to a node_id on $OSN:&quot;,
+          $q-&gt;textfield( &quot;pin_pinned_id&quot;,&quot;&quot;,20,11),
+         )
+       : $pin-&gt;{pinner_user} ? (
+          &quot;Pinned to $OSN node_id:&quot;,
+          $q-&gt;textfield(-name=&gt;'pin_pinned_id',
+                        -default=&gt;$pin-&gt;{pinned_id},
+                        -override=&gt;1,
+                        -size=&gt;20,
+                        -maxlength=&gt;11),
+          &quot;&amp;nbsp;&amp;nbsp;&amp;nbsp;by &quot;.linkNode(getNodeById($pin-&gt;{pinner_user})),
+         ) : ()
+     ),
+   ).'&amp;nbsp;'.$q-&gt;submit(&quot;sexisgood&quot;, &quot;Set&quot; ).'&lt;/form&gt;';
+
+return $ret unless length($VARS-&gt;{external_passwd}) &amp;&amp; ($pin || $pin_for_node);
+
+
+my %attrs=(
+             op          =&gt; 'login',
+             user        =&gt; ($VARS-&gt;{external_user}||$USER-&gt;{title}),
+             passwd      =&gt; $VARS-&gt;{external_passwd},
+             ticker      =&gt; 'yes',
+             displaytype =&gt; 'viewcode',
+          );
+my @rows;
+
+if ($pin) {
+  $attrs{node_id}= $pin-&gt;{pinned_id};
+  push @rows,[
+            $q-&gt;a({
+                     href=&gt;&quot;http://$other_site/index.pl?&quot;.
+                     join(&quot;&amp;&quot;,map { &quot;$_=$attrs{$_}&quot; } keys %attrs ),
+                     target=&gt;&quot;_new&quot;,
+                    },&quot;View On $OSN&quot;
+            ),
+            linkNode($NODE, &quot;Diff Against $OSN&quot;,
+                  {
+                   displaytype=&gt;'codediff',
+                   pinned_id=&gt;$pin-&gt;{pinned_id},
+                  }
+            ),
+           ],
+           (!$for_node ? [
+            linkNode( $NODE, &quot;Patch From $OSN&quot;,
+                      {
+                        op             =&gt; 'createpatchfrom',
+                        makepatch_to   =&gt; 'here',
+                        pinned_id=&gt;$pin-&gt;{pinned_id},
+                      }
+            ),
+            linkNode( $NODE, &quot;Patch To $OSN&quot;,
+                      {
+                        op       =&gt; 'createpatchfrom',
+                        makepatch_to =&gt; 'external',
+                        pinned_id=&gt;$pin-&gt;{pinned_id},
+                      }
+            ),
+           ] : (
+                 [
+                   linkNode( $NODE, &quot;Synch From $OSN&quot;,
+                      {
+                        op           =&gt; 'createpatchfrom',
+                        makepatch_to =&gt; 'synch_here',
+                        pinned_id    =&gt;$pin-&gt;{pinned_id},
+                      }
+                   ),
+                   linkNode( $NODE, &quot;Synch To $OSN&quot;,
+                      {
+                        op           =&gt; 'createpatchfrom',
+                        makepatch_to =&gt; 'synch_external',
+                        pinned_id    =&gt;$pin-&gt;{pinned_id},
+                      }
+                   ),
+                 ]
+         
+           )),
+    ;
+}
+if ($pm_for_node) {
+  $attrs{node_id}=$pm_for_node;
+  push @rows,[
+              $q-&gt;a({
+                     href=&gt;&quot;http://$other_site/index.pl?&quot;.
+                     join(&quot;&amp;&quot;,map { &quot;$_=$attrs{$_}&quot; } keys %attrs ),
+                     target=&gt;&quot;_new&quot;,
+                    },&quot;Target On $OSN&quot;
+              ),
+              linkNode($NODE, &quot;Diff $OSN Target&quot;,
+                  {
+                   displaytype=&gt;'codediff',
+                   pinned_id=&gt;$pin_for_node-&gt;{pinned_id},
+                  }
+              ),
+           ],
+           [
+            linkNode( {node_id=&gt;$for_node}, &quot;Patch From $OSN&quot;,
+                      {
+                        op           =&gt; 'createpatchfrom',
+                        makepatch_to =&gt; 'here',
+                        pinned_id    =&gt; $pin_for_node-&gt;{pinned_id},
+                        #patch_reason =&gt; $NODE-&gt;{reason},
+                      }),
+            linkNode( $NODE, &quot;Patch To $OSN&quot;,
+                      {
+                        op           =&gt; 'createpatchfrom',
+                        makepatch_to =&gt; 'external',
+                        for_node     =&gt; $for_node,
+                        pinned_id    =&gt; $pin_for_node-&gt;{pinned_id},
+                        #patch_reason =&gt; $NODE-&gt;{reason},
+                      }),
+           ];
+}
+
+return  join &quot;\n&quot;,$ret,'&lt;hr /&gt;',
+    '&lt;table width=&quot;100%&quot; cellspacing=&quot;0&quot; cellpadding=&quot;0&quot;&gt;',
+    (
+     map { join '',
+           '&lt;tr&gt;',
+           '&lt;td align=&quot;left&quot; &gt;',($_-&gt;[0]||'&amp;nbsp;'),'&lt;/td&gt;',
+           '&lt;td align=&quot;right&quot;&gt;',($_-&gt;[1]||'&amp;nbsp;'),'&lt;/td&gt;',
+           '&lt;/tr&gt;',
+
+         } @rows,
+    ),
+    '&lt;/table&gt;',
+;
+</code>
+  <nodeupdated>2005-08-14 04:18:32</nodeupdated>
+</node>

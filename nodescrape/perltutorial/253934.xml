@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="253934" title="Adding elements using XML::Simple" created="2003-04-29 06:49:39" updated="2005-08-15 11:47:32">
+<type id="956">
+perltutorial</type>
+<author id="155973">
+grantm</author>
+<data>
+<field name="doctext">
+&lt;p&gt;What follows began life as a response to an email enquiry perhaps others might find it useful ...&lt;/p&gt;
+
+&lt;p&gt;Hi Jack*&lt;/p&gt;
+
+&lt;p&gt;Thanks for your email - I hope I can help you solve your problem while you still have some hair left.&lt;/p&gt;
+
+&lt;p&gt;I'd like to start with two observations:&lt;/p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;Your confusion is really nothing to do with XML::Simple.   You simply aren't completely comfortable with Perl's references yet.  Once you've got anonymous data structures and nested hashes "off pat" you'll find that the output of [cpan://Data::Dumper] starts to make sense and you'll find applications in all your Perl code, not just when you're working with XML.&lt;/p&gt;
+
+&lt;p&gt;Mark Jason [Dominus] has written a quick tutorial on Perl references.  It's already installed on your hard disk but you can read it online [http://perldoc.perl.org/perlreftut.html|here].  (Also, [busunsl] has written a tutorial [id://137108|here]).&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li&gt;
+&lt;p&gt;You asked for help transforming this XML:&lt;/p&gt;
+
+&lt;code&gt;
+&lt;opt&gt;
+  &lt;trans&gt;
+    &lt;idnumber1 status="not contacted" assignee="jack" /&gt;
+  &lt;/trans&gt;
+&lt;/opt&gt;
+&lt;/code&gt;
+
+&lt;p&gt;To this:&lt;/p&gt;
+
+&lt;code&gt;
+&lt;opt&gt;
+  &lt;trans&gt;
+    &lt;idnumber1 status="not contacted" assignee="jack" /&gt;
+    &lt;idnumber2 status="contacted" assignee="jill" /&gt;
+  &lt;/trans&gt;
+&lt;/opt&gt;
+&lt;/code&gt;
+
+&lt;p&gt;I'm not going to help you do that because (and I'm going to try to break this to you gently ... ) that would be just plain dumb!&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;/ol&gt;
+
+&lt;p&gt;In XML, 'things' that are of the same type should be represented using the same tags.  Using &amp;lt;idnumber1&amp;gt; for the first thing and &amp;lt;idnumber2&amp;gt; for the seconds is, well, dumb.  Instead, since I'm not sure what these 'things' are, I'm going to use &amp;lt;item&amp;gt; - I'd encourage you to use a tag which more accurately describes what they are.&lt;/p&gt;
+
+&lt;p&gt;So what I &lt;i&gt;am&lt;/i&gt; going to do is show you how to transform this:&lt;/p&gt;
+
+&lt;code&gt;
+&lt;opt&gt;
+  &lt;trans&gt;
+    &lt;item id="1" status="not contacted" assignee="jack" /&gt;
+  &lt;/trans&gt;
+&lt;/opt&gt;
+&lt;/code&gt;
+
+&lt;p&gt;To this:&lt;/p&gt;
+
+&lt;code&gt;
+&lt;opt&gt;
+  &lt;trans&gt;
+    &lt;item id="1" status="not contacted" assignee="jack" /&gt;
+    &lt;item id="2" status="contacted" assignee="jill" /&gt;
+  &lt;/trans&gt;
+&lt;/opt&gt;
+&lt;/code&gt;
+&lt;readmore&gt;
+&lt;p&gt;Please bear in mind that XML::Simple does not care about the order of attributes - and you shouldn't either.&lt;/p&gt;
+
+&lt;p&gt;As a special bonus (since I have not been very kind about your stated goals and since you asked so nicely) I'm going to show you &lt;i&gt;two&lt;/i&gt; ways to do it.&lt;/p&gt;
+
+&lt;p&gt;The first sample script reads the XML into $opt:&lt;/p&gt;
+
+&lt;code&gt;
+my $xs = XML::Simple-&gt;new(
+  forcearray =&gt; [ 'item' ], 
+  keyattr    =&gt; { item =&gt; 'id' },
+  rootname   =&gt; 'opt',
+);
+
+my $opt = $xs-&gt;XMLin(\*DATA);
+&lt;/code&gt;
+
+&lt;p&gt;(I use the convention of re-using the outermost tag name as the variable name but it is just a convention).  I have explicitly enabled array folding, so you can refer to the first (and in fact only) 'item' as:&lt;/p&gt;
+
+&lt;code&gt; 
+  $opt-&gt;{trans}-&gt;{item}-&gt;{1}
+&lt;/code&gt;
+
+&lt;p&gt;The &lt;code&gt;{item}-&gt;{1}&lt;/code&gt; syntax can be read as "the &amp;lt;item&amp;gt; element which has an 'id' attribute with a value of '1'".   I'm assuming you want to add another element with an id of '2' and that you somehow know that id number 2 has not already been used.  So to add an element, we simply create a hashref with the relevant attributes (key =&gt; value pairs) and store it in the &amp;lt;item&amp;gt; with id '2':&lt;/p&gt;
+
+&lt;code&gt;
+  $opt-&gt;{trans}-&gt;{item}-&gt;{2} = { status =&gt; 'contacted', assignee =&gt; 'jill' };
+&lt;/code&gt;
+
+&lt;p&gt;This is pretty simple (once you know how) but it has a couple of drawbacks.  First, as I mentioned, you need to know which id's are free.  Second, since array folding is enabled, the &amp;lt;item&amp;gt;'s are stored in a hash, so the order of the elements from XMLout is not guaranteed to match the original order.  Anyway, here's a complete script:&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+use XML::Simple;
+
+my $xs = XML::Simple-&gt;new(
+  forcearray =&gt; [ 'item' ], 
+  keyattr    =&gt; { item =&gt; 'id' },
+  rootname   =&gt; 'opt',
+);
+
+my $opt = $xs-&gt;XMLin(\*DATA);
+
+$opt-&gt;{trans}-&gt;{item}-&gt;{2} = { status =&gt; 'contacted', assignee =&gt; 'jill' };
+
+print $xs-&gt;XMLout($opt);
+
+__DATA__
+&lt;opt&gt;
+ &lt;trans&gt;
+  &lt;item id="1" status="not contacted" assignee="jack" /&gt;
+ &lt;/trans&gt;
+&lt;/opt&gt;
+&lt;/code&gt;
+
+
+&lt;p&gt;The second script does not suffer from either of those drawbacks.  It disables array folding by setting &lt;code&gt;keyattr =&gt; {}&lt;/code&gt;.  This means the &amp;lt;item&amp;gt;'s are stored in an array rather than a hash (so order is preserved) and the first item is referred to as:&lt;/p&gt;
+
+&lt;code&gt;
+  $opt-&gt;{trans}-&gt;{item}-&gt;[0]
+&lt;/code&gt;
+
+&lt;p&gt;(Note the square brackets meaning an array and the first element in an array is at position 0).  The whole list of items is:&lt;/p&gt;
+
+&lt;code&gt;
+  @{ $opt-&gt;{trans}-&gt;{item} }
+&lt;/code&gt;
+
+&lt;p&gt;So we can work out a unique ID based on how many items there are (not foolproof but useful for an example) and 'push' another one onto the end of the list like this:&lt;/p&gt;
+
+&lt;code&gt;
+  my $id = @{ $opt-&gt;{trans}-&gt;{item} } + 1;
+
+  push @{ $opt-&gt;{trans}-&gt;{item} }, { id =&gt; $id, status =&gt; 'contacted', assignee =&gt; 'jill' };
+&lt;/code&gt;
+
+&lt;p&gt;Here's the complete script:&lt;/p&gt;
+
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+use XML::Simple;
+
+my $xs = XML::Simple-&gt;new(
+  forcearray =&gt; [ 'item' ], 
+  keyattr    =&gt; { },
+  rootname   =&gt; 'opt',
+);
+
+my $opt = $xs-&gt;XMLin(\*DATA);
+
+my $id = @{ $opt-&gt;{trans}-&gt;{item} } + 1;
+
+push @{ $opt-&gt;{trans}-&gt;{item} }, { id =&gt; $id, status =&gt; 'contacted', assignee =&gt; 'jill' };
+
+print $xs-&gt;XMLout($opt);
+
+__DATA__
+&lt;opt&gt;
+ &lt;trans&gt;
+  &lt;item id="1" status="not contacted" assignee="jack" /&gt;
+ &lt;/trans&gt;
+&lt;/opt&gt;
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;For more info on array folding and the keyattr and forcearray options, you might like to look at 
+[id://218480|this article].&lt;/p&gt;
+
+&lt;p&gt;Good luck.&lt;/p&gt;
+
+&lt;p&gt;Grant&lt;/p&gt;
+
+
+&lt;p&gt;* names changed to protect the innocent&lt;/p&gt;
+
+&lt;!-- jeffa - added readmore tag --&gt;</field>
+</data>
+</node>

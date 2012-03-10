@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="15848" title="private message xml ticker" created="2000-06-01 15:14:20" updated="2005-08-15 17:33:07">
+<type id="122">
+fullpage</type>
+<author id="979">
+vroom</author>
+<data>
+<field name="doctext">
+[%
+  use XML::Fling;
+  require POSIX;
+
+  my $ARCHIVED_HARD_LIMIT=100;
+  # this should change to $ARCHIVED_HARD_LIMIT eventually.
+  my $PRIVATE_HARD_LIMIT=$ARCHIVED_HARD_LIMIT || 10000;
+  my $DEFAULT_LIMIT=20;
+
+  my $since_id = $q-&gt;param('since_id');
+  my $prior_to = $q-&gt;param('prior_to');
+
+  undef $prior_to if defined $since_id;
+  my $has_id= defined($since_id) || defined($prior_to);
+
+  my $archived = lc($q-&gt;param('archived')||'');
+
+  $archived = "" if !$archived or $archived eq 'no';
+
+  my $HARD_LIMIT = !$has_id ? $DEFAULT_LIMIT 
+                            : $archived ? $ARCHIVED_HARD_LIMIT 
+                                          : $PRIVATE_HARD_LIMIT;
+
+  my $max_recs = $q-&gt;param('max_recs');
+
+  $max_recs=$HARD_LIMIT 
+      if !$max_recs or $max_recs&gt;$HARD_LIMIT or $max_recs&lt;1;
+
+  { 
+    my $id_str=!$has_id ? 'None' 
+                        : defined $since_id ? "s:'$since_id'" 
+                                            : "p:'$prior_to'";
+    htmlcode('log_ticker','','',"$id_str a:'$archived' mr:'$max_recs'") 
+    or Everything::printLog(
+        "PMXT: $USER-&gt;{title} ($ENV{REMOTE_ADDR}) $id_str a:'$archived' mr:'$max_recs'"
+        ." $ENV{'HTTP_USER_AGENT'}");
+  }
+  return if getId($USER) == $HTMLVARS{default_user};
+
+##########################################################################
+# Commented out caching related code has been removed. Please see 265756
+##########################################################################
+
+
+    my $query=qq[
+        select message_id,
+               msgtext,
+               author_user,
+               tstamp,
+               for_user,
+               archive
+          from message
+         where for_user = ? 
+    ];
+    $query.= "and message_id " .(defined $since_id ? "&gt;" : "&lt;"). " ?"
+       if $has_id;
+
+    $query.=" and archive = " . ($archived ? 1 : 0)
+         if $archived ne 'both';
+
+    $query.=" order by message_id " . 
+            (defined $since_id ? " asc" : " desc") . 
+            " limit $max_recs";
+
+    my $stmt=$DB-&gt;getDatabaseHandle()-&gt;prepare_cached($query);
+
+    $stmt-&gt;execute(getId($USER),($has_id ? ($since_id||$prior_to||0) 
+                                         : ()));
+
+    # the hashref argument heres causes an AoH to be returned
+    my $msgs = $stmt-&gt;fetchall_arrayref( {} );
+    @$msgs=reverse @$msgs
+       unless defined $since_id;
+
+    return "&lt;error&gt;Error creatng fling object&lt;/error&gt;"
+        unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),'add_header');
+    require POSIX;
+
+
+    $xml-&gt;header("windows-1252")-&gt;
+      start('CHATTER')-&gt;
+        element('INFO', site       =&gt; $HTMLVARS{site_url},
+                        sitename   =&gt; $HTMLVARS{site_name},
+                        min_poll_seconds =&gt; 30, 
+                       (!$has_id ? () : defined $since_id ? 
+                       (since_id   =&gt; $since_id) : 
+                       (prior_to   =&gt; $prior_to) ),
+                        archived   =&gt; (!$archived           ? 'no'  :
+                                       $archived ne 'both' ? 'yes' :
+                                       $archived),
+                        max_recs   =&gt; $max_recs,
+                        foruser    =&gt; $USER-&gt;{title},
+                        foruser_id =&gt; $USER-&gt;{node_id},
+                        hard_limit =&gt; $HARD_LIMIT,
+                        style      =&gt; join(',',grep { $xmlstyle{$_} } keys %xmlstyle),
+                        gentimeGMT =&gt; POSIX::strftime("%Y-%m-%d %H:%M:%S",
+                                                     gmtime(time)),
+                'Rendered by the Private Message XML Ticker' );
+
+        foreach my $msg (@$msgs) {
+          my $usr = getNodeById($msg-&gt;{author_user});
+
+          $xml-&gt;element(
+            'message',
+              user_id     =&gt; $msg-&gt;{author_user},
+              author      =&gt; $usr-&gt;{title},
+              time        =&gt; $msg-&gt;{tstamp},
+              message_id  =&gt; $msg-&gt;{message_id},
+              status      =&gt; ($msg-&gt;{archive} ? 'archived' : 'active'),
+              $msg-&gt;{msgtext} );
+        }
+    $xml-&gt;end();
+    my $data = join "",@data;       
+    htmlcode('postProcessXML','',\$data);
+    return $data;
+
+%]</field>
+</data>
+</node>

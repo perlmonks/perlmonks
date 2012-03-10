@@ -1,0 +1,182 @@
+<node>
+  <doctext>UPDATE - DBIx::XML_RDB has been replaced by the
+new and improved [kobe://XML::Generator::DBI]. Please
+refer to [id://181206] instead.
+&lt;readmore&gt;
+&lt;p&gt;
+DBIx_XML_RDB is a module created by Matt Sergeant for
+creating XML documents from database queries.
+For example, if these rows:
+&lt;code&gt;
++---------+--------------------+-------------+
+| artist  |      title         |    album    |
++---------+--------------------+-------------+
+| Genesis | Firth of Fifth     | Seconds Out |
+| Genesis | I Know What I Like | Seconds Out |
++---------+--------------------+-------------+
+&lt;/code&gt;
+were returned from a query like so:
+&lt;code&gt;
+SELECT * FROM SONGS
+WHERE ARTIST='Genesis'
+&lt;/code&gt;
+DBIx::XML_RDB would produce this XML text:
+&lt;code&gt;
+&lt;?xml version=&quot;1.0&quot;?&gt;
+&lt;DBI driver=&quot;database:host&quot;&gt;
+	&lt;RESULTSET statement=&quot;SELECT * FROM SONGS WHERE ARTIST='Genesis'&quot;&gt;
+		&lt;ROW&gt;
+			&lt;artist&gt;Genesis&lt;/artist&gt;
+			&lt;title&gt;Firth of Fifth&lt;/title&gt;
+			&lt;album&gt;Seconds Out&lt;/album&gt;
+		&lt;/ROW&gt;
+		&lt;ROW&gt;
+			&lt;artist&gt;Genesis&lt;/artist&gt;
+			&lt;title&gt;I Know What I Like&lt;/title&gt;
+			&lt;album&gt;Seconds Out&lt;/album&gt;
+		&lt;/ROW&gt;
+	&lt;/RESULTSET&gt;
+&lt;/DBI&gt;
+&lt;/code&gt;
+And here is the code - note however that the arguments to 
+connect to a data source that I use are not the same as the 
+ones in the documentation.  I tested this with MySQL, and 
+the example in the documentation did not work for me. After 
+searching through some documention and using a little trial 
+and error I found a combination of arguments that worked.
+&lt;code&gt;
+use strict;
+use DBIx::XML_RDB;
+
+my $xmlout = new DBIx::XML_RDB(qw(database:host driver user passwd))
+          || die &quot;Failed to make new xmlout&quot;;
+
+$xmlout-&gt;DoSql(&quot;SELECT * FROM SONGS WHERE ARTIST='Genesis'&quot;);
+
+print $xmlout-&gt;GetData();
+&lt;/code&gt;
+Very simple and easy. Even encodes binary data with UTF-8. 
+Instead of printing, you can pass the goods to an XML 
+parser:
+&lt;code&gt;
+# XML::Simple
+my $config = XMLin($xmlout-&gt;GetData);
+
+# XML::Parser
+my $p1 = new XML::Parser;
+$p1-&gt;parse($xmlout-&gt;GetData);
+
+# XML::Twig
+my $t = new XML::Twig();
+$t-&gt;parse($xmlout-&gt;GetData);
+&lt;/code&gt;
+Two scripts are provided with the module: &lt;b&gt;sql2xml.pl&lt;/b&gt; 
+and &lt;b&gt;xml2sql.pl&lt;/b&gt;, for extracting data from one 
+database (say Oracle) and inserting it into another (such 
+as Sybase). Both work as promised, although the arguments 
+for &lt;b&gt;xml2sql.pl&lt;/b&gt; would have you believe you are trying 
+to invoke xls2sql.pl. Be sure and study the source code for 
+&lt;b&gt;xml2sql.pl&lt;/b&gt; - lot's of good insight into XML parsing.
+&lt;p&gt;
+Now for a minor nitpick that is probably unjustified - 
+there is no way to insert a style sheet link via the 
+available API. This module is a great candidate for 
+stylesheets, the author even mentions using it to allow the 
+client's browser to render the data. I had to resort to 
+this little hack to 'attach' a style sheet to my output:
+&lt;code&gt;
+my $out = $xmlout-&gt;GetData;
+my $css = qq|&lt;?xml-stylesheet type=&quot;text/css&quot; href=&quot;songs.css&quot;?&gt;|;
+$out =~ s/(&lt;\?.*\?&gt;)/$1\n$css/;
+
+# now the first three lines of $out are:
+&lt;?xml version=&quot;1.0&quot;?&gt;
+&lt;?xml-stylesheet type=&quot;text/css&quot; href=&quot;songs.css&quot;?&gt;
+&lt;DBI driver=&quot;database:host&quot;&gt;
+&lt;/code&gt;
+To give the author credit - there is probably a better way
+to achieve the same effect, but it would be trivial to add 
+a couple of methods to specify a CSS Stylesheet or better 
+yet, an XSL Stylesheet, which has table support.
+&lt;p&gt;
+I really like this module, I see a lot of potential for it.
+&lt;p&gt;
+&lt;hr&gt;
+&lt;p&gt;
+As a final example, here is a CGI script that prints out an 
+XML file, ready for parsing by an XML compliant browser. 
+The XSL Stylesheet is included as well, just substitute 
+your favorite database and column names. I recommend saving 
+the script with a .xml extension and configuring your web 
+server to treat .xml extensions as executable CGI scripts. 
+If you use Apache, something like the following will work
+for the Internet Explorer browser:
+&lt;code&gt;
+Alias /xml/ &quot;/usr/local/apache/xml/&quot;
+&lt;Directory &quot;/usr/local/apache/xml&quot;&gt;
+        AllowOverride None
+        Options ExecCGI
+		AddHandler cgi-script .xml
+		DirectoryIndex index.xml
+        Order allow,deny
+        Allow from all
+&lt;/Directory&gt;
+&lt;/code&gt;
+Now you can save the file as index.xml and access it from your browser
+with http://localhost/xml/
+&lt;code&gt;
+# index.xml (a CGI script in disguise)
+use strict;
+use CGI qw(:standard);
+use DBIx::XML_RDB;
+
+my $xmlout = new DBIx::XML_RDB(qw(database:host driver user passwd))
+          || die &quot;Failed to make new xmlout&quot;;
+$xmlout-&gt;DoSql(&quot;
+	select artist, title, album, year
+	from mp3.songs order by artist,year 
+&quot;);
+
+my $out = $xmlout-&gt;GetData;
+my $xsl = qq|&lt;?xml-stylesheet type=&quot;text/xsl&quot; href=&quot;songs.xsl&quot;?&gt;|;
+$out =~ s/^(&lt;\?.*\?&gt;)/$1\n$xsl/;
+
+print header(-type=&gt;'text/xml');
+print $out;
+
+###########################################################
+
+# songs.xsl
+&lt;?xml version='1.0'?&gt;
+&lt;xsl:stylesheet xmlns:xsl=&quot;http://www.w3.org/TR/WD-xsl&quot;&gt;
+	&lt;xsl:template match=&quot;/&quot;&gt;
+		&lt;html&gt;
+		&lt;body&gt;
+		&lt;table border=&quot;2&quot; bgcolor=&quot;#C0C0C0&quot;&gt;
+		&lt;tr&gt;
+			&lt;th&gt;Artist&lt;/th&gt;
+			&lt;th&gt;Title&lt;/th&gt;
+			&lt;th&gt;Album&lt;/th&gt;
+			&lt;th&gt;Year&lt;/th&gt;
+		&lt;/tr&gt;
+		&lt;xsl:for-each select=&quot;DBI/RESULTSET/ROW&quot;&gt;
+		&lt;tr&gt;
+			&lt;td&gt;&lt;xsl:value-of select=&quot;artist&quot;/&gt;&lt;/td&gt;
+			&lt;td&gt;&lt;xsl:value-of select=&quot;title&quot;/&gt;&lt;/td&gt;
+			&lt;td&gt;&lt;xsl:value-of select=&quot;album&quot;/&gt;&lt;/td&gt;
+			&lt;td&gt;&lt;xsl:value-of select=&quot;year&quot;/&gt;&lt;/td&gt;
+		&lt;/tr&gt;
+		&lt;/xsl:for-each&gt;
+		&lt;/table&gt;
+		&lt;/body&gt;
+		&lt;/html&gt;
+	&lt;/xsl:template&gt;
+&lt;/xsl:stylesheet&gt;
+&lt;/code&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>71192</node_id>
+  <author_user>18800</author_user>
+  <title>DBIx::XML_RDB Tutorial</title>
+  <createtime>2001-04-09 22:28:18</createtime>
+  <nodeupdated>2005-08-13 02:34:34</nodeupdated>
+</node>

@@ -1,0 +1,184 @@
+<node>
+  <doctext>#!perl -w
+
+## Animals
+## Attempts to guess an animal by yes/no questions, 
+## Learns new animals as it goes.
+## Based on a game I remember playing on an Apple II
+
+use strict;
+
+my $animalfile = &quot;animals.dat&quot;;
+
+## Open and read in the animal file, or our default data
+unless (open(ANIMALS, &quot;$animalfile&quot;)) {
+  *ANIMALS = *DATA;
+  print qq[**WARNING**\nThe file &quot;$animalfile&quot; was not found. ];
+  print &quot;Using the default list instead.\n&quot;;
+}
+
+my $yesno=&quot;ASK&quot;;
+my @q;
+my $total=0;
+my $new=0;
+my ($ark, $answer);
+my ($animal, $Animal, $beast, $Beast);
+
+## Read in all the animals
+while(&lt;ANIMALS&gt;) {
+  next if /^#/;    ## Allow comments - why not?
+  last if /^END!/; ## Allow a graceful end if needed
+  chop;
+  if ($yesno eq &quot;ASK&quot;) {
+    $q[++$total]-&gt;{$yesno}=$_;
+    $yesno=&quot;YES&quot;; next;
+  }
+  if (m/^&gt;(\d*)/) { $q[$total]-&gt;{$yesno}=\$q[$1]; }
+  else { $q[$total]-&gt;{$yesno}=$_; }
+  $yesno = $yesno eq &quot;YES&quot; ? &quot;NO&quot; : &quot;ASK&quot;;
+}
+close(ANIMALS);
+
+## Begin the game
+print qq[
+Welcome to the game of Animals! Just think of an animal, 
+and I will try and guess what it is.
+
+(I know $total animals!)
+
+--Please answer &lt;Y&gt;es, &lt;N&gt;o, or &lt;Q&gt;uit for each question.--
+
+];
+
+$ark=\$q[1];
+while($ark) {
+  print &quot;\n$$ark-&gt;{ASK}\n\n&quot;;
+  $yesno = &lt;STDIN&gt;;
+  &amp;Quit if $yesno =~ /^Q/i;
+  if ($yesno =~ s#^([YN]).*#$1=~/Y/i ? &quot;YES&quot; : &quot;NO&quot;#eis) {
+    $animal = $$ark-&gt;{$yesno};
+    if (ref($animal)) { $ark=$animal; next; }
+  }
+  else { print &quot;**Please answer Yes, No, or Quit**\n\n&quot;; next; }
+
+  ## Did we guess the right animal?
+  ($Animal = $animal) =~ s/^([aeiou])?/$1 ? &quot;an $1&quot; : &quot;a &quot;/ei;
+  print &quot;\n**It must be $Animal!**\n&quot;;
+  do {
+    print &quot;\nDid I guess your animal?\n\n&quot;;
+  } while ($answer=&lt;STDIN&gt;) !~ /^[YN]/i;
+
+  if ($answer =~ /^Y/i) {
+    print &quot;\n**Yay! I win!**\n&quot;;
+    do {
+      print &quot;\nDo you want to &lt;P&gt;lay again or &lt;Q&gt;uit?\n\n&quot;;
+    } while ($answer=&lt;STDIN&gt;) !~ /^[PQ]/i;
+    &amp;Quit if $answer =~ /Q/i;
+    $ark=\$q[1]; next;
+  }
+
+  print &quot;\nWhat animal were you thinking of?\n\n&quot;;
+  chop($beast=&lt;STDIN&gt;);
+  ($Beast = $beast) =~ s/^([aeiou])?/$1 ? &quot;an $1&quot; : &quot;a &quot;/ei;
+  $total++; $new++;
+  do {
+    print &quot;\nWhat could I ask to tell the difference between &quot;,
+          &quot;$Animal and $Beast?\n\n&quot;;
+    chop($q[$total]-&gt;{ASK}=&lt;STDIN&gt;);
+    print &quot;\n\nIf I asked someone:\n\&quot;$q[$total]-&gt;{ASK}\&quot;\n\n&quot;;
+    print &quot;Would they answer &lt;Y&gt;es or &lt;N&gt;o for $Animal?\n&quot;;
+    print &quot;(&lt;R&gt; to re-enter your question)\n\n&quot;;
+  } while ($answer = &lt;STDIN&gt;) !~ /^[YN]/i;
+
+  ## Store the animals in the new Yes/No
+  $q[$total]-&gt;{YES} = $answer=~/^Y/i ? $animal : $beast;
+  $q[$total]-&gt;{NO}  = $answer=~/^N/i ? $animal : $beast; 
+
+  ## Make the current yes/no point to the new entry
+  $$ark-&gt;{$yesno} = \$q[$total];
+      
+  print &quot;\n\n**Thank you! Now I know about $total animals, &quot;,
+    &quot;including $Beast!**\n&quot;;
+  do {
+    print &quot;\nWould you like to &lt;P&gt;lay again or &lt;Q&gt;uit?\n\n&quot;;
+  } while ($answer=&lt;STDIN&gt;) !~ /^[PQ]/i;
+  &amp;Quit if $answer =~ /^Q/i;
+
+  print &quot;I now know $total animals!\n\n&quot;;
+  $ark=\$q[1]; ## Start over...
+}
+
+
+sub SaveAnimals {
+  ## Write the list to the file
+  open(ANIMALS, &quot;&gt;$animalfile&quot;) or 
+    die &quot;Could not open $animalfile: $!\n&quot;;
+  my $oldselect = select(ANIMALS);
+
+  ## Create a quick lookup table
+  my $y=0; my %LU;
+  $LU{$q[$y]-&gt;{ASK}}=$y while ($q[++$y]);
+
+  ## Write each one in order
+  $y=1;
+  while($ark = $q[$y]) {
+    print &quot;$ark-&gt;{ASK}\n&quot;;
+    for $yesno (qw(YES NO)) {
+      if (ref($ark-&gt;{$yesno})) {
+        printf &quot;&gt;%d\n&quot;, $LU{${$ark-&gt;{$yesno}}-&gt;{ASK}};
+      }
+      else { print &quot;$ark-&gt;{$yesno}\n&quot;; }
+    }
+    $y++;
+  }
+  select($oldselect);
+  close(ANIMALS);
+  print &quot;\nSaved information on $total animals.\n&quot;;
+} ## end of the sub SaveAnimals
+
+
+sub Quit {
+  if ($new) {
+    do {
+      printf &quot;\n**I learned about $new new animal%s!**\n&quot;,
+        $new==1 ? &quot;&quot; : &quot;s&quot;;
+      print &quot;\nDo you want to &lt;S&gt;ave or just &lt;Q&gt;uit?\n\n&quot;;
+    } while ($answer = &lt;STDIN&gt;) !~ /^[SQ]/i;
+    &amp;SaveAnimals if $answer =~ /^S/i;
+  }
+  print &quot;\n**Goodbye! Thanks for playing!**\n&quot;;
+  exit;
+}
+__END__
+## This is the default list if the data file is not found.
+Does it live in the water?
+&gt;2
+&gt;3
+Does it have a tail?
+Whale
+Starfish
+Does it have wings?
+&gt;4
+&gt;5
+Can it fly?
+Eagle
+Penguin
+Does it have fur?
+&gt;6
+&gt;7
+Does it have stripes?
+Tiger
+Bear
+Does it have a trunk?
+Elephant
+Armadillo
+END!
+&lt;Homer&gt;mmmm.....typeglobs&lt;/Homer&gt;
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>10356</node_id>
+  <author_user>6041</author_user>
+  <title>Animals</title>
+  <createtime>2000-05-05 12:57:43</createtime>
+  <nodeupdated>2005-08-03 09:02:47</nodeupdated>
+</node>

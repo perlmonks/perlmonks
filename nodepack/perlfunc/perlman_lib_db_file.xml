@@ -1,0 +1,1669 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+DB_File - Perl5 access to Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 1.x
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+&lt;STRONG&gt;DB_File&lt;/STRONG&gt; is a module which allows Perl programs to make use of the facilities provided by Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 1.x (if you have a newer version of 
+&lt;FONT SIZE=-1&gt;DB,&lt;/FONT&gt; see
+ &lt;A HREF=&quot;#Using_DB_File_with_Berkeley_DB_v&quot;&gt;Using DB_File with Berkeley DB version 2&lt;/A&gt;). It is assumed that you have a copy of the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; manual pages at hand when reading this documentation. The interface defined here mirrors the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; interface closely.
+
+&lt;P&gt;
+Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; is a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; library which provides a consistent interface to a number of database formats.
+  &lt;STRONG&gt;DB_File&lt;/STRONG&gt; provides an interface to all three of the database types currently supported by Berkeley 
+&lt;FONT SIZE=-1&gt;DB.&lt;/FONT&gt;
+
+&lt;P&gt;
+The file types are:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DB_HASH&quot;&gt;DB_HASH&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This database type allows arbitrary key/value pairs to be stored in data files. This is equivalent to the functionality provided by other hashing packages like 
+&lt;FONT SIZE=-1&gt;DBM,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;NDBM,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;ODBM,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;GDBM,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;SDBM.&lt;/FONT&gt; Remember though, the files created using 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; are not compatible with any of the other packages mentioned.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; default hashing algorithm, which will be adequate for most applications, is built into Berkeley 
+&lt;FONT SIZE=-1&gt;DB.&lt;/FONT&gt; If you do need to use your own hashing algorithm it is possible to write your own in Perl and have
+
+&lt;STRONG&gt;DB_File&lt;/STRONG&gt; use it instead.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DB_BTREE&quot;&gt;DB_BTREE&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The btree format allows arbitrary key/value pairs to be stored in a sorted,
+balanced binary tree.
+
+&lt;P&gt;
+As with the 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; format, it is possible to provide a user
+defined Perl routine to perform the comparison of keys. By default, though,
+the keys are stored in lexical order.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_DB_RECNO&quot;&gt;DB_RECNO&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+
+&lt;FONT SIZE=-1&gt;DB_RECNO&lt;/FONT&gt; allows both fixed-length and variable-length flat text files to be manipulated using the same key/value pair interface as in 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;DB_BTREE.&lt;/FONT&gt; In this case the key will consist of a record (line) number.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Using_DB_File_with_Berkeley_DB_v&quot;&gt;Using DB_File with Berkeley DB version 2&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Although &lt;STRONG&gt;DB_File&lt;/STRONG&gt; is intended to be used with Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 1, it can also be used with version 2. In this case the interface is limited to the functionality provided by Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 1.x. Anywhere the version 2 interface differs,
+ &lt;STRONG&gt;DB_File&lt;/STRONG&gt; arranges for it to work like version 1. This feature allows &lt;STRONG&gt;DB_File&lt;/STRONG&gt; scripts that were built with version 1 to be migrated to version 2 without
+any changes.
+
+&lt;P&gt;
+If you want to make use of the new features available in Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 2.x, use the Perl module &lt;STRONG&gt;BerkeleyDB&lt;/STRONG&gt; instead.
+
+&lt;P&gt;
+At the time of writing this document the &lt;STRONG&gt;BerkeleyDB&lt;/STRONG&gt; module is still alpha quality (the version number is &amp;lt; 1.0), and so
+unsuitable for use in any serious development work. Once its version number
+is &amp;gt;= 1.0, it is considered stable enough for real work.
+
+&lt;P&gt;
+&lt;STRONG&gt;Note:&lt;/STRONG&gt; The database file format has changed in Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 2. If you cannot recreate your databases,
+you must dump any existing databases with the &lt;CODE&gt;db_dump185&lt;/CODE&gt; utility that comes with Berkeley 
+&lt;FONT SIZE=-1&gt;DB.&lt;/FONT&gt; Once you have upgraded DB_File to use Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 2, your databases can be recreated using
+ &lt;CODE&gt;db_load&lt;/CODE&gt;. Refer to the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; documentation for further details.
+
+&lt;P&gt;
+Please read &lt;A HREF=&quot;#COPYRIGHT&quot;&gt;COPYRIGHT&lt;/A&gt; before using version 2.x of Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; with DB_File.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Interface_to_Berkeley_DB&quot;&gt;Interface to Berkeley DB&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;STRONG&gt;DB_File&lt;/STRONG&gt; allows access to Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; files using the 
+&lt;CODE&gt;tie()&lt;/CODE&gt; mechanism in Perl 5 (for full details, see
+ [perlfunc:tie|tie]). This facility allows &lt;STRONG&gt;DB_File&lt;/STRONG&gt; to access Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; files using either an associative array (for 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; &amp;amp; 
+&lt;FONT SIZE=-1&gt;DB_BTREE&lt;/FONT&gt; file types) or an ordinary array (for the 
+&lt;FONT SIZE=-1&gt;DB_RECNO&lt;/FONT&gt; file type).
+
+&lt;P&gt;
+In addition to the 
+&lt;CODE&gt;tie()&lt;/CODE&gt; interface, it is also possible to access most of the functions provided in the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; directly. See
+ &lt;A HREF=&quot;#THE_API_INTERFACE&quot;&gt;THE API INTERFACE&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Opening_a_Berkeley_DB_Database_F&quot;&gt;Opening a Berkeley DB Database File&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; uses the function 
+&lt;CODE&gt;dbopen()&lt;/CODE&gt; to open or create a database. Here is the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; prototype for 
+&lt;CODE&gt;dbopen():&lt;/CODE&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;      DB*
+      dbopen (const char * file, int flags, int mode, 
+              DBTYPE type, const void * openinfo)
+&lt;/PRE&gt;
+&lt;P&gt;
+The parameter &lt;CODE&gt;type&lt;/CODE&gt; is an enumeration which specifies which of the 3 interface methods 
+&lt;FONT SIZE=-1&gt;(DB_HASH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;DB_BTREE&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;DB_RECNO)&lt;/FONT&gt; is to be used. Depending on which of these is actually chosen, the final parameter,
+
+&lt;EM&gt;openinfo&lt;/EM&gt; points to a data structure which allows tailoring of the specific interface
+method.
+
+&lt;P&gt;
+This interface is handled slightly differently in &lt;STRONG&gt;DB_File&lt;/STRONG&gt;. Here is an equivalent call using &lt;STRONG&gt;DB_File&lt;/STRONG&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;        tie %array, 'DB_File', $filename, $flags, $mode, $DB_HASH ;
+&lt;/PRE&gt;
+&lt;P&gt;
+The &lt;CODE&gt;filename&lt;/CODE&gt;, &lt;CODE&gt;flags&lt;/CODE&gt; and &lt;CODE&gt;mode&lt;/CODE&gt; parameters are the direct equivalent of their 
+&lt;CODE&gt;dbopen()&lt;/CODE&gt; counterparts. The
+final parameter &lt;CODE&gt;$DB_HASH&lt;/CODE&gt; performs the function of both the &lt;CODE&gt;type&lt;/CODE&gt; and &lt;CODE&gt;openinfo&lt;/CODE&gt; parameters in 
+&lt;CODE&gt;dbopen().&lt;/CODE&gt;
+
+&lt;P&gt;
+In the example above &lt;CODE&gt;$DB_HASH&lt;/CODE&gt; is actually a pre-defined
+reference to a hash object. &lt;STRONG&gt;DB_File&lt;/STRONG&gt; has three of these pre-defined references. Apart from 
+&lt;FONT SIZE=-1&gt;$DB_HASH,&lt;/FONT&gt; there is also &lt;CODE&gt;$DB_BTREE&lt;/CODE&gt; and 
+&lt;FONT SIZE=-1&gt;$DB_RECNO.&lt;/FONT&gt;
+
+&lt;P&gt;
+The keys allowed in each of these pre-defined references is limited to the names used in the equivalent 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; structure. So, for example, the &lt;CODE&gt;$DB_HASH&lt;/CODE&gt; reference will only allow keys called
+ &lt;CODE&gt;bsize&lt;/CODE&gt;, &lt;CODE&gt;cachesize&lt;/CODE&gt;,
+&lt;CODE&gt;ffactor&lt;/CODE&gt;, &lt;CODE&gt;hash&lt;/CODE&gt;, &lt;CODE&gt;lorder&lt;/CODE&gt; and &lt;CODE&gt;nelem&lt;/CODE&gt;. 
+
+&lt;P&gt;
+To change one of these elements, just assign to it like this:
+
+&lt;P&gt;
+&lt;PRE&gt;        $DB_HASH-&amp;gt;{'cachesize'} = 10000 ;
+&lt;/PRE&gt;
+&lt;P&gt;
+The three predefined variables 
+&lt;FONT SIZE=-1&gt;$DB_HASH,&lt;/FONT&gt; &lt;CODE&gt;$DB_BTREE&lt;/CODE&gt; and
+&lt;CODE&gt;$DB_RECNO&lt;/CODE&gt; are usually adequate for most applications. If you
+do need to create extra instances of these objects, constructors are
+available for each file type.
+
+&lt;P&gt;
+Here are examples of the constructors and the valid options available for 
+&lt;FONT SIZE=-1&gt;DB_HASH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;DB_BTREE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;DB_RECNO&lt;/FONT&gt; respectively.
+
+&lt;P&gt;
+&lt;PRE&gt;     $a = new DB_File::HASHINFO ;
+     $a-&amp;gt;{'bsize'} ;
+     $a-&amp;gt;{'cachesize'} ;
+     $a-&amp;gt;{'ffactor'};
+     $a-&amp;gt;{'hash'} ;
+     $a-&amp;gt;{'lorder'} ;
+     $a-&amp;gt;{'nelem'} ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $b = new DB_File::BTREEINFO ;
+     $b-&amp;gt;{'flags'} ;
+     $b-&amp;gt;{'cachesize'} ;
+     $b-&amp;gt;{'maxkeypage'} ;
+     $b-&amp;gt;{'minkeypage'} ;
+     $b-&amp;gt;{'psize'} ;
+     $b-&amp;gt;{'compare'} ;
+     $b-&amp;gt;{'prefix'} ;
+     $b-&amp;gt;{'lorder'} ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;     $c = new DB_File::RECNOINFO ;
+     $c-&amp;gt;{'bval'} ;
+     $c-&amp;gt;{'cachesize'} ;
+     $c-&amp;gt;{'psize'} ;
+     $c-&amp;gt;{'flags'} ;
+     $c-&amp;gt;{'lorder'} ;
+     $c-&amp;gt;{'reclen'} ;
+     $c-&amp;gt;{'bfname'} ;
+&lt;/PRE&gt;
+&lt;P&gt;
+The values stored in the hashes above are mostly the direct equivalent of their 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; counterpart. Like their 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; counterparts, all are set to a default values - that means you don't have to set
+ &lt;EM&gt;all&lt;/EM&gt; of the values when you only want to change one. Here is an example:
+
+&lt;P&gt;
+&lt;PRE&gt;     $a = new DB_File::HASHINFO ;
+     $a-&amp;gt;{'cachesize'} =  12345 ;
+     tie %y, 'DB_File', &amp;quot;filename&amp;quot;, $flags, 0777, $a ;
+&lt;/PRE&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; few of the options need extra discussion here. When used, the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; equivalent of the keys
+ &lt;CODE&gt;hash&lt;/CODE&gt;, &lt;CODE&gt;compare&lt;/CODE&gt; and &lt;CODE&gt;prefix&lt;/CODE&gt; store pointers to 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; functions. In &lt;STRONG&gt;DB_File&lt;/STRONG&gt; these keys are used to store references to Perl subs. Below are templates
+for each of the subs:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub hash
+    {
+        my ($data) = @_ ;
+        ...
+        # return the hash value for $data
+        return $hash ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub compare
+    {
+        my ($key, $key2) = @_ ;
+        ...
+        # return  0 if $key1 eq $key2
+        #        -1 if $key1 lt $key2
+        #         1 if $key1 gt $key2
+        return (-1 , 0 or 1) ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub prefix
+    {
+        my ($key, $key2) = @_ ;
+        ...
+        # return number of bytes of $key2 which are 
+        # necessary to determine that it is greater than $key1
+        return $bytes ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+See &lt;A HREF=&quot;#Changing_the_BTREE_sort_order&quot;&gt;Changing the BTREE sort order&lt;/A&gt; for an example of using the
+&lt;CODE&gt;compare&lt;/CODE&gt; template.
+
+&lt;P&gt;
+If you are using the 
+&lt;FONT SIZE=-1&gt;DB_RECNO&lt;/FONT&gt; interface and you intend making use of
+&lt;CODE&gt;bval&lt;/CODE&gt;, you should check out &lt;A HREF=&quot;#The_bval_Option&quot;&gt;The 'bval' Option&lt;/A&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Default_Parameters&quot;&gt;Default Parameters&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+It is possible to omit some or all of the final 4 parameters in the call to [perlfunc:tie|tie] and let them take default values. As 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; is the most common file format used, the call:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %A, &amp;quot;DB_File&amp;quot;, &amp;quot;filename&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %A, &amp;quot;DB_File&amp;quot;, &amp;quot;filename&amp;quot;, O_CREAT|O_RDWR, 0666, $DB_HASH ;
+&lt;/PRE&gt;
+&lt;P&gt;
+It is also possible to omit the filename parameter as well, so the call:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %A, &amp;quot;DB_File&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+is equivalent to:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %A, &amp;quot;DB_File&amp;quot;, undef, O_CREAT|O_RDWR, 0666, $DB_HASH ;
+&lt;/PRE&gt;
+&lt;P&gt;
+See &lt;A HREF=&quot;#In_Memory_Databases&quot;&gt;In Memory Databases&lt;/A&gt; for a discussion on the use of [perlfunc:undef|undef]
+in place of a filename.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;In_Memory_Databases&quot;&gt;In Memory Databases&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; allows the creation of in-memory databases by using 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; (that is, a
+ &lt;CODE&gt;(char *)0&lt;/CODE&gt; in 
+&lt;FONT SIZE=-1&gt;C)&lt;/FONT&gt; in place of the filename.  &lt;STRONG&gt;DB_File&lt;/STRONG&gt;
+uses [perlfunc:undef|undef] instead of 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; to provide this functionality.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DB_HASH&quot;&gt;DB_HASH&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; file format is probably the most commonly used
+of the three file formats that &lt;STRONG&gt;DB_File&lt;/STRONG&gt; supports. It is also very straightforward to use.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;A_Simple_Example&quot;&gt;A Simple Example&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This example shows how to create a database, add key/value pairs to the
+database, delete keys/value pairs and finally how to enumerate the contents
+of the database.
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+    use vars qw( %h $k $v ) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tie %h, &amp;quot;DB_File&amp;quot;, &amp;quot;fruit&amp;quot;, O_RDWR|O_CREAT, 0640, $DB_HASH 
+        or die &amp;quot;Cannot open file 'fruit': $!\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Add a few key/value pairs to the file
+    $h{&amp;quot;apple&amp;quot;} = &amp;quot;red&amp;quot; ;
+    $h{&amp;quot;orange&amp;quot;} = &amp;quot;orange&amp;quot; ;
+    $h{&amp;quot;banana&amp;quot;} = &amp;quot;yellow&amp;quot; ;
+    $h{&amp;quot;tomato&amp;quot;} = &amp;quot;red&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Check for existence of a key
+    print &amp;quot;Banana Exists\n\n&amp;quot; if $h{&amp;quot;banana&amp;quot;} ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Delete a key/value pair.
+    delete $h{&amp;quot;apple&amp;quot;} ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # print the contents of the file
+    while (($k, $v) = each %h)
+      { print &amp;quot;$k -&amp;gt; $v\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie %h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+here is the output:
+
+&lt;P&gt;
+&lt;PRE&gt;    Banana Exists
+ 
+    orange -&amp;gt; orange
+    tomato -&amp;gt; red
+    banana -&amp;gt; yellow
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that the like ordinary associative arrays, the order of the keys
+retrieved is in an apparently random order.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DB_BTREE&quot;&gt;DB_BTREE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;DB_BTREE&lt;/FONT&gt; format is useful when you want to store data
+in a given order. By default the keys will be stored in lexical order, but
+as you will see from the example shown in the next section, it is very easy
+to define your own sorting function.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Changing_the_BTREE_sort_order&quot;&gt;Changing the BTREE sort order&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+This script shows how to override the default sorting algorithm that 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; uses. Instead of using the normal lexical
+ordering, a case insensitive compare function will be used.
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my %h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub Compare
+    {
+        my ($key1, $key2) = @_ ;
+        &amp;quot;\L$key1&amp;quot; cmp &amp;quot;\L$key2&amp;quot; ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # specify the Perl sub that will do the comparison
+    $DB_BTREE-&amp;gt;{'compare'} = \&amp;amp;Compare ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tie %h, &amp;quot;DB_File&amp;quot;, &amp;quot;tree&amp;quot;, O_RDWR|O_CREAT, 0640, $DB_BTREE 
+        or die &amp;quot;Cannot open file 'tree': $!\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Add a key/value pair to the file
+    $h{'Wall'} = 'Larry' ;
+    $h{'Smith'} = 'John' ;
+    $h{'mouse'} = 'mickey' ;
+    $h{'duck'}  = 'donald' ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Delete
+    delete $h{&amp;quot;duck&amp;quot;} ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Cycle through the keys printing them in order.
+    # Note it is not necessary to sort the keys as
+    # the btree will have kept them in order automatically.
+    foreach (keys %h)
+      { print &amp;quot;$_\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie %h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is the output from the code above.
+
+&lt;P&gt;
+&lt;PRE&gt;    mouse
+    Smith
+    Wall
+&lt;/PRE&gt;
+&lt;P&gt;
+There are a few point to bear in mind if you want to change the ordering in a 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; database:
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__&quot;&gt;.&lt;/A&gt;&lt;/STRONG&gt;
+&lt;P&gt;
+The new compare function must be specified when you create the database.
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+You cannot change the ordering once the database has been created. Thus you
+must use the same compare function every time you access the database.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Handling_Duplicate_Keys&quot;&gt;Handling Duplicate Keys&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; file type optionally allows a single key to be
+associated with an arbitrary number of values. This option is enabled by
+setting the flags element of &lt;CODE&gt;$DB_BTREE&lt;/CODE&gt; to 
+&lt;FONT SIZE=-1&gt;R_DUP&lt;/FONT&gt; when creating the database.
+
+&lt;P&gt;
+There are some difficulties in using the tied hash interface if you want to manipulate a 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; database with duplicate keys. Consider this code:
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use vars qw($filename %h ) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $filename = &amp;quot;tree&amp;quot; ;
+    unlink $filename ;
+ 
+    # Enable duplicate records
+    $DB_BTREE-&amp;gt;{'flags'} = R_DUP ;
+ 
+    tie %h, &amp;quot;DB_File&amp;quot;, $filename, O_RDWR|O_CREAT, 0640, $DB_BTREE 
+        or die &amp;quot;Cannot open $filename: $!\n&amp;quot;;
+ 
+    # Add some key/value pairs to the file
+    $h{'Wall'} = 'Larry' ;
+    $h{'Wall'} = 'Brick' ; # Note the duplicate key
+    $h{'Wall'} = 'Brick' ; # Note the duplicate key and value
+    $h{'Smith'} = 'John' ;
+    $h{'mouse'} = 'mickey' ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # iterate through the associative array
+    # and print each key/value pair.
+    foreach (keys %h)
+      { print &amp;quot;$_  -&amp;gt; $h{$_}\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie %h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is the output:
+
+&lt;P&gt;
+&lt;PRE&gt;    Smith   -&amp;gt; John
+    Wall    -&amp;gt; Larry
+    Wall    -&amp;gt; Larry
+    Wall    -&amp;gt; Larry
+    mouse   -&amp;gt; mickey
+&lt;/PRE&gt;
+&lt;P&gt;
+As you can see 3 records have been successfully created with key &lt;CODE&gt;Wall&lt;/CODE&gt;
+- the only thing is, when they are retrieved from the database they
+&lt;EM&gt;seem&lt;/EM&gt; to have the same value, namely &lt;CODE&gt;Larry&lt;/CODE&gt;. The problem is caused by the way that the associative array interface
+works. Basically, when the associative array interface is used to fetch the
+value associated with a given key, it will only ever retrieve the first
+value.
+
+&lt;P&gt;
+Although it may not be immediately obvious from the code above, the
+associative array interface can be used to write values with duplicate
+keys, but it cannot be used to read them back from the database.
+
+&lt;P&gt;
+The way to get around this problem is to use the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; method called
+ &lt;CODE&gt;seq&lt;/CODE&gt;. This method allows sequential access to key/value pairs. See &lt;A HREF=&quot;#THE_API_INTERFACE&quot;&gt;THE API INTERFACE&lt;/A&gt; for details of both the &lt;CODE&gt;seq&lt;/CODE&gt; method and the 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; in general.
+
+&lt;P&gt;
+Here is the script above rewritten using the &lt;CODE&gt;seq&lt;/CODE&gt; 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; method.
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+ 
+    use vars qw($filename $x %h $status $key $value) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $filename = &amp;quot;tree&amp;quot; ;
+    unlink $filename ;
+ 
+    # Enable duplicate records
+    $DB_BTREE-&amp;gt;{'flags'} = R_DUP ;
+ 
+    $x = tie %h, &amp;quot;DB_File&amp;quot;, $filename, O_RDWR|O_CREAT, 0640, $DB_BTREE 
+        or die &amp;quot;Cannot open $filename: $!\n&amp;quot;;
+ 
+    # Add some key/value pairs to the file
+    $h{'Wall'} = 'Larry' ;
+    $h{'Wall'} = 'Brick' ; # Note the duplicate key
+    $h{'Wall'} = 'Brick' ; # Note the duplicate key and value
+    $h{'Smith'} = 'John' ;
+    $h{'mouse'} = 'mickey' ;
+ 
+    # iterate through the btree using seq
+    # and print each key/value pair.
+    $key = $value = 0 ;
+    for ($status = $x-&amp;gt;seq($key, $value, R_FIRST) ;
+         $status == 0 ;
+         $status = $x-&amp;gt;seq($key, $value, R_NEXT) )
+      {  print &amp;quot;$key -&amp;gt; $value\n&amp;quot; }
+ 
+    undef $x ;
+    untie %h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+that prints:
+
+&lt;P&gt;
+&lt;PRE&gt;    Smith   -&amp;gt; John
+    Wall    -&amp;gt; Brick
+    Wall    -&amp;gt; Brick
+    Wall    -&amp;gt; Larry
+    mouse   -&amp;gt; mickey
+&lt;/PRE&gt;
+&lt;P&gt;
+This time we have got all the key/value pairs, including the multiple
+values associated with the key &lt;CODE&gt;Wall&lt;/CODE&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_get_dup_Method&quot;&gt;The get_dup() Method&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+&lt;STRONG&gt;DB_File&lt;/STRONG&gt; comes with a utility method, called &lt;CODE&gt;get_dup&lt;/CODE&gt;, to assist in reading duplicate values from 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; databases. The method can take the following
+forms:
+
+&lt;P&gt;
+&lt;PRE&gt;    $count = $x-&amp;gt;get_dup($key) ;
+    @list  = $x-&amp;gt;get_dup($key) ;
+    %list  = $x-&amp;gt;get_dup($key, 1) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+In a scalar context the method returns the number of values associated with
+the key, &lt;CODE&gt;$key&lt;/CODE&gt;.
+
+&lt;P&gt;
+In list context, it returns all the values which match &lt;CODE&gt;$key&lt;/CODE&gt;. Note that the values will be returned in an apparently random order.
+
+&lt;P&gt;
+In list context, if the second parameter is present and evaluates 
+&lt;FONT SIZE=-1&gt;TRUE,&lt;/FONT&gt; the method returns an associative array. The keys of the associative array correspond to the values that matched in the 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; and the values of the array are a count of the number of times that particular value occurred in the 
+&lt;FONT SIZE=-1&gt;BTREE.&lt;/FONT&gt;
+
+&lt;P&gt;
+So assuming the database created above, we can use &lt;CODE&gt;get_dup&lt;/CODE&gt; like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    my $cnt  = $x-&amp;gt;get_dup(&amp;quot;Wall&amp;quot;) ;
+    print &amp;quot;Wall occurred $cnt times\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my %hash = $x-&amp;gt;get_dup(&amp;quot;Wall&amp;quot;, 1) ;
+    print &amp;quot;Larry is there\n&amp;quot; if $hash{'Larry'} ;
+    print &amp;quot;There are $hash{'Brick'} Brick Walls\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my @list = $x-&amp;gt;get_dup(&amp;quot;Wall&amp;quot;) ;
+    print &amp;quot;Wall =&amp;gt;      &amp;#091;@list&amp;#093;\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    @list = $x-&amp;gt;get_dup(&amp;quot;Smith&amp;quot;) ;
+    print &amp;quot;Smith =&amp;gt;     &amp;#091;@list&amp;#093;\n&amp;quot; ;
+ 
+    @list = $x-&amp;gt;get_dup(&amp;quot;Dog&amp;quot;) ;
+    print &amp;quot;Dog =&amp;gt;       &amp;#091;@list&amp;#093;\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+and it will print:
+
+&lt;P&gt;
+&lt;PRE&gt;    Wall occurred 3 times
+    Larry is there
+    There are 2 Brick Walls
+    Wall =&amp;gt;     &amp;#091;Brick Brick Larry&amp;#093;
+    Smith =&amp;gt;    &amp;#091;John&amp;#093;
+    Dog =&amp;gt;      &amp;#091;&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Matching_Partial_Keys&quot;&gt;Matching Partial Keys&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The 
+&lt;FONT SIZE=-1&gt;BTREE&lt;/FONT&gt; interface has a feature which allows partial
+keys to be matched. This functionality is &lt;EM&gt;only&lt;/EM&gt; available when the &lt;CODE&gt;seq&lt;/CODE&gt; method is used along with the 
+&lt;FONT SIZE=-1&gt;R_CURSOR&lt;/FONT&gt; flag.
+
+&lt;P&gt;
+&lt;PRE&gt;    $x-&amp;gt;seq($key, $value, R_CURSOR) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is the relevant quote from the dbopen man page where it defines the use of the 
+&lt;FONT SIZE=-1&gt;R_CURSOR&lt;/FONT&gt; flag with seq:
+
+&lt;P&gt;
+&lt;PRE&gt;    Note, for the DB_BTREE access method, the returned key is not
+    necessarily an exact match for the specified key. The returned key
+    is the smallest key greater than or equal to the specified key,
+    permitting partial key matches and range searches.
+&lt;/PRE&gt;
+&lt;P&gt;
+In the example script below, the &lt;CODE&gt;match&lt;/CODE&gt; sub uses this feature to find and print the first matching key/value pair
+given a partial key.
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+    use Fcntl ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use vars qw($filename $x %h $st $key $value) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub match
+    {
+        my $key = shift ;
+        my $value = 0;
+        my $orig_key = $key ;
+        $x-&amp;gt;seq($key, $value, R_CURSOR) ;
+        print &amp;quot;$orig_key\t-&amp;gt; $key\t-&amp;gt; $value\n&amp;quot; ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $filename = &amp;quot;tree&amp;quot; ;
+    unlink $filename ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $x = tie %h, &amp;quot;DB_File&amp;quot;, $filename, O_RDWR|O_CREAT, 0640, $DB_BTREE
+        or die &amp;quot;Cannot open $filename: $!\n&amp;quot;;
+ 
+    # Add some key/value pairs to the file
+    $h{'mouse'} = 'mickey' ;
+    $h{'Wall'} = 'Larry' ;
+    $h{'Walls'} = 'Brick' ; 
+    $h{'Smith'} = 'John' ;
+ 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $key = $value = 0 ;
+    print &amp;quot;IN ORDER\n&amp;quot; ;
+    for ($st = $x-&amp;gt;seq($key, $value, R_FIRST) ;
+         $st == 0 ;
+         $st = $x-&amp;gt;seq($key, $value, R_NEXT) )
+        
+      {  print &amp;quot;$key -&amp;gt; $value\n&amp;quot; }
+ 
+    print &amp;quot;\nPARTIAL MATCH\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    match &amp;quot;Wa&amp;quot; ;
+    match &amp;quot;A&amp;quot; ;
+    match &amp;quot;a&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    undef $x ;
+    untie %h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is the output:
+
+&lt;P&gt;
+&lt;PRE&gt;    IN ORDER
+    Smith -&amp;gt; John
+    Wall  -&amp;gt; Larry
+    Walls -&amp;gt; Brick
+    mouse -&amp;gt; mickey
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    PARTIAL MATCH
+    Wa -&amp;gt; Wall  -&amp;gt; Larry
+    A  -&amp;gt; Smith -&amp;gt; John
+    a  -&amp;gt; mouse -&amp;gt; mickey
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DB_RECNO&quot;&gt;DB_RECNO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;DB_RECNO&lt;/FONT&gt; provides an interface to flat text files.
+Both variable and fixed length records are supported.
+
+&lt;P&gt;
+In order to make 
+&lt;FONT SIZE=-1&gt;RECNO&lt;/FONT&gt; more compatible with Perl the array offset for all 
+&lt;FONT SIZE=-1&gt;RECNO&lt;/FONT&gt; arrays begins at 0 rather than 1 as in Berkeley 
+&lt;FONT SIZE=-1&gt;DB.&lt;/FONT&gt;
+
+&lt;P&gt;
+As with normal Perl arrays, a 
+&lt;FONT SIZE=-1&gt;RECNO&lt;/FONT&gt; array can be accessed using negative indexes.
+The index -1 refers to the last element of the array, -2 the second last,
+and so on. Attempting to access an element before the start of the array
+will raise a fatal run-time error.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_bval_Option&quot;&gt;The 'bval' Option&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The operation of the bval option warrants some discussion. Here is the definition of bval from the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 1.85 recno manual page:
+
+&lt;P&gt;
+&lt;PRE&gt;    The delimiting byte to be used to mark  the  end  of  a
+    record for variable-length records, and the pad charac-
+    ter for fixed-length records.  If no  value  is  speci-
+    fied,  newlines  (``\n'')  are  used to mark the end of
+    variable-length records and  fixed-length  records  are
+    padded with spaces.
+&lt;/PRE&gt;
+&lt;P&gt;
+The second sentence is wrong. In actual fact bval will only default to
+&lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; when the openinfo parameter in dbopen is 
+&lt;FONT SIZE=-1&gt;NULL.&lt;/FONT&gt; If a non-NULL openinfo parameter is used at all, the value that happens to be in bval will be used. That means you always have to specify bval when making use of any of the options in the openinfo parameter. This documentation error will be fixed in the next release of Berkeley 
+&lt;FONT SIZE=-1&gt;DB.&lt;/FONT&gt;
+
+&lt;P&gt;
+That clarifies the situation with regards Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; itself. What about &lt;STRONG&gt;DB_File&lt;/STRONG&gt;? Well, the behavior defined in the quote above is quite useful, so &lt;STRONG&gt;DB_File&lt;/STRONG&gt; conforms it.
+
+&lt;P&gt;
+That means that you can specify other options (e.g. cachesize) and still
+have bval default to &lt;CODE&gt;&amp;quot;\n&amp;quot;&lt;/CODE&gt; for variable length records, and space for fixed length records.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;A_Simple_Example&quot;&gt;A Simple Example&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Here is a simple example that uses 
+&lt;FONT SIZE=-1&gt;RECNO.&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my @h ;
+    tie @h, &amp;quot;DB_File&amp;quot;, &amp;quot;text&amp;quot;, O_RDWR|O_CREAT, 0640, $DB_RECNO 
+        or die &amp;quot;Cannot open file 'text': $!\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Add a few key/value pairs to the file
+    $h&amp;#091;0&amp;#093; = &amp;quot;orange&amp;quot; ;
+    $h&amp;#091;1&amp;#093; = &amp;quot;blue&amp;quot; ;
+    $h&amp;#091;2&amp;#093; = &amp;quot;yellow&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Check for existence of a key
+    print &amp;quot;Element 1 Exists with value $h&amp;#091;1&amp;#093;\n&amp;quot; if $h&amp;#091;1&amp;#093; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # use a negative index
+    print &amp;quot;The last element is $h&amp;#091;-1&amp;#093;\n&amp;quot; ;
+    print &amp;quot;The 2nd last element is $h&amp;#091;-2&amp;#093;\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie @h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Here is the output from the script:
+
+&lt;P&gt;
+&lt;PRE&gt;    Element 1 Exists with value blue
+    The last element is yellow
+    The 2nd last element is blue
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Extra_Methods&quot;&gt;Extra Methods&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you are using a version of Perl earlier than 5.004_57, the tied array
+interface is quite limited. The example script above will work, but you
+won't be able to use [perlfunc:push|push], [perlfunc:pop|pop], [perlfunc:shift|shift], [perlfunc:unshift|unshift]
+etc. with the tied array.
+
+&lt;P&gt;
+To make the interface more useful for older versions of Perl, a number of
+methods are supplied with &lt;STRONG&gt;DB_File&lt;/STRONG&gt; to simulate the missing array operations. All these methods are accessed
+via the object returned from the tie call.
+
+&lt;P&gt;
+Here are the methods:
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__X_gtpush_list_&quot;&gt;$X-&amp;gt;push(list) ;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pushes the elements of &lt;CODE&gt;list&lt;/CODE&gt; to the end of the array.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__value&quot;&gt;$value = $X-&amp;gt;pop ;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Removes and returns the last element of the array.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__X_gtshift&quot;&gt;$X-&amp;gt;shift&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Removes and returns the first element of the array.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__X_gtunshift_list_&quot;&gt;$X-&amp;gt;unshift(list) ;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Pushes the elements of &lt;CODE&gt;list&lt;/CODE&gt; to the start of the array.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__X_gtlength&quot;&gt;$X-&amp;gt;length&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the number of elements in the array.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Another_Example&quot;&gt;Another Example&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Here is a more complete example that makes use of some of the methods described above. It also makes use of the 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; interface directly (see
+ 
+&lt;A HREF=&quot;#THE_API_INTERFACE&quot;&gt;THE API INTERFACE&lt;/A&gt;).
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use vars qw(@h $H $file $i) ;
+    use DB_File ;
+    use Fcntl ;
+    
+    $file = &amp;quot;text&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    unlink $file ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $H = tie @h, &amp;quot;DB_File&amp;quot;, $file, O_RDWR|O_CREAT, 0640, $DB_RECNO 
+        or die &amp;quot;Cannot open file $file: $!\n&amp;quot; ;
+    
+    # first create a text file to play with
+    $h&amp;#091;0&amp;#093; = &amp;quot;zero&amp;quot; ;
+    $h&amp;#091;1&amp;#093; = &amp;quot;one&amp;quot; ;
+    $h&amp;#091;2&amp;#093; = &amp;quot;two&amp;quot; ;
+    $h&amp;#091;3&amp;#093; = &amp;quot;three&amp;quot; ;
+    $h&amp;#091;4&amp;#093; = &amp;quot;four&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    
+    # Print the records in order.
+    #
+    # The length method is needed here because evaluating a tied
+    # array in a scalar context does not return the number of
+    # elements in the array.  
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;\nORIGINAL\n&amp;quot; ;
+    foreach $i (0 .. $H-&amp;gt;length - 1) {
+        print &amp;quot;$i: $h&amp;#091;$i&amp;#093;\n&amp;quot; ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # use the push &amp;amp; pop methods
+    $a = $H-&amp;gt;pop ;
+    $H-&amp;gt;push(&amp;quot;last&amp;quot;) ;
+    print &amp;quot;\nThe last record was &amp;#091;$a&amp;#093;\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # and the shift &amp;amp; unshift methods
+    $a = $H-&amp;gt;shift ;
+    $H-&amp;gt;unshift(&amp;quot;first&amp;quot;) ;
+    print &amp;quot;The first record was &amp;#091;$a&amp;#093;\n&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Use the API to add a new record after record 2.
+    $i = 2 ;
+    $H-&amp;gt;put($i, &amp;quot;Newbie&amp;quot;, R_IAFTER) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # and a new record before record 1.
+    $i = 1 ;
+    $H-&amp;gt;put($i, &amp;quot;New One&amp;quot;, R_IBEFORE) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # delete record 3
+    $H-&amp;gt;del(3) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # now print the records in reverse order
+    print &amp;quot;\nREVERSE\n&amp;quot; ;
+    for ($i = $H-&amp;gt;length - 1 ; $i &amp;gt;= 0 ; -- $i)
+      { print &amp;quot;$i: $h&amp;#091;$i&amp;#093;\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # same again, but use the API functions instead
+    print &amp;quot;\nREVERSE again\n&amp;quot; ;
+    my ($s, $k, $v)  = (0, 0, 0) ;
+    for ($s = $H-&amp;gt;seq($k, $v, R_LAST) ; 
+             $s == 0 ; 
+             $s = $H-&amp;gt;seq($k, $v, R_PREV))
+      { print &amp;quot;$k: $v\n&amp;quot; }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    undef $H ;
+    untie @h ;
+&lt;/PRE&gt;
+&lt;P&gt;
+and this is what it outputs:
+
+&lt;P&gt;
+&lt;PRE&gt;    ORIGINAL
+    0: zero
+    1: one
+    2: two
+    3: three
+    4: four
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    The last record was &amp;#091;four&amp;#093;
+    The first record was &amp;#091;zero&amp;#093;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    REVERSE
+    5: last
+    4: three
+    3: Newbie
+    2: one
+    1: New One
+    0: first
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    REVERSE again
+    5: last
+    4: three
+    3: Newbie
+    2: one
+    1: New One
+    0: first
+&lt;/PRE&gt;
+&lt;P&gt;
+Notes:
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+Rather than iterating through the array, &lt;CODE&gt;@h&lt;/CODE&gt; like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach $i (@h)
+&lt;/PRE&gt;
+&lt;P&gt;
+it is necessary to use either this:
+
+&lt;P&gt;
+&lt;PRE&gt;    foreach $i (0 .. $H-&amp;gt;length - 1) 
+&lt;/PRE&gt;
+&lt;P&gt;
+or this:
+
+&lt;P&gt;
+&lt;PRE&gt;    for ($a = $H-&amp;gt;get($k, $v, R_FIRST) ;
+         $a == 0 ;
+         $a = $H-&amp;gt;get($k, $v, R_NEXT) )
+&lt;/PRE&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+Notice that both times the &lt;CODE&gt;put&lt;/CODE&gt; method was used the record index was specified using a variable, &lt;CODE&gt;$i&lt;/CODE&gt;, rather than the literal value itself. This is because &lt;CODE&gt;put&lt;/CODE&gt; will return the record number of the inserted line via that parameter.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;THE_API_INTERFACE&quot;&gt;THE API INTERFACE&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+As well as accessing Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; using a tied hash or array, it is also possible to make direct use of most of the 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; functions defined in the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; documentation.
+
+&lt;P&gt;
+To do this you need to store a copy of the object returned from the tie.
+
+&lt;P&gt;
+&lt;PRE&gt;        $db = tie %hash, &amp;quot;DB_File&amp;quot;, &amp;quot;filename&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Once you have done that, you can access the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; functions as
+ &lt;STRONG&gt;DB_File&lt;/STRONG&gt; methods directly like this:
+
+&lt;P&gt;
+&lt;PRE&gt;        $db-&amp;gt;put($key, $value, R_NOOVERWRITE) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;STRONG&gt;Important:&lt;/STRONG&gt; If you have saved a copy of the object returned from
+[perlfunc:tie|tie], the underlying database file will &lt;EM&gt;not&lt;/EM&gt; be closed until both the tied variable is untied and all copies of the
+saved object are destroyed. 
+
+&lt;P&gt;
+&lt;PRE&gt;    use DB_File ;
+    $db = tie %hash, &amp;quot;DB_File&amp;quot;, &amp;quot;filename&amp;quot; 
+        or die &amp;quot;Cannot tie filename: $!&amp;quot; ;
+    ...
+    undef $db ;
+    untie %hash ;
+&lt;/PRE&gt;
+&lt;P&gt;
+See &lt;A HREF=&quot;#The_untie_Gotcha&quot;&gt;The untie() Gotcha&lt;/A&gt; for more details.
+
+&lt;P&gt;
+All the functions defined in &lt;EM&gt;dbopen&lt;/EM&gt; are available except for 
+&lt;CODE&gt;close()&lt;/CODE&gt; and 
+&lt;CODE&gt;dbopen()&lt;/CODE&gt; itself. The
+ &lt;STRONG&gt;DB_File&lt;/STRONG&gt; method interface to the supported functions have been implemented to mirror the way Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; works whenever possible. In particular note that:
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+The methods return a status value. All return 0 on success. All return -1
+to signify an error and set &lt;CODE&gt;$!&lt;/CODE&gt; to the exact error code. The return code 1 generally (but not always) means
+that the key specified did not exist in the database.
+
+&lt;P&gt;
+Other return codes are defined. See below and in the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; documentation for details. The Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; documentation should be used as the definitive source.
+
+&lt;P&gt;&lt;LI&gt;
+
+Whenever a Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; function returns data via one of its parameters,
+the equivalent &lt;STRONG&gt;DB_File&lt;/STRONG&gt; method does exactly the same.
+
+&lt;P&gt;&lt;LI&gt;
+
+If you are careful, it is possible to mix 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; calls with the tied hash/array interface in the
+same piece of code. Although only a few of the methods used to implement
+the tied interface currently make use of the cursor, you should always
+assume that the cursor has been changed any time the tied hash/array
+interface is used. As an example, this code will probably not do what you
+expect:
+
+&lt;P&gt;
+&lt;PRE&gt;    $X = tie %x, 'DB_File', $filename, O_RDWR|O_CREAT, 0777, $DB_BTREE
+        or die &amp;quot;Cannot tie $filename: $!&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Get the first key/value pair and set  the cursor
+    $X-&amp;gt;seq($key, $value, R_FIRST) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # this line will modify the cursor
+    $count = scalar keys %x ; 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Get the second key/value pair.
+    # oops, it didn't, it got the last key/value pair!
+    $X-&amp;gt;seq($key, $value, R_NEXT) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+The code above can be rearranged to get around the problem, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $X = tie %x, 'DB_File', $filename, O_RDWR|O_CREAT, 0777, $DB_BTREE
+        or die &amp;quot;Cannot tie $filename: $!&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # this line will modify the cursor
+    $count = scalar keys %x ; 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Get the first key/value pair and set  the cursor
+    $X-&amp;gt;seq($key, $value, R_FIRST) ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Get the second key/value pair.
+    # worked this time.
+    $X-&amp;gt;seq($key, $value, R_NEXT) ;
+&lt;/PRE&gt;
+&lt;/UL&gt;
+&lt;P&gt;
+All the constants defined in &lt;EM&gt;dbopen&lt;/EM&gt; for use in the flags parameters in the methods defined below are also available. Refer to the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; documentation for the precise meaning of the flags values.
+
+&lt;P&gt;
+Below is a list of the methods available.
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item__status&quot;&gt;$status = $X-&amp;gt;get($key, $value &amp;#091;, $flags&amp;#093;) ;&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Given a key (&lt;CODE&gt;$key&lt;/CODE&gt;) this method reads the value associated with it from the database. The
+value read from the database is returned in the
+&lt;CODE&gt;$value&lt;/CODE&gt; parameter.
+
+&lt;P&gt;
+If the key does not exist the method returns 1.
+
+&lt;P&gt;
+No flags are currently defined for this method.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;$status = $X-&amp;gt;put($key, $value &amp;#091;, $flags&amp;#093;) ;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Stores the key/value pair in the database.
+
+&lt;P&gt;
+If you use either the 
+&lt;FONT SIZE=-1&gt;R_IAFTER&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;R_IBEFORE&lt;/FONT&gt; flags, the
+ &lt;CODE&gt;$key&lt;/CODE&gt; parameter will have the record number of the inserted key/value pair set.
+
+&lt;P&gt;
+Valid flags are 
+&lt;FONT SIZE=-1&gt;R_CURSOR,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;R_IAFTER,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;R_IBEFORE,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;R_NOOVERWRITE&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;R_SETCURSOR.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;$status = $X-&amp;gt;del($key &amp;#091;, $flags&amp;#093;) ;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Removes all key/value pairs with key &lt;CODE&gt;$key&lt;/CODE&gt; from the database.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; return code of 1 means that the requested key was
+not in the database.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;R_CURSOR&lt;/FONT&gt; is the only valid flag at present.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;$status = $X-&amp;gt;fd ;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Returns the file descriptor for the underlying database.
+
+&lt;P&gt;
+See &lt;A HREF=&quot;#Locking_Databases&quot;&gt;Locking Databases&lt;/A&gt; for an example of how to make use of the
+&lt;CODE&gt;fd&lt;/CODE&gt; method to lock your database.
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;$status = $X-&amp;gt;seq($key, $value, $flags) ;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+This interface allows sequential retrieval from the database. See
+&lt;EM&gt;dbopen&lt;/EM&gt; for full details.
+
+&lt;P&gt;
+Both the &lt;CODE&gt;$key&lt;/CODE&gt; and &lt;CODE&gt;$value&lt;/CODE&gt; parameters will be set to the key/value pair read from the database.
+
+&lt;P&gt;
+The flags parameter is mandatory. The valid flag values are 
+&lt;FONT SIZE=-1&gt;R_CURSOR,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;R_FIRST,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;R_LAST,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;R_NEXT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;R_PREV.&lt;/FONT&gt;
+
+&lt;P&gt;&lt;DT&gt;&lt;STRONG&gt;$status = $X-&amp;gt;sync(&amp;#091;$flags&amp;#093;) ;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+Flushes any cached buffers to disk.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;R_RECNOSYNC&lt;/FONT&gt; is the only valid flag at present.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;HINTS_AND_TIPS&quot;&gt;HINTS AND TIPS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Locking_Databases&quot;&gt;Locking Databases&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Concurrent access of a read-write database by several parties requires them
+all to use some kind of locking. Here's an example of Tom's that uses the &lt;EM&gt;fd&lt;/EM&gt; method to get the file descriptor, and then a careful 
+&lt;CODE&gt;open()&lt;/CODE&gt; to give something Perl will 
+&lt;CODE&gt;flock()&lt;/CODE&gt; for you. Run this repeatedly in the background to watch the locks granted in proper order.
+
+&lt;P&gt;
+&lt;PRE&gt;    use DB_File;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use strict;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub LOCK_SH { 1 }
+    sub LOCK_EX { 2 }
+    sub LOCK_NB { 4 }
+    sub LOCK_UN { 8 }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my($oldval, $fd, $db, %db, $value, $key);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $key = shift || 'default';
+    $value = shift || 'magic';
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $value .= &amp;quot; $$&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $db = tie(%db, 'DB_File', '/tmp/foo.db', O_CREAT|O_RDWR, 0644) 
+            || die &amp;quot;dbcreat /tmp/foo.db $!&amp;quot;;
+    $fd = $db-&amp;gt;fd;
+    print &amp;quot;$$: db fd is $fd\n&amp;quot;;
+    open(DB_FH, &amp;quot;+&amp;lt;&amp;amp;=$fd&amp;quot;) || die &amp;quot;dup $!&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    unless (flock (DB_FH, LOCK_SH | LOCK_NB)) {
+        print &amp;quot;$$: CONTENTION; can't read during write update!
+                    Waiting for read lock ($!) ....&amp;quot;;
+        unless (flock (DB_FH, LOCK_SH)) { die &amp;quot;flock: $!&amp;quot; }
+    } 
+    print &amp;quot;$$: Read lock granted\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $oldval = $db{$key};
+    print &amp;quot;$$: Old value was $oldval\n&amp;quot;;
+    flock(DB_FH, LOCK_UN);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    unless (flock (DB_FH, LOCK_EX | LOCK_NB)) {
+        print &amp;quot;$$: CONTENTION; must have exclusive lock!
+                    Waiting for write lock ($!) ....&amp;quot;;
+        unless (flock (DB_FH, LOCK_EX)) { die &amp;quot;flock: $!&amp;quot; }
+    } 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    print &amp;quot;$$: Write lock granted\n&amp;quot;;
+    $db{$key} = $value;
+    $db-&amp;gt;sync;  # to flush
+    sleep 10;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    flock(DB_FH, LOCK_UN);
+    undef $db;
+    untie %db;
+    close(DB_FH);
+    print &amp;quot;$$: Updated db to $key=$value\n&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Sharing_Databases_With_C_Applica&quot;&gt;Sharing Databases With C Applications&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+There is no technical reason why a Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; database cannot be shared by both a Perl and a 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; application.
+
+&lt;P&gt;
+The vast majority of problems that are reported in this area boil down to the fact that 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; strings are 
+&lt;FONT SIZE=-1&gt;NULL&lt;/FONT&gt; terminated, whilst Perl strings are not.
+ 
+
+&lt;P&gt;
+Here is a real example. Netscape 2.0 keeps a record of the locations you visit along with the time you last visited them in a 
+&lt;FONT SIZE=-1&gt;DB_HASH&lt;/FONT&gt; database. This is usually stored in the file
+ &lt;EM&gt;~/.netscape/history.db&lt;/EM&gt;. The key field in the database is the location string and the value field
+is the time the location was last visited stored as a 4 byte binary value.
+
+&lt;P&gt;
+If you haven't already guessed, the location string is stored with a terminating 
+&lt;FONT SIZE=-1&gt;NULL.&lt;/FONT&gt; This means you need to be careful when accessing the database.
+
+&lt;P&gt;
+Here is a snippet of code that is loosely based on Tom Christiansen's
+&lt;EM&gt;ggh&lt;/EM&gt; script (available from your nearest 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; archive in
+&lt;EM&gt;authors/id/TOMC/scripts/nshist.gz&lt;/EM&gt;).
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+    use Fcntl ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    use vars qw( $dotdir $HISTORY %hist_db $href $binary_time $date ) ;
+    $dotdir = $ENV{HOME} || $ENV{LOGNAME};
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $HISTORY = &amp;quot;$dotdir/.netscape/history.db&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tie %hist_db, 'DB_File', $HISTORY
+        or die &amp;quot;Cannot open $HISTORY: $!\n&amp;quot; ;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Dump the complete database
+    while ( ($href, $binary_time) = each %hist_db ) {
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # remove the terminating NULL
+        $href =~ s/\x00$// ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        # convert the binary time into a user friendly string
+        $date = localtime unpack(&amp;quot;V&amp;quot;, $binary_time);
+        print &amp;quot;$date $href\n&amp;quot; ;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # check for the existence of a specific key
+    # remember to add the NULL
+    if ( $binary_time = $hist_db{&amp;quot;&lt;A HREF=&quot;http://mox.perl.com/&quot;&gt;http://mox.perl.com/&lt;/A&gt;\x00&amp;quot;} ) {
+        $date = localtime unpack(&amp;quot;V&amp;quot;, $binary_time) ;
+        print &amp;quot;Last visited mox.perl.com on $date\n&amp;quot; ;
+    }
+    else {
+        print &amp;quot;Never visited mox.perl.com\n&amp;quot;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie %hist_db ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;The_untie_Gotcha&quot;&gt;The untie() Gotcha&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you make use of the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;API,&lt;/FONT&gt; it is
+ &lt;EM&gt;very&lt;/EM&gt; strongly recommended that you read [perlman:perltie|perltie]. 
+
+&lt;P&gt;
+Even if you don't currently make use of the 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; interface, it is still worth reading it.
+
+&lt;P&gt;
+Here is an example which illustrates the problem from a &lt;STRONG&gt;DB_File&lt;/STRONG&gt;
+perspective:
+
+&lt;P&gt;
+&lt;PRE&gt;    use DB_File ;
+    use Fcntl ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    my %x ;
+    my $X ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $X = tie %x, 'DB_File', 'tst.fil' , O_RDWR|O_TRUNC
+        or die &amp;quot;Cannot tie first time: $!&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $x{123} = 456 ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie %x ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    tie %x, 'DB_File', 'tst.fil' , O_RDWR|O_CREAT
+        or die &amp;quot;Cannot tie second time: $!&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    untie %x ;
+&lt;/PRE&gt;
+&lt;P&gt;
+When run, the script will produce this error message:
+
+&lt;P&gt;
+&lt;PRE&gt;    Cannot tie second time: Invalid argument at bad.file line 14.
+&lt;/PRE&gt;
+&lt;P&gt;
+Although the error message above refers to the second 
+&lt;CODE&gt;tie()&lt;/CODE&gt; statement in the script, the source of the problem is really with the 
+&lt;CODE&gt;untie()&lt;/CODE&gt; statement that precedes it.
+
+&lt;P&gt;
+Having read [perlman:perltie|perltie] you will probably have already guessed that the error is caused by the
+extra copy of the tied object stored in &lt;CODE&gt;$X&lt;/CODE&gt;. If you haven't, then the problem boils down to the fact that the
+&lt;STRONG&gt;DB_File&lt;/STRONG&gt; destructor, 
+&lt;FONT SIZE=-1&gt;DESTROY,&lt;/FONT&gt; will not be called until &lt;EM&gt;all&lt;/EM&gt;
+references to the tied object are destroyed. Both the tied variable,
+&lt;CODE&gt;%x&lt;/CODE&gt;, and &lt;CODE&gt;$X&lt;/CODE&gt; above hold a reference to the object. The call to 
+&lt;CODE&gt;untie()&lt;/CODE&gt; will destroy the
+first, but &lt;CODE&gt;$X&lt;/CODE&gt; still holds a valid reference, so the destructor will not get called and
+the database file
+&lt;EM&gt;tst.fil&lt;/EM&gt; will remain open. The fact that Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; then reports the attempt to open a database that is
+alreday open via the catch-all ``Invalid argument'' doesn't help.
+
+&lt;P&gt;
+If you run the script with the &lt;CODE&gt;-w&lt;/CODE&gt; flag the error message becomes:
+
+&lt;P&gt;
+&lt;PRE&gt;    untie attempted while 1 inner references still exist at bad.file line 12.
+    Cannot tie second time: Invalid argument at bad.file line 14.
+&lt;/PRE&gt;
+&lt;P&gt;
+which pinpoints the real problem. Finally the script can now be modified to fix the original problem by destroying the 
+&lt;FONT SIZE=-1&gt;API&lt;/FONT&gt; object before the untie:
+
+&lt;P&gt;
+&lt;PRE&gt;    ...
+    $x{123} = 456 ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    undef $X ;
+    untie %x ;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    $X = tie %x, 'DB_File', 'tst.fil' , O_RDWR|O_CREAT
+    ...
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;COMMON_QUESTIONS&quot;&gt;COMMON QUESTIONS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Why_is_there_Perl_source_in_my_d&quot;&gt;Why is there Perl source in my database?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If you look at the contents of a database file created by DB_File, there
+can sometimes be part of a Perl script included in it.
+
+&lt;P&gt;
+This happens because Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; uses dynamic memory to allocate buffers which will subsequently be written to the database file. Being dynamic, the memory could have been used for anything before 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; malloced it. As Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; doesn't clear the memory once it has been allocated, the unused portions will contain random junk. In the case where a Perl script gets written to the database, the random junk will correspond to an area of dynamic memory that happened to be used during the compilation of the script.
+
+&lt;P&gt;
+Unless you don't like the possibility of there being part of your Perl
+scripts embedded in a database file, this is nothing to worry about.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;How_do_I_store_complex_data_stru&quot;&gt;How do I store complex data structures with DB_File?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Although &lt;STRONG&gt;DB_File&lt;/STRONG&gt; cannot do this directly, there is a module which can layer transparently
+over &lt;STRONG&gt;DB_File&lt;/STRONG&gt; to accomplish this feat.
+
+&lt;P&gt;
+Check out the 
+&lt;FONT SIZE=-1&gt;MLDBM&lt;/FONT&gt; module, available on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; in the directory
+
+&lt;EM&gt;modules/by-module/MLDBM&lt;/EM&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;What_does_Invalid_Argument_mea&quot;&gt;What does &quot;Invalid Argument&quot; mean?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+You will get this error message when one of the parameters in the
+[perlfunc:tie|tie] call is wrong. Unfortunately there are quite a few parameters to get wrong,
+so it can be difficult to figure out which one it is.
+
+&lt;P&gt;
+Here are a couple of possibilities:
+
+&lt;OL&gt;
+&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+&lt;P&gt;
+Attempting to reopen a database without closing it. 
+
+&lt;P&gt;&lt;LI&gt;&lt;STRONG&gt;.&lt;/STRONG&gt;
+
+Using the 
+&lt;FONT SIZE=-1&gt;O_WRONLY&lt;/FONT&gt; flag.
+
+&lt;/OL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;What_does_Bareword_DB_File_no&quot;&gt;What does &quot;Bareword 'DB_File' not allowed&quot; mean?&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+You will encounter this particular error message when you have the
+&lt;CODE&gt;strict 'subs'&lt;/CODE&gt; pragma (or the full strict pragma) in your script. Consider this script:
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict ;
+    use DB_File ;
+    use vars qw(%x) ;
+    tie %x, DB_File, &amp;quot;filename&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Running it produces the error in question:
+
+&lt;P&gt;
+&lt;PRE&gt;    Bareword &amp;quot;DB_File&amp;quot; not allowed while &amp;quot;strict subs&amp;quot; in use 
+&lt;/PRE&gt;
+&lt;P&gt;
+To get around the error, place the word &lt;CODE&gt;DB_File&lt;/CODE&gt; in either single or double quotes, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    tie %x, &amp;quot;DB_File&amp;quot;, &amp;quot;filename&amp;quot; ;
+&lt;/PRE&gt;
+&lt;P&gt;
+Although it might seem like a real pain, it is really worth the effort of
+having a &lt;CODE&gt;use strict&lt;/CODE&gt; in all your scripts.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;HISTORY&quot;&gt;HISTORY&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Moved to the Changes file.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;BUGS&quot;&gt;BUGS&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Some older versions of Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; had problems with fixed length records using the 
+&lt;FONT SIZE=-1&gt;RECNO&lt;/FONT&gt; file format. This problem has been fixed since version 1.85 of Berkeley 
+&lt;FONT SIZE=-1&gt;DB.&lt;/FONT&gt;
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; am sure there are bugs in the code. If you do find any, or can suggest any enhancements, 
+&lt;FONT SIZE=-1&gt;I&lt;/FONT&gt; would welcome your comments.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AVAILABILITY&quot;&gt;AVAILABILITY&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;STRONG&gt;DB_File&lt;/STRONG&gt; comes with the standard Perl source distribution. Look in the directory &lt;EM&gt;ext/DB_File&lt;/EM&gt;. Given the amount of time between releases of Perl the version that ships with Perl is quite likely to be out of date, so the most recent version can always be found on 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; (see
+
+[perlman:perlmod|perlmod] for details), in the directory
+&lt;EM&gt;modules/by-module/DB_File&lt;/EM&gt;.
+
+&lt;P&gt;
+This version of &lt;STRONG&gt;DB_File&lt;/STRONG&gt; will work with either version 1.x or 2.x of Berkeley 
+&lt;FONT SIZE=-1&gt;DB,&lt;/FONT&gt; but is limited to the functionality provided by
+version 1.
+
+&lt;P&gt;
+The official web site for Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; is
+&lt;EM&gt;http://www.sleepycat.com/db&lt;/EM&gt;. The ftp equivalent is
+&lt;EM&gt;ftp.sleepycat.com:/pub&lt;/EM&gt;. Both versions 1 and 2 of Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; are available there.
+
+&lt;P&gt;
+Alternatively, Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 1 is available at your nearest 
+&lt;FONT SIZE=-1&gt;CPAN&lt;/FONT&gt; archive in
+ &lt;EM&gt;src/misc/db.1.85.tar.gz&lt;/EM&gt;.
+
+&lt;P&gt;
+If you are running 
+&lt;FONT SIZE=-1&gt;IRIX,&lt;/FONT&gt; then get Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; version 1 from
+
+&lt;EM&gt;http://reality.sgi.com/ariel&lt;/EM&gt;. It has the patches necessary to compile properly on 
+&lt;FONT SIZE=-1&gt;IRIX&lt;/FONT&gt; 5.3.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;COPYRIGHT&quot;&gt;COPYRIGHT&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+Copyright (c) 1995-8 Paul Marquess. All rights reserved. This program is
+free software; you can redistribute it and/or modify it under the same
+terms as Perl itself.
+
+&lt;P&gt;
+Although &lt;STRONG&gt;DB_File&lt;/STRONG&gt; is covered by the Perl license, the library it makes use of, namely Berkeley 
+&lt;FONT SIZE=-1&gt;DB,&lt;/FONT&gt; is not. Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; has its own copyright and its own license. Please take the time to read it.
+
+&lt;P&gt;
+Here are are few words taken from the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;FAQ&lt;/FONT&gt; (at &lt;A HREF=&quot;http://www.sleepycat.com)&quot;&gt;http://www.sleepycat.com)&lt;/A&gt; regarding the license:
+
+&lt;P&gt;
+&lt;PRE&gt;    Do I have to license DB to use it in Perl scripts? 
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    No. The Berkeley DB license requires that software that uses
+    Berkeley DB be freely redistributable. In the case of Perl, that
+    software is Perl, and not your scripts. Any Perl scripts that you
+    write are your property, including scripts that make use of
+    Berkeley DB. Neither the Perl license nor the Berkeley DB license
+    place any restriction on what you may do with them.
+&lt;/PRE&gt;
+&lt;P&gt;
+If you are in any doubt about the license situation, contact either the Berkeley 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; authors or the author of DB_File. See
+ &lt;A HREF=&quot;#AUTHOR&quot;&gt;AUTHOR&lt;/A&gt; for details.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;SEE_ALSO&quot;&gt;SEE ALSO&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;EM&gt;perl(1)&lt;/EM&gt;, &lt;EM&gt;dbopen(3)&lt;/EM&gt;, &lt;EM&gt;hash(3)&lt;/EM&gt;, &lt;EM&gt;recno(3)&lt;/EM&gt;, &lt;EM&gt;btree(3)&lt;/EM&gt; 
+
+ 
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+The DB_File interface was written by Paul Marquess &lt;A HREF=&quot;mailto:&amp;lt;pmarquess@bfsec.bt.co.uk&amp;gt;.&quot;&gt;&amp;lt;pmarquess@bfsec.bt.co.uk&amp;gt;.&lt;/A&gt; Questions about the 
+&lt;FONT SIZE=-1&gt;DB&lt;/FONT&gt; system itself may be addressed to &lt;A HREF=&quot;mailto:&amp;lt;db@sleepycat.com&lt;gt&gt;.&quot;&gt;&amp;lt;db@sleepycat.com&lt;gt&gt;.&lt;/A&gt;
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:49:25</createtime>
+  <node_id>1103</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt; use DB_File ;
+ 
+ &amp;#091;$X =&amp;#093; tie %hash,  'DB_File', &amp;#091;$filename, $flags, $mode, $DB_HASH&amp;#093; ;
+ &amp;#091;$X =&amp;#093; tie %hash,  'DB_File', $filename, $flags, $mode, $DB_BTREE ;
+ &amp;#091;$X =&amp;#093; tie @array, 'DB_File', $filename, $flags,</synopsis>
+  <title>perlman:lib:DB_File</title>
+  <nodeupdated>2005-08-13 00:32:06</nodeupdated>
+</node>

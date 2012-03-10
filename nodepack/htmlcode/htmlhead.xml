@@ -1,0 +1,71 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>320275</node_id>
+  <author_user>3607</author_user>
+  <title>htmlhead</title>
+  <createtime>2004-01-09 21:15:44</createtime>
+  <code># This returns the basics to put inside a head element for 
+# a normal-looking page.  Code is taken from [basichead], 
+# for use in [basichead], and the various pages that make up 
+# [fullpage chat].
+# This does not include a title tag, users should do that 
+# themselves.
+# No arguments.
+
+my $absprefix = ( $ENV{SCRIPT_NAME} =~ m!^(/~\w+)! ? $1 : '' );
+my $icon = qq(&lt;link rel=&quot;icon&quot; href=&quot;$absprefix/favicon.ico&quot; /&gt;);
+$_ = qq(&lt;link rel=&quot;stylesheet&quot; href=&quot;?node_id=%d&quot; type=&quot;text/css&quot; /&gt;);
+my( $theme, $common ) = ('','');
+my $theme_comment = &quot;&lt;!-- Theme $$VARS{preferred_theme}: $THEME-&gt;{description} --&gt;&quot;;
+if ( $THEME-&gt;{CSS} ) {
+  $theme = sprintf $_, $THEME-&gt;{CSS};
+  $common = qq(&lt;link rel=&quot;stylesheet&quot; href=&quot;$absprefix/css/common.css&quot; type=&quot;text/css&quot; /&gt;);
+}
+my $css = $VARS-&gt;{css_link};
+if ( $css ) {
+  $css =~ s/\n//g;
+  $css =~ s/&lt;/&amp;lt;/g;
+  $css =~ s/&gt;/&amp;gt;/g;
+  $css =~ s/'/&amp;quot;/g;
+  $css = qq(&lt;link rel=&quot;stylesheet&quot; href='$css' type=&quot;text/css&quot; /&gt;);
+}
+$css ||= '&lt;!-- No CSS Link in User Settings --&gt;';
+
+my $style = $VARS-&gt;{style};
+if ( $style ) {
+  chomp $style;
+  my $ind = ' ' x 6;
+  $style  =~ s/&lt;/&amp;lt;/g;
+  $style  =~ s/\n/\n$ind/g;
+  $style  = &lt;&lt;&quot;END&quot;;
+&lt;style type=&quot;text/css&quot;&gt;
+$style
+&lt;/style&gt;
+END
+}
+$style ||= '&lt;!-- No CSS Data in User Settings --&gt;';
+
+if ( 'print' eq ($q-&gt;param('displaytype') || '') ) {
+  $theme = $style = '';
+  $common = qq(&lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;).(
+    $VARS-&gt;{printcss} || urlGen({ node =&gt; 'print displaytype stylesheet' }, -1)
+  ).qq(&quot; /&gt;\n);
+}
+
+my $noindex =
+  'document' eq $NODE-&gt;{type}{title} 
+    ? '&lt;meta name=&quot;robots&quot; content=&quot;noindex&quot;&gt;'
+    : 'Super Search' eq $NODE-&gt;{title}
+    ? '&lt;meta name=&quot;robots&quot; content=&quot;noindex,nofollow&quot;&gt;' : '';
+
+return &quot;
+    $theme_comment
+    $common
+    $theme
+    $css
+    $style
+    $icon
+    $noindex
+&quot;;</code>
+  <nodeupdated>2005-07-07 15:15:01</nodeupdated>
+</node>

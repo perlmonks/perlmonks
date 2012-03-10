@@ -1,0 +1,712 @@
+<node>
+  <doctext>&lt;HR&gt;
+&lt;P&gt;
+&lt;H1&gt;&lt;A NAME=&quot;NAME&quot;&gt;NAME&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+perldata - Perl data types
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;DESCRIPTION&quot;&gt;DESCRIPTION&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Variable_names&quot;&gt;Variable names&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl has three data structures: scalars, arrays of scalars, and associative
+arrays of scalars, known as ``hashes''. Normal arrays are indexed by
+number, starting with 0. (Negative subscripts count from the end.) Hash
+arrays are indexed by string.
+
+&lt;P&gt;
+Values are usually referred to by name (or through a named reference). The
+first character of the name tells you to what sort of data structure it
+refers. The rest of the name tells you the particular value to which it
+refers. Most often, it consists of a single
+&lt;EM&gt;identifier&lt;/EM&gt;, that is, a string beginning with a letter or underscore, and containing
+letters, underscores, and digits. In some cases, it may be a chain of
+identifiers, separated by &lt;CODE&gt;::&lt;/CODE&gt; (or by &lt;CODE&gt;'&lt;/CODE&gt;, but that's deprecated); all but the last are interpreted as names of
+packages, to locate the namespace in which to look up the final identifier
+(see [perlman:perlmod] for details). It's possible to substitute for a simple identifier an
+expression that produces a reference to the value at runtime; this is
+described in more detail below, and in [perlman:perlref|the perlref manpage].
+
+&lt;P&gt;
+There are also special variables whose names don't follow these rules, so
+that they don't accidentally collide with one of your normal variables.
+Strings that match parenthesized parts of a regular expression are saved
+under names containing only digits after the &lt;CODE&gt;$&lt;/CODE&gt; (see [perlman:perlop|the perlop manpage] and [perlman:perlre|the perlre manpage]). In addition, several special variables that provide windows into the
+inner working of Perl have names containing punctuation characters (see [perlman:perlvar|the perlvar manpage]).
+
+&lt;P&gt;
+Scalar values are always named with '$', even when referring to a scalar
+that is part of an array. It works like the English word ``the''. Thus we
+have:
+
+&lt;P&gt;
+&lt;PRE&gt;    $days               # the simple scalar value &amp;quot;days&amp;quot;
+    $days&amp;#091;28&amp;#093;           # the 29th element of array @days
+    $days{'Feb'}        # the 'Feb' value from hash %days
+    $#days              # the last index of array @days
+&lt;/PRE&gt;
+&lt;P&gt;
+but entire arrays or array slices are denoted by '@', which works much like
+the word ``these'' or ``those'':
+
+&lt;P&gt;
+&lt;PRE&gt;    @days               # ($days&amp;#091;0&amp;#093;, $days&amp;#091;1&amp;#093;,... $days&amp;#091;n&amp;#093;)
+    @days&amp;#091;3,4,5&amp;#093;        # same as @days&amp;#091;3..5&amp;#093;
+    @days{'a','c'}      # same as ($days{'a'},$days{'c'})
+&lt;/PRE&gt;
+&lt;P&gt;
+and entire hashes are denoted by '%':
+
+&lt;P&gt;
+&lt;PRE&gt;    %days               # (key1, val1, key2, val2 ...)
+&lt;/PRE&gt;
+&lt;P&gt;
+In addition, subroutines are named with an initial '&amp;amp;', though this is
+optional when it's otherwise unambiguous (just as ``do'' is often redundant
+in English). Symbol table entries can be named with an initial '*', but you
+don't really care about that yet.
+
+&lt;P&gt;
+Every variable type has its own namespace. You can, without fear of
+conflict, use the same name for a scalar variable, an array, or a hash (or,
+for that matter, a filehandle, a subroutine name, or a label). This means
+that &lt;CODE&gt;$foo&lt;/CODE&gt; and &lt;CODE&gt;@foo&lt;/CODE&gt; are two different variables.
+It also means that &lt;CODE&gt;$foo&amp;#091;1&amp;#093;&lt;/CODE&gt; is a part of @foo, not a part of $foo. This may seem a bit weird, but
+that's okay, because it is weird.
+
+&lt;P&gt;
+Because variable and array references always start with '$', '@', or '%', the ``reserved'' words aren't in fact reserved with respect to variable names. (They 
+&lt;FONT SIZE=-1&gt;ARE&lt;/FONT&gt; reserved with respect to labels and filehandles, however, which don't have an initial special character. You can't have a filehandle named ``log'', for instance. Hint: you could say
+
+[perlfunc:open|open(LOG,'logfile')] rather than [perlfunc:open|open(log,'logfile')]. Using uppercase filehandles also improves readability and protects you
+from conflict with future reserved words.) Case &lt;EM&gt;IS&lt;/EM&gt; significant--``FOO'', ``Foo'', and ``foo'' are all different names. Names
+that start with a letter or underscore may also contain digits and
+underscores.
+
+&lt;P&gt;
+It is possible to replace such an alphanumeric name with an expression that
+returns a reference to an object of that type. For a description of this,
+see [perlman:perlref|the perlref manpage].
+
+&lt;P&gt;
+Names that start with a digit may contain only more digits. Names that do
+not start with a letter, underscore, or digit are limited to one character,
+e.g.,  &lt;CODE&gt;$%&lt;/CODE&gt; or &lt;CODE&gt;$$&lt;/CODE&gt;. (Most of these one character names have a predefined significance to
+Perl. For instance, &lt;CODE&gt;$$&lt;/CODE&gt; is the current process id.)
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Context&quot;&gt;Context&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+The interpretation of operations and values in Perl sometimes depends on
+the requirements of the context around the operation or value. There are
+two major contexts: scalar and list. Certain operations return list values
+in contexts wanting a list, and scalar values otherwise. (If this is true
+of an operation it will be mentioned in the documentation for that
+operation.) In other words, Perl overloads certain operations based on
+whether the expected return value is singular or plural. (Some words in
+English work this way, like ``fish'' and ``sheep''.)
+
+&lt;P&gt;
+In a reciprocal fashion, an operation provides either a scalar or a list
+context to each of its arguments. For example, if you say
+
+&lt;P&gt;
+&lt;PRE&gt;    int( &amp;lt;STDIN&amp;gt; )
+&lt;/PRE&gt;
+&lt;P&gt;
+the integer operation provides a scalar context for the 
+&lt;FONT SIZE=-1&gt;&amp;lt;STDIN&amp;gt;&lt;/FONT&gt; operator, which responds by reading one line from 
+&lt;FONT SIZE=-1&gt;STDIN&lt;/FONT&gt; and passing it back to the integer operation, which will then find the integer value of that line and return that. If, on the other hand, you say
+
+&lt;P&gt;
+&lt;PRE&gt;    sort( &amp;lt;STDIN&amp;gt; )
+&lt;/PRE&gt;
+&lt;P&gt;
+then the sort operation provides a list context for 
+&lt;FONT SIZE=-1&gt;&amp;lt;STDIN&amp;gt;,&lt;/FONT&gt; which will proceed to read every line
+available up to the end of file, and pass that list of lines back to the
+sort routine, which will then sort those lines and return them as a list to
+whatever the context of the sort was.
+
+&lt;P&gt;
+Assignment is a little bit special in that it uses its left argument to
+determine the context for the right argument. Assignment to a scalar
+evaluates the righthand side in a scalar context, while assignment to an
+array or array slice evaluates the righthand side in a list context.
+Assignment to a list also evaluates the righthand side in a list context.
+
+&lt;P&gt;
+User defined subroutines may choose to care whether they are being called
+in a scalar or list context, but most subroutines do not need to care,
+because scalars are automatically interpolated into lists. See [perlfunc:wantarray|wantarray].
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Scalar_values&quot;&gt;Scalar values&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+All data in Perl is a scalar or an array of scalars or a hash of scalars. Scalar variables may contain various kinds of singular data, such as numbers, strings, and references. In general, conversion from one form to another is transparent. 
+&lt;FONT SIZE=-1&gt;(A&lt;/FONT&gt; scalar may not contain multiple values, but may contain a reference to an array or hash containing multiple values.) Because of the automatic conversion of scalars, operations, and functions that return scalars don't need to care (and, in fact, can't care) whether the context is looking for a string or a number.
+
+&lt;P&gt;
+Scalars aren't necessarily one thing or another. There's no place to
+declare a scalar variable to be of type ``string'', or of type ``number'',
+or type ``filehandle'', or anything else. Perl is a contextually
+polymorphic language whose scalars can be strings, numbers, or references
+(which includes objects). While strings and numbers are considered pretty
+much the same thing for nearly all purposes, references are strongly-typed
+uncastable pointers with builtin reference-counting and destructor
+invocation.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; scalar value is interpreted as 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; in the Boolean sense if it is not the null string or the number 0 (or its string equivalent, ``0''). The Boolean context is just a special kind of scalar context.
+
+&lt;P&gt;
+There are actually two varieties of null scalars: defined and undefined. Undefined null scalars are returned when there is no real value for something, such as when there was an error, or at end of file, or when you refer to an uninitialized variable or element of an array. An undefined null scalar may become defined the first time you use it as if it were defined, but prior to that you can use the 
+&lt;CODE&gt;defined()&lt;/CODE&gt; operator to determine whether the value is defined or not.
+
+&lt;P&gt;
+To find out whether a given string is a valid nonzero number, it's usually
+enough to test it against both numeric 0 and also lexical ``0'' (although
+this will cause &lt;STRONG&gt;-w&lt;/STRONG&gt; noises). That's because strings that aren't numbers count as 0, just as
+they do in &lt;STRONG&gt;awk&lt;/STRONG&gt;:
+
+&lt;P&gt;
+&lt;PRE&gt;    if ($str == 0 &amp;amp;&amp;amp; $str ne &amp;quot;0&amp;quot;)  {
+        warn &amp;quot;That doesn't look like a number&amp;quot;;
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+That's usually preferable because otherwise you won't treat 
+&lt;FONT SIZE=-1&gt;IEEE&lt;/FONT&gt; notations like &lt;CODE&gt;NaN&lt;/CODE&gt; or &lt;CODE&gt;Infinity&lt;/CODE&gt; properly. At other times you might prefer to use the POSIX::strtod function
+or a regular expression to check whether data is numeric. See [perlman:perlre|the perlre manpage] for details on regular expressions.
+
+&lt;P&gt;
+&lt;PRE&gt;    warn &amp;quot;has nondigits&amp;quot;        if     /\D/;
+    warn &amp;quot;not a natural number&amp;quot; unless /^\d+$/;             # rejects -3
+    warn &amp;quot;not an integer&amp;quot;       unless /^-?\d+$/;           # rejects +3
+    warn &amp;quot;not an integer&amp;quot;       unless /^&amp;#091;+-&amp;#093;?\d+$/;
+    warn &amp;quot;not a decimal number&amp;quot; unless /^-?\d+\.?\d*$/;     # rejects .2
+    warn &amp;quot;not a decimal number&amp;quot; unless /^-?(?:\d+(?:\.\d*)?|\.\d+)$/;
+    warn &amp;quot;not a C float&amp;quot;
+        unless /^(&amp;#091;+-&amp;#093;?)(?=\d|\.\d)\d*(\.\d*)?(&amp;#091;Ee&amp;#093;(&amp;#091;+-&amp;#093;?\d+))?$/;
+&lt;/PRE&gt;
+&lt;P&gt;
+The length of an array is a scalar value. You may find the length of array
+&lt;CODE&gt;@days&lt;/CODE&gt; by evaluating &lt;CODE&gt;$#days&lt;/CODE&gt;, as in &lt;STRONG&gt;csh&lt;/STRONG&gt;. (Actually, it's not the length of the array, it's the subscript of the
+last element, because there is (ordinarily) a 0th element.) Assigning to &lt;CODE&gt;$#days&lt;/CODE&gt; changes the length of the array. Shortening an array by this method
+destroys intervening values. Lengthening an array that was previously
+shortened
+&lt;EM&gt;NO LONGER&lt;/EM&gt; recovers the values that were in those elements. (It used to in Perl 4, but
+we had to break this to make sure destructors were called when expected.)
+You can also gain some miniscule measure of efficiency by pre-extending an
+array that is going to get big. (You can also extend an array by assigning
+to an element that is off the end of the array.) You can truncate an array
+down to nothing by assigning the null list () to it. The following are
+equivalent:
+
+&lt;P&gt;
+&lt;PRE&gt;    @whatever = ();
+    $#whatever = -1;
+&lt;/PRE&gt;
+&lt;P&gt;
+If you evaluate a named array in a scalar context, it returns the length of the array. (Note that this is not true of lists, which return the last value, like the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; comma operator, nor of built-in functions, which return whatever they feel like returning.) The following is always true:
+
+&lt;P&gt;
+&lt;PRE&gt;    scalar(@whatever) == $#whatever - $&amp;#091; + 1;
+&lt;/PRE&gt;
+&lt;P&gt;
+Version 5 of Perl changed the semantics of &lt;CODE&gt;$&amp;#091;&lt;/CODE&gt;: files that don't set the value of &lt;CODE&gt;$&amp;#091;&lt;/CODE&gt; no longer need to worry about whether another file changed its value. (In
+other words, use of &lt;CODE&gt;$&amp;#091;&lt;/CODE&gt; is deprecated.) So in general you can assume that
+
+&lt;P&gt;
+&lt;PRE&gt;    scalar(@whatever) == $#whatever + 1;
+&lt;/PRE&gt;
+&lt;P&gt;
+Some programmers choose to use an explicit conversion so nothing's left to
+doubt:
+
+&lt;P&gt;
+&lt;PRE&gt;    $element_count = scalar(@whatever);
+&lt;/PRE&gt;
+&lt;P&gt;
+If you evaluate a hash in a scalar context, it returns a value that is true
+if and only if the hash contains any key/value pairs. (If there are any
+key/value pairs, the value returned is a string consisting of the number of
+used buckets and the number of allocated buckets, separated by a slash.
+This is pretty much useful only to find out whether Perl's (compiled in)
+hashing algorithm is performing poorly on your data set. For example, you
+stick 10,000 things in a hash, but evaluating &lt;CODE&gt;%HASH&lt;/CODE&gt; in scalar
+context reveals ``1/16'', which means only one out of sixteen buckets has
+been touched, and presumably contains all 10,000 of your items. This isn't
+supposed to happen.)
+
+&lt;P&gt;
+You can preallocate space for a hash by assigning to the 
+&lt;CODE&gt;keys()&lt;/CODE&gt; function. This rounds up
+the allocated bucked to the next power of two:
+
+&lt;P&gt;
+&lt;PRE&gt;    keys(%users) = 1000;                # allocate 1024 buckets
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Scalar_value_constructors&quot;&gt;Scalar value constructors&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Numeric literals are specified in any of the customary floating point or
+integer formats:
+
+&lt;P&gt;
+&lt;PRE&gt;    12345
+    12345.67
+    .23E-10
+    0xffff              # hex
+    0377                # octal
+    4_294_967_296       # underline for legibility
+&lt;/PRE&gt;
+&lt;P&gt;
+String literals are usually delimited by either single or double quotes.
+They work much like shell quotes: double-quoted string literals are subject
+to backslash and variable substitution; single-quoted strings are not
+(except for ``&lt;CODE&gt;\'&lt;/CODE&gt;'' and ``&lt;CODE&gt;\\&lt;/CODE&gt;''). The usual Unix backslash rules apply for making characters such as
+newline, tab, etc., as well as some more exotic forms. See
+[perlman:perlop] for a list.
+
+&lt;P&gt;
+Octal or hex representations in string literals (e.g. '0xffff') are not automatically converted to their integer representation. The 
+&lt;CODE&gt;hex()&lt;/CODE&gt; and 
+&lt;CODE&gt;oct()&lt;/CODE&gt; functions make these conversions for you. See
+ [perlfunc:hex|hex] and
+[perlfunc:oct|oct] for more details.
+
+&lt;P&gt;
+You can also embed newlines directly in your strings, i.e., they can end on
+a different line than they begin. This is nice, but if you forget your
+trailing quote, the error will not be reported until Perl finds another
+line containing the quote character, which may be much further on in the
+script. Variable substitution inside strings is limited to scalar
+variables, arrays, and array slices. (In other words, names beginning with
+$ or @, followed by an optional bracketed expression as a subscript.) The
+following code segment prints out ``The price is $100.''
+
+&lt;P&gt;
+&lt;PRE&gt;    $Price = '$100';    # not interpreted
+    print &amp;quot;The price is $Price.\n&amp;quot;;     # interpreted
+&lt;/PRE&gt;
+&lt;P&gt;
+As in some shells, you can put curly brackets around the name to delimit it
+from following alphanumerics. In fact, an identifier within such curlies is
+forced to be a string, as is any single identifier within a hash subscript.
+Our earlier example,
+
+&lt;P&gt;
+&lt;PRE&gt;    $days{'Feb'}
+&lt;/PRE&gt;
+&lt;P&gt;
+can be written as
+
+&lt;P&gt;
+&lt;PRE&gt;    $days{Feb}
+&lt;/PRE&gt;
+&lt;P&gt;
+and the quotes will be assumed automatically. But anything more complicated
+in the subscript will be interpreted as an expression.
+
+&lt;P&gt;
+Note that a single-quoted string must be separated from a preceding word by
+a space, because single quote is a valid (though deprecated) character in a
+variable name (see [perlman:perlmod]).
+
+&lt;P&gt;
+Three special literals are 
+&lt;FONT SIZE=-1&gt;__FILE__,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;__LINE__,&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;__PACKAGE__,&lt;/FONT&gt; which represent the current filename, line number, and package name at that point in your program. They may be used only as separate tokens; they will not be interpolated into strings. If there is no current package (due to an empty
+ [perlfunc:package|package;] directive), 
+&lt;FONT SIZE=-1&gt;__PACKAGE__&lt;/FONT&gt; is the undefined value.
+
+&lt;P&gt;
+The tokens 
+&lt;FONT SIZE=-1&gt;__END__&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;__DATA__&lt;/FONT&gt; may be used to indicate the logical end of the script before the actual end of file. Any following text is ignored, but may be read via a 
+&lt;FONT SIZE=-1&gt;DATA&lt;/FONT&gt; filehandle: main::DATA for 
+&lt;FONT SIZE=-1&gt;__END__,&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;PACKNAME::DATA&lt;/FONT&gt; (where 
+&lt;FONT SIZE=-1&gt;PACKNAME&lt;/FONT&gt; is the current package) for 
+&lt;FONT SIZE=-1&gt;__DATA__.&lt;/FONT&gt; The two control characters 
+&lt;FONT SIZE=-1&gt;^D&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;^Z&lt;/FONT&gt; are synonyms for 
+&lt;FONT SIZE=-1&gt;__END__&lt;/FONT&gt; (or 
+&lt;FONT SIZE=-1&gt;__DATA__&lt;/FONT&gt; in a module). See
+ &lt;U&gt;the SelfLoader manpage&lt;/U&gt;&lt;!--../lib/SelfLoader.html--&gt; for more description of 
+&lt;FONT SIZE=-1&gt;__DATA__,&lt;/FONT&gt; and an example of its use. Note that you cannot read from the 
+&lt;FONT SIZE=-1&gt;DATA&lt;/FONT&gt; filehandle in a 
+&lt;FONT SIZE=-1&gt;BEGIN&lt;/FONT&gt; block: the 
+&lt;FONT SIZE=-1&gt;BEGIN&lt;/FONT&gt; block is executed as soon as it is seen (during compilation), at which point the corresponding 
+&lt;FONT SIZE=-1&gt;__DATA__&lt;/FONT&gt; (or 
+&lt;FONT SIZE=-1&gt;__END__)&lt;/FONT&gt; token has not yet been seen.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; word that has no other interpretation in the grammar
+will be treated as if it were a quoted string. These are known as
+``barewords''. As with filehandles and labels, a bareword that consists
+entirely of lowercase letters risks conflict with future reserved words,
+and if you use the &lt;STRONG&gt;-w&lt;/STRONG&gt; switch, Perl will warn you about any such words. Some people may wish to
+outlaw barewords entirely. If you say
+
+&lt;P&gt;
+&lt;PRE&gt;    use strict 'subs';
+&lt;/PRE&gt;
+&lt;P&gt;
+then any bareword that would 
+&lt;FONT SIZE=-1&gt;NOT&lt;/FONT&gt; be interpreted as a subroutine call produces a
+compile-time error instead. The restriction lasts to the end of the
+enclosing block. An inner block may countermand this by saying &lt;CODE&gt;no strict 'subs'&lt;/CODE&gt;.
+
+&lt;P&gt;
+Array variables are interpolated into double-quoted strings by joining all
+the elements of the array with the delimiter specified in the &lt;CODE&gt;$&amp;quot;&lt;/CODE&gt;
+variable (&lt;CODE&gt;$LIST_SEPARATOR&lt;/CODE&gt; in English), space by default. The following are equivalent:
+
+&lt;P&gt;
+&lt;PRE&gt;    $temp = join($&amp;quot;,@ARGV);
+    system &amp;quot;echo $temp&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    system &amp;quot;echo @ARGV&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+Within search patterns (which also undergo double-quotish substitution)
+there is a bad ambiguity: Is &lt;CODE&gt;/$foo&amp;#091;bar&amp;#093;/&lt;/CODE&gt; to be interpreted as
+&lt;CODE&gt;/${foo}&amp;#091;bar&amp;#093;/&lt;/CODE&gt; (where &lt;CODE&gt;&amp;#091;bar&amp;#093;&lt;/CODE&gt; is a character class for the regular expression) or as &lt;CODE&gt;/${foo&amp;#091;bar&amp;#093;}/&lt;/CODE&gt; (where &lt;CODE&gt;&amp;#091;bar&amp;#093;&lt;/CODE&gt; is the subscript to array @foo)? If &lt;CODE&gt;@foo&lt;/CODE&gt; doesn't otherwise
+exist, then it's obviously a character class. If &lt;CODE&gt;@foo&lt;/CODE&gt; exists,
+Perl takes a good guess about &lt;CODE&gt;&amp;#091;bar&amp;#093;&lt;/CODE&gt;, and is almost always right. If it does guess wrong, or if you're just
+plain paranoid, you can force the correct interpretation with curly
+brackets as above.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; line-oriented form of quoting is based on the shell
+``here-doc'' syntax. Following a &lt;CODE&gt;&amp;lt;&amp;lt;&lt;/CODE&gt; you specify a string to terminate the quoted material, and all lines
+following the current line down to the terminating string are the value of
+the item. The terminating string may be either an identifier (a word), or
+some quoted text. If quoted, the type of quotes you use determines the
+treatment of the text, just as in regular quoting. An unquoted identifier
+works like double quotes. There must be no space between the &lt;CODE&gt;&amp;lt;&amp;lt;&lt;/CODE&gt; and the identifier. (If you put a space it will be treated as a null
+identifier, which is valid, and matches the first empty line.) The
+terminating string must appear by itself (unquoted and with no surrounding
+whitespace) on the terminating line.
+
+&lt;P&gt;
+&lt;PRE&gt;        print &amp;lt;&amp;lt;EOF;
+    The price is $Price.
+    EOF
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print &amp;lt;&amp;lt;&amp;quot;EOF&amp;quot;;  # same as above
+    The price is $Price.
+    EOF
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print &amp;lt;&amp;lt;`EOC`;  # execute commands
+    echo hi there
+    echo lo there
+    EOC
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        print &amp;lt;&amp;lt;&amp;quot;foo&amp;quot;, &amp;lt;&amp;lt;&amp;quot;bar&amp;quot;; # you can stack them
+    I said foo.
+    foo
+    I said bar.
+    bar
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        myfunc(&amp;lt;&amp;lt;&amp;quot;THIS&amp;quot;, 23, &amp;lt;&amp;lt;'THAT');
+    Here's a line
+    or two.
+    THIS
+    and here's another.
+    THAT
+&lt;/PRE&gt;
+&lt;P&gt;
+Just don't forget that you have to put a semicolon on the end to finish the
+statement, as Perl doesn't know you're not going to try to do this:
+
+&lt;P&gt;
+&lt;PRE&gt;        print &amp;lt;&amp;lt;ABC
+    179231
+    ABC
+        + 20;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;List_value_constructors&quot;&gt;List value constructors&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+List values are denoted by separating individual values by commas (and
+enclosing the list in parentheses where precedence requires it):
+
+&lt;P&gt;
+&lt;PRE&gt;    (LIST)
+&lt;/PRE&gt;
+&lt;P&gt;
+In a context not requiring a list value, the value of the list literal is the value of the final element, as with the 
+&lt;FONT SIZE=-1&gt;C&lt;/FONT&gt; comma operator. For example,
+
+&lt;P&gt;
+&lt;PRE&gt;    @foo = ('cc', '-E', $bar);
+&lt;/PRE&gt;
+&lt;P&gt;
+assigns the entire list value to array foo, but
+
+&lt;P&gt;
+&lt;PRE&gt;    $foo = ('cc', '-E', $bar);
+&lt;/PRE&gt;
+&lt;P&gt;
+assigns the value of variable bar to variable foo. Note that the value of
+an actual array in a scalar context is the length of the array; the
+following assigns the value 3 to $foo:
+
+&lt;P&gt;
+&lt;PRE&gt;    @foo = ('cc', '-E', $bar);
+    $foo = @foo;                # $foo gets 3
+&lt;/PRE&gt;
+&lt;P&gt;
+You may have an optional comma before the closing parenthesis of a list
+literal, so that you can say:
+
+&lt;P&gt;
+&lt;PRE&gt;    @foo = (
+        1,
+        2,
+        3,
+    );
+&lt;/PRE&gt;
+&lt;P&gt;
+LISTs do automatic interpolation of sublists. That is, when a 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; is evaluated, each element of the list is evaluated in a list context, and the resulting list value is interpolated into 
+&lt;FONT SIZE=-1&gt;LIST&lt;/FONT&gt; just as if each individual element were a member of 
+&lt;FONT SIZE=-1&gt;LIST.&lt;/FONT&gt; Thus arrays and hashes lose their identity in a LIST--the list
+
+&lt;P&gt;
+&lt;PRE&gt;    (@foo,@bar,&amp;amp;SomeSub,%glarch)
+&lt;/PRE&gt;
+&lt;P&gt;
+contains all the elements of &lt;CODE&gt;@foo&lt;/CODE&gt; followed by all the elements
+of @bar, followed by all the elements returned by the subroutine named
+SomeSub called in a list context, followed by the key/value pairs of
+%glarch. To make a list reference that does &lt;EM&gt;NOT&lt;/EM&gt; interpolate, see [perlman:perlref|the perlref manpage].
+
+&lt;P&gt;
+The null list is represented by (). Interpolating it in a list has no
+effect. Thus ((),(),()) is equivalent to (). Similarly, interpolating an
+array with no elements is the same as if no array had been interpolated at
+that point.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; list value may also be subscripted like a normal
+array. You must put the list in parentheses to avoid ambiguity. For
+example:
+
+&lt;P&gt;
+&lt;PRE&gt;    # Stat returns list value.
+    $time = (stat($file))&amp;#091;8&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # SYNTAX ERROR HERE.
+    $time = stat($file)&amp;#091;8&amp;#093;;  # OOPS, FORGOT PARENTHESES
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # Find a hex digit.
+    $hexdigit = ('a','b','c','d','e','f')&amp;#091;$digit-10&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    # A &amp;quot;reverse comma operator&amp;quot;.
+    return (pop(@foo),pop(@foo))&amp;#091;0&amp;#093;;
+&lt;/PRE&gt;
+&lt;P&gt;
+You may assign to [perlfunc:undef|undef] in a list. This is useful for throwing away some of the return values of a
+function:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($dev, $ino, undef, undef, $uid, $gid) = stat($file);
+&lt;/PRE&gt;
+&lt;P&gt;
+Lists may be assigned to if and only if each element of the list is legal
+to assign to:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($a, $b, $c) = (1, 2, 3);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    ($map{'red'}, $map{'blue'}, $map{'green'}) = (0x00f, 0x0f0, 0xf00);
+&lt;/PRE&gt;
+&lt;P&gt;
+Array assignment in a scalar context returns the number of elements
+produced by the expression on the right side of the assignment:
+
+&lt;P&gt;
+&lt;PRE&gt;    $x = (($foo,$bar) = (3,2,1));       # set $x to 3, not 2
+    $x = (($foo,$bar) = f());           # set $x to f()'s return count
+&lt;/PRE&gt;
+&lt;P&gt;
+This is very handy when you want to do a list assignment in a Boolean context, because most list functions return a null list when finished, which when assigned produces a 0, which is interpreted as 
+&lt;FONT SIZE=-1&gt;FALSE.&lt;/FONT&gt;
+
+&lt;P&gt;
+The final element may be an array or a hash:
+
+&lt;P&gt;
+&lt;PRE&gt;    ($a, $b, @rest) = split;
+    my($a, $b, %rest) = @_;
+&lt;/PRE&gt;
+&lt;P&gt;
+You can actually put an array or hash anywhere in the list, but the first one in the list will soak up all the values, and anything after it will get a null value. This may be useful in a 
+&lt;CODE&gt;local()&lt;/CODE&gt; or 
+&lt;CODE&gt;my().&lt;/CODE&gt;
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; hash literal contains pairs of values to be
+interpreted as a key and a value:
+
+&lt;P&gt;
+&lt;PRE&gt;    # same as map assignment above
+    %map = ('red',0x00f,'blue',0x0f0,'green',0xf00);
+&lt;/PRE&gt;
+&lt;P&gt;
+While literal lists and named arrays are usually interchangeable, that's
+not the case for hashes. Just because you can subscript a list value like a
+normal array does not mean that you can subscript a list value as a hash.
+Likewise, hashes included as parts of other lists (including parameters
+lists and return lists from functions) always flatten out into key/value
+pairs. That's why it's good to use references sometimes.
+
+&lt;P&gt;
+It is often more readable to use the &lt;CODE&gt;=&amp;gt;&lt;/CODE&gt; operator between key/value pairs. The &lt;CODE&gt;=&amp;gt;&lt;/CODE&gt; operator is mostly just a more visually distinctive synonym for a comma,
+but it also arranges for its left-hand operand to be interpreted as a
+string--if it's a bareword that would be a legal identifier. This makes it
+nice for initializing hashes:
+
+&lt;P&gt;
+&lt;PRE&gt;    %map = (
+                 red   =&amp;gt; 0x00f,
+                 blue  =&amp;gt; 0x0f0,
+                 green =&amp;gt; 0xf00,
+   );
+&lt;/PRE&gt;
+&lt;P&gt;
+or for initializing hash references to be used as records:
+
+&lt;P&gt;
+&lt;PRE&gt;    $rec = {
+                witch =&amp;gt; 'Mable the Merciless',
+                cat   =&amp;gt; 'Fluffy the Ferocious',
+                date  =&amp;gt; '10/31/1776',
+    };
+&lt;/PRE&gt;
+&lt;P&gt;
+or for using call-by-named-parameter to complicated functions:
+
+&lt;P&gt;
+&lt;PRE&gt;   $field = $query-&amp;gt;radio_group(
+               name      =&amp;gt; 'group_name',
+               values    =&amp;gt; &amp;#091;'eenie','meenie','minie'&amp;#093;,
+               default   =&amp;gt; 'meenie',
+               linebreak =&amp;gt; 'true',
+               labels    =&amp;gt; \%labels
+   );
+&lt;/PRE&gt;
+&lt;P&gt;
+Note that just because a hash is initialized in that order doesn't mean
+that it comes out in that order. See [perlfunc:sort|sort] for examples of how to arrange for an output ordering.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Typeglobs_and_Filehandles&quot;&gt;Typeglobs and Filehandles&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+Perl uses an internal type called a &lt;EM&gt;typeglob&lt;/EM&gt; to hold an entire symbol table entry. The type prefix of a typeglob is a &lt;CODE&gt;*&lt;/CODE&gt;, because it represents all types. This used to be the preferred way to
+pass arrays and hashes by reference into a function, but now that we have
+real references, this is seldom needed.  
+
+&lt;P&gt;
+The main use of typeglobs in modern Perl is create symbol table aliases.
+This assignment:
+
+&lt;P&gt;
+&lt;PRE&gt;    *this = *that;
+&lt;/PRE&gt;
+&lt;P&gt;
+makes &lt;CODE&gt;$this&lt;/CODE&gt; an alias for $that, &lt;CODE&gt;@this&lt;/CODE&gt; an alias
+for @that, &lt;CODE&gt;%this&lt;/CODE&gt; an alias for %that, &lt;CODE&gt;&amp;amp;this&lt;/CODE&gt; an
+alias for &amp;amp;that, etc. Much safer is to use a reference. This:
+
+&lt;P&gt;
+&lt;PRE&gt;    local *Here::blue = \$There::green;
+&lt;/PRE&gt;
+&lt;P&gt;
+temporarily makes $Here::blue an alias for $There::green, but doesn't make
+@Here::blue an alias for @There::green, or %Here::blue an alias for
+%There::green, etc. See [perlman:perlmod] for more examples of this. Strange though this may seem, this is the basis
+for the whole module import/export system.
+
+&lt;P&gt;
+Another use for typeglobs is to to pass filehandles into a function or to
+create new filehandles. If you need to use a typeglob to save away a
+filehandle, do it this way:
+
+&lt;P&gt;
+&lt;PRE&gt;    $fh = *STDOUT;
+&lt;/PRE&gt;
+&lt;P&gt;
+or perhaps as a real reference, like this:
+
+&lt;P&gt;
+&lt;PRE&gt;    $fh = \*STDOUT;
+&lt;/PRE&gt;
+&lt;P&gt;
+See [perlman:perlsub|the perlsub manpage] for examples of using these as indirect filehandles in functions.
+
+&lt;P&gt;
+Typeglobs are also a way to create a local filehandle using the 
+&lt;CODE&gt;local()&lt;/CODE&gt; operator. These last
+until their block is exited, but may be passed back. For example:
+
+&lt;P&gt;
+&lt;PRE&gt;    sub newopen {
+        my $path = shift;
+        local *FH;  # not my!
+        open   (FH, $path)          or  return undef;
+        return *FH;
+    }
+    $fh = newopen('/etc/passwd');
+&lt;/PRE&gt;
+&lt;P&gt;
+Now that we have the *foo{THING} notation, typeglobs aren't used as much for filehandle manipulations, although they're still needed to pass brand new file and directory handles into or out of functions. That's because 
+&lt;FONT SIZE=-1&gt;*HANDLE{IO}&lt;/FONT&gt; only works if 
+&lt;FONT SIZE=-1&gt;HANDLE&lt;/FONT&gt; has already been used as a handle. In other words, &lt;CODE&gt;*FH&lt;/CODE&gt; can be used to create new symbol table entries, but *foo{THING} cannot.
+
+&lt;P&gt;
+Another way to create anonymous filehandles is with the IO::Handle module and its ilk. These modules have the advantage of not hiding different types of the same name during the 
+&lt;CODE&gt;local().&lt;/CODE&gt; See the bottom of
+
+[perlfunc:open|open()] for an example.
+
+&lt;P&gt;
+See [perlman:perlref|the perlref manpage], [perlman:perlsub|the perlsub manpage], and [perlman:perlmod] for more discussion on typeglobs and the *foo{THING} syntax.
+&lt;HR&gt;
+&lt;BR&gt;Return to the [Library]&lt;BR&gt;</doctext>
+  <type_nodetype>116</type_nodetype>
+  <node_id>397</node_id>
+  <author_user>114</author_user>
+  <title>perlman:perldata</title>
+  <createtime>1999-08-25 02:37:40</createtime>
+  <nodeupdated>2005-08-15 10:08:26</nodeupdated>
+</node>

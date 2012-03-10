@@ -1,0 +1,128 @@
+<node>
+  <doctext>[cpan://ModPerl::Registry] is the mod_perl2 version of [cpan://Apache::Registry]. This is not intended to be a complete &lt;a href=&quot;http://perl.apache.org/docs/2.0/user/index.html&quot;&gt;mod_perl 
+tutorial&lt;/a&gt;, but is more of a recipe that shows how to get a simple mod_perl2 script up and running on a server that meets the following conditions:&lt;p&gt;
+
+&lt;ol&gt;
+&lt;li&gt;The system has &lt;a href=&quot;http://perl.apache.org/docs/2.0/index.html&quot;&gt;mod_perl2&lt;/a&gt; installed and already configured in the httpd.conf file.&lt;/li&gt;
+&lt;li&gt;You do not have write access to httpd.conf, and might not even be able to convine the admins to make changes for you.&lt;/li&gt;
+&lt;li&gt;You do not have write access to the main perl or cgi-perl directory configured as the httpd server's directory for mod_perl scripts.&lt;/li&gt;
+&lt;li&gt;The system is configured to give you the ability to use an .htaccess file in your web document directory (i.e., ~/public_html) to change your own configuration.&lt;/li&gt;
+&lt;/ol&gt;
+
+(Why would anyone use a hosting account without httpd.conf write access? Cost. For $10/month, the hosting company I use does provide mod_perl2, but does not provide support for it. This recipe shows how to get started on such an account.)&lt;p&gt;
+
+&lt;readmore&gt;
+
+For the pedantic, a more technically correct title for this node might be &quot;Using ModPerl::Registry when you don't have an account that has or are not in a group that has write access to httpd.conf, and can't convince the sysadmin to edit it, and can't change hosts, and...&quot; but I think &quot;Using ModPerl::Registry without root&quot;, while less accurate, is a snappier title.&lt;p&gt;
+
+This has been tested with mod_perl 1.99_09. YMMV.&lt;p&gt;
+
+First, check the httpd.conf setup. The file is often in a directory like /usr/local/apache/conf. It should contain something like this:&lt;p&gt;
+
+&lt;code&gt;
+LoadModule perl_module modules/mod_perl.so
+# ...
+&lt;IfModule mod_perl.c&gt;
+  &lt;Location /perl&gt;
+    #AllowOverride None
+    SetHandler perl-script
+    PerlHandler ModPerl::Registry
+    Options ExecCGI
+    allow from all
+    PerlSendHeader On
+  &lt;/Location&gt;
+  # the next part is not required for this recipe to work
+  &lt;Location /cgi-perl&gt;
+    #AllowOverride None
+    SetHandler perl-script
+    PerlHandler ModPerl::PerlRun
+    Options ExecCGI
+    allow from all
+    PerlOptions +ParseHeaders
+  &lt;/Location&gt;
+&lt;/IfModule&gt;
+&lt;/code&gt;
+
+Then you need three more files:&lt;p&gt;
+
+1. ~/public_html/.htaccess, containing these lines:&lt;p&gt;
+
+&lt;code&gt;
+&lt;FilesMatch &quot;modperl-test.pl&quot;&gt;
+	SetHandler  perl-script
+	PerlResponseHandler ModPerl::Registry
+	Options +ExecCGI
+	PerlSendHeader on
+&lt;/FilesMatch&gt;
+&lt;/code&gt;
+
+2. ~/public_html/TestModPerl.pm, containing this:&lt;p&gt;
+
+(The following example is adapted from the example in Stas Bekman's tutorial [google://&quot;Getting Started With mod_perl&quot;].)&lt;p&gt;
+
+&lt;code&gt;
+package TestModPerl;
+
+my $total = 0;
+my $counter = 0;
+
+sub run {
+    $counter = 0;
+    for (1 .. 5) {
+	increment_counter();
+    }
+}
+
+sub increment_counter {
+    $counter++;
+    print &quot;Counter is equal to $counter!&lt;br&gt;\n&quot;;
+}
+
+sub total {
+    $total++;
+    print &quot;This has run $total times.&lt;br&gt;\n&quot;;
+}
+
+1;
+__END__
+# apparently in mod_perl2 having __END__ is OK.
+&lt;/code&gt;
+
+
+3. ~/public_html/modperl-test.pl, containing this:
+
+&lt;code&gt;
+#!/usr/bin/perl
+
+BEGIN { push @INC, &quot;/home/YOURACCOUNTNAMEHERE/public_html&quot;; }
+
+use strict;
+use TestModPerl;
+
+print &quot;Content-type: text/html\n\n&quot;;
+TestModPerl::run();
+TestModPerl::total();
+&lt;/code&gt;
+
+Now access the URL for your script to see the result:&lt;p&gt;
+
+http://www.yourdomain.org/modperl-test.pl&lt;p&gt;
+
+If things are working as intended, you will see the count go from one to five with each invocation (as you hit refresh) and you will see the total climb incrementally across invocations. So after three invocations it will look like this:&lt;p&gt;
+
+Counter is equal to 1!&lt;br&gt;
+Counter is equal to 2!&lt;br&gt;
+Counter is equal to 3!&lt;br&gt;
+Counter is equal to 4!&lt;br&gt;
+Counter is equal to 5!&lt;br&gt;
+This has run 3 times.&lt;p&gt;
+
+&lt;/readmore&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>355625</node_id>
+  <author_user>353690</author_user>
+  <title>Using ModPerl::Registry without root</title>
+  <createtime>2004-05-22 17:26:55</createtime>
+  <nodeupdated>2005-08-12 08:27:23</nodeupdated>
+</node>

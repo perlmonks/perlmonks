@@ -1,0 +1,874 @@
+<node>
+  <doctext>For me, a few snippets can explain more than hours of reading dry perldocs. Even the simple examples, like the scribble.pl example ( which I borrow from), leave you scratching your head on how to use it and save it.&lt;p&gt;
+In this tutorial, I will try to explain some points on how to
+draw and save with Gtk2.  Usually, I would say, &quot;go with a Canvas&quot;, but in Gtk2, the Canvas development is frozen, and it is limited, like &quot;no dashed lines&quot;. &lt;p&gt;Gtk2 has the Drawable object ( see perldoc Gtk2::Gdk::Drawable).  All visible areas in any Gtk2 app are drawable, by finding it's Gtk2::Gdk::Window ( see it's perldoc), and usually the drawable area is as easy to get as $widget-&gt;window. The problem with these drawable areas, is that they are not persistent. if you remove them from screen view, they dissappear. So you can draw anything to any area, but it won't persist.&lt;p&gt;The way to get around it, is to make a DrawingArea, and put a backing pixmap on it. There are 3 scripts below. &lt;p&gt;The first, is just a drawing area, with no pixmap background, and it demonstrates the problem. Any scrolling or minimize-restore cycle, will destroy
+the graphics.
+&lt;readmore&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+use warnings;
+use strict;
+use Glib qw/TRUE FALSE/;
+use Gtk2 -init;
+
+# the basic drawing area. It's failing is that
+# it is emphemeral... it disappears if scrolled
+# out of view, or is obscured then re-exposed,
+# as in a minimize - restore window manager event.
+
+# It is simple, and useful for simple non-scrolled 
+# drawings.
+
+# gtk2 pixmaps (on linux ?) have a current limit 
+# of short unsigned INT , highest pixels is 
+# 32767 is (8bit int max) -1     
+
+# xsize exagerated for demonstration puposes
+my $xsize = 2400; # maxsize = 32767
+my $ysize = 100;
+my $area;
+ 
+my %allocated_colors;
+my ($x0,$y0,$x1,$y1,$width,) = (0,0,0,0);
+
+# Create the window
+my $window = new Gtk2::Window ( &quot;toplevel&quot; );
+$window-&gt;signal_connect (&quot;delete_event&quot;, sub { Gtk2-&gt;main_quit; });
+$window-&gt;set_border_width (10);
+$window-&gt;set_size_request(640,480);
+$window-&gt;set_position('center');
+
+my $vbox = Gtk2::VBox-&gt;new( 0, 0 );
+$window-&gt;add($vbox);
+$vbox-&gt;set_border_width(2);
+
+my $hbox = Gtk2::HBox-&gt;new( 0, 0 );
+$vbox-&gt;pack_start($hbox,1,1,0);
+$hbox-&gt;set_size_request(320,240);
+$hbox-&gt;set_border_width(2);
+
+my $hbox1 = Gtk2::HBox-&gt;new( 0, 0 );
+$vbox-&gt;pack_start($hbox1,0,0,0);
+$hbox1-&gt;set_border_width(2);
+
+my $button1 = Gtk2::Button-&gt;new('Draw');
+$hbox1-&gt;pack_start( $button1, FALSE, FALSE, 2);
+$button1-&gt;signal_connect( clicked =&gt; sub{ start_drawing($area) }  );
+
+my $button2 = Gtk2::Button-&gt;new('Quit');
+$hbox1-&gt;pack_start( $button2, FALSE, FALSE, 2);
+$button2-&gt;signal_connect( clicked =&gt; sub{ exit; });
+
+my $button3 = Gtk2::Button-&gt;new('Save');
+$hbox1-&gt;pack_start( $button3, FALSE, FALSE, 2);
+$button3-&gt;signal_connect( clicked =&gt; \&amp;save_it);
+
+
+my $scwin = Gtk2::ScrolledWindow-&gt;new();
+my $ha1  = $scwin-&gt;get_hadjustment;
+$scwin-&gt;set_policy('always','never');
+
+# you would think we could add the DrawingArea directing
+# to the scrolled window, so we need a viewport
+# typical warning
+# Gtk-WARNING **: gtk_scrolled_window_add(): cannot add non 
+# scrollable widget use gtk_scrolled_window_add_with_viewport() 
+# we create a viewport, so we can identify it by name $vp
+
+my $vp = Gtk2::Viewport-&gt;new (undef,undef);
+$scwin-&gt;add($vp);
+$hbox-&gt;pack_start($scwin,1,1,0);
+
+# Create the drawing area.
+$area = new Gtk2::DrawingArea;
+$area-&gt;size ($xsize, $ysize);
+$vp-&gt;add($area);
+
+$area-&gt;set_events ([qw/exposure-mask
+         	       leave-notify-mask
+		       button-press-mask
+		       pointer-motion-mask
+		       pointer-motion-hint-mask/]);
+
+$area-&gt;signal_connect (button_press_event =&gt; \&amp;button_press_event);
+
+$window-&gt;show_all;
+
+Gtk2-&gt;main;
+###########################################
+sub get_color {
+    my ($colormap, $name) = @_;
+    my $ret;
+
+    if ($ret = $allocated_colors{$name}) {
+        return $ret;
+    }
+
+    my $color = Gtk2::Gdk::Color-&gt;parse($name);
+    $colormap-&gt;alloc_color($color,TRUE,TRUE);
+
+    $allocated_colors{$name} = $color;
+
+    return $color;
+}
+##########################################
+
+sub draw_line {
+    my($widget,$line,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;window-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget-&gt;window;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;window-&gt;draw_line($gc, @$line);
+}
+
+############################################
+
+sub draw_rect {
+    my($widget,$coords,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;window-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget-&gt;window;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;window-&gt;draw_rectangle($gc,1, @$coords);
+}
+
+#######################################
+sub draw_poly {
+    my($widget,$points,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;window-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget-&gt;window;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;window-&gt;draw_polygon($gc,1, @$points);
+}
+
+##########################################
+# Draw a line in the expose callback
+sub start_drawing {
+        my $area = shift;
+	
+        &amp;draw_line($area, [200,30, 30,100], 'blue');
+        &amp;draw_poly($area, [10,10,20,20,10,30],'green');
+        &amp;draw_rect($area, [100,100,100,130],'pink');         
+        &amp;draw_ptext($area);
+}
+###########################################
+sub draw_ptext{ 
+
+  my($widget) = @_;
+  # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+  my $drawable = $widget-&gt;window;
+
+ my $gc =  new Gtk2::Gdk::GC ($drawable);
+ my $pango_layout = $area-&gt;create_pango_layout(&quot;&quot;);
+ my $font_desc = Gtk2::Pango::FontDescription-&gt;from_string(&quot;Arial Bold 14&quot;);                          
+ $pango_layout-&gt;set_font_description($font_desc);        
+ $pango_layout-&gt;set_markup (&quot;&lt;span foreground=\&quot;yellow1\&quot; 
+   size=\&quot;40000\&quot;&gt;Label with&lt;/span&gt;&lt;s&gt;&lt;big&gt; Tango &lt;/big&gt;&lt;/s&gt; Pango
+   &lt;span background = 'black' foreground= 'green' size ='30000'&gt;&lt;i&gt;markup&lt;/i&gt;&lt;/span&gt;&quot;);
+
+    $drawable-&gt;draw_layout($gc,200,100, $pango_layout);
+
+    my $ts = time;
+    $pango_layout-&gt;set_markup(&quot;&lt;span background = '#000000' foreground = '#FF0000' 
+    size = '20000' weight ='heavy'&gt;Exact time:\n&lt;/span&gt;&lt;span background = '#000000' 
+    foreground= '#00FF00' size='30000' weight = 'ultralight'&gt;&lt;i&gt;&lt;u&gt;$ts&lt;/u&gt;&lt;/i&gt;&lt;/span&gt;&quot;);
+    $drawable-&gt;draw_layout($gc,200,200, $pango_layout);
+
+    $ts = time;
+
+    $pango_layout-&gt;set_markup(&quot;&lt;span  foreground = '#FF0000' size = '20000' 
+    weight ='heavy'&gt;Exact time:\n&lt;/span&gt;&lt;span  foreground= '#00FF00' size='30000' weight = 'ultralight'&gt;&lt;i&gt;&lt;u&gt;$ts&lt;/u&gt;&lt;/i&gt;&lt;/span&gt;&quot;);
+    $drawable-&gt;draw_layout($gc,300,300, $pango_layout);
+#    $area-&gt;queue_draw;                                                      
+}
+#############################################
+sub button_press_event {
+  my $widget = shift;	# GtkWidget      *widget
+  my $event = shift;	# GdkEventButton *event
+
+  if ($event-&gt;button == 1) {
+        print join ' ', $event-&gt;coords,&quot;\n&quot;;
+  }
+  return TRUE;
+}
+########################################
+sub save_it{
+
+my ($width, $height) = $vp-&gt;window-&gt;get_size();
+
+print &quot;$width $height\n&quot;;
+
+# create blank pixbuf to hold the whole viewable area
+ my $lpixbuf = Gtk2::Gdk::Pixbuf-&gt;new ('rgb',
+                    0,
+                    8,
+                    $width,
+                    $height);
+
+
+ $lpixbuf-&gt;get_from_drawable ($vp-&gt;window, 
+             undef, 0, 0, 0, 0, $width, $height);
+
+ #only jpeg and png is supported !!!! it's 'jpeg', not 'jpg'
+ $lpixbuf-&gt;save (&quot;$0-area.jpg&quot;, 'jpeg', quality =&gt; 100);
+
+return FALSE;
+}
+
+########################################
+&lt;/code&gt;
+&lt;/readmore&gt;
+
+&lt;p&gt;The second script, adds a static pixmap background. It is persistent, but watch what happens when you resize the mainwindow.
+&lt;readmore&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+use warnings;
+use strict;
+use Glib qw/TRUE FALSE/;
+use Gtk2 -init;
+
+# this improvement adds a static pixmap backing
+# to the DrawingArea, but notice what happens when
+# you resize the mainwindow or/then save the jpg.
+
+# gtk2 pixmaps (on linux ?) have a current limit 
+# of short unsigned INT , highest pixels is 
+# 32767 is (8bit int max) -1     
+my $xsize = 2400; # maxsize = 32767
+my $ysize = 100;
+
+my $pixmap     = undef;
+my $gc         = undef;
+my $colormap   = undef;
+ 
+my %allocated_colors;
+my ($x0,$y0,$x1,$y1,$width,) = (0,0,0,0);
+
+# Create the window
+my $window = new Gtk2::Window ( &quot;toplevel&quot; );
+$window-&gt;signal_connect (&quot;delete_event&quot;, sub { Gtk2-&gt;main_quit; });
+$window-&gt;set_border_width (10);
+$window-&gt;set_size_request(640,480);
+$window-&gt;set_position('center');
+
+my $vbox = Gtk2::VBox-&gt;new( 0, 0 );
+$window-&gt;add($vbox);
+$vbox-&gt;set_border_width(2);
+
+my $hbox = Gtk2::HBox-&gt;new( 0, 0 );
+$vbox-&gt;pack_start($hbox,1,1,0);
+$hbox-&gt;set_size_request(320,240);
+$hbox-&gt;set_border_width(2);
+
+my $hbox1 = Gtk2::HBox-&gt;new( 0, 0 );
+$vbox-&gt;pack_start($hbox1,0,0,0);
+$hbox1-&gt;set_border_width(2);
+
+my $button1 = Gtk2::Button-&gt;new('Draw');
+$hbox1-&gt;pack_start( $button1, FALSE, FALSE, 2);
+$button1-&gt;signal_connect( clicked =&gt; sub{ start_drawing($pixmap) });
+
+my $button2 = Gtk2::Button-&gt;new('Quit');
+$hbox1-&gt;pack_start( $button2, FALSE, FALSE, 2);
+$button2-&gt;signal_connect( clicked =&gt; sub{ exit; });
+
+my $button3 = Gtk2::Button-&gt;new('Save Viewable');
+$hbox1-&gt;pack_start( $button3, FALSE, FALSE, 2);
+$button3-&gt;signal_connect( clicked =&gt; \&amp;save_it);
+
+my $button4 = Gtk2::Button-&gt;new('Save All');
+$hbox1-&gt;pack_start( $button4, FALSE, FALSE, 2);
+$button4-&gt;signal_connect( clicked =&gt; \&amp;save_all);
+
+my $scwin = Gtk2::ScrolledWindow-&gt;new();
+my $ha1  = $scwin-&gt;get_hadjustment;
+$scwin-&gt;set_policy('always','never');
+
+# you would think we could add the DrawingArea directing
+# to the scrolled window, so we need a viewport
+# typical warning
+# Gtk-WARNING **: gtk_scrolled_window_add(): cannot add non 
+# scrollable widget use gtk_scrolled_window_add_with_viewport() 
+# we create a viewport
+
+my $vp = Gtk2::Viewport-&gt;new (undef,undef);
+$scwin-&gt;add($vp);
+$hbox-&gt;pack_start($scwin,1,1,0);
+
+# Create the drawing area.
+my $area = new Gtk2::DrawingArea; #don't confuse with Gtk2::Drawable
+$area-&gt;size ($xsize, $ysize);
+$vp-&gt;add($area);
+
+$area-&gt;set_events ([qw/exposure-mask
+         	       leave-notify-mask
+		       button-press-mask
+		       pointer-motion-mask
+		       pointer-motion-hint-mask/]);
+
+$area-&gt;signal_connect (button_press_event =&gt; \&amp;button_press_event);
+# Signals used to handle backing pixmap
+
+$window-&gt;show_all;
+
+# must be done after $window is visible
+# manually add the pixmap as a 1 time addition
+# notice what happens when you resize the mainwindow
+  $pixmap = Gtk2::Gdk::Pixmap-&gt;new(
+      $area-&gt;window,
+      $area-&gt;allocation-&gt;width,
+      $area-&gt;allocation-&gt;height, -1
+   );
+
+   $pixmap-&gt;draw_rectangle(
+      $area-&gt;style-&gt;white_gc,    # or black_gc
+      TRUE,
+      0, 0,
+      $area-&gt;allocation-&gt;width,
+      $area-&gt;allocation-&gt;height
+   );
+
+   $gc = Gtk2::Gdk::GC-&gt;new( $pixmap );
+   $colormap = $pixmap-&gt;get_colormap;
+
+# set a default foreground
+   $gc-&gt;set_foreground( get_color( $colormap, 'red' ) );
+
+  $area-&gt;window-&gt;set_back_pixmap ($pixmap,0);
+
+Gtk2-&gt;main;
+#############################################
+sub get_color {
+    my ($colormap, $name) = @_;
+    my $ret;
+
+    if ($ret = $allocated_colors{$name}) {
+        return $ret;
+    }
+
+    my $color = Gtk2::Gdk::Color-&gt;parse($name);
+    $colormap-&gt;alloc_color($color,TRUE,TRUE);
+
+    $allocated_colors{$name} = $color;
+
+    return $color;
+}
+########################################
+
+sub draw_line {
+    my($widget,$line,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;draw_line($gc, @$line);
+}
+
+##########################################
+
+sub draw_rect {
+    my($widget,$coords,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;draw_rectangle($gc,1, @$coords);
+}
+
+#########################################
+sub draw_poly {
+    my($widget,$points,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;draw_polygon($gc,1, @$points);
+}
+
+##########################################
+# Draw a line in the expose callback
+sub start_drawing {
+        my $pixmap = shift;
+	
+        &amp;draw_line($pixmap, [200,30, 30,100], 'blue');
+        &amp;draw_poly($pixmap, [10,10,20,20,10,30],'green');
+        &amp;draw_rect($pixmap, [100,100,100,130],'pink');         
+        &amp;draw_ptext($pixmap);
+
+#without this line the screen won't be updated until a screen action
+    $area-&gt;queue_draw;                                                      
+}
+#########################################
+sub draw_ptext{ 
+
+  my($widget) = @_;
+  # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+  my $drawable = $widget;
+
+ my $gc =  new Gtk2::Gdk::GC ($drawable);
+ my $pango_layout = $area-&gt;create_pango_layout(&quot;&quot;);
+ my $font_desc = Gtk2::Pango::FontDescription-&gt;from_string(&quot;Arial Bold 14&quot;);                          
+ $pango_layout-&gt;set_font_description($font_desc);        
+ $pango_layout-&gt;set_markup (&quot;&lt;span foreground=\&quot;yellow1\&quot; 
+   size=\&quot;40000\&quot;&gt;Label with&lt;/span&gt;&lt;s&gt;&lt;big&gt; Tango &lt;/big&gt;&lt;/s&gt; Pango
+   &lt;span background = 'black' foreground= 'green' size ='30000'&gt;&lt;i&gt;markup&lt;/i&gt;&lt;/span&gt;&quot;);
+
+    $drawable-&gt;draw_layout($gc,200,100, $pango_layout);
+
+    my $ts = time;
+    $pango_layout-&gt;set_markup(&quot;&lt;span background = '#000000' foreground = '#FF0000' 
+    size = '20000' weight ='heavy'&gt;Exact time:\n&lt;/span&gt;&lt;span background = '#000000' 
+    foreground= '#00FF00' size='30000' weight = 'ultralight'&gt;&lt;i&gt;&lt;u&gt;$ts&lt;/u&gt;&lt;/i&gt;&lt;/span&gt;&quot;);
+    $drawable-&gt;draw_layout($gc,200,200, $pango_layout);
+
+    $ts = time;
+
+    $pango_layout-&gt;set_markup(&quot;&lt;span  foreground = '#FF0000' size = '20000' 
+    weight ='heavy'&gt;Exact time:\n&lt;/span&gt;&lt;span  foreground= '#00FF00' size='30000' weight = 'ultralight'&gt;&lt;i&gt;&lt;u&gt;$ts&lt;/u&gt;&lt;/i&gt;&lt;/span&gt;&quot;);
+    $drawable-&gt;draw_layout($gc,300,300, $pango_layout);
+
+# test out of view writing
+    $drawable-&gt;draw_layout($gc,2000,300, $pango_layout);
+
+#    $area-&gt;queue_draw;                                                      
+
+}
+
+
+###########################################
+sub button_press_event {
+  my $widget = shift;	# GtkWidget      *widget
+  my $event = shift;	# GdkEventButton *event
+
+
+  if ($event-&gt;button == 1) {
+    #draw_brush ($widget, $event-&gt;coords);
+    print join ' ', $event-&gt;coords,&quot;\n&quot;;
+    
+  }
+  return TRUE;
+}
+###########################################
+sub save_it{
+
+my ($width, $height) = $vp-&gt;window-&gt;get_size();
+
+print &quot;$width $height\n&quot;;
+
+# create blank pixbuf to hold the whole viewable area
+ my $lpixbuf = Gtk2::Gdk::Pixbuf-&gt;new ('rgb',
+                    0,
+                    8,
+                    $width,
+                    $height);
+
+
+ $lpixbuf-&gt;get_from_drawable ($vp-&gt;window, 
+             undef, 0, 0, 0, 0, $width, $height);
+
+ #only jpeg and png is supported !!!! it's 'jpeg', not 'jpg'
+ $lpixbuf-&gt;save (&quot;$0-area.jpg&quot;, 'jpeg', quality =&gt; 100);
+
+return FALSE;
+}
+
+########################################
+sub save_all{
+
+my ($width, $height) = $pixmap-&gt;get_size();
+
+print &quot;$width $height\n&quot;;
+
+# create blank pixbuf to hold the whole pixmap
+ my $lpixbuf = Gtk2::Gdk::Pixbuf-&gt;new ('rgb',
+                    0,
+                    8,
+                    $width,
+                    $height);
+
+
+ $lpixbuf-&gt;get_from_drawable ($pixmap, 
+             undef, 0, 0, 0, 0, $width, $height);
+
+ #only jpeg and png is supported !!!! it's 'jpeg', not 'jpg'
+ $lpixbuf-&gt;save (&quot;$0-all.jpg&quot;, 'jpeg', quality =&gt; 100);
+
+return FALSE;
+}
+#####################################
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;The final script, shows the best way to do it. It adds a configure and expose event to the drawingarea, so that the pixmap can be resized automatically if you resize the mainwindow.  In this script, I freeze the mainwindow once before the drawing is done, so you can resize the mainwindow, before clicking the draw button. These configure and expose subs are taken from the scribble.pl demo script, and can be used as a general pupose template in any of your scripts that draw.
+&lt;readmore&gt;
+&lt;code&gt;
+#!/usr/bin/perl
+use warnings;
+use strict;
+use Glib qw/TRUE FALSE/;
+use Gtk2 -init;
+
+# this is what you probably want to use a a general
+# method. It uses a configure and expose event on
+# the drawing area, so that you can resize the mainwindow
+# and have the pixmap recreated and set again as a
+# background pixmap. However, this does erase what
+# was shown before the reconfigure, so before I do
+# any drawing, I make the main window non-resizeable
+# in the sub draw{}. This is useful if you want to
+# use the pixmap to draw a graph, which requires 
+# x-y scaling, or persistence of data.
+# Without a size freeze, you would need to save the
+# plotted data and replot it after a configure event,
+# according to the new scale.
+
+
+# gtk2 pixmaps (on linux ?) have a current limit 
+# of short unsigned INT , highest pixels is 
+# 32767 is (8bit int max) -1     
+my $xsize = 2400; # maxsize = 32767
+my $ysize = 100;
+my $xsizenew;
+my $ysizenew;
+
+my $pixmap     = undef;
+my $gc         = undef;
+my $colormap   = undef;
+ 
+my %allocated_colors;
+my ($x0,$y0,$x1,$y1,$width,) = (0,0,0,0);
+
+# Create the window
+my $window = new Gtk2::Window ( &quot;toplevel&quot; );
+$window-&gt;signal_connect (&quot;delete_event&quot;, sub { Gtk2-&gt;main_quit; });
+$window-&gt;set_border_width (10);
+$window-&gt;set_size_request(640,480);
+$window-&gt;set_position('center');
+
+my $vbox = Gtk2::VBox-&gt;new( 0, 0 );
+$window-&gt;add($vbox);
+$vbox-&gt;set_border_width(2);
+
+my $hbox = Gtk2::HBox-&gt;new( 0, 0 );
+$vbox-&gt;pack_start($hbox,1,1,0);
+$hbox-&gt;set_size_request(320,240);
+$hbox-&gt;set_border_width(2);
+
+my $hbox1 = Gtk2::HBox-&gt;new( 0, 0 );
+$vbox-&gt;pack_start($hbox1,0,0,0);
+$hbox1-&gt;set_border_width(2);
+
+my $button1 = Gtk2::Button-&gt;new('Draw');
+$hbox1-&gt;pack_start( $button1, FALSE, FALSE, 2);
+$button1-&gt;signal_connect( clicked =&gt; \&amp;draw);
+
+my $button2 = Gtk2::Button-&gt;new('Quit');
+$hbox1-&gt;pack_start( $button2, FALSE, FALSE, 2);
+$button2-&gt;signal_connect( clicked =&gt; sub{ exit; });
+
+my $button3 = Gtk2::Button-&gt;new('Save Viewable');
+$hbox1-&gt;pack_start( $button3, FALSE, FALSE, 2);
+$button3-&gt;signal_connect( clicked =&gt; \&amp;save_it);
+
+my $button4 = Gtk2::Button-&gt;new('Save All');
+$hbox1-&gt;pack_start( $button4, FALSE, FALSE, 2);
+$button4-&gt;signal_connect( clicked =&gt; \&amp;save_all);
+
+my $scwin = Gtk2::ScrolledWindow-&gt;new();
+my $ha1  = $scwin-&gt;get_hadjustment;
+$scwin-&gt;set_policy('always','never');
+
+# you would think we could add the DrawingArea directing
+# to the scrolled window, so we need a viewport
+# typical warning
+# Gtk-WARNING **: gtk_scrolled_window_add(): cannot add non 
+# scrollable widget use gtk_scrolled_window_add_with_viewport() 
+# we create a viewport
+
+my $vp = Gtk2::Viewport-&gt;new (undef,undef);
+$scwin-&gt;add($vp);
+$hbox-&gt;pack_start($scwin,1,1,0);
+
+# Create the drawing area.
+my $area = new Gtk2::DrawingArea; #don't confuse with Gtk2::Drawable
+$area-&gt;size ($xsize, $ysize);
+$vp-&gt;add($area);
+
+$area-&gt;set_events ([qw/exposure-mask
+         	       leave-notify-mask
+		       button-press-mask
+		       pointer-motion-mask
+		       pointer-motion-hint-mask/]);
+
+$area-&gt;signal_connect (button_press_event =&gt; \&amp;button_press_event);
+# Signals used to handle backing pixmap
+$area-&gt;signal_connect( expose_event    =&gt; \&amp;expose_event );
+$area-&gt;signal_connect( configure_event =&gt; \&amp;configure_event );
+
+
+$window-&gt;show_all;
+
+Gtk2-&gt;main;
+###########################################
+sub draw{
+ 
+# get current window size and freeze it, so x y scaling is constant
+# in the pixmap
+my (undef, undef, $width0, $height0, undef) = $window-&gt;window-&gt;get_geometry;
+$window-&gt;set_size_request($width0,$height0);
+$window-&gt;set_resizable(0);
+
+(undef, undef, $xsizenew, $ysizenew, undef) = $area-&gt;window-&gt;get_geometry;
+print &quot;$xsizenew  $ysizenew\n&quot;;
+
+start_drawing($pixmap); 
+}
+#######################################
+sub get_color {
+    my ($colormap, $name) = @_;
+    my $ret;
+
+    if ($ret = $allocated_colors{$name}) {
+        return $ret;
+    }
+
+    my $color = Gtk2::Gdk::Color-&gt;parse($name);
+    $colormap-&gt;alloc_color($color,TRUE,TRUE);
+
+    $allocated_colors{$name} = $color;
+
+    return $color;
+}
+########################################
+
+sub draw_line {
+    my($widget,$line,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;draw_line($gc, @$line);
+}
+
+#######################################
+
+sub draw_rect {
+    my($widget,$coords,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;draw_rectangle($gc,1, @$coords);
+}
+
+#######################################
+sub draw_poly {
+    my($widget,$points,$color) = @_;
+   # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+    my $colormap = $widget-&gt;get_colormap;
+
+    my $gc = $widget-&gt;{gc} || new Gtk2::Gdk::GC $widget;
+    $gc-&gt;set_foreground(get_color($colormap, $color));
+
+    $widget-&gt;draw_polygon($gc,1, @$points);
+}
+
+########################################
+# Draw a line in the expose callback
+sub start_drawing {
+        my $pixmap = shift;
+	
+        &amp;draw_line($pixmap, [200,30, 30,100], 'blue');
+        &amp;draw_line($pixmap, [0,200, 2400,300], 'pink');
+	&amp;draw_poly($pixmap, [10,10,20,20,10,30],'green');
+        &amp;draw_rect($pixmap, [100,100,100,130],'pink');         
+        &amp;draw_ptext($pixmap);
+
+#without this line the screen won't be updated until a screen action
+    $area-&gt;queue_draw;                                                      
+}
+######################################
+sub draw_ptext{ 
+
+  my($widget) = @_;
+  # see Gdk::Gdk::Window, Gtk2::Gdk::Drawable, Gtk2::Gdk::GC
+
+  my $drawable = $widget;
+
+ my $gc =  new Gtk2::Gdk::GC ($drawable);
+ my $pango_layout = $area-&gt;create_pango_layout(&quot;&quot;);
+ my $font_desc = Gtk2::Pango::FontDescription-&gt;from_string(&quot;Arial Bold 14&quot;);                          
+ $pango_layout-&gt;set_font_description($font_desc);        
+ $pango_layout-&gt;set_markup (&quot;&lt;span foreground=\&quot;yellow1\&quot; 
+   size=\&quot;40000\&quot;&gt;Label with&lt;/span&gt;&lt;s&gt;&lt;big&gt; Tango &lt;/big&gt;&lt;/s&gt; Pango
+   &lt;span background = 'black' foreground= 'green' size ='30000'&gt;&lt;i&gt;markup&lt;/i&gt;&lt;/span&gt;&quot;);
+
+    $drawable-&gt;draw_layout($gc,200,100, $pango_layout);
+
+    my $ts = time;
+    $pango_layout-&gt;set_markup(&quot;&lt;span background = '#000000' foreground = '#FF0000' 
+    size = '20000' weight ='heavy'&gt;Exact time:\n&lt;/span&gt;&lt;span background = '#000000' 
+    foreground= '#00FF00' size='30000' weight = 'ultralight'&gt;&lt;i&gt;&lt;u&gt;$ts&lt;/u&gt;&lt;/i&gt;&lt;/span&gt;&quot;);
+    $drawable-&gt;draw_layout($gc,200,200, $pango_layout);
+
+    $ts = time;
+
+    $pango_layout-&gt;set_markup(&quot;&lt;span  foreground = '#FF0000' size = '20000' 
+    weight ='heavy'&gt;Exact time:\n&lt;/span&gt;&lt;span  foreground= '#00FF00' size='30000' weight = 'ultralight'&gt;&lt;i&gt;&lt;u&gt;$ts&lt;/u&gt;&lt;/i&gt;&lt;/span&gt;&quot;);
+    $drawable-&gt;draw_layout($gc,300,300, $pango_layout);
+
+# test out of view writing
+    $drawable-&gt;draw_layout($gc,2000,300, $pango_layout);
+
+#    $area-&gt;queue_draw;                                                      
+}
+#######################################
+sub button_press_event {
+  my $widget = shift;	# GtkWidget      *widget
+  my $event = shift;	# GdkEventButton *event
+
+  if ($event-&gt;button == 1) {
+    print join ' ', $event-&gt;coords,&quot;\n&quot;;
+  }
+  return TRUE;
+}
+######################################
+sub save_it{
+
+my ($width, $height) = $vp-&gt;window-&gt;get_size();
+
+print &quot;$width $height\n&quot;;
+
+# create blank pixbuf to hold the whole viewable area
+ my $lpixbuf = Gtk2::Gdk::Pixbuf-&gt;new ('rgb',
+                    0,
+                    8,
+                    $width,
+                    $height);
+
+
+ $lpixbuf-&gt;get_from_drawable ($vp-&gt;window, 
+             undef, 0, 0, 0, 0, $width, $height);
+
+ #only jpeg and png is supported !!!! it's 'jpeg', not 'jpg'
+ $lpixbuf-&gt;save (&quot;$0-area.jpg&quot;, 'jpeg', quality =&gt; 100);
+
+return FALSE;
+}
+
+
+######################################
+sub save_all{
+
+my ($width, $height) = $pixmap-&gt;get_size();
+
+print &quot;$width $height\n&quot;;
+
+# create blank pixbuf to hold the whole pixmap
+ my $lpixbuf = Gtk2::Gdk::Pixbuf-&gt;new ('rgb',
+                    0,
+                    8,
+                    $width,
+                    $height);
+
+
+ $lpixbuf-&gt;get_from_drawable ($pixmap, 
+             undef, 0, 0, 0, 0, $width, $height);
+
+ #only jpeg and png is supported !!!! it's 'jpeg', not 'jpg'
+ $lpixbuf-&gt;save (&quot;$0-all.jpg&quot;, 'jpeg', quality =&gt; 100);
+
+return FALSE;
+}
+
+##########################################
+# Create a new backing pixmap of the appropriate size
+sub configure_event {
+   my $widget = shift;    # GtkWidget         *widget
+   my $event  = shift;    # GdkEventConfigure *event
+
+   $pixmap = Gtk2::Gdk::Pixmap-&gt;new(
+      $widget-&gt;window,
+      $widget-&gt;allocation-&gt;width,
+      $widget-&gt;allocation-&gt;height, -1
+   );
+
+   $pixmap-&gt;draw_rectangle(
+      $widget-&gt;style-&gt;white_gc,    # or black_gc
+      TRUE,
+      0, 0,
+      $widget-&gt;allocation-&gt;width,
+      $widget-&gt;allocation-&gt;height
+   );
+
+   $gc       = Gtk2::Gdk::GC-&gt;new( $pixmap );
+   $colormap = $pixmap-&gt;get_colormap;
+
+# set a default foreground
+   $gc-&gt;set_foreground( get_color( $colormap, 'red' ) );
+
+   return TRUE;
+}
+##########################################
+# Redraw the screen from the backing pixmap
+sub expose_event {
+   my $widget = shift;    # GtkWidget      *widget
+   my $event  = shift;    # GdkEventExpose *event
+
+   $widget-&gt;window-&gt;draw_drawable(
+      $widget-&gt;style-&gt;fg_gc( $widget-&gt;state ), $pixmap,
+      $event-&gt;area-&gt;x,                         $event-&gt;area-&gt;y,
+      $event-&gt;area-&gt;x,                         $event-&gt;area-&gt;y,
+      $event-&gt;area-&gt;width,                     $event-&gt;area-&gt;height
+   );
+
+   return FALSE;
+}
+
+##########################################
+&lt;/code&gt;
+&lt;/readmore&gt;
+&lt;p&gt;The neat thing about using a pixmap background, is that Gtk2::Gdk::Pixmap IS a drawable, and even though it is NOT entirely visible on the screen, it can be saved whole. In a related problem, see [id:// 582317] for a related technique for saving an entire scrolled canvas. It would be nice if the Gnome2::Canvas inherited from a Drawable object, so we could save the entire canvas in a single shot.
+&lt;p&gt;I hope that these 3 scripts, show you how easy it can be to draw with Gtk2. Dynamic graphs can be drawn with good efficiency, because for each new segment you draw, you are not creating a new line object, you are just throwing the paint on the pixmap, and letting the static pixmap store it. 
+
+
+
+
+
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>583578</node_id>
+  <author_user>131741</author_user>
+  <title>Drawing with Perl/Gtk2</title>
+  <createtime>2006-11-12 12:17:15</createtime>
+  <nodeupdated>2006-11-12 07:17:15</nodeupdated>
+</node>

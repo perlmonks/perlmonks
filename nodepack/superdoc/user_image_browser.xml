@@ -1,0 +1,50 @@
+<node>
+  <doctext>&lt;table&gt;[%
+  my $start  = $query-&gt;param('start') || 0;
+  my $length = 10;
+
+  my @all;
+  my $row = &lt;&lt;'END';
+  &lt;tr&gt;
+    &lt;td&gt;%s&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;&lt;img src=&quot;%s&quot; alt=&quot;user image&quot; /&gt;&lt;hr /&gt;&lt;/td&gt;
+  &lt;/tr&gt;
+END
+
+  my $sth = $DB-&gt;sqlSelectMany(
+    &quot;node_id,title&quot;,
+    &quot;node LEFT JOIN rawdata ON rawdata_id=node_id&quot;,
+    &quot;type_nodetype = &quot; . getId(getType('rawdata')),
+    &quot;ORDER BY lastedit DESC LIMIT $start, $length&quot;,
+  );
+  while(  my $img= $sth-&gt;fetchrow_hashref()  ) {
+    my $caption;
+    if(  $img-&gt;{title} !~ /^(.*)'s user image$/  ) {
+      $caption = q[&lt;a href=] . urlGen({ node_id=&gt;getId($img) })
+        . qq[&gt;] . $q-&gt;escapeHTML($img-&gt;{title}) . qq[&lt;/a&gt;];
+    } else {
+      $caption = q[&lt;a href=] . urlGen({ node=&gt;$1, type=&gt;'user' })
+        . qq[&gt;$1&lt;/a&gt;'s &lt;a href=]
+        . urlGen({ node_id=&gt;$img-&gt;{node_id} })
+        . qq[&gt;user image&lt;/a&gt;];
+    }
+    push @all, sprintf $row, $caption, urlGen({ node_id =&gt; getId($img) }, -1);
+  }
+
+  return join '', @all;
+  %]&lt;tr&gt;
+    &lt;td&gt;
+      [% linkNode( $NODE, &quot;Next 10&quot;,
+           { start =&gt; 10 + ($query-&gt;param('start') || 0) } ) %]
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>158166</node_id>
+  <author_user>106850</author_user>
+  <title>user image browser</title>
+  <createtime>2002-04-10 19:31:18</createtime>
+  <nodeupdated>2005-08-22 15:40:20</nodeupdated>
+</node>

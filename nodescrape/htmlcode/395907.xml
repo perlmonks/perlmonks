@@ -1,0 +1,1345 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="395907" title="handle_threaded_nodes" created="2004-10-02 13:38:58" updated="2005-08-06 05:13:58">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+###########################################################################
+###########################################################################
+
+use Everything::Experience;
+use Time::Local;
+use Time::Local qw(timegm timelocal);
+use POSIX ();
+
+return '' if $HTMLVARS{__NOP};
+
+my $basetime=time;
+
+=for myeditor
+sub MarkTime {}
+
+=cut
+
+# this is a routine for handling debugging.
+my $Do_MarkTime=isGod($USER) &amp;&amp; $q-&gt;param('debug_sandpit');
+my @mark_time_html;
+
+local *MarkTime=do {
+    my $stime=$basetime;
+    my $rtime=$basetime;
+    sub {
+        return unless $Do_MarkTime;
+        my $t=time;
+        my $total=$t-$stime;
+        my $running=$t-$rtime;
+        $rtime=$t;
+        push @mark_time_html,"&lt;li&gt;(r/t secs:$running/$total) @_&lt;/li&gt;"
+    }
+};
+$Do_MarkTime &amp;&amp; MarkTime('start');
+
+#===================================================================
+# Configuration happens here. Its currently a mess that needs to be
+# cleaned up. :-( demerphq
+#===================================================================
+
+my $ReaperId = $VARS-&gt;{showreaped} ? -1 : $HTMLVARS{NodeReaperID};
+
+
+my $as_of=$q-&gt;param('nnt-as-of');
+my $as_of_unix;
+my $as_of_string;
+if ($as_of=~/^(\d{4})-?(\d{2})-?(\d{2})(?: ?(\d{2})(?::?(\d{2})(?::?(\d{2}))?)?)?$/) {
+    my ($year,$mon,$mday,$hour,$min,$sec)=($1,$2,$3,$4||0,$5||0,$5||0);
+    $as_of_unix=timelocal($sec,$min,$hour,$mday,$mon-1,$year);
+} elsif ($as_of=~/^-(\d+)\s*D(ays)?$/i) {
+    $as_of_unix=$basetime-($1 * 86400);
+    $as_of_string="$1 Days Ago";
+} else {     
+    $as_of_unix=$basetime;
+    $as_of_string="Now!";
+}
+
+# fudge as_of_unix so if they go back then return they see the same thing even
+# though the time will be very slightly off.
+my $fudge=12*3600;
+$as_of_unix=$basetime
+    if $as_of_unix+$fudge&gt;=$basetime;
+$as_of=POSIX::strftime("'%Y-%m-%d %H:%M:%S'",localtime($as_of_unix));
+
+my @ages=([15*60,         'Steaming' ],
+          [30*60,         'Hot'      ],
+          [60*60,         'Fresh'    ],
+          [2*60*60,       'twohour'  ],
+          [4*60*60,       'fourhour' ],
+          [8*60*60,       'eighthour'],
+          [12*3600,       'Recent'   ],
+          [24*3600,       'oneday'   ],
+          [2*24*3600,     'twodays'  ],
+          [3*24*3600,     'threedays'],
+          [4*24*3600,     'fourdays' ],
+          [5*24*3600,     'fivedays' ],
+          [6*24*3600,     'sixdays'  ],
+          [7*24*3600,     'week'     ],
+
+          [30*24*3600,    'month'    ],
+          [60*24*3600,    'twomonths'],
+          [90*24*3600,    'quarteryear'  ],
+          [180*24*3600,   'halfyear' ],
+          [365*24*3600,   '-Year'     ],
+          [2*365*24*3600, '-TwoYear'],
+          [$basetime,     '-Old'],
+         );
+my (@age_time,@age_desc,@color_classes);
+
+for (@ages) {
+    push @age_time,$_-&gt;[0];
+    push @age_desc,$_-&gt;[1];
+    (my $nnt=$_-&gt;[1])=~s/^-//;
+    push @color_classes,"nnt-$nnt";
+}
+
+my $Color_Style=htmlcode('colorblend','',0+@ages,\my @colors,$THEME,\@color_classes,
+q[
+  .nnt-line-incidental .nnt-link { font-style: italic; }
+  a.nnt-Steaming,
+  a.nnt-Hot,
+  a.nnt-Fresh  { font-weight: bold; }
+]);
+$VARS-&gt;{__nnt_color_style}=$Color_Style;
+$Color_Style=$VARS-&gt;{nnt_color_style} if $VARS-&gt;{nnt_color_style};
+$Color_Style=qq[
+ &lt;style type="text/css"&gt;
+ $Color_Style
+ &lt;/style&gt;
+] unless $Color_Style=~m[&lt;style type="text/css"&gt;];
+$Color_Style.=qq[
+ &lt;style type="text/css"&gt;
+ p.nnt-p { display: inline; }
+ p.nnt-p-title { /* width: 70%; */   }
+ p.nnt-author  { /* width: 28%; */ }
+ .nnt-line-incidental .nnt-link { font-style: italic; }
+ tr.this-patch td { font-weight: bold; }
+ tr.other-patch td { font-style: italic; }
+ a.nnt-Steaming, a.nnt-Hot, a.nnt-Fresh { font-weight: bold; }
+ .nnt-noderep,.nnt-nodeattribs,.time-text { font-size: smaller; }
+ #nodethreads {  padding-right: 1em;  white-space:normal;}
+ #nodethreads ul {  list-style: none;  margin-left: 0;  padding-left: 
+ 1em;  text-indent: 0em;  white-space:normal;}
+ #nodethreads li {width: 100%;}
+ #nodethreads ul.expanded {display: block;}
+ #nodethreads ul.collapsed {  display: none;}
+ &lt;/style&gt;
+] if $q-&gt;param('style') eq 'bare';
+
+my $toggle_fmt=qq[&lt;span class='nnt-toggle'&gt;&lt;a href="#ul%s" ]
+               .qq[onclick="toggleMenu('ul%s'); return false;"]
+               .qq[ class="toggle"&gt;&lt;small&gt;+/-&lt;/small&gt;&lt;/a&gt; &lt;/span&gt;];
+
+
+# Handle user and param configuration options
+
+my $blk=(getId($USER)!=$HTMLVARS{default_user}
+          &amp;&amp; $q-&gt;param('nnt-blk'));
+if ($q-&gt;param('Set') eq 'Set') {
+  $VARS-&gt;{nnt_blk}=!!$blk;
+  $VARS-&gt;{nnt_toggle_left}=!!$q-&gt;param('nnt-toggle-left');
+  $VARS-&gt;{nnt_showage}=!!$q-&gt;param('showage');
+  $VARS-&gt;{nnt_showtime}=!!$q-&gt;param('showtime');
+}
+
+my $cfg=getId($USER)!=$HTMLVARS{default_user}
+     &amp;&amp; $q-&gt;param('nnt-cfg');
+
+my %blocked;
+if ($blk) {
+    my $do_update=$q-&gt;param('Update') eq 'Update Blocking';
+    if ($do_update and $q-&gt;param('nnt-clear-oldblocking') eq 'clear') {
+        $VARS-&gt;{nnt_blocknodes}="";
+    }
+    %blocked=unpack "N*",$VARS-&gt;{nnt_blocknodes}||'';
+    $blocked{$_}&lt;$basetime-48*3600 and delete $blocked{$_}
+      for keys %blocked;
+    $blocked{$_}=$basetime foreach grep {
+         s/nnt-hide-// &amp;&amp; $q-&gt;param("nnt-hide-$_") eq "hide"
+    } $q-&gt;param();
+    my @keys=sort { $blocked{$b}&lt;=&gt;$blocked{$a} || $b &lt;=&gt; $b } keys %blocked;
+    delete $blocked{pop @keys} while @keys&gt;128;
+    if ($do_update) {
+        $VARS-&gt;{nnt_blocknodes}=pack "N*",%blocked
+    }
+    $Do_MarkTime and MarkTime("blocknodes:@{[keys %blocked]}");
+}
+
+my $NICK=$USER-&gt;{nick} ? getNode($USER-&gt;{nick},'user') : undef;
+my $USER_ID=$NICK ? $NICK-&gt;{user_id} : $USER-&gt;{user_id};
+
+my $isGod= isGod($USER);
+my $can_consider=Everything::isApproved($USER,'CanConsider');
+
+my $APPROVAL_SETTING = getVars(
+    getNode('approval nodelet settings','setting')
+  );
+my %approval_types = map { $_ =&gt; 1 } split /,/, $APPROVAL_SETTING-&gt;{types};
+$can_consider=0
+    if 0 &lt;= index( $APPROVAL_SETTING-&gt;{inconsiderate}, "[$USER-&gt;{title}]" )
+    || 0 &lt;= index( $APPROVAL_SETTING-&gt;{inconsiderate}, "[$USER-&gt;{node_id}]" )
+    || 0 &lt;= index( $APPROVAL_SETTING-&gt;{inconsiderate}, "[$USER_ID]" )
+    || ($NICK and 0 &lt;= index( $APPROVAL_SETTING-&gt;{inconsiderate}, "[$NICK-&gt;{title}]" ))
+;
+
+my $mode = $q-&gt;param('mode');
+$mode=undef unless $mode=~/(?:fullthread|root-and-node|minimal|ancestors)/;
+$mode = $VARS-&gt;{nnt_mode} unless defined $mode; # setting this is handled above
+$mode = 'ancestors' unless $mode;
+$VARS-&gt;{nnt_mode}=$mode;
+$mode='ancestors' if $q-&gt;param('style') eq 'bare'; # dontoveride user $VARS with this.
+
+if ( getId($USER) != $HTMLVARS{default_user} ) {
+  if ( $q-&gt;param('viewedNewNodes') ) {
+    $VARS-&gt;{lastviewednewestnodes} = $q-&gt;param('pageloadtime');
+  }
+
+  if ( $q-&gt;param('clearNewNodesFlag') ) {
+    $VARS-&gt;{lastviewednewestnodes} = '';
+  }
+}
+my $when = $as_of_unix!=$basetime ? 0 : $VARS-&gt;{lastviewednewestnodes}||0;
+if ($when) {
+    my $oldest=time-3*24*60*60;
+    $when=$oldest if $when&lt;$oldest;
+}
+
+my $days = $q-&gt;param('numdays')||0;
+$days = 1 if !$days or $days !~ /^\d+(\.\d+)?$/;
+$days = 3 if $days &gt; 3;
+
+my @for_nodes;
+if (my $csv=$q-&gt;param('for_nodes')) {
+  $mode="fullthread";
+  @for_nodes=map /^\s*(\d+)\s*$/?$1:(),split /\s*[,:;]\s*/,$csv;
+  splice @for_nodes,10 if @for_nodes&gt;10;
+}
+
+
+my $maxdepth = $q-&gt;param('maxdepth');
+$maxdepth = $VARS-&gt;{nnt_maxdepth} unless defined $maxdepth;
+# $maxdepth = $VARS-&gt;{notedepth} unless defined $maxdepth; # just confuses issues
+$maxdepth=2 unless defined $maxdepth;
+$VARS-&gt;{nnt_maxdepth} = $maxdepth if defined $maxdepth;
+$maxdepth=1 if $cfg;
+
+my $showtime=$q-&gt;param('showtime');
+$VARS-&gt;{nnt_showtime}=$showtime if $q-&gt;param('Set')
+                                or $q-&gt;param('clearNewNodesFlag');
+my $showage=$q-&gt;param('showage');
+$VARS-&gt;{nnt_showage}=$showage if $q-&gt;param('Set')
+                                or $q-&gt;param('clearNewNodesFlag');
+
+my $cutoffdate = $mode eq 'fullthread'
+               ? 0
+               : $when
+                 ? $when
+                 : time - $days * 24 * 3600;
+
+
+
+my %order=split /,/,$VARS-&gt;{nnt_order};
+if ($cfg &amp;&amp; $q-&gt;param('Change') eq 'Change Order') {
+    my @fields=map { s/^nnt_pos_// ? $_ : ()  } $q-&gt;param;
+    my %hide;
+    for (@fields) {
+        $order{$_}=$q-&gt;param("nnt_pos_$_");
+        if (!$order{$_}) {
+            $hide{$_}=1;
+        }
+    }
+    $VARS-&gt;{nn_hide_nodetypes}=join ",", keys %hide;
+    $VARS-&gt;{nnt_order}=join",",map { $_,$order{$_} } keys %order;
+}
+
+
+my $nn = {};
+htmlcode( 'handle_nn_settings', '', $nn );
+my %types;
+my @types = map {
+    my $type = getType( $_ );
+    $types{ $type-&gt;{node_id} } = $type;
+    $types{$_} = $type;
+    $type-&gt;{node_id};
+} @{ $nn-&gt;{legal} };
+return "No types?" unless @types;
+my %want=map { $_=&gt;$types{$_},$types{$_}{node_id}=&gt;$types{$_} }
+         @{$nn-&gt;{types}};
+
+# @html will ultimately hold the returned HTML, we start off with a
+# header of the params
+my @html = (qq(
+&lt;!--
+NNT: \$mode=$mode|\$maxdepth=$maxdepth
+     \$days=$days|\$when=$when|\$cutoffdate=$cutoffdate|time=@{[time]}
+     \@types=(@types)
+--&gt;
+));
+
+#===========================================================================
+# Tree and DB Code. We handle constructing the tree and the main queries here
+#===========================================================================
+
+my %node;
+my %authors;
+my $notes;
+my @roots;
+
+=for myeditor
+sub add_node_to_tree {}
+
+=cut
+
+#
+# This sub integrates the node into the tree. Since we have a parent pointer
+# system where we can't be guaranteed the parent exists and to minimize queries
+# we build it from the bottom up.
+# This process can generate a final set of objects which werent picked up in the
+# original two queries which are for node which have sane note tables.
+# These are then added in at the end as a series of adhoc queries. In most
+# situations these are no adhoc performed.
+#
+
+local *add_node_to_tree=sub{
+    my ($n,$notree)=@_;
+    my $node_id =$n-&gt;{node_id};
+    return unless $node_id;
+    $node{$node_id}||={};
+    @{ $node{$node_id} }{ keys %$n } = values %$n;
+
+    $n=$node{$node_id};
+    my $author = $n-&gt;{author_user};
+    $n-&gt;{author_user} = $author = $n-&gt;{original_author} if $n-&gt;{original_author};
+    $authors{$author}||=getNodeById($author,'light');
+
+    return if $notree || $n-&gt;{_intree}++;
+
+
+
+    if ($n-&gt;{type_nodetype}==1888) {
+        $n-&gt;{root_node}||=$n-&gt;{parent_node}
+            if $n-&gt;{parent_node};
+    }
+    push @roots, $n-&gt;{root_node} if $n-&gt;{root_node};
+
+    for (qw(root_node parent_node)) {
+        next unless $n-&gt;{$_};
+        $node{ $n-&gt;{$_} } ||= { node_id =&gt; $n-&gt;{$_} };
+        $n-&gt;{"_$_"} = $node{ $n-&gt;{$_} }
+    }
+    $n-&gt;{_root_node}{_descendents}{$node_id} = $n
+      if $n-&gt;{root_node};
+    $n-&gt;{_parent_node}{_children}{$node_id} = $n
+      if $n-&gt;{parent_node};
+    $n-&gt;{_root_node}{__newest}=$n
+        if !$n-&gt;{_root_node}{__newest}
+        or $n-&gt;{_root_node}{__newest}{node_id} &lt; $n-&gt;{node_id};
+    return $n;
+};
+
+
+##### DB STUFF
+
+my $dbh = $DB-&gt;getDatabaseHandle();
+
+
+# we build up a generic where clause here. Depending on the args
+# it can look fairly different.
+
+my $in_nodetype = qq/type_nodetype in (@{[join ",",@types]})/;
+my $where_time;
+if (@for_nodes==1) {
+  $where_time="node_id=@for_nodes";
+} elsif (@for_nodes) {
+  $where_time="node_id in ( ".join(",",@for_nodes)." )";
+} else {
+  $where_time ="createtime &gt;= ".(
+    $when
+      ? "FROM_UNIXTIME($when)"
+      : "DATE_ADD($as_of,INTERVAL -$days DAY)"
+  ). " and createtime &lt;= $as_of ";
+}
+
+
+$Do_MarkTime &amp;&amp; printLog("demerphq's sandpit query 1 start ($$)");
+$Do_MarkTime &amp;&amp; MarkTime("demerphq's sandpit query 1 start ($$)");
+
+
+my ($tquery,$rquery,$nquery); # query text for the different queries.
+
+#get the most recent nodes
+my $recent = $dbh-&gt;selectall_hashref($tquery=qq[
+    select distinct
+           node.*,
+           note.*,
+           original_author,
+           weight,votetime,
+           considernodes.considernodes_id,
+           considernodes.description as considertext
+    from node
+    left join note on note_id=node_id
+    left join vote on (vote_id=node_id and voter_user=$USER_ID)
+    left join considernodes on considernodes_id=node_id
+    left join contributor on contributor_id=node_id
+    where $in_nodetype
+    and $where_time
+    limit 2000
+], 'node_id' ) or return "Error in initial fetch.";
+
+$Do_MarkTime &amp;&amp; MarkTime("demerphq's sandpit query 1 end ($$)&lt;br&gt;&lt;b/&gt;$tquery&lt;/b&gt;");
+$Do_MarkTime &amp;&amp; printLog("demerphq's sandpit query 1 end ($$)");
+
+# add them in
+foreach my $n ( sort { $a-&gt;{node_id} &lt;=&gt; $b-&gt;{node_id} } values %$recent ) {
+    my $node=add_node_to_tree($n);
+    $node-&gt;{_recent}=1;
+}
+
+push @roots,@for_nodes; # add in the for_nodes to the first batch
+my %dupe_root;
+my $fetches=0;
+
+$Do_MarkTime &amp;&amp; MarkTime("while roots=(@roots)");
+
+# we actually only do this twice.
+# the first query grabs any parents we didnt already have.
+# the second query grabs any siblings we didnt already have.
+while (@roots)
+{
+    if ($blk) {
+        @roots=grep !$blocked{$_},@roots;
+    }
+    @roots=sort {$a &lt;=&gt; $b} grep $_ &amp;&amp; !$dupe_root{$_}++,@roots;
+    $Do_MarkTime &amp;&amp; MarkTime("after roots=(@roots)");
+    last if $fetches++&gt;1;
+    last unless @roots;
+
+    local $" = ', ';    #"
+    $Do_MarkTime &amp;&amp; printLog("demerphq's sandpit query 2 start pass $fetches($$)");
+    my @fetchroots=grep{ !$node{$_}{_recent} } @roots;
+    my $roots;
+    if (@fetchroots) {
+      $roots = $dbh-&gt;selectall_hashref($rquery=qq[
+          select node.*,
+                 note.*,
+                 original_author,
+                 weight,votetime,
+                 considernodes.considernodes_id,
+                 considernodes.description as considertext
+          from node
+          left join note on node_id=note_id
+          left join considernodes on considernodes_id=node_id
+          left join contributor on contributor_id=node_id
+          left join vote on (vote_id=node_id and voter_user=$USER_ID)
+          where node_id in ( @fetchroots )
+          and $in_nodetype
+      ], 'node_id' ) or return "Error in Note Nodes Fetch.";
+    } else {
+      $roots={};
+
+    }
+    foreach my $n ( sort { $a-&gt;{node_id} &lt;=&gt; $b-&gt;{node_id} } values %$roots ) {
+        add_node_to_tree($n);
+    }
+
+    @roots=grep { ($node{$_}{_recent} || $roots-&gt;{$_} )
+                  &amp;&amp; $node{$_}{type_nodetype}!=1823
+                  &amp;&amp; $want{$node{$_}{type_nodetype}} } @roots;
+    if ($blk) {
+        @roots=grep !$blocked{$_},@roots;
+    }
+    $Do_MarkTime &amp;&amp; MarkTime("demerphq's sandpit query 2 end (got "
+      .scalar(@roots).") pass $fetches ($$)&lt;br/&gt;&lt;b&gt;$rquery&lt;/b&gt;&lt;br /&gt;roots=(@roots)");
+    $Do_MarkTime &amp;&amp; printLog("demerphq's sandpit query 2 end (got "
+      .scalar(@roots).") pass $fetches ($$)");
+    if (@roots) {
+      $notes = $dbh-&gt;selectall_arrayref($nquery=qq[
+          select node.*,
+                 note.*,
+                 original_author,
+                 weight,votetime,
+                 considernodes.considernodes_id,
+                 considernodes.description as considertext
+          from node
+          join note          on node.node_id = note.note_id
+     left join considernodes on considernodes_id=node_id
+     left join contributor   on contributor_id=node_id
+     left join vote          on (vote_id=node_id and voter_user=$USER_ID)
+          where (
+              root_node in ( @roots )
+          )
+          and not ( $where_time )
+          limit 2000
+      ], { Slice =&gt; {} } ) or return "Error in Note Nodes Fetch.";
+
+    } else {
+      $notes=[];
+    }
+
+    $Do_MarkTime &amp;&amp; MarkTime("demerphq's sandpit query 3 end (got "
+       .scalar(@$notes).") pass $fetches ($$)&lt;br/&gt;&lt;b&gt;$nquery&lt;/b&gt;");
+    $Do_MarkTime &amp;&amp; printLog("demerphq's sandpit query 3 end (got "
+       .scalar(@$notes).") pass $fetches ($$)");
+
+    @roots=();
+    foreach my $n ( sort { $a-&gt;{node_id} &lt;=&gt; $b-&gt;{node_id} } @$notes ) {
+        add_node_to_tree($n);
+    }
+}
+
+#
+# This does an explain on the queries used, and writes them into a scratchpad
+# it could probably be removed, but for now we will leave it as it is useful.
+#
+
+if ($Do_MarkTime and $USER-&gt;{title}=~/merphq/) {
+    my @out;
+    foreach my $str ($tquery,$rquery,$nquery)
+    {
+      next unless $str;
+      my $r=$DB-&gt;getDatabaseHandle()-&gt;selectall_arrayref("explain $str");
+      $str=~s/(\S)([,=])(\S)/$1 $2 $3/g;
+      push @out,"&lt;dt&gt;$str&lt;/dt&gt;","&lt;dd&gt;&lt;table border='1'&gt;&lt;tr&gt;&lt;td&gt;".
+               join("&lt;/td&gt;&lt;/tr&gt;\n&lt;tr&gt;&lt;td&gt;",map { join "&lt;/td&gt;\n&lt;td&gt;",
+               map { length $_ ? $_ : '&amp;nbsp;' } @$_ } @$r)
+
+               ."&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/dd&gt;";
+
+    }
+    my $sp=getNodeById(379341);
+
+    my $out=join "\n","&lt;dl&gt;@out&lt;/dl&gt;";
+    my ($exp,$lain)=("&lt;!--explain-$NODE-&gt;{node_id}--&gt;",
+                     "&lt;!--\/explain-$NODE-&gt;{node_id}--&gt;");
+    unless ($sp-&gt;{doctext}=~s/($exp).*($lain)/$1\n$out\n$2/s) {
+        $sp-&gt;{doctext}="&lt;!--explain--&gt;\n$exp\n$out\n$lain\n&lt;!--/explain--&gt;\n";
+    }
+    updateNode($sp,-1);
+}
+
+$Do_MarkTime &amp;&amp; printLog("demerphq's sandpit ad-hoc fetch start ($$)");
+$Do_MarkTime &amp;&amp; MarkTime("demerphq's sandpit ad-hoc fetch start ($$)");
+
+#
+# AdHoc queries. We add them in but dont update any parents. These nodes are
+# usually problematic anyway, and their parents likely dont exist.
+#
+foreach my $id (keys %node) {
+    my $node=$node{$id};
+
+    if (!$node-&gt;{type_nodetype} and !$node-&gt;{author_user} and !$node-&gt;{_adhoc}) {
+        my @keys=keys %$node;
+        my $n=getNodeById($node-&gt;{node_id});
+        $node-&gt;{_adhoc}=1;
+        if ($n) {
+            add_node_to_tree($n,'notree');
+            $Do_MarkTime &amp;&amp; MarkTime("Added:".linkNode($node)
+              ."&lt;br/&gt; nid:$node-&gt;{node_id} pid:$node-&gt;{parent_node} "
+              ."rid:$node-&gt;{root_node} type:$node-&gt;{type_nodetype}".'&lt;br /&gt;'
+              ."_desc:".join(',',keys %{$node-&gt;{_descendents}||{}}).'&lt;br /&gt;'
+              ."_child:".join(',',map { "($_=&gt;$node-&gt;{_children}{$_}{type_nodetype}".
+                                        ":$node-&gt;{_children}{$_}{root_node}:".
+                                        "$node-&gt;{_children}{$_}{title})"}
+                                        keys %{$node-&gt;{_children}||{}}).'&lt;br /&gt;'
+              ."_keysa:".join(',',keys %$node).'&lt;br /&gt;'
+              ."_keysb:".join(',',@keys).'&lt;br /&gt;');
+        } else {
+            $Do_MarkTime &amp;&amp; MarkTime("Bad node $id");
+            $node-&gt;{_orphan}=1;
+            next;
+        }
+    }
+    my $tnode =( $types{$node-&gt;{type_nodetype}} ||=
+                 getNodeById($node-&gt;{type_nodetype}) );
+    my $typetitle=$tnode-&gt;{title};
+    $node-&gt;{_type_title}=$typetitle;
+}
+$Do_MarkTime &amp;&amp; printLog("demerphq's sandpit ad-hoc end ($$)");
+
+#===================================================================
+# Now we define some subs to be used to build the tree.
+# make_li() is the main routine
+#===================================================================
+
+=for myeditor
+sub get_approval {}
+
+=cut
+
+#
+# Handles approval queries.
+#
+local *get_approval=sub {
+
+    my ($node)=@_;
+    my $typetitle=$node-&gt;{_type_title};
+    return $node-&gt;{_haslinks} if defined $node-&gt;{_haslinks};
+    if ($approval_types{$typetitle}
+         || grep $_ eq $typetitle,
+         qw/modulereview bookreview
+            note sourcecode snippet
+            perltutorial perlnews/
+    ) {
+        my $nid = $node-&gt;{node_id};
+
+        my $ok=0;
+        $ok = $dbh-&gt;selectrow_hashref(qq[
+              select *
+              from links
+              where from_node = $APPROVAL_SETTING-&gt;{$typetitle.'_node'}
+              and to_node = $nid
+              and linktype = $APPROVAL_SETTING-&gt;{$typetitle.'_linktype'}
+              limit 1
+        ]) if $approval_types{$typetitle};
+
+        my $fp=0;
+        $fp = $dbh-&gt;selectrow_hashref(qq[
+              select *
+              from links
+              where from_node= $APPROVAL_SETTING-&gt;{front_page}
+              and to_node = $nid
+              and linktype = $APPROVAL_SETTING-&gt;{frontpage_linktype}
+              limit 1
+        ]);
+
+        $node-&gt;{_ok_user} = $DB-&gt;sqlSelect(
+            'user_id',
+            'approved',
+            qq[node_id = $nid and action = "ok"],
+            "order by tstamp desc limit 1"
+        ) if $ok;
+
+        my $fpid = 0;
+        $node-&gt;{_fp_user} = $DB-&gt;sqlSelect(
+            'user_id',
+            'approved',
+            qq[node_id = $nid and action = "fp"],
+            "order by tstamp desc limit 1"
+        ) if $fp;
+
+        $node-&gt;{_approval_type}=$approval_types{$typetitle};
+        $node-&gt;{_haslinks}=1;
+        $node-&gt;{_fp}=$node-&gt;{_fp_user} ? $fp : undef;
+        $node-&gt;{_ok}=$node-&gt;{_ok_user} ? $ok : undef;
+        return 1
+    } else {
+        $node-&gt;{_haslinks}=0;
+        return 0;
+    }
+};
+
+=for myeditor
+sub node_details {}
+
+=cut
+
+#
+# Handles building the node specific content of the li.
+#
+
+local *node_details=sub {
+    my ($node,$showauthor,$showkids)=@_;
+
+    my $localized=htmlcode('parseTimeInString','',$node-&gt;{createtime},'','','short');
+    my ( $year, $mon, $day, $hour, $min, $sec ) =
+      $node-&gt;{createtime} =~ /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/;
+    my $time = $year ? timelocal( $sec, $min, $hour, $day, $mon - 1, $year ) : 0;
+    my $timesince=htmlcode('timesince','',$node-&gt;{createtime});
+
+    my $elapsed=$basetime-abs($time);
+    my $index=0;
+    $index++ while ($elapsed&gt;$age_time[$index]);
+    #my $color=$colors[$index];
+    my $class=$color_classes[$index];
+
+    my @p_class=($class);
+
+    my $nodetext='';
+
+    my $title= length($node-&gt;{title}) 
+               ? $q-&gt;escapeHTML($node-&gt;{title}) 
+               : "&amp;#91;untitled node, ID $node-&gt;{node_id}&amp;#93;";
+
+    $title =    qq[&lt;a class="nnt-link $class" href="?node_id=$node-&gt;{node_id}" ]
+              . qq[title="Created at $localized ($timesince)"  &gt;]
+              . $title
+              . qq[&lt;/a&gt;\n];
+
+    if ($USER_ID == $node-&gt;{author_user}
+        || $USER-&gt;{user_id} == $node-&gt;{author_user}
+        || $node-&gt;{votetime} || $node-&gt;{weight})
+    {
+        my ($cl,$v)=!$node-&gt;{weight}
+                     ? ("","")
+                     :  $node-&gt;{weight}&gt;0
+                        ? ("nnt-plusplus","^")
+                        : ("nnt-minusminus","v");
+        push @p_class,$cl if $cl;
+        $title.="&lt;span class='nnt-noderep'&gt;&amp;#91;"
+              .($cl ? "&lt;span class='$cl'&gt;$v&lt;/span&gt;" : "")
+              . "&lt;span class='nnt-reputation'&gt;"
+              . ($node-&gt;{reputation}&gt;=0 ?  $node-&gt;{reputation} : '-X')
+              . "&lt;/span&gt;&amp;#93;&lt;/span&gt;";
+    }
+    unless ($node-&gt;{_recent}) {
+        $title="&lt;span class='nnt-incidental'&gt;$title&lt;/span&gt;";
+        push @p_class,"nnt-line-incidental";
+    }
+
+
+    my $kidstuff;
+    if ($node-&gt;{__kids}) {
+        my @list=($node-&gt;{__kids});
+        $list[-1]!=$_ and push @list,$_
+            for $node-&gt;{__desc},$node-&gt;{__recent};
+        if ($list[-1]==0) {
+            pop @list;
+        } else {
+            $list[-1]="&lt;b&gt;$list[-1]&lt;/b&gt;";
+        }
+        $kidstuff="&lt;span class='nnt-kidstuff'&gt;".join("/",@list)."&lt;/span&gt;";
+        push @p_class,'nnt-line-haskids';
+    }
+    my $plinks="";
+    my $shown=0;
+    my $root=$node-&gt;{_root_node};
+    my $parent=$node-&gt;{_parent_node};
+    if ($parent-&gt;{node_id} and !$parent-&gt;{_show}
+        and $parent-&gt;{node_id}!=$shown)
+    {
+        my $str="Parent: '$parent-&gt;{title}' by ".
+               "'$authors{$parent-&gt;{author_user}}-&gt;{title}'";
+        $str=$q-&gt;escapeHTML($str);
+        $str=~s/[""]/&amp;quot;/g;
+        $plinks.="&lt;span class='nnt-parentlink'&gt;".linkNode($parent,'P',{-title=&gt;$str})."&lt;/span&gt;";
+        $shown=$parent-&gt;{node_id};
+    }
+    if ($root-&gt;{node_id} and !$root-&gt;{_show}
+        and $root-&gt;{node_id}!=$shown)
+    {
+        my $str="Root: '$root-&gt;{title}' by '$authors{$root-&gt;{author_user}}-&gt;{title}'";
+        $str=$q-&gt;escapeHTML($str);
+        $str=~s/[""]/&amp;quot;/g;
+        $plinks.="&lt;span class='nnt-rootlink'&gt;".linkNode($root,'R',{-title=&gt;$str})."&lt;/span&gt;";
+        $shown=$root-&gt;{node_id};
+    }
+    if ($can_consider &amp;&amp; $node-&gt;{considernodes_id}) {
+        my $txt = htmlcode( 'parselinksinchatter','', $node-&gt;{considertext} );
+        for ($txt) {
+	    s/&lt;a href=.+?&gt;/Considered by /;
+	    s|&lt;/a&gt;|:|;
+	    s{&lt;a href=.+?&gt;|&lt;/a&gt;|[""]}{&amp;quot;}g;
+        }                      
+        $plinks.="&lt;span class='nnt-considerlink'&gt;"
+               .qq[&lt;a href='?node=Nodes%20To%20Consider;]
+               .qq[#consider-row-id$node-&gt;{node_id}' ]
+               .qq[title="$txt" target="_blank"&gt;C&lt;/a&gt;&lt;/span&gt;];
+        push @p_class,"nnt-line-considered";
+    }
+    if (get_approval($node)) {
+        if ($node-&gt;{_fp} &amp;&amp; !$node-&gt;{considernodes_id}) {
+            my $user=$authors{$node-&gt;{_fp_user}}
+                     ||=getNodeById($node-&gt;{_fp_user},'light');
+            $plinks.="&lt;span class='nnt-fplink'&gt;"
+                   .qq[&lt;a href='?node_id=131#post-head-id$node-&gt;{node_id}' ]
+                   .qq[title="Frontpaged by '$user-&gt;{title}'" target="_blank"&gt;F&lt;/a&gt;&lt;/span&gt;];
+            push @p_class,"nnt-line-fp";
+        }
+        if ($node-&gt;{_approval_type}) {
+            my $t;
+            if (my $ok_id=$node-&gt;{_ok_user}) {
+                my $user=$authors{$ok_id}||=getNodeById($ok_id,'light');
+                $t=linkNode($user,'A',{-title=&gt;"Approved by '$user-&gt;{title}'"});
+                push @p_class,"nnt-line-approved";
+            } elsif (!($node-&gt;{_fp} &amp;&amp; !$node-&gt;{considernodes_id})) {
+                $t="&lt;span class='nnt-unapproved'&gt;U&lt;/span&gt;";
+                push @p_class,"nnt-line-unapproved";
+            }
+            $plinks.="&lt;span class='nnt-approval'&gt;$t&lt;/span&gt;";
+
+        }
+    }
+    $plinks="&lt;span class='nnt-speciallinks'&gt;$plinks&lt;/span&gt;" if $plinks;
+    if ($plinks or $kidstuff) {
+        $kidstuff=":".$kidstuff
+            if $plinks &amp;&amp; $kidstuff;
+        $title.="&lt;span class='nnt-nodeattribs'&gt;($plinks$kidstuff)&lt;/span&gt;";
+    }
+    if ($showkids) {
+        my $toggle=sprintf $toggle_fmt,$node-&gt;{node_id},$node-&gt;{node_id};
+        if ($VARS-&gt;{nnt_toggle_left}) {
+            $title=$toggle.$title;
+        } else {
+            $title.=$toggle;
+        }
+    }
+    $title .= $q-&gt;checkbox(-name=&gt;'nnt-hide-'.$node-&gt;{node_id},
+                           -checked=&gt;0,
+                           -value=&gt;'hide',
+                           -label=&gt;'',
+                           -class=&gt;'nnt-hide',
+                           -title=&gt;'Hide node and children for 24 hours?',
+                           -force=&gt;0,)
+        if $blk;
+    $nodetext .="&lt;span class='nnt-title'&gt;$title&lt;/span&gt;";
+
+
+    if ($VARS-&gt;{nnt_showtime} || $VARS-&gt;{nnt_showage}) {
+      my $time_text="&lt;span class='time-text'&gt;";
+      $time_text.="&lt;span class='nnt-time'&gt; $localized&lt;/span&gt;"
+        if $VARS-&gt;{nnt_showtime};
+      $time_text.="&lt;span class='nnt-timesince'&gt; $timesince&lt;/span&gt;"
+        if $VARS-&gt;{nnt_showage};
+      $nodetext.=$time_text."&lt;/span&gt;";
+    }
+    if ($node-&gt;{type_nodetype} ==112733) { #patch
+       my $N=getNodeById($node-&gt;{node_id});
+       $nodetext.="&lt;span class='nnt-patch-reason'&gt;&lt;br /&gt;("
+                .htmlcode( 'parselinksinchatter','', $N-&gt;{reason} )
+                .")&lt;/span&gt;";
+    }
+    push @p_class,'nnt-line-span',"nnt-line-author-$node-&gt;{author_user}";
+
+    $nodetext ="&lt;p class='nnt-p-title nnt-p' align='left'&gt;$nodetext&lt;/p&gt;\n"
+              ."&lt;p align='right' class='nnt-p nnt-author "
+              ."nnt-author-$node-&gt;{author_user}'&gt; &amp;#91;"
+              . linkNode( $node-&gt;{author_user} )
+                # ,undef,{-target=&gt;'_blank'} )
+              . "&amp;#93;&lt;/p&gt;"
+      if $showauthor;
+    @p_class=map {
+               map { s/^nnt-(?!line)(.*)$/nnt-line-$1/g; $_} split / /,$_
+             } "nnt-line",@p_class;
+    return "&lt;!--\n\$NODE-&gt;{node_id}=$NODE-&gt;{node_id}--&gt;&lt;div class='"
+           .join(" ",@p_class)."'&gt;"
+           .$nodetext."&lt;/div&gt;&lt;!--\n--&gt;";
+};
+
+=for myeditor
+sub make_li {}
+
+=cut
+
+#
+# make_li is the main routine, it traverses the tree and builds the html
+# based on the various config settings, and the tree and depth information
+# previously aquired. The actual node text is handled by node_details
+#
+
+local *make_li = sub {
+    my ( $node, $showauthor, $html, $depth ) = @_;
+    $depth ||= 1;
+    return if $blocked{$node-&gt;{node_id}};
+    # dupecheck
+    if (!$node or $node-&gt;{_make_li}++) {
+      push @$html,
+        "&lt;li&gt;Error: id://$node-&gt;{node_id} : parent://$node-&gt;{parent_node} "
+       .": root://$node-&gt;{root_node}&lt;br/&gt;$node-&gt;{title}&lt;/li&gt;";
+      return
+    }
+
+    my ($show,$showkids)=(1,$node-&gt;{__kids});
+    if ($mode eq 'root-and-node' or $mode eq 'minimal') {
+        $show=($node-&gt;{_recent} || ($mode ne 'minimal' and $depth==1));
+        $showkids&amp;&amp;=$show &amp;&amp; $node-&gt;{__recent};
+    } elsif ($mode eq 'ancestors') {
+        return unless $node-&gt;{__recent}||$node-&gt;{_recent};
+        $showkids&amp;&amp;=$node-&gt;{__recent};
+    }
+    if ($node-&gt;{author_user}==$ReaperId and !$node-&gt;{__kids}) {
+        return;
+    }
+    $node-&gt;{_show}=$show;
+    if ($show) {
+        my $nodetext=node_details($node,$showauthor,$showkids);
+        push @$html,"&lt;li id='li$node-&gt;{node_id}' "
+                   ."class='nnt-depth-$depth nnt-auth-$node-&gt;{author_user}'&gt;"
+                   .$nodetext;
+    }
+
+    if ( my $kids=$node-&gt;{_children} ) {
+        my $state='expanded';
+        $state='collapsed' if $maxdepth &amp;&amp;  (($depth==$maxdepth) or
+          ($node-&gt;{_parent_node} and !$node-&gt;{_parent_node}{_show} and $depth&gt;$maxdepth));
+        push @$html, "&lt;ul class='$state' id='ul$node-&gt;{node_id}'&gt;" if $showkids;
+        if ($q-&gt;param('style') eq 'bare') {
+            make_li( $node-&gt;{__newest}, $showauthor, $html, $depth + 1 );
+        } else {
+            foreach my $node_id ( sort { $a &lt;=&gt; $b } keys %{$kids} ) {
+                make_li( $kids-&gt;{$node_id}, $showauthor, $html, $depth + 1 );
+            }
+        }
+        push @$html, '&lt;/ul&gt;'
+          if $showkids;
+    }
+    push @$html, '&lt;br class="nnt-br" /&gt;' if $mode ne 'minimal' and $show and $depth==1;
+    push @$html, '&lt;/li&gt;'  if $show;
+};
+
+=for myeditor
+sub count_kids {}
+
+=cut
+
+### count_kids() is an initial traversal that doesn't involve
+### actually building the tree. This is where depths children
+### counts are determined.
+
+
+local *count_kids=sub {
+    my ($node,$depth)=@_;
+
+    return if $blocked{$node-&gt;{node_id}};
+    $depth||=1;
+    if ($node-&gt;{__depth}) {
+        $Do_MarkTime &amp;&amp; MarkTime(
+           "bad recursion: $node-&gt;{node_id} | $node-&gt;{__depth} | $depth!"
+        );
+        return;
+    }
+    $node-&gt;{__depth}=$depth;
+    my $desc=0;
+    my $recent=0;
+    if ( my $kids = $node-&gt;{_children} ) {
+        foreach my $node_id ( sort { $a &lt;=&gt; $b } keys %{$kids} ) {
+            my ($count,$krecent)=count_kids($kids-&gt;{$node_id},$depth+1);
+            $desc+=$count;
+            $recent+=$krecent;
+            $node-&gt;{__kids}++ unless $kids-&gt;{$node_id}{author_user}==$ReaperId;
+        }
+    } else {
+        $node-&gt;{__kids}=0;
+    }
+    $node-&gt;{__desc}=$desc;
+    $node-&gt;{__recent}=$recent;
+    return ($desc+1,$recent+($node-&gt;{author_user}!=$ReaperId ? $node-&gt;{_recent}||0 : 0));
+};
+
+# Now we get the root nodes that arent blocked.
+my @nodes = sort { $b-&gt;{node_id} &lt;=&gt; $a-&gt;{node_id} }
+            grep { $_-&gt;{node_id} &amp;&amp; !$_-&gt;{root_node} &amp;&amp; !$blocked{$_-&gt;{node_id}} }
+            values %node;
+
+
+$Do_MarkTime &amp;&amp; MarkTime("Main loop start. ".scalar(@nodes)
+                         ."nodes. Want types:".join(",",%want));
+my (%sect,@toc);
+# Loop over the root nodes and split them into their types.
+foreach my $node (@nodes) {
+    next unless $node-&gt;{type_nodetype};
+    next if $node-&gt;{_orphan};
+    my $typetitle=$node-&gt;{_type_title};
+    next unless $typetitle &amp;&amp; $want{$typetitle};
+
+    my ( $title, $link,
+         $showauthor, $linkoff ) = @{ $nn-&gt;{typedata}{ $typetitle } };
+    ( my $anchor    = $title ) =~ s/\s/-/g;
+
+
+    unless ($sect{$typetitle}) {
+        $sect{$typetitle}{html}=[];
+    }
+    my ($kids,$recent)=count_kids($node);
+    if ($recent) { #sanity check
+        $sect{$typetitle}{html}||=[];
+        make_li( $node, $showauthor, $sect{$typetitle}{html} );
+    }
+    $Do_MarkTime &amp;&amp; MarkTime("*$typetitle $node-&gt;{node_id} $node-&gt;{title}");
+}
+
+
+
+#===============================================================
+# Now we sort the groups and filter out ones we arent interested in
+# to put together the sections.
+
+my @fixed = #grep $types{$_}-&gt;{title} ne 'perlquestion',
+            @{($cfg ? $nn-&gt;{legal} : $nn-&gt;{types})||[]};
+
+my $count=@html;
+
+my $blocking_submit=qq[&lt;input type="submit" name="Update" value="Update Blocking" /&gt;];
+
+my $pos=0;
+foreach my $typerec (sort {!!$b-&gt;[2] &lt;=&gt; !!$a-&gt;[2]
+                           || $a-&gt;[2] &lt;=&gt; $b-&gt;[2]
+                             || $a-&gt;[0] &lt;=&gt; $b-&gt;[0] }
+                       map { [$_,$fixed[$_],$order{$fixed[$_]},] }
+                       0..$#fixed)
+{
+    my ($old_pos,$typetitle)=@$typerec;
+    next unless $cfg or $sect{$typetitle};
+    next unless $cfg or @{$sect{$typetitle}{html}};
+    @{$sect{$typetitle}{html}}=grep $_=~/\S/,@{$sect{$typetitle}{html}};
+    next unless $cfg or @{$sect{$typetitle}{html}};
+
+    my ( $title, $link,
+         $showauthor, $linkoff ) = @{ $nn-&gt;{typedata}{ $typetitle } };
+    ( my $anchor    = $title ) =~ s/\s/-/g;
+    ( my $toc_title = $title ) =~ s/ /&amp;nbsp;/g;
+    $sect{$typetitle}{toc}=$q-&gt;a( { href =&gt; "#toc-$anchor" }, $toc_title );
+
+    my $top = '&amp;nbsp;&lt;font size="2"&gt;'
+            . $q-&gt;a( { href =&gt; "#toc-top" }, "(Top)" )
+            . '&lt;/font&gt;';
+
+    my $sect_title;
+    if ( !$linkoff ) {
+        if ($link) {
+            $sect_title.=
+              $q-&gt;a( { href =&gt; "$ENV{SCRIPT_NAME}?node=$link",
+                       name =&gt; "toc-$anchor" }, $title )
+              . $top;
+        } else {
+            $sect_title.=
+              $q-&gt;a( { href =&gt; "$ENV{SCRIPT_NAME}?node=$title",
+                       name =&gt; "toc-$anchor" }, $title )
+              . $top;
+        }
+    } else {
+        $sect_title.=$q-&gt;a( { name =&gt; "toc-$anchor" }, "$title" ) . $top;
+
+    }
+
+    my $toc=$sect{$typetitle}{toc};
+    if ($nn-&gt;{hide}{$typetitle}) {
+        $toc="&lt;i&gt;$toc&lt;/i&gt;";
+        $sect_title="&lt;i&gt;$sect_title&lt;/i&gt;";
+    } elsif ($cfg &amp;&amp; @{$sect{$typetitle}{html}}) {
+        $sect_title="&lt;b&gt;$sect_title&lt;/b&gt;";
+        $toc="&lt;b&gt;$toc&lt;/b&gt;";
+    }
+
+    $sect_title=sprintf($toggle_fmt,"-$anchor","-$anchor").$sect_title;
+
+    push @toc,$toc;
+
+    my $textbox=$cfg
+                ? "Enter a new position:"
+                  .$q-&gt;textfield(
+                    -name=&gt;"nnt_pos_$typetitle",
+                    -default=&gt;$nn-&gt;{hide}{$typetitle} ? 0 : .5+$pos++,
+                    -force=&gt;1,
+                    -size=&gt;10,
+                    -maxlength=&gt;10)
+                  .qq[&lt;input type="submit" name="Change" value="Change Order" /&gt;]
+                : "";
+    push @{$sect{$typetitle}{html}},
+         $nn-&gt;{hide}{$typetitle}
+           ? '&lt;li&gt;&lt;i&gt;you currently have this secton hidden...&lt;/i&gt;&lt;/li&gt;'
+           : '&lt;li&gt;nothing to see here right now, but you have the '
+             . 'section enabled so if there were content of this '
+             . 'type you would see it...&lt;/li&gt;'
+        unless @{$sect{$typetitle}{html}};
+    push @html, "&lt;div id='nnt-section-$anchor' class='nnt-section'&gt;";
+    push @html, "&lt;h3&gt;",$sect_title,"&lt;/h3&gt;",$textbox,
+                "&lt;ul id='ul-$anchor' class='expanded'&gt;",
+                @{$sect{$typetitle}{html}},
+                "&lt;/ul&gt;",
+                $blk ? $blocking_submit : (),
+                "&lt;hr class='nnt-section-break' /&gt;",
+                "&lt;/div&gt;";
+}
+#-------------------------------
+# legend stuff.
+
+if (  my( $place )= $q-&gt;param('showlegend')  ) {
+  $VARS-&gt;{'nnt-legend-bottom'}= ($place eq 'bottom');
+}
+
+my $legend=join "",
+    "&lt;div id='nnt-legend' class='nnt-section'&gt;",
+    "&lt;h3&gt;",
+    sprintf($toggle_fmt,"-legend","-legend"),
+    'Legend&amp;nbsp;&lt;font size="2"&gt;&lt;a href="#toc-top"&gt;(Top)&lt;/a&gt;&lt;/font&gt;&lt;/h3&gt;',
+    "&lt;ul id='ul-legend'&gt;",
+    q[&lt;blockquote&gt;&lt;u&gt;Title&lt;/u&gt; &amp;#91;&lt;b&gt;^1&lt;/b&gt;&amp;#93;].
+    q[(&lt;b&gt;&lt;u&gt;AC&lt;/u&gt;&lt;/b&gt;:&lt;b&gt;3&lt;/b&gt;/&lt;b&gt;9&lt;/b&gt;/&lt;b&gt;7&lt;/b&gt;)].
+    q[&lt;u&gt;&lt;b&gt;+/-&lt;/b&gt;&lt;/u&gt; &amp;#91;&lt;u&gt;author&lt;/u&gt;&amp;#93;&lt;/blockquote&gt;].
+    q[&lt;p&gt;Means: You "&lt;b&gt;^&lt;/b&gt;"=up- or "&lt;b&gt;v&lt;/b&gt;"=down-voted,].
+    q[ "&lt;b&gt;1&lt;/b&gt;"=reputation; "&lt;u&gt;&lt;b&gt;AC&lt;/b&gt;&lt;/u&gt;" from ].
+    q[( &lt;b&gt;F&lt;/b&gt;ront-paged, &lt;b&gt;A&lt;/b&gt;pproved, ].
+    q[&lt;b&gt;U&lt;/b&gt;napproved, &lt;b&gt;C&lt;/b&gt;onsidered, ].
+    q[or link to &lt;b&gt;P&lt;/b&gt;arent or &lt;b&gt;R&lt;/b&gt;oot ); ].
+    q[Replies: "&lt;b&gt;3&lt;/b&gt;" direct, "&lt;b&gt;9&lt;/b&gt;" ].
+    q[descendents, "&lt;b&gt;7&lt;/b&gt;" recent, "&lt;b&gt;+/-&lt;/b&gt;" ].
+    q[shows/hides(uses javascript)],
+    "&lt;/p&gt;&lt;p align='right'&gt;",
+    linkNode(396325,'View Full Documentation'),
+    ", ",
+    $VARS-&gt;{'nnt-legend-bottom'}  
+      ? linkNode($NODE,'Show Legend at Top',
+           {-title=&gt;"Move legend section to top",showlegend=&gt;'top'})
+      : linkNode($NODE,'Show Legend at Bottom',
+           {-title=&gt;"Move legend section to bottom",showlegend=&gt;'bottom'}),
+    '&lt;/p&gt;&lt;/ul&gt;',
+    "&lt;hr class='nnt-section-break' /&gt;",
+    "&lt;/div&gt;";
+
+if ($VARS-&gt;{'nnt-legend-bottom'}) {
+    push @html,$legend;
+} else {
+    unshift @html,$legend;
+}
+
+#-------------------------------
+
+$Do_MarkTime &amp;&amp; MarkTime("Done");
+my $viewed_message = @toc ? "I've checked all of these" : "Check for newer nodes";
+my $form;
+  
+#
+# ===========================================================================
+# We now handle forms and stuff. All of the sections are taken care of.
+# ===========================================================================
+
+#
+# Time stuff
+my %linkhash=(-1=&gt;'&lt;&lt;&lt;&lt;',0=&gt;"",1=&gt;'&gt;');
+my @len_strs=('','Day','Week','Month','Year');
+my $shown_basetime=0;
+my $as_of_links="&lt;table align='center' id='nnt-as-of-links'&gt;".
+                "&lt;tr&gt;&lt;th&gt;".$q-&gt;a( { name =&gt; "toc-top" },"Viewing Nodes As of:")."&lt;/th&gt;".
+  (join "",
+    map {
+      my $c="".($_ &lt;=&gt; $as_of_unix);
+      my $str=$linkhash{$c};
+      if ($c&lt;0) {
+        chop($linkhash{$c});
+      } elsif ($c) {
+        $linkhash{$c}.=substr($linkhash{$c},0,1);
+      }
+      my $date=POSIX::strftime("%Y-%m-%d",localtime($_));
+      my $ret= ($_+$fudge &gt;= $basetime )
+                ? !$shown_basetime++
+                  ? $c ? linkNode($NODE,'Return to Present',{-title=&gt;'Return to present!'})
+                       : '&lt;b&gt;'.linkNode($NODE,'Now',{-title=&gt;'Current view!'})."&lt;/b&gt;"
+                  : '&amp;nbsp;'
+                : linkNode($NODE,$str||$date,
+                           { 'nnt-as-of'=&gt; $date,
+                            -title=&gt; !$str ? "Current!" : "View as of "
+                                    .htmlcode('timesince','',0,$basetime-$_)
+                                    ." ("
+                                    .($len_strs[length($str)]
+                                     ?($c&gt;0?'Forward':'Back')
+                                      ." One "
+                                      .$len_strs[length($str)]
+                                     : "This page")
+                                    .": $date)"
+                    });
+
+     "&lt;td&gt;$ret&lt;/td&gt;"
+    } (
+        $as_of_unix - 365*24*3600,
+        $as_of_unix - 30*24*3600,
+        $as_of_unix - 7*24*3600,
+        $as_of_unix - 24*3600,
+        $as_of_unix,
+        $as_of_unix + 24*3600,
+        $as_of_unix + 7*24*3600,
+        $as_of_unix + 30*24*3600,
+        $as_of_unix + 365*24*3600
+        )
+)."&lt;/tr&gt;&lt;/table&gt;";
+my $color_key="&lt;table width='80%' align='center'&gt;&lt;tr&gt;"
+             .join("",
+               map {  my $text=$age_desc[$_];
+                      my $no_time=$text=~s/^-//;
+                      my $timetext=htmlcode('timesince','','',$age_time[$_]);
+                      my ($color)=$color_classes[$_];
+                      if ($text!~/[A-Z]/) {
+                         $text=$timetext;
+                      } elsif (!$no_time) {
+                         $text.=":".$timetext;
+                      }
+                      # "&lt;td bgcolor='$color' title='$text'&gt;&amp;nbsp&lt;/td&gt;"
+                       "&lt;td align='center' title='$text'&gt;"
+                       ."&lt;a class='$color'&gt;&amp;#x2588;&lt;/a&gt;"
+                       ."&lt;/td&gt;"
+
+                   } 0..$#ages)."&lt;/tr&gt;&lt;/table&gt;";
+
+# Build the form
+
+if ( getId($USER) != $HTMLVARS{default_user} ) {
+    $form = qq[&lt;p&gt;
+      &lt;form method="post" action="?" enctype="application/x-www-form-urlencoded"&gt;
+      &lt;input type="hidden" name="node_id" value="] . getId($NODE) . qq[" /&gt;
+      &lt;input type="hidden" name="displaytype" value="display" /&gt;
+      &lt;input type="hidden" name="pageloadtime" value="] . time() . qq[" /&gt;
+      &lt;input type="submit" name="viewedNewNodes" value="$viewed_message" /&gt;
+      &lt;/form&gt;&lt;/p&gt;];
+}
+
+$q-&gt;param('node_id',$NODE-&gt;{node_id});
+if ($Do_MarkTime) {
+    MarkTime('--final--');
+    #printLog("demerphq's sandpit done mode: $VARS-&gt;{nnt_mode} ($$)");
+}
+my $notbare=$q-&gt;param('style') ne 'bare';
+# and the rest of the links and cfg bodge.
+return join "\n",
+  qq[
+    &lt;!--
+    
+    &lt;script&gt;&lt;/script&gt;
+
+    --&gt;
+    &lt;script type="text/javascript"&gt;
+    function toggleMenu(id){
+      element = document.getElementById(id);
+      element.className = (element.className.toLowerCase() ==
+                            'expanded' ? 'collapsed' : 'expanded');
+    }
+    &lt;/script&gt;
+  ],
+  $Color_Style,
+  qq[&lt;div id="nodethreads-head"&gt;],
+  (@mark_time_html ? ('&lt;ul class="nnt-marktime"&gt;',@mark_time_html,'&lt;/ul&gt;') : ()),
+  '&lt;p&gt;',
+  $notbare &amp;&amp; qq[&lt;span class="nnt-colorkey"&gt;$color_key&lt;/span&gt;],
+  $notbare &amp;&amp; qq[&lt;span class="nnt-asof"&gt;$as_of_links&lt;/span&gt;],
+  $notbare &amp;&amp; do{
+    my $view_link;
+    my $mode_ans=$q-&gt;a({href=&gt;"?node_id=$NODE-&gt;{node_id};mode=ancestors",
+                        title=&gt;'nodes and their direct ancestors'},'Node Ancestors');
+    my $mode_ful=$q-&gt;a({href=&gt;"?node_id=$NODE-&gt;{node_id};mode=fullthread",
+                        title=&gt;'everything... the whole tree'} ,'Full Thread',);
+    my $mode_rtn=$q-&gt;a({href=&gt;"?node_id=$NODE-&gt;{node_id};mode=root-and-node",
+                        title=&gt;'nodes and their roots'},'Root and Node');
+    my $mode_min=$q-&gt;a({href=&gt;"?node_id=$NODE-&gt;{node_id};mode=minimal",
+                        title=&gt;'just nodes but threaded if possible'},'Minimal Nodes');
+
+    if ($mode eq 'fullthread') {
+      $view_link="&lt;b&gt;Full Thread&lt;/b&gt;, switch to $mode_rtn, $mode_min or $mode_ans";
+    } elsif ($mode eq 'ancestors') {
+      $view_link="&lt;b&gt;Node Ancestors&lt;/b&gt;, switch to $mode_rtn, $mode_min or $mode_ful";
+    } elsif ($mode eq 'root-and-node')  {
+      $view_link="&lt;b&gt;Root and Node&lt;/b&gt;, switch to $mode_min, $mode_ans or $mode_ful";
+
+    } elsif ($mode eq 'minimal') {
+      $view_link="&lt;b&gt;Minimal Nodes&lt;/b&gt;, switch to $mode_rtn, $mode_ans or $mode_ful";
+    }
+    qq[&lt;span class='nnt-viewlinks'&gt;].
+    "Current View Mode is ".
+    qq[ $view_link&lt;br /&gt;Jump to &lt;a href="?node_id=396325"&gt;Help&lt;/a&gt; |].
+    qq[ &lt;a href="#nnt-legend"&gt;Legend&lt;/a&gt; |].
+    qq[ &lt;a href="#nnt-config"&gt;Page Settings&lt;/a&gt;&lt;/span&gt;]
+  },
+  qq[&lt;span class="nnSummary"&gt;],
+  (@html!=$count)
+  ?
+    ' | '
+    . join( '&lt;span class="link-sep"&gt;&lt;span class="NN-link-sep"&gt;'
+    . ' | &lt;/span&gt;&lt;/span&gt;', @toc )
+    . ($cfg
+       ?"&lt;br /&gt;&lt;b&gt;Config Mode&lt;/b&gt;: Sections in &lt;i&gt;italics&lt;/i&gt; are hidden,"
+       ." &lt;b&gt;bold&lt;/b&gt; have content and would be shown and normal sections"
+       ." are ones that would display but now have no content."
+       :"")
+  : ('. There are no nodes to view at this time.'),
+  '&lt;/span&gt;',
+  "&lt;/p&gt;&lt;hr /&gt;",
+  "&lt;/div&gt;",
+  "&lt;div id='nodethreads'&gt;",
+  $cfg||$blk
+  ? qq[
+       &lt;form method="post" action="?" enctype="application/x-www-form-urlencoded"&gt;
+       &lt;input type="hidden" name="node_id" value="] . getId($NODE) . qq[" /&gt;
+       &lt;input type="hidden" name="displaytype" value="display" /&gt;]
+  :(),
+  $cfg?qq[&lt;input type="hidden" name="nnt-cfg" value="1" /&gt;] : (),
+  $blk?qq[&lt;input type="hidden" name="nnt-blk" value="1" /&gt;] : (),
+  @html,
+  $blk ? "&lt;p&gt;You have ".scalar(keys %blocked)." nodes blocked.&lt;br /&gt;"
+         .$q-&gt;checkbox(-name=&gt;'nnt-clear-oldblocking',
+                       -checked=&gt;0,
+                       -value=&gt;'clear',
+                       -label=&gt;'Clear Old Filters',
+                       -title=&gt;'Remove any old filters that are currently in effect',
+                       -force=&gt;1,)
+        ."&lt;/p&gt;"
+         : (),
+  $cfg ? qq[&lt;input type="submit" name="Change" value="Change Order" /&gt;] : (),
+  $blk||$cfg ? qq[&lt;/form&gt;] : (),
+  "&lt;/div&gt;",
+  qq[&lt;div id="nodethreads-foot"&gt;],
+  $form,
+  do {
+    my @array = (  map $_/2,1..6 );
+    my $str= htmlcode('openform')
+           . $q-&gt;hidden(  pageloadtime =&gt; time() );
+
+    my $choosedepth = qq[to a maximum depth of ].$q-&gt;popup_menu('maxdepth',[0..10],
+                      $VARS-&gt;{nnt_maxdepth}||0);
+    my $checkboxes =
+         $q-&gt;checkbox(-name=&gt;'showage',
+                      -checked=&gt;$VARS-&gt;{nnt_showage}||0,
+                      -value=&gt;'1',
+                      -label=&gt;'Show node age',
+                      -force=&gt;1,)." ".
+         $q-&gt;checkbox(-name=&gt;'showtime',
+                      -checked=&gt;$VARS-&gt;{nnt_showtime}||0,
+                      -value=&gt;'1',
+                      -label=&gt;'Show node time',
+                      -force=&gt;1,)." ".
+         $q-&gt;checkbox(-name=&gt;'nnt-toggle-left',
+                      -checked=&gt;$VARS-&gt;{nnt_toggle_left}||0,
+                      -value=&gt;'1',
+                      -label=&gt;'Show toggle on the left',
+                      -force=&gt;1,)." ".
+         "&lt;br /&gt;\n".
+         (getId($USER)!=$HTMLVARS{default_user}
+         ?$q-&gt;checkbox(-name=&gt;'nnt-cfg',
+                      -checked=&gt;0,
+                      -value=&gt;'1',
+                      -label=&gt;'Config Mode',
+                      -force=&gt;0,
+                      )." ".
+          $q-&gt;checkbox(-name=&gt;'nnt-blk',
+                      -checked=&gt;$VARS-&gt;{nnt_blk},
+                      -value=&gt;'1',
+                      -label=&gt;'Filtered Nodes?',
+                      -force=&gt;0,
+                      )." ".
+          "&lt;br /&gt;\n"
+         : "");
+    $checkboxes="" unless $notbare;
+    if(  ! $VARS-&gt;{lastviewednewestnodes}  ) {
+      $str .= qq[Showing nodes created within the past ]
+           . $q-&gt;popup_menu('numdays',\@array,$days)
+           . qq[ days&lt;br /&gt;$choosedepth&lt;br /&gt;]
+           . $checkboxes
+           . $q-&gt;submit("Set")
+           . qq[&lt;br /&gt;];
+    } else{
+      $str .= qq[Showing nodes created since ]
+           . htmlcode('convertEpochSecs',$VARS-&gt;{lastviewednewestnodes})
+           . qq[&lt;br /&gt;$choosedepth]
+           . $checkboxes
+           . $q-&gt;submit("Set")
+           . qq[&lt;br /&gt;];
+      $str.=qq[&lt;input type="submit" name="clearNewNodesFlag"
+                 value="Clear my 'last checked' time" /&gt;&lt;br /&gt;]
+            if  getId($USER) != $HTMLVARS{default_user};
+    }
+    qq[&lt;h3&gt;&lt;a name="nnt-config"&gt;Page Settings&lt;/a&gt;&lt;/h3&gt;$str&lt;/form&gt;];
+
+  },
+  "&lt;/div&gt;"
+;
+
+###########################################################################
+###########################################################################
+</field>
+</data>
+</node>

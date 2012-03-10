@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="287363" title="Symbolic mathematics in Perl" created="2003-08-28 09:52:34" updated="2005-08-11 09:32:29">
+<type id="121">
+perlcraft</type>
+<author id="287302">
+tsee</author>
+<data>
+<field name="doctext">
+# For some time now, symbolic calculation can be carried
+# out from within Perl: (warning: plug from module author)
+# 
+# If you find this interesting, check out the module on CPAN
+# and/or actively help with the development!
+
+use strict;
+use warnings;
+use Math::Symbolic qw/:all/;
+
+my $energy = parse_from_string(&lt;&lt;'HERE');
+	kinetic(mass, velocity, time) +
+	potential(mass, z, time)
+HERE
+
+$energy-&gt;implement(kinetic =&gt; '(1/2) * mass * velocity(time)^2');
+$energy-&gt;implement(potential =&gt; 'mass * g * z(t)');
+
+$energy-&gt;set_value(g =&gt; 9.81); # permanently
+
+print "Energy is: $energy\n";
+
+# Is how does the energy change with the height?
+my $derived = $energy-&gt;new('partial_derivative', $energy, 'z')
+                     -&gt;apply_derivatives()
+		     -&gt;simplify();
+
+print "Changes with the heigth as: $derived\n";
+
+# With whatever values you fancy:
+print "Putting in some sample values: ",
+      $energy-&gt;value(mass =&gt; 20, velocity =&gt; 10, z =&gt; 5),
+      "\n";
+
+# Too slow?
+$energy-&gt;implement(g =&gt; '9.81'); # To get rid of the variable
+
+my ($sub) = Math::Symbolic::Compiler-&gt;compile($energy);
+
+print "This was much faster: ",
+      $sub-&gt;(20, 10, 5),  # vars ordered alphabetically
+      "\n";
+
+
+# Output:
+# Energy is: (((1 / 2) * mass) * (velocity ^ 2)) + ((mass * g) * z)
+# Changes with the heigth as: mass * g
+# Putting in some sample values: 1981
+# This was much faster: 1981
+</field>
+</data>
+</node>

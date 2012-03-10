@@ -1,0 +1,63 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>163914</node_id>
+  <author_user>929</author_user>
+  <title>repeatedchatter</title>
+  <createtime>2002-05-03 17:13:07</createtime>
+  <code>my( $from, $text, $to, $You )= @_;
+
+   $text= substr( $text, 0, 255 ); # Truncate to match what DB stores
+   $You ||= &quot;You&quot;;
+
+   if(  $to == $HTMLVARS{default_user}  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         &quot;&lt;i&gt;$You can't send messages to &quot;
+         . linkNode($to) . &quot;&lt;/i&gt;&quot;
+      );
+      return 1;
+   }
+
+   my $isDup;
+   if ( !$to &amp;&amp; $from == $USER-&gt;{node_id} ) {
+       # check last message by this user
+       $isDup=$text eq $VARS-&gt;{last_chatter};
+       $VARS-&gt;{last_chatter}=$text;
+   }
+
+   if ( !$isDup ) {
+       # check last 500 seconds worth of messages by this user
+       my $for_user= $to ? &quot;and for_user=?&quot; : &quot;&quot;;
+       my $table= $for_user ? 'message' : 'chatter';
+       my $time_constraint= !$for_user
+                          ?  &quot; and epoch &gt;= unix_timestamp(now()) - 500&quot;
+                          :  &quot; and tstamp &gt;= date_sub(now(), interval 500 second)&quot;;
+
+       my $dbh = $DB-&gt;getDatabaseHandle();
+       my $sth = $dbh-&gt;prepare_cached( &quot;select * from $table&quot;
+           . &quot; where author_user=? and msgtext=? $for_user &quot;
+           . $time_constraint
+       );
+       $sth-&gt;execute( $from, $text, $for_user ? ($to) : () );
+       $isDup= $sth-&gt;fetchrow_hashref;
+       $sth-&gt;finish();
+   }
+
+   if(  $isDup  ) {
+      $query-&gt;param( &quot;sentmessage&quot;,
+         &quot;&lt;i&gt;Whoa, Cowboy!  $You said that already.  Don't 'reload'?&lt;/i&gt;&quot;
+      );
+      return 1;
+   }
+
+   if(  $to  ) {
+      local( $AUTHOR )= getNodeById($from,'light');
+      $query-&gt;param( &quot;sentmessage&quot;,
+         qq[&lt;i&gt;$You said &quot;&lt;/i&gt;]
+          . htmlcode( 'parselinksinchatter','', $text )
+          . qq[&lt;i&gt;&quot; to ] . linkNode($to) . &quot;&lt;/i&gt;&quot; );
+   }
+
+   return !1;
+</code>
+  <nodeupdated>2005-07-07 09:57:03</nodeupdated>
+</node>

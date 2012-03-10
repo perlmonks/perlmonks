@@ -1,0 +1,85 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>26</node_id>
+  <author_user>114</author_user>
+  <title>adminbar</title>
+  <createtime>1999-10-04 18:34:58</createtime>
+  <code>return ''  unless  isGod($USER);
+
+my $CLONER = getNode( 'node cloner', 'superdoc' );
+my $PARAMS = {
+   srcnode_id =&gt; $NODE-&gt;{node_id},
+   node_id    =&gt; $CLONER-&gt;{node_id},
+   newname    =&gt; 'NEWNAME'
+};
+
+my @links;
+
+my $url = urlGen($PARAMS);
+my $js_title=quotemeta($NODE-&gt;{title});
+my $js = &lt;&lt;&quot;END&quot;;
+   &lt;script language=&quot;javascript&quot;&gt;
+      function cloneNode() {
+         var newname = prompt(
+            'Cloning node &quot;$js_title&quot;\\nEnter a new name:',
+            ''
+         );
+         if(newname) {
+            var url = $url;
+            url = url.replace(/NEWNAME/, newname);
+            url = url.replace(/ /g, &quot;%20&quot;);
+            parent.location = url;
+         }
+      }
+   &lt;/script&gt;
+END
+
+my $disp = $query-&gt;param('displaytype') || '';
+
+for(  getPages( $NODE )  ) {
+   if(    'edit' ne $_-&gt;{displaytype}
+      or  canUpdateNode( $USER, $NODE )
+   ) {
+      push @links, 
+         ( $disp eq $_-&gt;{displaytype} ? 're' : '' )
+         . linkNode(
+            $NODE,
+            $_-&gt;{displaytype},
+            { displaytype =&gt; $_-&gt;{displaytype} }
+         );
+   }
+}
+
+if(     $query-&gt;param(&quot;displaytype&quot;) ne &quot;voteview&quot;
+   and      $NODE-&gt;{votescast}
+        ||  $NODE-&gt;{reputation}
+        ||  'user' eq $NODE-&gt;{type}{title}
+) {
+   push @links, linkNode(
+      $NODE, 'votes', { displaytype =&gt; 'voteview' }
+   );
+}
+
+push @links, linkNode(
+   153451, &quot;dump&quot;, { dumpid =&gt; $NODE-&gt;{node_id} }
+);
+
+
+push @links, '&lt;a href=&quot;javascript: cloneNode();&quot;&gt;clone&lt;/a&gt;(js)';
+push @links, htmlcode('clonetotype');
+
+
+# htmlcode( 'reapnode', getId($NODE) )
+#    if # $query-&gt;param('reap') eq 'yes';
+# push @links, sprintf qq(      &lt;a href=%s&gt;REAP NODE&lt;/a&gt;\n),
+#               urlGen( { node_id =&gt; getId($NODE), reap =&gt; # 'yes' } );
+
+push @links, linkNode( $NODE, &quot;unreap&quot;, { op=&gt;'unreap' } )
+   if  $DB-&gt;sqlSelect(
+         'node_id', 'reapednode', 'node_id = ' . getId($NODE)
+       );
+
+return join &quot;\n&quot;, $js, map '&lt;li&gt;'.$_.'&lt;/li&gt;', @links;
+</code>
+  <nodeupdated>2005-04-28 02:51:35</nodeupdated>
+</node>

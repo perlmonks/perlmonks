@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="489563" title="loginx" created="2005-09-06 11:45:34" updated="2005-09-06 07:45:35">
+<type id="3545">
+opcode</type>
+<author id="474174">
+yitzchak</author>
+<data>
+<field name="code">
+my $user= $q-&gt;param("user");
+return   if  ! $user;
+my $passwd= $q-&gt;param("passwd");
+return   if  ! $passwd; # This also disallows "0" as a password.
+my $salt= join '', map(
+    ('a'..'z','A'..'Z',0..9,'.','/')[rand 64],
+     1,2 );
+my $U= getNode( $user, 'user' );
+if(  ! $U  ) {
+    htmlcode( 'verifyNewUser','',
+        $user, $passwd, $salt, \$U );
+}
+return
+    if  ! $U
+    ||  ! confirmUser(
+            $U,
+            $salt,
+            $q-&gt;param('ticker') eq 'yes',
+            $passwd,
+        );
+
+$USER-&gt;{cookie}= $q-&gt;cookie(
+    -name =&gt; "userpass",
+    -value =&gt; $q-&gt;escape( join '|',
+        $user,
+        crypt( $passwd, $salt ),
+        $q-&gt;param('ticker') eq "yes",
+    ),
+    -expires =&gt; $q-&gt;param("expires")
+);
+</field>
+</data>
+</node>

@@ -1,0 +1,232 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+require 5;
+use strict;
+use Getopt::Std;
+use File::Find;
+use vars qw(%opts @mailboxen $file $access $mod $user $unread $i $j @passwd $name @oldusers $mailbytes $mailsize $homebytes $homesize @sorted @units @multipliers $limit $outputstring $length);
+
+getopts('ho:al:', \%opts);
+
+sub usage(){
+    print &lt;&lt;EOF;
+Usage: $0 [options]
+Example: $0 -om -l m=10m
+Synopsis: Checks the age and size of all mailboxen on the system, to help you isolate dead accounts, or disk hogs.
+
+-h : Displays this help screen.
+-o : Order of results[1].
+-a : List all users, not just those with unread mail.
+-l : Limit. Format is 'F=LLU', comma seperated, where 'F' is the field[2], 'L' the limit, and 'U' the unit[3].
+     Example: $0 -l u=1w,m=5m
+(This lists all users with unread mail who haven't checked there mailbox in over a week, and which is over 5 megabytes in size)
+
+[1]: Can be ordered by 'a' (alphabetic), 'u' (time mailbox unread), 'm' (mailbox size), 'h' (home dir size) or 't' (total disk usage).
+[2]: Field can be any listed above, except 'a'.
+[3]: Unit is the first letter of whichever unit you wish to use.
+     i.e. for times: 's' (second), 'm' (minute), 'h' (hour), 'd' (day), 'w' (week) or 'y' (year).
+     or for memory: 'b' (bytes), 'k' (Kb), 'm' (Mb) or 'g' (Gb).
+
+EOF
+    exit;
+}
+&lt;READMORE&gt;
+if ($opts{'h'}){
+    usage();
+}
+
+sub subdivide ($$\@\@$) {
+
+    my ($ordinal, $unit, $result);
+    my $time = shift;
+    my $depth = shift;
+    my $mult_ref = shift;
+    my @multipliers = @$mult_ref;
+    my $unit_ref = shift;
+    my @Units = @$unit_ref;
+    my $pluralise = shift;
+
+    my $k;
+    my $l = 1;
+    for ($k=0; $k&lt;@units; $k++) {
+
+        if ($k == @multipliers || $time &lt; $l * $multipliers[$k]) {
+            $ordinal = int ( $time / $l );
+            $unit = $units[$k];
+            $time -= $ordinal * $l;
+            last;
+        }
+
+        $l *= $multipliers[$k];
+    }
+
+    if ($pluralise &amp;&amp; ($ordinal &gt; 1)) {
+        $unit .= 's';
+    }
+
+    $result = &quot;$ordinal $unit&quot;;
+
+    if ($depth &amp;&amp; $time) {
+        $result .= &quot;, &quot; . subdivide($time, --$depth, \@multipliers, \@units, $pluralise);
+    }
+
+    return $result;
+}
+
+sub multiplyup ($\@\@) {
+
+    my $time = shift;
+    my $result = substr ($time, 0, -1);
+    my $unit = substr ($time, -1, 1);
+    my $mult_ref = shift;
+    my @multipliers = @$mult_ref;
+    my $unit_ref = shift;
+    my @Units = @$unit_ref;
+
+    my $k;
+    for ($k=0; $k&lt;@units; $k++) {
+
+        if ($unit eq $units[$k]) {
+            last;
+        }
+
+        $result *= $multipliers[$k];
+    }
+
+    return $result;
+}
+
+open PASSWD, &quot;/etc/passwd&quot; or die &quot;Could now open /etc/passwd, wtf?&quot;;
+@passwd = &lt;PASSWD&gt;;
+
+opendir MAIL, &quot;/var/spool/mail&quot; or die &quot;Could not open /var/spool/mail, wtf?&quot;;
+@mailboxen = grep { ! /^\..*$/  } readdir MAIL;
+closedir MAIL;
+
+my $longestname = 0;
+
+for ($i=0; $i&lt;@mailboxen; $i++) {
+
+    $user = $mailboxen[$i];
+    $file = &quot;/var/spool/mail/$user&quot;;
+
+    $access = (-A $file);
+    $mod = (-M $file);
+
+    if ($access &gt; $mod || $opts{'a'}) {
+
+        @multipliers = (60, 60, 24, 7, 365/7);
+        @units = ('second', 'minute', 'hour', 'day', 'week', 'year');
+        $unread = $access &gt; $mod ? subdivide(int($access * 86400), 1, @multipliers, @units, 1) : &quot;no time&quot;;
+
+        for ($j=0; $j&lt;@passwd; $j++) {
+            if ($passwd[$j] =~ /^$user:[^:]+:[^:]+:[^:]+:([^,:]+).+$/) {
+                $name = $1;
+                $name =~ s/\\//;
+                $name =~ s/(\b)(\w+)/$1\u\L$2/g;
+                last;
+            }
+        }
+
+        if (length($name) &gt; $longestname) { $longestname = length($name) }
+
+        @multipliers = (1024, 1024, 1024);
+        @units = ('bytes', 'Kb', 'Mb', 'Gb');
+        $mailbytes = -s $file;
+        $mailsize = subdivide($mailbytes, 0, @multipliers, @units, 0);
+
+        $homebytes = 0;
+        find sub { $homebytes += -s }, &quot;/home/$user&quot;;
+        $homesize = subdivide($homebytes, 0, @multipliers, @units, 0);
+
+        push @oldusers, { user      =&gt; &quot;$user&quot;,
+                          unread    =&gt; &quot;$unread&quot;,
+                          name      =&gt; &quot;$name&quot;,
+                          access    =&gt; $access &gt; $mod ? &quot;$access&quot; : 0,
+                          mailbytes =&gt; &quot;$mailbytes&quot;,
+                          mailsize  =&gt; &quot;$mailsize&quot;,
+                          homebytes =&gt; &quot;$homebytes&quot;,
+                          homesize  =&gt; &quot;$homesize&quot; };
+
+    }
+}
+
+if ( $opts{'l'} ) {
+    my %limits = split /[,=]/, $opts{'l'};
+
+    if ( $limits{'u'} ) {
+        @multipliers = (60, 60, 24, 7, 365/7);
+        @units = ('s', 'm', 'h', 'd', 'w', 'y');
+        $limit = multiplyup($limits{'u'}, @multipliers, @units) / 86400;
+        @oldusers = grep { $_-&gt;{access} &gt; $limit } @oldusers;
+    }
+
+    if ( $limits{'m'} ) {
+        @multipliers = (1024, 1024, 1024);
+        @units = ('b', 'k', 'm', 'g');
+        $limit = multiplyup($limits{'m'}, @multipliers, @units);
+        @oldusers = grep { $_-&gt;{mailbytes} &gt; $limit } @oldusers;
+    }
+
+    if ( $limits{'h'} ) {
+        @multipliers = (1024, 1024, 1024);
+        @units = ('b', 'k', 'm', 'g');
+        $limit = multiplyup($limits{'h'}, @multipliers, @units);
+        @oldusers = grep { $_-&gt;{homebytes} &gt; $limit } @oldusers;
+    }
+
+    if ( $limits{'t'} ) {
+        @multipliers = (1024, 1024, 1024);
+        @units = ('b', 'k', 'm', 'g');
+        $limit = multiplyup($limits{'t'}, @multipliers, @units);
+        @oldusers = grep { $_-&gt;{mailbytes} + $_-&gt;{homebytes} &gt; $limit } @oldusers;
+    }
+
+}
+
+
+if ( !defined( $opts{'o'} ) || $opts{'o'} eq 'u') {
+    @sorted = sort { $b-&gt;{access} &lt;=&gt; $a-&gt;{access} } @oldusers;
+}
+elsif ($opts{'o'} eq 'm') {
+    @sorted = sort { $b-&gt;{mailbytes} &lt;=&gt; $a-&gt;{mailbytes} } @oldusers;
+}
+elsif ($opts{'o'} eq 'h') {
+    @sorted = sort { $b-&gt;{homebytes} &lt;=&gt; $a-&gt;{homebytes} } @oldusers;
+}
+elsif ($opts{'o'} eq 't') {
+    @sorted = sort { $b-&gt;{mailbytes} + $b-&gt;{homebytes} &lt;=&gt; $a-&gt;{mailbytes} + $a-&gt;{homebytes} } @oldusers;
+}
+elsif ($opts{'o'} eq 'a') {
+    @sorted = sort { $a-&gt;{name} cmp $b-&gt;{name} } @oldusers;
+}
+else {
+    warn &quot;Bad ordering option, returning results unordered.&quot;;
+}
+
+print &quot;Name&quot; . ' ' x ($longestname+1) .&quot;Unread For              Mailbox Size   Home Dir Size\n&quot;;
+
+for ($i=0; $i&lt;@sorted; $i++) {
+    $outputstring = &quot;$sorted[$i]{name} &quot; . '-' x $longestname;
+    $outputstring = substr($outputstring, 0, $longestname + 4);
+
+    $outputstring .= &quot; $sorted[$i]{unread} ----------------------&quot;;
+    $outputstring = substr($outputstring, 0, $longestname + 40 - length($sorted[$i]{mailsize}));
+
+    $outputstring .= &quot; $sorted[$i]{mailsize} ------------&quot;;
+    $outputstring = substr($outputstring, 0, $longestname + 56 - length($sorted[$i]{homesize}));
+
+    $outputstring .= &quot; $sorted[$i]{homesize}\n&quot;;
+
+    print $outputstring;
+}
+
+exit;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>31311</node_id>
+  <author_user>25727</author_user>
+  <title>mailcheck.pl</title>
+  <createtime>2000-09-06 19:25:26</createtime>
+  <nodeupdated>2005-07-21 01:19:39</nodeupdated>
+</node>

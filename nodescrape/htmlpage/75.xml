@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="75" title="nodetype display page" created="1999-10-04 18:35:03" updated="2005-08-07 10:53:49">
+<type id="5">
+htmlpage</type>
+<author id="114">
+gods</author>
+<data>
+<field name="page">
+&lt;p&gt;&lt;b&gt;Authorized Readers&lt;/b&gt;:
+  [{listgroup:readers_user}]
+  [{displayInherited:readers_user}]
+
+&lt;p&gt;&lt;b&gt;Authorized Creators&lt;/b&gt;:
+  [{listgroup:writers_user}]
+  [{displayInherited:writers_user}]
+
+&lt;p&gt;&lt;b&gt;Authorized Updaters&lt;/b&gt;:
+  [{listgroup:updaters_user}]
+  [{displayInherited:updaters_user}]
+
+&lt;p&gt;&lt;b&gt;Authorized Deleters&lt;/b&gt;:
+  [{listgroup:deleters_user}]
+  [{displayInherited:deleters_user}]
+
+&lt;p&gt;&lt;b&gt;Restrict Duplicates&lt;/b&gt; (identical titles):
+[%
+  if(  $$NODE{restrictdupes} == -1  ) {
+    "parent";
+  } else {
+    $$NODE{restrictdupes} ? "Yes" : "No";
+  }
+%]
+  [{displayInherited:restrictdups}]
+
+&lt;p&gt;&lt;b&gt;SQL Table&lt;/b&gt;:
+[%
+  return "&lt;i&gt;none&lt;/i&gt;"   if  ! exists $$NODE{sqltable};
+  my $tab = $NODE-&gt;{sqltable};
+  my $inh = '';
+  if(  0 &lt; $NODE-&gt;{extends_nodetype}  ) {
+    my $TYPE = $DB-&gt;getType( $NODE-&gt;{extends_nodetype} );
+    $inh = $TYPE-&gt;{sqltablelist}   if  $TYPE;
+  }
+  for my $str (  $tab, $inh  ) {
+    my @tables= split /,/, $str;
+    $str = '';
+    for my $table (  @tables  ) {
+      my $TABLE = getNode( $table, 'dbtable' );
+      $str .= ','   if  '' ne $str;
+      $str .= $TABLE ? linkNode( $TABLE ) : $table;
+    }
+  }
+  $inh = " ( Inherited: $inh )"   if  $inh;
+  return $tab . $inh;
+%]
+
+&lt;p&gt;&lt;b&gt;Extends Nodetype&lt;/b&gt;:
+  [% linkNode ($$NODE{extends_nodetype})
+       if $$NODE{extends_nodetype}; %]
+
+&lt;p&gt;&lt;b&gt;Group Table&lt;/b&gt;:
+[%
+  my $table = $NODE-&gt;{grouptable};
+  return "none" unless $table;
+  my $TABLE = getNode( $table, 'dbtable' );
+  $TABLE ? linkNode( $TABLE ) : $table;
+%]
+[{displayInherited:grouptable}]
+
+[%
+  return "&lt;p&gt;" . linkNode(
+    getNode( "Node Lister", "superdoc" ),
+    "List $NODE-&gt;{title} nodes", {
+      'whichtype' =&gt; $NODE-&gt;{node_id}
+    }
+  ) . ", &lt;a href='?node=Type%20Tree&amp;#nodetype_$NODE-&gt;{node_id}'&gt;"
+    . "View in class heirarchy&lt;/a&gt;&lt;/p&gt;";
+%]
+
+&lt;p&gt;&lt;b&gt;Relevant pages&lt;/b&gt;:&lt;br&gt;
+[{get_display_types}]
+
+&lt;p&gt;&lt;b&gt;Active Maintenances&lt;/b&gt;:&lt;br /&gt;
+[%
+  my $str;
+  my %maints;
+
+  my $type = $NODE;
+  do {
+    my( @maints )= getNodeWhere(
+     {maintain_nodetype=&gt;getId($type)},
+      getType('maintenance')
+    );
+    $maints{$_-&gt;{maintaintype}} ||= $_ for @maints;
+  } while ( getRef( $type = $type-&gt;{extends_nodetype} ) );
+
+  return "&lt;i&gt;no maintenance functions&lt;/i&gt;"
+    unless  keys %maints;
+
+  foreach(  values %maints  ) {
+    $str .= "&lt;li&gt;" . linkNode($_) . "&lt;/li&gt;";
+  }
+  return $str;
+%]
+&lt;/p&gt;&lt;p&gt;
+[%
+my $type=$DB-&gt;deriveType($NODE);
+my $out = '&lt;table border="1"&gt;';
+$out .= '
+&lt;tr&gt;
+ &lt;th&gt;field&lt;/th&gt;
+ &lt;th&gt;type&lt;/th&gt;
+ &lt;th&gt;extra&lt;/th&gt;
+ &lt;th&gt;default&lt;/th&gt;
+ &lt;th&gt;key&lt;/th&gt;
+&lt;/tr&gt;';
+foreach my $table (reverse('node', @{$type-&gt;{tableArray}})) {
+  $out .= '&lt;tr&gt;&lt;td colspan="5"&gt;&lt;center&gt;&lt;b&gt;';
+  $out .= $table;
+  $out .= '&lt;/b&gt;&lt;/center&gt;&lt;/td&gt;&lt;/tr&gt;';
+  foreach my $field ($DB-&gt;getFieldsHash($table)) {
+    next if $field eq $table.'_id';
+    $out .= '&lt;tr&gt;';
+    $out .= '&lt;td&gt;'. $field-&gt;{Field} .'&lt;/td&gt;';
+    $out .= '&lt;td&gt;'. $field-&gt;{Type}  .'&lt;/td&gt;';
+    $out .= '&lt;td&gt;'. $field-&gt;{Extra} . 
+            ($field-&gt;{Null} ? '&amp;nbsp;' : ' not null') .'&lt;/td&gt;';
+    $out .= '&lt;td&gt;' 
+            . ( 
+               defined($field-&gt;{Default})
+               ? "'$field-&gt;{Default}'" 
+               : 'null'
+              ) 
+            . '&lt;/td&gt;';
+    $out .= '&lt;td&gt;'. ($field-&gt;{Key}||'&amp;nbsp;') .'&lt;/td&gt;';
+    $out .= "&lt;/tr&gt;\n";
+  }
+}
+$out .= '&lt;/table&gt;';
+
+$out;
+%]
+&lt;/p&gt;
+[{showsitedoclet}]</field>
+<field name="displaytype">
+display</field>
+</data>
+</node>

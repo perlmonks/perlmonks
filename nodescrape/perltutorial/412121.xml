@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="412121" title="Enabling GUI Debugging under Mod_Perl" created="2004-12-03 08:44:39" updated="2005-08-12 11:58:21">
+<type id="956">
+perltutorial</type>
+<author id="20358">
+mkirank</author>
+<data>
+<field name="doctext">
+Greetings &lt;br&gt;
+   I Did the following to Enable GUI Debugging of Mod_Perl (Apache::Registry) scripts (I got this Information from different places ) ,&lt;br&gt; I have documented the steps followed and want to put it under the appropriate section &lt;b&gt;(Suggest appropriate section) &lt;/b&gt;in perlmonks ,&lt;br&gt; 
+   This is my first attempt to writing a Setup Guide so am seeking the wise monks Inputs on the same.
+   &lt;br&gt;
+   Please let me know your Feedback/Opinions and any suggestions
+   &lt;br&gt;&lt;br&gt;
+&lt;readmore&gt;   
+&lt;h2&gt; Steps Followed &lt;/h2&gt;
+&lt;br&gt;
+&lt;b&gt; Installed the following packages from CPAN&lt;/b&gt;
+&lt;br&gt;
+1.Tk Graphical User Interface ToolKit from CPAN (Tk-804.027.tar)&lt;br&gt;
+2. Installed the Apache-DB-0.09&lt;br&gt;
+3. Installed the Devel-ptkdb-1.1091.tar.gz&lt;br&gt;
+&lt;br&gt;
+
+&lt;b&gt; Open the Apache::DB.pm file and change &lt;/b&gt;
+&lt;br&gt;
+    #require 'Apache/perl5db.pl'; Comment this line
+&lt;br&gt;
+   require 'Devel/ptkdb.pm';
+&lt;br&gt;
+&lt;br&gt;
+
+&lt;h3&gt;Save the below code as file Db.patch &lt;/h3&gt;
+&lt;br&gt;
+&lt;code&gt;
+#################################################################
+--- DB.pm	2003/07/23 16:59:07	1.1
++++ DB.pm	2003/07/23 17:03:29
+@@ -39,6 +39,34 @@
+     return 0;
+ }
+ 
++
++sub ptkdb ($$) {
++    my ($class,$r) = @_;
++
++    init();
++
++    # need to have a list of authorized remote hosts
++    $ENV{DISPLAY} = $r-&gt;get_remote_host.':0.0';
++    $DB::connection_refused = 0;  # try try again
++    require 'Devel/ptkdb.pm';
++    $DB::single = 1;
++# bug workaround?  Pressing "Return" button at toplevel makes ptkdb hang.
++    $DB::subroutine_depth = 0 ;
++    $DB::step_over_depth = -1 ;
++
++    if (ref $r) {
++        $SIG{INT} = \&amp;DB::dbint_handler;
++        $r-&gt;register_cleanup(sub {
++            $SIG{INT} = \&amp;DB::ApacheSIGINT();
++            $DB::single = 0; # do not debug during withdraw
++            $DB::window-&gt;close_ptkdb_window;
++        });
++    }
++
++    return 0;
++}
++
++
+ 1;
+ __END__
+#################################################################
+ 
+&lt;/code&gt;
+&lt;br&gt;
+
+&lt;h3&gt; Save the below code as file Ptkdb.patch &lt;/h3&gt;
+&lt;br&gt;
+&lt;code&gt;
+#################################################################
+--- ptkdb.pm	2003/07/23 17:05:20	1.1
++++ ptkdb.pm	2003/07/23 17:51:09
+
+@@ -1105,8 +1105,21 @@
+ 
+   # Main Window
+   
+-
++eval {
+   $self-&gt;{main_window} = MainWindow-&gt;new() ;
++};
++if ($@) {
++  my $err = $@;
++  my $r = eval { Apache-&gt;request };  # check if running under mod_perl
++  undef $@;
++  if ($r &amp;&amp; $err =~ m/Xlib: connection .*? refused|Xlib: Client is not authorized|couldn't connect to display/) {
++	$DB::connection_refused = 1;
++  	$self-&gt;{main_window} = undef;
++	warn($err);  # log the problem
++        return;
++  } 
++  die $err;
++}
+   $self-&gt;{main_window}-&gt;geometry($ENV{'PTKDB_GEOMETRY'} || "800x600") ;
+ 
+   $self-&gt;setup_options() ; # must be done after MainWindow and before other frames are setup
+@@ -1237,8 +1250,9 @@
+ 
+   $DB::window-&gt;{'event'} = 'run' ;
+   $self-&gt;{current_file} = "" ; # force a file reset
+-  $self-&gt;{'main_window'}-&gt;destroy ;
++  $self-&gt;{'main_window'}-&gt;destroy if $self-&gt;{'main_window'};
+   $self-&gt;{'main_window'} = undef ;
++  $DB::connection_refused = undef;  # allow another try
+ }
+ 
+ sub setup_menu_bar {
+@@ -4048,7 +4062,12 @@
+ 
+     $^W = $saveW ;
+    unless( $DB::ptkdb::isInitialized ) {
+-     return if( $filename ne $0 ) ; # not in our target file
++     if ( $filename ne $0 ) { # not in our target file
++        # check if running under mod_perl
++	my $r = eval { Apache-&gt;request };
++	undef $@;
++	return unless $r;
++     }
+      &amp;DB::Initialize($filename) ;
+    }
+ 
+@@ -4063,6 +4082,11 @@
+      return ;
+    }
+ 
++   if ( $DB::connection_refused ) {  # X to remote host failed
++     $@ = $DB::save_err ;
++     return ;
++   }
++
+  $DB::window-&gt;setup_main_window() unless $DB::window-&gt;{'main_window'} ;
+ 
+  $DB::window-&gt;EnterActions() ;
+
+
+#################################################################
+
+&lt;/code&gt;
+
+&lt;h4&gt; Install the DB.pm Patch &lt;/h4&gt;
+&lt;br&gt;
+Note
+  &lt;b&gt;Find the path of DB.pm and ptkdb.pm (on Linux You can use Locate  command) &lt;/b&gt; &lt;br&gt;
+patch &lt;PATH ON SYSTEM&gt;/Apache/DB.pm &lt; Db.patch
+&lt;br&gt;
+Install the ptkdb patch &lt;br&gt;
+patch &lt;PATH ON SYSTEM&gt;/Devel/ptkdb.pm &lt; Ptkdb.patch
+&lt;br&gt;
+&lt;br&gt;
+&lt;br&gt;
+&lt;b&gt;Add the Following Lines in Httpd.conf&lt;/b&gt;
+&lt;br&gt;
+&lt;code&gt;
+&lt;IfDefine PERLDB&gt;
+    &lt;Perl&gt;
+      use Apache::DB ();
+      Apache::DB-&gt;init;
+    &lt;/Perl&gt;
+    &lt;Location /&gt;
+      PerlFixupHandler  Apache::DB-&gt;ptkdb
+    &lt;/Location&gt;
+&lt;/IfDefine&gt;
+
+&lt;/code&gt;
+&lt;br&gt;
+Start the Httpd with the Following Command (this starts apache in a Single mode)&lt;br&gt;
+
+&lt;b&gt; /usr/local/apache/bin/httpd  -X -D PERLDB &lt;/b&gt;
+&lt;br&gt;
+&lt;br&gt;
+Enable the X-Windows (there are some security considerations ..man xhost for more details.)
+ xhost +
+&lt;br&gt;
+When a request is sent the GUI pops up and we can go through the script
+ (for the scripts that we run under Apache::Registry )
+&lt;br&gt; We need to step in  on the below Line below
+&lt;br&gt;
+&lt;code&gt;
+  eval &amp; {$cv}($r, @_) } if $r-&gt;seqno;
+&lt;/code&gt;
+
+&lt;br&gt;
+&lt;b&gt;If your server is Linux and u are working on Windows you can do the same by using xterm &lt;/b&gt;
+&lt;br&gt;
+&lt;h4&gt; Install cygwin &lt;/h4&gt;
+Open cygwin 
+&lt;br&gt;
+export DISPLAY=localhost:0.0
+&lt;br&gt;
+X -multiwindow &amp;
+&lt;br&gt;
+xhost +
+&lt;br&gt;
+xterm -display localhost:0 &amp;
+&lt;br&gt;
+
+ssh -X -l root &lt;LINUX SERVER&gt;
+&lt;br&gt;
+export DISPLAY=localhost:0.0
+&lt;br&gt;
+xhost +
+&lt;br&gt;
+
+
+
+&lt;p&gt;&lt;small&gt;2004-12-03 Janitored by [Arunbear] - added readmore tags, as per Monastery [id://17558|guidelines]&lt;/small&gt;&lt;/p&gt;
+&lt;p&gt;&lt;small&gt;&lt;strong&gt;Updated&lt;/strong&gt; [Steve_p] - moved to Tutorials per consideration&lt;/small&gt;&lt;/p&gt;</field>
+</data>
+</node>

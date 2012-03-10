@@ -1,0 +1,93 @@
+<node>
+  <doctext>[%
+    require XML::Fling;
+    require POSIX;
+
+    my $user= $q-&gt;param( &quot;foruser&quot; );
+    my $U;
+    if(  $user  ) {
+        $U= getNodeById( $user )
+            if  $user !~ /\D/;
+        $U= getNode( $user, &quot;user&quot; )
+            if  ! ref($U)  ||  &quot;user&quot; ne $U-&gt;{type}{title};
+        return &quot;No such user ($user).&quot;
+            if  ! $U;
+    }
+    $U ||= $USER;
+
+    my @data;
+    my @xmlstyle=map { lc $_ } $q-&gt;param(&quot;xmlstyle&quot;);
+    push @xmlstyle,'default' unless @xmlstyle;
+    my $id_name=(grep $_ eq &quot;clean&quot;,@xmlstyle)
+           ? &quot;foruser_id&quot; : &quot;foruserid&quot;;
+    my $xml = XML::Fling-&gt;new( \@data, &quot;&lt;&quot;,&quot;&gt;\n&quot;,&quot;&lt;&quot;,&quot;&gt;&quot;,&quot;&lt;&quot;,&quot;&gt;\n&quot; );
+
+    my ($limit)=$q-&gt;param('limit')=~/^(\d+)$/;
+    $limit=500 if $limit&lt;=0;
+    $limit=1000 if $limit&gt;1000;
+    my ($ofs)=$q-&gt;param('offset')=~/^(\d+)$/;
+    $ofs=0 if $ofs&lt;=0;
+    my $order=$q-&gt;param('order');
+    $order='asc' unless $order eq 'desc';
+    my ($fromid)=$q-&gt;param('fromid')=~/^(\d+)$/;
+    $fromid||=0;
+    htmlcode('log_ticker','','',&quot;$U-&gt;{title} - $limit - $ofs - $fromid&quot;) 
+     or Everything::printLog(&quot;UNIXG - $USER-&gt;{title} - $U-&gt;{title} - $limit - $ofs - $fromid&quot;);
+
+    $xml-&gt;
+      header()-&gt;
+      start(&quot;USERNODES&quot;)-&gt;
+        element( &quot;INFO&quot;,
+          site      =&gt; $HTMLVARS{site_url},
+          sitename  =&gt; $HTMLVARS{site_name},
+          foruser   =&gt; $U-&gt;{title},
+          $id_name  =&gt; $U-&gt;{node_id},
+          min_poll_seconds =&gt; 10, 
+          style      =&gt; join(',',@xmlstyle),
+          limit     =&gt; $limit,
+          offset    =&gt; $ofs,
+          order     =&gt; $order,
+          fromid    =&gt; $fromid,
+          gentimeGMT =&gt; POSIX::strftime(&quot;%Y-%m-%d %H:%M:%S&quot;,
+                                        gmtime(time)),
+          &quot;Rendered by the $NODE-&gt;{title}&quot;
+          . &quot; (XML::Fling ${XML::Fling::VERSION})&quot;
+        );
+    my %NS;
+    htmlcode('handle_nn_settings','',\%NS) or return &quot;&lt;error&gt;Error 1&lt;/error&gt;&quot;;
+    my $typestr= join &quot;,&quot;, map getId(getType($_)), @{$NS{legal}};
+    return &quot;&lt;error&gt;Error 2&lt;/error&gt;&quot; unless $typestr;
+    $fromid=&quot;node_id &gt; $fromid and&quot; if $fromid;
+    $fromid||=&quot;&quot;;
+    my $csr= $DB-&gt;sqlSelectMany(
+        &quot;node.*,lastedit&quot;,
+        &quot;node left join document on node_id=document_id&quot;,
+        &quot;$fromid author_user=$U-&gt;{node_id} and type_nodetype in ($typestr)&quot;,
+        &quot;order by node_id $order limit $ofs,$limit &quot;
+    );
+
+    while(  my $node= $csr-&gt;fetchrow_hashref()  ) {
+        $xml-&gt;element( &quot;NODE&quot;,
+          getId($U) != getId($USER)
+            || getId($U) == $HTMLVARS{guest_user} ? () : (
+              reputation =&gt; $node-&gt;{reputation},
+          ),
+          createtime =&gt; $node-&gt;{createtime},
+          id         =&gt; $node-&gt;{node_id},
+          lastupdate =&gt; $node-&gt;{lastupdate},
+          ! defined $node-&gt;{lastedit} ? () : (
+              lastedit =&gt; $node-&gt;{lastedit},
+          ),
+          $node-&gt;{title}
+        );
+    }
+    $xml-&gt;done();
+    return join &quot;&quot;, getHttpHeader(&quot;text/xml&quot;), @data;
+%]</doctext>
+  <type_nodetype>122</type_nodetype>
+  <node_id>32704</node_id>
+  <author_user>929</author_user>
+  <title>user nodes info xml generator</title>
+  <createtime>2000-06-01 15:14:20</createtime>
+  <nodeupdated>2005-08-15 17:33:08</nodeupdated>
+</node>

@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="7568" title="Tricks with DBI" created="2000-04-13 23:36:38" updated="2005-08-15 14:34:00">
+<type id="956">
+perltutorial</type>
+<author id="2675">
+btrott</author>
+<data>
+<keywords>
+<keyword rating="">
+supersearch</keyword>
+<keyword rating="">
+Tricks</keyword>
+<keyword rating="">
+with</keyword>
+<keyword rating="">
+DBI</keyword>
+</keywords>
+<field name="doctext">
+&lt;h1&gt;Tricks with DBI&lt;/h1&gt;
+
+&lt;h2&gt;1. Check for database errors.&lt;/h2&gt;
+
+You're going to run into errors with databases for
+similar reasons that you do when using system
+calls and the like. And just as you should always
+check the return code of your system calls, so should
+you always check the return status of your database
+calls.&lt;p&gt;
+
+The easiest way to do this is by setting DBI's
+RaiseError attribute to 1; first connect to the
+database (and check the return), then set the
+RaiseError attribute:
+
+&lt;code&gt;
+    my $dbh = DBI-&gt;connect('foo', 'bar', 'baz', 'mysql')
+        or die "Can't connect: ", $DBI::errstr;
+    $dbh-&gt;{RaiseError} = 1;
+&lt;/code&gt;
+
+By doing this, you ensure that any database error
+will cause a [die]. Why is this good? Because generally,
+if you're writing a database application and you have
+a database error, you don't want to continue as if
+nothing happened. :) (Besides, you can always catch
+the die in an [eval]; just make sure that you handle
+the errors rather than ignoring them.)&lt;p&gt;
+
+The other way to check for errors, of course, is to
+check the return of each method call, eg.:
+
+&lt;code&gt;
+    my $sth = $dbh-&gt;prepare("select id from foo")
+        or die "Can't prepare: ", $dbh-&gt;errstr;
+
+    $sth-&gt;execute
+        or die "Can't execute: ", $dbh-&gt;errstr;
+&lt;/code&gt;
+
+So as not to make your code one big C-like mess of
+error checking, though, you might as well just use
+RaiseError.&lt;p&gt;
+
+&lt;h2&gt;2. Use placeholders instead of literal values.&lt;/h2&gt;
+
+This is covered pretty thoroughly in
+[id://7548|What are placeholders in DBI].
+Suffice it to say here, then, that you should use placeholders
+instead of literal values. Always (or pretty much, at least).&lt;p&gt;
+
+And, for the same reasons, you should use prepare_cached
+instead of prepare.&lt;p&gt;
+
+&lt;h2&gt;3. The fastest way to fetch.&lt;/h2&gt;
+
+When you execute a SELECT statement, you want to get
+the data back as quickly as possible. The fastest way to
+do this is to use the bind_columns and fetch methods,
+because they don't copy a bunch of memory around.&lt;p&gt;
+
+bind_columns binds Perl variables to columns returned
+from your SELECT statement. For example, if you had
+the following SQL statement:
+
+&lt;code&gt;
+    select id, name, phone from people
+&lt;/code&gt;
+
+You'd want to bind 3 variables to the associated columns.
+So you set up the variables, then use bind_columns to
+bind them:
+
+&lt;code&gt;
+    my($id, $name, $phone);
+    $sth-&gt;bind_columns(undef, \$id, \$name, \$phone);
+&lt;/code&gt;
+
+(The first argument to bind_columns is actually a hash
+reference specifying DBI attributes to associate with
+this particular method; we don't want to associate any
+attributes with this particular method, so we'll just
+pass it undef.)&lt;p&gt;
+
+After you've called execute on your statement handle,
+you'll want to fetch the data. To do this, use the
+fetch method, which fetches the next row and returns
+an array reference holding the field values. But
+you don't need to use that array reference, because
+you've got the column values bound to Perl variables,
+and you can just use those directly:
+
+&lt;code&gt;
+    while ($sth-&gt;fetch) {
+        print join("\t", $id, $name, $phone), "\n";
+    }
+&lt;/code&gt;
+
+Each time you call fetch on your statement handle, the
+values of the bound variables get updated.&lt;p&gt;
+
+&lt;h3&gt;A Brief Interlude&lt;/h3&gt;
+
+Putting Tricks 1-3 together, we get something like
+the following:
+
+&lt;code&gt;
+    # Connect to the database and set the RaiseError
+    # attribute so that any database error will
+    # cause a die
+    my $dbh = DBI-&gt;connect('foo', 'bar', 'baz', 'mysql')
+        or die "Can't connect: ", $DBI::errstr;
+    $dbh-&gt;{RaiseError} = 1;
+
+    # Setup our statement handle using a placeholder
+    my $sth = $dbh-&gt;prepare_cached(&lt;&lt;SQL);
+select id, name, phone from people
+where birth_month = ?
+SQL
+
+    my @months = qw/January February March April May
+                    June July August September October
+                    November December/;
+
+    # Bind Perl variables to columns returned
+    # from SELECT
+    my($id, $name, $phone);
+    $sth-&gt;bind_columns(undef, \$id, \$name, \$phone);
+
+    for my $month (@months) {
+        print "People born in $month:\n";
+
+        # Execute the statement for this $month
+        $sth-&gt;execute($month);
+
+        # Fetch each row and print out the values
+        while ($sth-&gt;fetch) {
+            print "\t", join("\t", $id, $name, $phone), "\n";
+        }
+    }
+
+    $sth-&gt;finish;
+    $dbh-&gt;disconnect;
+&lt;/code&gt;
+
+&lt;h2&gt;4. Using DBI with mod_perl.&lt;/h2&gt;
+
+Part of the purpose of mod_perl is to make Perl programs
+run much faster on the Apache web server. mod_perl
+accomplishes this by building a Perl interpreter into
+the web server and compiling your programs in memory;
+thus, when it gets a new request, it maps that request
+onto a program compiled into memory--this is very fast.&lt;p&gt;
+
+If you're going to use DBI with mod_perl, you'll want to
+make sure that your database transactions are fast, as well
+(because you don't want the database being the bottleneck).
+
+The easiest way to accomplish this is to
+use the Apache::DBI module, which gives your programs
+persistent database connections. It does so by overriding
+the DBI connect method and keeping a cache of open
+database handles. One of the nicest things about Apache::DBI
+is that you won't have to modify your existing DBI code
+to use it. Just add
+
+&lt;code&gt;
+    use Apache::DBI;
+&lt;/code&gt;
+
+BEFORE the
+
+&lt;code&gt;
+    use DBI;
+&lt;/code&gt;
+
+in your code, and you're set. You don't even have to take
+out the calls to disconnect, because Apache::DBI overloads
+those calls and makes sure that the handle doesn't
+actually get disconnected.
+
+&lt;h1&gt;See Also&lt;/h1&gt;
+
+The new &lt;a href=http://www.oreilly.com/catalog/perldbi/&gt;Programming the Perl DBI&lt;/a&gt;;
+Mark-Jason Dominus's &lt;a href=http://www.perl.com/pub/1999/10/DBI.html&gt;A Short Guide to DBI&lt;/a&gt;;
+the &lt;a href=http://search.cpan.org/doc/TIMB/DBI-1.13/DBI.pm&gt;DBI manpage&lt;/a&gt; (also (probably)
+available as perldoc DBI).</field>
+</data>
+</node>

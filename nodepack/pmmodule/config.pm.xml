@@ -1,0 +1,106 @@
+<node>
+  <filetext># This file was created by configpm when Perl was built. Any changes
+# made to this file will be lost the next time perl is built.
+
+package Config;
+use strict;
+# use warnings; Pulls in Carp
+# use vars pulls in Carp
+@Config::EXPORT = qw(%Config);
+@Config::EXPORT_OK = qw(myconfig config_sh config_vars config_re);
+
+# Need to stub all the functions to make code such as print Config::config_sh
+# keep working
+
+sub myconfig;
+sub config_sh;
+sub config_vars;
+sub config_re;
+
+my %Export_Cache = map {($_ =&gt; 1)} (@Config::EXPORT, @Config::EXPORT_OK);
+
+our %Config;
+
+# Define our own import method to avoid pulling in the full Exporter:
+sub import {
+    my $pkg = shift;
+    @_ = @Config::EXPORT unless @_;
+
+    my @funcs = grep $_ ne '%Config', @_;
+    my $export_Config = @funcs &lt; @_ ? 1 : 0;
+
+    no strict 'refs';
+    my $callpkg = caller(0);
+    foreach my $func (@funcs) {
+	die sprintf qq{&quot;%s&quot; is not exported by the %s module\n},
+	    $func, __PACKAGE__ unless $Export_Cache{$func};
+	*{$callpkg.'::'.$func} = \&amp;{$func};
+    }
+
+    *{&quot;$callpkg\::Config&quot;} = \%Config if $export_Config;
+    return;
+}
+
+die &quot;Perl lib version (v5.8.9) doesn't match executable version ($])&quot;
+    unless $^V;
+
+$^V eq v5.8.9
+    or die &quot;Perl lib version (v5.8.9) doesn't match executable version (&quot; .
+	sprintf(&quot;v%vd&quot;,$^V) . &quot;)&quot;;
+
+
+sub FETCH {
+    my($self, $key) = @_;
+
+    # check for cached value (which may be undef so we use exists not defined)
+    return $self-&gt;{$key} if exists $self-&gt;{$key};
+
+    return $self-&gt;fetch_string($key);
+}
+sub TIEHASH {
+    bless $_[1], $_[0];
+}
+
+sub DESTROY { }
+
+sub AUTOLOAD {
+    require 'Config_heavy.pl';
+    goto \&amp;launcher unless $Config::AUTOLOAD =~ /launcher$/;
+    die &quot;&amp;Config::AUTOLOAD failed on $Config::AUTOLOAD&quot;;
+}
+
+# tie returns the object, so the value returned to require will be true.
+tie %Config, 'Config', {
+    archlibexp =&gt; '/usr/local/lib/perl5/5.8.9/mach',
+    archname =&gt; 'i386-freebsd-64int',
+    cc =&gt; 'cc',
+    d_readlink =&gt; 'define',
+    d_symlink =&gt; 'define',
+    dlsrc =&gt; 'dl_dlopen.xs',
+    dont_use_nlink =&gt; undef,
+    exe_ext =&gt; '',
+    inc_version_list =&gt; ' ',
+    intsize =&gt; '4',
+    ldlibpthname =&gt; 'LD_LIBRARY_PATH',
+    libpth =&gt; '/usr/lib /usr/local/lib',
+    osname =&gt; 'freebsd',
+    osvers =&gt; '7.1-release-p2',
+    path_sep =&gt; ':',
+    privlibexp =&gt; '/usr/local/lib/perl5/5.8.9',
+    scriptdir =&gt; '/usr/local/bin',
+    sitearchexp =&gt; '/usr/local/lib/perl5/site_perl/5.8.9/mach',
+    sitelibexp =&gt; '/usr/local/lib/perl5/site_perl/5.8.9',
+    useithreads =&gt; undef,
+    usevendorprefix =&gt; undef,
+    version =&gt; '5.8.9',
+};
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-05-10 12:13:52</createtime>
+  <node_id>165687</node_id>
+  <filerequired></filerequired>
+  <title>Config.pm</title>
+  <nodeupdated>2005-08-13 05:26:03</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

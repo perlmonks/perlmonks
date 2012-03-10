@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="173044" title="raise" created="2002-06-10 01:48:17" updated="2004-07-19 07:03:25">
+<type id="3545">
+opcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+return "deprectated. see " . linkNode(244951);
+my $nid = $query-&gt;param('raise');
+
+use Data::Dumper;
+
+Everything::printLog("Can't raise node, no permission : $USER-&gt;{title}"), return
+  unless isGod($USER);
+
+return unless $nid;
+
+return if
+  $nid =~ /\D/;
+
+Everything::printLog("Raising $nid for $USER-&gt;{title}");
+
+Everything::printLog("No corpse for $nid"), return
+  unless my $corpse = $DB-&gt;sqlSelectHashref('*', 'tomb', "node_id = $nid");
+
+my $node = sub {
+  $corpse-&gt;{data} =~ s/\$VAR1 =//;
+  return eval($corpse-&gt;{data});
+}-&gt;();
+
+$node = { %$corpse, %$node };
+
+delete $node-&gt;{killa_user};
+delete $node-&gt;{data};
+
+my $inserted = $DB-&gt;insertNode(
+  $node-&gt;{title},
+  getNodeById($node-&gt;{type_nodetype}),
+  getNodeById($node-&gt;{author_user}) || getNode('root', getType('user')),
+  $node
+) or Everything::printLog("Can't insert node: " . $DB-&gt;getDatabaseHandle-&gt;errstr);
+
+updateNode($inserted, -1);
+
+$query-&gt;param( node_id =&gt; getId($inserted) );</field>
+</data>
+</node>

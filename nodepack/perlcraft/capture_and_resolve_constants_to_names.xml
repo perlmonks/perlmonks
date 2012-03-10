@@ -1,0 +1,219 @@
+<node>
+  <doctext># UPDATE: 
+#  this is currently available as Devel::Constants on CPAN
+#  but the name may change.  suggestions welcome.
+#
+# this is in response to node #117146, of course
+
+package constant::flags;
+
+use strict;
+use vars qw( $VERSION );
+
+$VERSION = '0.10';
+
+use constant;
+use subs ('oldimport');
+
+{
+	local $^W = 0;
+	*oldimport = \&amp;constant::import;
+	*constant::import = \&amp;newimport;
+}
+
+
+my %flags;
+
+sub import {
+	my $class = shift;
+
+	my $to_names;
+	my $pkg = caller();
+	my $flagholder = {};
+
+	while (my $arg = shift) {
+		if (ref($arg) eq 'HASH') {
+			$flagholder = $arg;
+
+		} elsif ($arg eq 'to_names') {
+			$to_names = shift || 'to_names';
+		} elsif ($arg eq 'package') {
+			$pkg = shift if @_;
+		}
+	}
+
+	$flags{$pkg} = $flagholder;
+
+	if ($to_names) {
+		no strict 'refs';
+		*{ $pkg . &quot;::$to_names&quot; } = \&amp;to_names;
+	}
+}
+
+sub newimport {
+	my ($class, @args) = @_;
+	my $pkg = caller();
+
+	if (defined $flags{$pkg}) {
+		while (@args) {
+			my ($name, $val) = splice(@args, 0, 2);
+			last unless $val;
+			$flags{$pkg}{$val} = $name;
+		}
+	}
+
+	goto &amp;oldimport;
+}
+
+sub to_names {
+	my ($val, $pkg) = @_;
+	$pkg ||= caller(); 
+	
+	my $flags = $flags{$pkg} or return;
+
+	my @flags;
+	foreach my $flag (keys %$flags) {
+		push @flags, $flags-&gt;{$flag} if $val &amp; $flag;
+	}
+	return wantarray() ? @flags : join(' ', @flags);
+}
+
+1;
+__END__
+
+=head1 NAME
+
+constant::flags - Perl module to translate constants back to their named symbols
+
+=head1 SYNOPSIS
+
+	# must precede use constant
+	use constant::flags;
+
+	use constant A =&gt; 1;
+	use constant B =&gt; 2;
+	use constant C =&gt; 4;
+
+	my $flag = A | B;
+	print &quot;Flag is: &quot;, join(' and ', to_names($flag) ), &quot;\n&quot;;
+
+=head1 DESCRIPTION
+
+Declaring constants is very convenient for writing programs, but as they're
+often inlined by Perl, retrieving their symbolic names can be tricky.  This is
+made worse with lowlevel modules that use constants for bit-twiddling.
+
+constant::flags makes this much more manageable.
+
+It silently wraps around the L&lt;constant&gt; module, intercepting all constant
+declarations.  It builds a hash, associating the values to their names.  The
+names can then be retrieved as necessary.
+
+Note that constant::flags B&lt;must&gt; be used B&lt;before&gt; L&lt;constant&gt; is, or the
+magic will not work and you will be very disappointed.  This is very important,
+and if you ignore this warning, the authors will feel free to laugh at you.  At
+least a little.
+
+By default, constant::flags will only intercept constant declarations within
+the same package that used the module.  Also by default, it stores the
+constants for a package within a private (read, otherwise inaccessible)
+variable.  Both of these can be overridden.
+
+By default, constant::flags exports one subroutine into the caller's namespace. 
+It is normally called C&lt;to_names&gt;.  This may change in future versions, and it
+may no longer be exported.  By passing the C&lt;to_names&gt; parameter to
+constant::flags, it is possible to change the name of this function:
+
+	use constant::flags to_names =&gt; 'resolve';
+
+	use constant FOO =&gt; 1;
+	use constant BAR =&gt; 2;
+
+	print resolve(2);
+
+Passing the C&lt;package&gt; flag to constant::flags with a valid package name will
+make the module intercept all constants subsequently declared within that
+package.  For example, in package main one might say:
+
+	use constant::flags package =&gt; NetPacket::TCP;
+	use NetPacket::TCP;
+
+All of the TCP flags declared within L&lt;NetPacket::TCP&gt; are now available.
+
+It is also possible to pass in a hash reference where the constant values and
+names wil be stored:
+
+	my %constant_map;
+	use constant::flags \%constant_map;
+
+	use constant NAME	=&gt; 1;
+	use constant RANK	=&gt; 2;
+	use constant SERIAL	=&gt; 4;
+
+	print join(' ', values %constant_map), &quot;\n&quot;;
+
+=head2 EXPORT
+
+C&lt;to_names&gt;, currently.  This may change in the future.  Note that L&lt;constant&gt;
+also exports, by design.
+
+=head1 FUNCTIONS
+
+=over 4
+
+=item C&lt;to_names($flag, [ $package ])&gt;
+
+This function resolves a flag into its component named bits.  This is generally
+only useful for flags known to be composed of named constants logically
+combined.  It can be very handy though.  The first parameter is required, and
+must be the flag to decompose.  It is not modified.  The second parameter is
+optional.  If provided, it will use flags set in another package.  In the
+L&lt;NetPacket::TCP&gt; example above, it could be used to find the symbolic names of
+TCP packets, such as SYN or RST set on a NetPacket::TCP object.
+
+=back
+
+=head1 HISTORY
+
+=over 4
+
+=item * 0.10 (7 October 2001)
+
+Initial version.
+
+=back
+
+=head1 TODO
+
+=over 4
+
+=item * figure out a better way to handle C&lt;to_names&gt;
+
+=item * allow potential capture lists?
+
+=item * access only one constant at a time (more general than flags)
+
+=item * sync up better with allowed constant names in C&lt;constant&gt;
+
+=back
+
+=head1 AUTHOR
+
+chromatic &lt;chromatic@wgz.org&gt;, with thanks to &quot;Benedict&quot; at Perlmonks.org for
+the germ of the idea (L&lt;http://perlmonks.org/index.pl?node_id=117146&gt;).
+
+Thanks also to Tim Potter and Stephanie Wehner for C&lt;NetPacket::TCP&gt;, though
+they don't know it yet.  :)
+
+=head1 SEE ALSO
+
+L&lt;constant&gt;
+
+=cut</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>117349</node_id>
+  <author_user>1382</author_user>
+  <title>Capture and Resolve Constants to Names</title>
+  <createtime>2001-10-07 21:42:23</createtime>
+  <nodeupdated>2005-07-21 01:28:25</nodeupdated>
+</node>

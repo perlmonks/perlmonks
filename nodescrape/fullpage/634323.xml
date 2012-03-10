@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="634323" title="cpan module feed" created="2007-08-22 08:32:53" updated="2007-08-22 04:32:59">
+<type id="122">
+fullpage</type>
+<author id="1316">
+nate</author>
+<data>
+<field name="doctext">
+[%
+
+  local *nodeurl = sub {
+     my $n=shift;
+     (my $site=$HTMLVARS{site_url})=~s!/+$!!;
+     return $site.$ENV{SCRIPT_NAME}.
+            urlGen({ node_id=&gt; ref $n ? $n-&gt;{node_id} : $n },1);
+  };
+
+my $modulename = $q-&gt;param('module');
+if (!$modulename) {
+  return "please pass me a 'module' parameter";
+}
+
+   return "&lt;error&gt;Error creating fling object&lt;/error&gt;"
+     unless htmlcode('new_xml_fling','',\my($xml,@data,%xmlstyle),'add_header');
+
+  require POSIX;
+
+  my $site={
+      site        =&gt; $HTMLVARS{site_url},
+      sitename    =&gt; $HTMLVARS{site_name},
+      foruser     =&gt; $USER-&gt;{title},
+      foruser_id  =&gt; $USER-&gt;{node_id},
+      min_poll_seconds =&gt; 30,
+      style      =&gt; join(',',grep $xmlstyle{$_}, keys %xmlstyle),
+      gentimeGMT =&gt; POSIX::strftime("%Y-%m-%d %H:%M:%S",
+                                    gmtime(time))
+  };
+
+  $xml-&gt;header();
+
+my $rsstitle ='';
+if ($q-&gt;param('pivot')) {
+  $rsstitle = "Other Modules Mentioned in Conversations that Mention $modulename";
+} else {
+  $rsstitle = "Conversations related to module $modulename";
+}
+
+
+
+     $xml-&gt;start(rss=&gt;version=&gt;2.0,'xmlns:perlmonks'=&gt;nodeurl(393035));
+     $xml-&gt;start('channel');
+     $xml-&gt;element(ttl=&gt;60);
+     $xml-&gt;element(title=&gt;$rsstitle);
+     $xml-&gt;element(link=&gt;nodeurl($NODE));
+     $xml-&gt;element(docs=&gt;'http://blogs.law.harvard.edu/tech/rss');
+     $xml-&gt;element(generator=&gt;'PerlMonks CPAN Module Feed');
+     foreach my $key (keys %$site) {
+        $xml-&gt;element("perlmonks:$key",$site-&gt;{$key});
+     }
+
+
+
+
+
+
+my $csr = $DB-&gt;sqlSelectMany("root_node, min(node_id) as node_id",  "moduleindex",  "modulename=".$dbh-&gt;quote($modulename), "group by root_node order by node_id desc");
+
+if ($q-&gt;param('pivot')) {
+
+my @rootnodes = ();
+while (my $n = $csr-&gt;fetchrow_hashref()) {
+  push @rootnodes, $n-&gt;{root_node};
+}
+$csr-&gt;finish();
+
+if (!@rootnodes) {
+    $xml-&gt;end('channel');
+    $xml-&gt;end('rss');
+    return join '', @data;
+}
+
+$csr = $DB-&gt;sqlSelectMany("modulename, count(*) as modcount",  "moduleindex",  "root_node IN (".join(',', @rootnodes).")", "group by modulename order by modcount desc");
+
+
+
+while (my $m =  $csr-&gt;fetchrow_hashref()) {
+       next if lc($modulename) eq lc($m-&gt;{modulename});
+       
+
+my $modnamecaps = '';
+
+$modnamecaps = $DB-&gt;sqlSelect("modulename", 'modulelist', "modulename = ".$dbh-&gt;quote($m-&gt;{modulename}));
+
+$modnamecaps ||= $m-&gt;{modulename};
+
+$xml-&gt;start('item','perlmonks:itemtype'=&gt;'cpanmodule');
+       $xml-&gt;element('title'=&gt;$modnamecaps);
+       $xml-&gt;element('link' =&gt; 'http://annocpan.org/?mode=search&amp;field=Module&amp;name='.CGI::escape($modnamecaps));
+       $xml-&gt;end('item');
+}
+
+
+} else {
+
+
+my $str = '';
+while (my $n = $csr-&gt;fetchrow_hashref()) {
+        my $node = getNode($n-&gt;{node_id});
+         my $usertime=htmlcode('parseTimeInString','',$node-&gt;{createtime},undef,undef,"RFC822");
+
+        $xml-&gt;start('item','perlmonks:itemtype'=&gt;'node');
+        $xml-&gt;element('title'=&gt;$node-&gt;{title});
+          $xml-&gt;element('link' =&gt;nodeurl($node));
+          #$xml-&gt;element('description'=&gt;$node-&gt;{abbreviated})
+#            if $node-&gt;{abbreviated} ne '...';
+          $xml-&gt;element('category'=&gt;$node-&gt;{type}{title});
+          $xml-&gt;element('pubDate'=&gt;$usertime);
+          $xml-&gt;element('guid'=&gt;$node-&gt;{node_id});
+          $xml-&gt;element('perlmonks:node_id'=&gt;$node-&gt;{node_id});
+          $xml-&gt;element('perlmonks:author_user'=&gt;$node-&gt;{author_user});
+          $xml-&gt;element('perlmonks:createtime'=&gt;$node-&gt;{createtime});
+          $xml-&gt;element('perlmonks:authortitle'=&gt;getNode($node-&gt;{author_user})-&gt;{title});
+        $xml-&gt;end('item');
+}
+}
+    $xml-&gt;end('channel');
+    $xml-&gt;end('rss');
+
+
+
+  return join '', @data;
+
+
+%]</field>
+</data>
+</node>

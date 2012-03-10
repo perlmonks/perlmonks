@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="519034" title="render_doclist_group" created="2005-12-25 19:29:54" updated="2005-12-25 14:29:54">
+<type id="4">
+htmlcode</type>
+<author id="474174">
+yitzchak</author>
+<data>
+<field name="code">
+# my $html= htmlcode('render_doclist_group','',$optional_node_or_id);
+my ( $node, %opts )= @_;
+
+$node= $NODE if !$node;
+getRef($node);
+
+my %list_type= (
+                  doclist =&gt; 1,
+                  catqalist =&gt; 1,
+                  faqlist =&gt; 1,
+                  tutlist =&gt; 1
+               );
+
+my $type= $node-&gt;{type}{title};
+
+return "&lt;b&gt;Can't render list of type '$type' in 'render_doclist_group'&lt;/b&gt;"
+    unless $list_type{$type};
+
+# Handle Options. Options are provided by the nodes 'vars' and may be
+# overridden by arguments. Defaults are provided if nothing is provided
+# from either sources.
+
+my $vars= getVars( $node );
+%opts= ( %$vars, %opts );
+
+# Do we recurse into sublists when we render?
+$opts{recurse}= 1
+  unless defined $opts{recurse};
+
+# Do we show the nodetypes when viewing.
+# Provides list maintainers more info
+$opts{showtype}= 1
+  if !exists $opts{showtype} and canUpdateNode($USER,$node);
+
+# let list maintainers override
+$opts{showtype}= 0
+  if $q-&gt;param('normal_user_view');
+
+$opts{showauthor}= ($node-&gt;{type}{title} eq 'tutlist'
+  || $node-&gt;{type}{title} eq 'catqalist')
+   unless defined $opts{showauthor};
+
+# all ids we have seen already in the traverse.
+my %seen_id;
+
+# lists we have seen before.
+my %seen_list= ( $NODE-&gt;{node_id} =&gt; 1);
+
+# recursive routine, so we use local to prevent it from leaking
+# due to self references.
+local *make_tree= sub {
+   my ( $NODE, $html )= @_;
+
+   $html||=[];
+
+   my @GROUP= @{ $NODE-&gt;{group}||[] };
+
+   return unless @GROUP;
+
+   push @$html,"&lt;ul&gt;";
+
+   foreach my $id (@GROUP) {
+      my $node= getNodeById($id);
+      my $have_seen= $seen_id{$id}++;
+
+      # nodetypes starting in alpha shouldnt show up normally.
+      next if   $node-&gt;{type}{title}=~/^alpha/
+                and !$opts{showtype};
+
+      my $is_list= $list_type{ $node-&gt;{type}{title} };
+
+      my $content="";
+      my $is_string;
+      # not clear if this
+      if (  $node-&gt;{type}{title} =~ /string$/
+            &amp;&amp; (   !$opts{no_string}
+                || $q-&gt;param('normal_user_view') )
+      ) {
+        $is_string= 1;
+        $content=qq[&lt;span class="$node-&gt;{type}{title}"&gt;]
+                .htmlcode( 'parselinksinchatter', '', $node-&gt;{text} )
+                .qq[&lt;/span&gt;];
+      } else {
+        $content = linkNode($node);
+        $content.= qq[&lt;span class="$node-&gt;{type}{title}-itemauthor"&gt; by ]
+                . linkNode($node-&gt;{author_user}) 
+                . "&lt;/span&gt;"
+          if !$is_list 
+          &amp;&amp; $opts{showauthor} 
+          &amp;&amp; $node-&gt;{author_user} != 113; # don't show "by root" as its not helpful
+      }
+      if (  $opts{showtype}  ) {
+        $content .= " &lt;span class='$node-&gt;{type}{title}-itemtype'&gt;("
+                 .  linkNode($node-&gt;{type});
+        if ($is_string) {
+            $content .= " : ".linkNode($node,"#".$node-&gt;{node_id});
+        }
+        $content.= ')&lt;/span&gt;';
+      }
+      push @$html,
+            "&lt;li&gt;"
+          . ($have_seen ? "&lt;span class='$type-seen'&gt;" : "")
+          . ($is_list ? "&lt;span class='$type-islist'&gt;" : "")
+          . $content
+          . ($is_list ? "&lt;/span&gt;" : "")
+          . ($have_seen ? "&lt;/span&gt;" : "")
+      ;
+      if (  $is_list  &amp;&amp;  $opts{recurse}  ) {
+          if (  ! $seen_list{$id}++  ) {
+             make_tree( $node, $html );
+          } elsif (  $id == $NODE-&gt;{node_id}  ) {
+             push @$html," &lt;span class='$type-thislist'&gt;(This list)&lt;/span&gt;";
+          }
+      }
+      push @$html, "&lt;/li&gt;";
+   }
+   push @$html, "&lt;/ul&gt;";
+   return $html;
+};
+
+
+local *make_sections= sub {
+   my ( $NODE, $html )= @_;
+   $html||=[];
+   my @GROUP= @{ $NODE-&gt;{group}||[] };
+   return unless @GROUP;
+
+   my @items;
+   my @out;
+   foreach my $item (@GROUP) {
+        my $node=getNodeById($item);
+        #next if !@{ $node-&gt;{group}||[] } &amp;&amp; !$opts{showtype};
+        my $anchor=$node-&gt;{title};
+        $anchor=~s/\W+/-/g;
+        $anchor=~s/^-+//;
+        $anchor=~s/-+$//;
+        $anchor=~s/-sitedoclet$//;
+        my $title=$node-&gt;{title};
+        $title=~s/ sitedoclet$//;
+        push @items,qq[&lt;li&gt;&lt;a href="#$anchor"&gt;$title&lt;/a&gt;&lt;/li&gt;];
+        push @out, qq[&lt;hr width ="80%" align="left" /&gt;]
+                  .qq[&lt;a name="$anchor"&gt;]
+                  .qq[&lt;h3&gt;]
+                  .linkNode($node,$title)
+                  .qq[&amp;nbsp;&amp;nbsp;&lt;i&gt;]
+                  .qq[&lt;small&gt;(&lt;a href="#toc"&gt;Top&lt;/a&gt;)&lt;/small&gt;]
+                  .qq[&lt;/i&gt;&lt;/h3&gt;&lt;/a&gt;]
+        ;
+        if (my $sdl=getNode("$node-&gt;{title} sitedoclet",'sitedoclet')) {
+          push @out,htmlcode('get_sitedoclet','',$sdl);
+        }
+        elsif ( $node-&gt;{doctext} ) {
+          push @out,htmlcode('ParseLinksInContent','',
+            $node-&gt;{doctext},
+            id=&gt;$node-&gt;{node_id},
+            readmore_remove=&gt;1,
+          );
+        }
+        make_tree( $node, \@out );
+   } ;
+
+   my $first=join "", @items[0..$#items/2];
+   my $second=join "", @items[$#items/2+1..$#items];
+
+   push @$html,
+    qq[&lt;a name="toc"&gt;&lt;h3&gt;$node-&gt;{title}&lt;/h3&gt;&lt;/a&gt;]
+    . qq[&lt;table width="100%" align="center" valign="top" cellspacing="0" cellpadding="1" border="0"&gt;]
+    . qq[&lt;tr align="center"&gt;]
+    . qq[&lt;td width="45%" align="left" valign="top"&gt;]
+    . qq[&lt;ul&gt;$first&lt;/ul&gt;&lt;/td&gt;]
+    . qq[&lt;td width="55%" align="left" valign="top"&gt;]
+    . qq[&lt;ul&gt;$second&lt;/ul&gt;&lt;/td&gt;]
+    . qq[&lt;td width="20%"&gt;&amp;nbsp;&lt;/td&gt;]
+    . qq[&lt;/tr&gt;&lt;/table&gt;]
+    . join "",@out;
+   return $html;
+};
+
+my @html;
+if ($opts{showtext}) {
+  push @html,
+  htmlcode ( 'ParseLinksInContent', '', 
+    $node-&gt;{doctext}, 
+    id =&gt; $node-&gt;{node_id},
+    readmore_remove =&gt; 1,
+    overridefilter =&gt; {
+         form =&gt; 'method,action,enctype',
+         input =&gt; 'type,name,value,size,/',
+       },
+  );
+}
+if ($opts{sections}) {
+    make_sections( $node, \@html );
+} else {
+    make_tree( $node, \@html );
+}
+return join "", @html;
+</field>
+</data>
+</node>

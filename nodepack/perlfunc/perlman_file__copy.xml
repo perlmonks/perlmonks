@@ -1,0 +1,149 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+File::Copy - Copy files or filehandles
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>113</author_user>
+  <description>&lt;P&gt;
+The File::Copy module provides two basic functions, &lt;CODE&gt;copy&lt;/CODE&gt; and
+&lt;CODE&gt;move&lt;/CODE&gt;, which are useful for getting the contents of a file from one place to
+another.
+
+&lt;UL&gt;
+&lt;LI&gt;
+&lt;P&gt;
+The &lt;CODE&gt;copy&lt;/CODE&gt; function takes two parameters: a file to copy from and a file to copy to.
+Either argument may be a string, a FileHandle reference or a FileHandle
+glob. Obviously, if the first argument is a filehandle of some sort, it
+will be read from, and if it is a file &lt;EM&gt;name&lt;/EM&gt; it will be opened for reading. Likewise, the second argument will be
+written to (and created if need be).
+
+&lt;P&gt;
+&lt;STRONG&gt;Note that passing in
+files as handles instead of names may lead to loss of information
+on some operating systems; it is recommended that you use file
+names whenever possible.&lt;/STRONG&gt;  Files are opened in binary mode where applicable. To get a consistent
+behavour when copying from a filehandle to a file, use [perlfunc:binmode|binmode] on the filehandle.
+
+&lt;P&gt;
+An optional third parameter can be used to specify the buffer size used for
+copying. This is the number of bytes from the first file, that wil be held
+in memory at any given time, before being written to the second file. The
+default buffer size depends upon the file, but will generally be the whole
+file (up to 2Mb), or 1k for filehandles that do not reference files (eg.
+sockets).
+
+&lt;P&gt;
+You may use the syntax &lt;CODE&gt;use File::Copy &amp;quot;cp&amp;quot;&lt;/CODE&gt; to get at the ``cp'' alias for this function. The syntax is &lt;EM&gt;exactly&lt;/EM&gt; the same.
+
+&lt;P&gt;&lt;LI&gt;
+
+The &lt;CODE&gt;move&lt;/CODE&gt; function also takes two parameters: the current name and the intended name
+of the file to be moved. If the destination already exists and is a
+directory, and the source is not a directory, then the source file will be
+renamed into the directory specified by the destination.
+
+&lt;P&gt;
+If possible, 
+&lt;CODE&gt;move()&lt;/CODE&gt; will simply rename the
+file. Otherwise, it copies the file to the new location and deletes the
+original. If an error occurs during this copy-and-delete process, you may
+be left with a (possibly partial) copy of the file under the destination
+name.
+
+&lt;P&gt;
+You may use the ``mv'' alias for this function in the same way that you may
+use the ``cp'' alias for &lt;CODE&gt;copy&lt;/CODE&gt;.
+
+&lt;/UL&gt;
+&lt;P&gt;
+File::Copy also provides the &lt;CODE&gt;syscopy&lt;/CODE&gt; routine, which copies the file specified in the first parameter to the file
+specified in the second parameter, preserving OS-specific attributes and
+file structure. For Unix systems, this is equivalent to the simple
+&lt;CODE&gt;copy&lt;/CODE&gt; routine. For 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; systems, this calls the &lt;CODE&gt;rmscopy&lt;/CODE&gt;
+routine (see below). For 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; systems, this calls the &lt;CODE&gt;syscopy&lt;/CODE&gt;
+
+&lt;FONT SIZE=-1&gt;XSUB&lt;/FONT&gt; directly.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H2&gt;&lt;A NAME=&quot;Special_behavior_if_C_syscopy_i&quot;&gt;Special behavior if &lt;CODE&gt;syscopy&lt;/CODE&gt; is defined (VMS and OS/2)&lt;/A&gt;&lt;/H2&gt;
+&lt;P&gt;
+If both arguments to &lt;CODE&gt;copy&lt;/CODE&gt; are not file handles, then &lt;CODE&gt;copy&lt;/CODE&gt; will perform a ``system copy'' of the input file to a new output file, in
+order to preserve file attributes, indexed file structure, &lt;EM&gt;etc.&lt;/EM&gt;  The buffer size parameter is ignored. If either argument to &lt;CODE&gt;copy&lt;/CODE&gt; is a handle to an opened file, then data is copied using Perl operators,
+and no effort is made to preserve file attributes or record structure.
+
+&lt;P&gt;
+The system copy routine may also be called directly under 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; as
+ &lt;CODE&gt;File::Copy::syscopy&lt;/CODE&gt; (or under 
+&lt;FONT SIZE=-1&gt;VMS&lt;/FONT&gt; as &lt;CODE&gt;File::Copy::rmscopy&lt;/CODE&gt;, which is the routine that does the actual work for syscopy).
+
+&lt;DL&gt;
+&lt;DT&gt;&lt;STRONG&gt;&lt;A NAME=&quot;item_rmscopy&quot;&gt;rmscopy($from,$to&amp;#091;,$date_flag&amp;#093;)&lt;/A&gt;&lt;/STRONG&gt;&lt;P&gt;
+&lt;DD&gt;
+The first and second arguments may be strings, typeglobs, typeglob
+references, or objects inheriting from IO::Handle; they are used in all
+cases to obtain the
+&lt;EM&gt;filespec&lt;/EM&gt; of the input and output files, respectively. The name and type of the input
+file are used as defaults for the output file, if necessary.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;A&lt;/FONT&gt; new version of the output file is always created, which inherits the structure and 
+&lt;FONT SIZE=-1&gt;RMS&lt;/FONT&gt; attributes of the input file, except for owner and protections (and possibly timestamps; see below). All data from the input file is copied to the output file; if either of the first two parameters to
+ &lt;CODE&gt;rmscopy&lt;/CODE&gt;
+is a file handle, its position is unchanged. (Note that this means a file
+handle pointing to the output file will be associated with an old version
+of that file after &lt;CODE&gt;rmscopy&lt;/CODE&gt;
+returns, not the newly created version.)
+
+&lt;P&gt;
+The third parameter is an integer flag, which tells &lt;CODE&gt;rmscopy&lt;/CODE&gt;
+how to handle timestamps. If it is &amp;lt; 0, none of the input file's timestamps are propagated to the output file. If it is &amp;gt; 0, then it is interpreted as a bitmask: if bit 0 (the 
+&lt;FONT SIZE=-1&gt;LSB)&lt;/FONT&gt; is set, then timestamps other than the revision date are propagated; if bit 1 is set, the revision date is propagated. If the third parameter to
+ &lt;CODE&gt;rmscopy&lt;/CODE&gt; is 0, then it behaves much like the 
+&lt;FONT SIZE=-1&gt;DCL&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;COPY&lt;/FONT&gt; command: if the name or type of the output file was explicitly specified, then no timestamps are propagated, but if they were taken implicitly from the input filespec, then all timestamps other than the revision date are propagated. If this parameter is not supplied, it defaults to 0.
+
+&lt;P&gt;
+Like &lt;CODE&gt;copy&lt;/CODE&gt;, &lt;CODE&gt;rmscopy&lt;/CODE&gt; returns 1 on success. If an error occurs, it sets &lt;CODE&gt;$!&lt;/CODE&gt;, deletes the output file, and returns 0.
+
+&lt;/DL&gt;
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;RETURN&quot;&gt;RETURN&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+All functions return 1 on success, 0 on failure. $! will be set if an error
+was encountered.
+
+&lt;P&gt;
+&lt;HR&gt;
+&lt;H1&gt;&lt;A NAME=&quot;AUTHOR&quot;&gt;AUTHOR&lt;/A&gt;&lt;/H1&gt;
+&lt;P&gt;
+File::Copy was written by Aaron Sherman &lt;EM&gt;&amp;lt;ajs@ajs.com&amp;gt;&lt;/EM&gt; in 1995, and updated by Charles Bailey &lt;EM&gt;&amp;lt;bailey@genetics.upenn.edu&amp;gt;&lt;/EM&gt; in 1996.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-12-22 19:51:48</createtime>
+  <node_id>1202</node_id>
+  <synopsis>&lt;P&gt;
+&lt;PRE&gt;        use &lt;A HREF=&quot;File::Copy&quot;&gt;File::Copy&lt;/A&gt;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;        copy(&amp;quot;file1&amp;quot;,&amp;quot;file2&amp;quot;);
+        copy(&amp;quot;Copy.pm&amp;quot;,\*STDOUT);'
+        move(&amp;quot;/dev1/fileA&amp;quot;,&amp;quot;/dev2/fileB&amp;quot;);
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;</synopsis>
+  <title>perlman:File::Copy</title>
+  <nodeupdated>2005-08-14 03:45:16</nodeupdated>
+</node>

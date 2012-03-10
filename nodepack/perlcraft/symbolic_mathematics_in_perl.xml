@@ -1,0 +1,58 @@
+<node>
+  <doctext># For some time now, symbolic calculation can be carried
+# out from within Perl: (warning: plug from module author)
+# 
+# If you find this interesting, check out the module on CPAN
+# and/or actively help with the development!
+
+use strict;
+use warnings;
+use Math::Symbolic qw/:all/;
+
+my $energy = parse_from_string(&lt;&lt;'HERE');
+	kinetic(mass, velocity, time) +
+	potential(mass, z, time)
+HERE
+
+$energy-&gt;implement(kinetic =&gt; '(1/2) * mass * velocity(time)^2');
+$energy-&gt;implement(potential =&gt; 'mass * g * z(t)');
+
+$energy-&gt;set_value(g =&gt; 9.81); # permanently
+
+print &quot;Energy is: $energy\n&quot;;
+
+# Is how does the energy change with the height?
+my $derived = $energy-&gt;new('partial_derivative', $energy, 'z')
+                     -&gt;apply_derivatives()
+		     -&gt;simplify();
+
+print &quot;Changes with the heigth as: $derived\n&quot;;
+
+# With whatever values you fancy:
+print &quot;Putting in some sample values: &quot;,
+      $energy-&gt;value(mass =&gt; 20, velocity =&gt; 10, z =&gt; 5),
+      &quot;\n&quot;;
+
+# Too slow?
+$energy-&gt;implement(g =&gt; '9.81'); # To get rid of the variable
+
+my ($sub) = Math::Symbolic::Compiler-&gt;compile($energy);
+
+print &quot;This was much faster: &quot;,
+      $sub-&gt;(20, 10, 5),  # vars ordered alphabetically
+      &quot;\n&quot;;
+
+
+# Output:
+# Energy is: (((1 / 2) * mass) * (velocity ^ 2)) + ((mass * g) * z)
+# Changes with the heigth as: mass * g
+# Putting in some sample values: 1981
+# This was much faster: 1981
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>287363</node_id>
+  <author_user>287302</author_user>
+  <title>Symbolic mathematics in Perl</title>
+  <createtime>2003-08-28 09:52:34</createtime>
+  <nodeupdated>2005-08-11 09:32:29</nodeupdated>
+</node>

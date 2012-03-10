@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="207902" title="Poll XML Ticker" created="2002-10-24 23:40:54" updated="2004-11-23 06:33:13">
+<type id="122">
+fullpage</type>
+<author id="3607">
+Petruchio</author>
+<data>
+<field name="doctext">
+[%
+  use XML::Fling;
+  Everything::printLog("poll xml ticker: name: $USER-&gt;{title} ip: $ENV{REMOTE_ADDR}");
+
+  my @data;
+  my $xml = new XML::Fling ( \@data, ('&lt;',"&gt;\n")x3 );
+  my $poll = $query-&gt;param ('poll') || '';
+  my @info = ( 'info', site =&gt; $HTMLVARS{site_url}, sitename  =&gt; $HTMLVARS{site_name},
+    "Rendered by the Poll XML Ticker"
+  );
+  my @poll_ids;
+  {
+    my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare( 'SELECT polls_id FROM polls WHERE polls_id != 1447' );
+    $csr-&gt;execute;
+    push @poll_ids, $_ while ($_) = $csr-&gt;fetchrow_array;
+    $csr-&gt;finish;
+  }
+  if( $poll eq 'list'){
+    $xml-&gt;header("windows-1252")-&gt;start( 'polls' )-&gt;element( @info );
+    $xml-&gt;empty( 'poll', node_id =&gt; $_, title =&gt; getNode($_)-&gt;{title} ) for @poll_ids;
+  }
+  else {
+    my %poll_id = map { $_ =&gt; $_ } @poll_ids;
+    $poll_id{$poll} = 0 if $poll =~ /\D/;
+    $poll = $poll_id{$poll} || pop @poll_ids;
+    my $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(
+      "SELECT createtime FROM node WHERE node_id = $poll"
+    );
+    $csr-&gt;execute;
+    my ($date) = $csr-&gt;fetchrow_array;
+    $csr-&gt;finish();
+    $csr = $DB-&gt;getDatabaseHandle()-&gt;prepare(
+        "SELECT polls_id, choices, numbers
+        FROM polls
+        WHERE polls_id = $poll
+        LIMIT 1"
+    );
+    $csr-&gt;execute;
+    my @results = $csr-&gt;fetchrow_array;
+    $csr-&gt;finish();
+    my $poll_id = shift @results;
+    my @choices = map { s/\s*$//; $_ } split /\n/, shift @results;
+    my @votes   = map { s/\D//g; $_  } split /\n/, shift @results;
+    my $votes;
+    $votes += $_ for @votes;
+    $xml-&gt;header()-&gt;start(
+      'poll', title =&gt; getNode($poll_id)-&gt;{title}, date =&gt; $date
+    )-&gt;element( @info );
+    $xml-&gt;empty( 'option', name =&gt; $_, votes =&gt; shift @votes ) for @choices;
+    $xml-&gt;empty( 'total',  votes =&gt; $votes );
+  }
+  $xml-&gt;end();
+  return join '', @data;
+%]</field>
+</data>
+</node>

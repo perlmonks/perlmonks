@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="485501" title="xml_info_tag" created="2005-08-21 03:57:39" updated="2005-08-20 23:57:39">
+<type id="4">
+htmlcode</type>
+<author id="357600">
+de-merphq</author>
+<data>
+<field name="code">
+require POSIX;
+my ($xml,$xmlstyle,$start,%opts)= @_;
+my $node;
+
+if ($opts{-node}) {
+   $node=delete($opts{-node});
+   $node=getRef($node);
+}
+$node||=$NODE;
+
+if ($start) {
+  $xml-&gt;start( $xmlstyle-&gt;{clean} ? lc($start) : $start );
+  push @{$xml-&gt;[0]},"\n" if $xmlstyle-&gt;{clean};
+}
+my $xmlns= delete($opts{-xmlns});
+if ( $xmlns ) {
+  my $data= $xml-&gt;get();
+  $data-&gt;[-1] =~ s!&gt;! xmlns:$xmlns&gt;!;
+}
+
+my $tag= $xmlstyle-&gt;{clean} ? 'info' : 'INFO';
+my $gmtime=POSIX::strftime("%Y-%m-%d %H:%M:%S",gmtime());
+
+my $title=delete($opts{-title}) || $node-&gt;{title};
+$title=~s/xml/XML/gi;       # capitalize 'XML'
+$title=~s/\b(\w+)/\u$1\E/g; # capitalize words
+
+$xml-&gt;element(
+      $tag,
+      site       =&gt; $HTMLVARS{site_url},
+      sitename   =&gt; $HTMLVARS{site_name},
+      ticker_id  =&gt; $node-&gt;{node_id},
+      gentimeGMT =&gt; $gmtime,
+      xmlstyle   =&gt; join(',',grep $xmlstyle-&gt;{$_}, sort keys %$xmlstyle),
+      xmlmaker   =&gt; "XML::Fling ${XML::Fling::VERSION}",
+      %opts,
+      "Rendered by the $title"
+);
+</field>
+</data>
+</node>

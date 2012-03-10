@@ -1,0 +1,105 @@
+<node>
+  <filetext>package XML::Fling::_Shared;
+
+BEGIN {
+    *XML::Fling::Array::delims= \&amp;_delims;
+}
+
+sub XML::Fling::Array::header {
+    my $self= shift(@_);
+    my $encoding= @_ ? shift(@_) : &quot;ISO-8859-1&quot;;
+    my $version= @_ ? shift(@_) : &quot;1.0&quot;;
+    push @{$self-&gt;[0]}, $self-&gt;[_head()+_lt()]
+        . qq{?xml version=&quot;$version&quot; encoding=&quot;$encoding&quot;?}
+        . $self-&gt;[_head()+_gt()];
+    return $self;
+}
+
+sub XML::Fling::Array::quote {
+    my $self= shift(@_);
+    _quote( my $str= shift(@_) );
+    push @{$self-&gt;[0]}, $str;
+    return $self;
+}
+
+sub XML::Fling::Array::escape {
+    my $self= shift(@_);
+    _escape( my $str= shift(@_) );
+    push @{$self-&gt;[0]}, $str;
+    return $self;
+}
+
+sub XML::Fling::Array::_start {
+    my $self= shift(@_);
+    my $tag= shift(@_);
+    my $avVal= $self-&gt;[0];
+    push @$avVal, $self-&gt;[_open()+_lt()] . $tag;
+    while(  1 &lt; @_  ) {
+        my( $attrib, $value )= splice @_, 0, 2;
+        _quote( $value );
+        push @$avVal, qq( $attrib=&quot;$value&quot;);
+    }
+}
+
+sub XML::Fling::Array::start {
+    XML::Fling::Array::_start( @_ );
+    my $self= shift(@_);
+    my $tag= shift(@_);
+    my $avVal= $self-&gt;[0];
+    $avVal-&gt;[$#avVal] .= $self-&gt;[_open()+_gt()];
+    if(  @_ % 2  ) {
+        my( $data )= $_[-1];
+        _escape( $data );
+        push @$avVal, $data;
+    }
+    push @$self, $tag;
+    return $self;
+}
+
+sub XML::Fling::Array::empty {
+    XML::Fling::Array::_start( @_ );
+    my $self= shift(@_);
+    my $tag= shift(@_);
+    my $avVal= $self-&gt;[0];
+    $avVal-&gt;[$#avVal] .= &quot; /&quot; . $self-&gt;[_close()+_gt()];
+    return $self;
+}
+
+sub XML::Fling::Array::end {
+    my $self= shift(@_);
+    my $tag= pop @$self;
+    push @{$self-&gt;[0]}, $self-&gt;[_close()+_lt()] . &quot;/$tag&quot; . $self-&gt;[_close()+_gt()];
+    return $self;
+}
+
+sub XML::Fling::Array::element {
+    XML::Fling::Array::start( @_ );
+    XML::Fling::Array::end( @_ );
+    my $self= shift(@_);
+    return $self;
+}
+
+sub XML::Fling::Array::done {
+    my $self= shift(@_);
+    while(  _attrCount()+1 &lt; @$self  ) {
+        $self-&gt;end();
+    }
+    return $self;
+}
+
+sub XML::Fling::Array::get {
+    my $self= shift(@_);
+    return $self-&gt;[0];
+}
+
+1;
+</filetext>
+  <type_nodetype>118397</type_nodetype>
+  <author_user>142755</author_user>
+  <createtime>2002-05-10 12:18:24</createtime>
+  <node_id>165695</node_id>
+  <filerequired></filerequired>
+  <title>XML/Fling/Array.pm</title>
+  <nodeupdated>2005-08-13 05:26:33</nodeupdated>
+  <filereaderror></filereaderror>
+</node>

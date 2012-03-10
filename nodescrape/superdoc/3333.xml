@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="3333" title="Comment on" created="2000-02-10 19:06:26" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[%
+# Only parameter is parent.
+# reply settings: replyTypes all get replied to by notes.
+# others are parent type =&gt; reply type.
+# preview settings: FIXME.
+
+  my $pid = $query-&gt;param('parent');
+
+  my $parent = getNodeById($pid)
+    or return 'No such parent node';
+
+  my $type = $parent-&gt;{type}{title};
+
+  # disable anonymous replies
+  # return qq[No anonymonk replies] if getId($USER) == $HTMLVARS{default_user};
+
+  return qq[&lt;p class="cant-reply"&gt;You can't reply to $type nodes, because you don't have permission to read them.&lt;/p&gt;]
+    unless ( $DB-&gt;canReadNode($USER, $parent) );
+
+  my $ps = getVars( getNode('preview settings','setting') );
+  my $rs = getVars( getNode('reply settings', 'setting') );
+
+  my %replytypes = map { $_ =&gt; "note" } 
+      split( ",", $rs-&gt;{replyTypes} ); 
+
+  foreach (grep {$_ ne "replyTypes"} keys %$rs) {
+    $replytypes{$_} = $rs-&gt;{$_} ;
+  }
+
+  my $kidtype = $replytypes{$type};
+  return qq[&lt;p class="cant-reply"&gt;Replying to $type nodes is not supported.&lt;/p&gt;]
+    unless ( $kidtype );
+
+  my $displaycode = $ps-&gt;{"displayHtmlcodeForType_$type"}
+                 || $ps-&gt;{defaultDisplayHtmlcode};
+
+  $HTMLVARS{embed_node}{doctext} = $parent-&gt;{doctext};
+
+  return $q-&gt;div(
+    { class =&gt; 'preview' },
+    htmlcode($displaycode),
+    $q-&gt;hr,
+    $pid ? htmlcode('addnewnoteform', '', $kidtype, $pid) : (),
+    $q-&gt;br,
+    htmlcode('showhints')
+  );
+%]</field>
+</data>
+</node>

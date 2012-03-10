@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="195744" title="Spider dice.com for new jobs of interest" created="2002-09-06 15:10:01" updated="2004-10-10 05:31:46">
+<type id="121">
+perlcraft</type>
+<author id="22308">
+dws</author>
+<data>
+<field name="doctext">
+*** BREAKAGE! On 9/16/02, dice.com changed their search and result format,
+*** breaking this script. I'll post a fix once I've reverse-engineered
+*** their new format.
+
+#!/usr/bin/perl -w
+
+# newdice -- What's new on dice.com
+#
+# Spider dice.com looking for new job postings of interest, and
+# emit a single HTML page with all results. "New" is complicated
+# by  recruiters who withdraw/repost a job description daily, so
+# that it appears at the top of the list. To avoid this, we keep
+# keep md5 hashes of the job descriptions we've already seen.
+#
+# To avoid having to work through jobs that are uninteresting,
+# we exclude any post that contains an "ignore" term.
+#
+# N.B. To adapt this for your use, you'll need to reverse engineer
+# the dice.com search form that you care about, and update
+# $searchform below. You'll also need to carefully examine __DATA__
+# to remove terms that might interest you. Run this once, examine
+# the results, and amend __DATA__ as needed.
+#
+# This is all rather brute force, but it's "good enough" for
+# my needs. If you improve it, please send me a copy (or diffs).
+#
+# Dave W. Smith &lt;dws@postcognitive.com&gt;
+my $VERSION = "0.2 06 Sep 2002";
+
+use strict;
+
+use HTTP::Request::Common qw(GET POST);
+use HTTP::Cookies;
+use LWP::UserAgent;
+use Digest::MD5 qw(md5_hex);
+
+my $cachefile = "dice.cache";
+
+my $search = "http://jobsearch.dice.com/jobsearch/jobsearch.cgi";
+my $searchform = [
+    iquery =&gt; "#or(#1(AREA 209) #1(AREA 369) #1(AREA 408)" 
+            . " #1(AREA 415) #1(AREA 510) #1(AREA 650) #1(AREA 707)"
+            . " #1(AREA 831) #1(AREA 925) #1(AREA 559))",
+    banner =&gt; 1,
+    query =&gt; "",
+    method =&gt; "and",
+    acode =&gt; 408, acode =&gt; 510, acode =&gt; 650,
+    taxterm =&gt; "",
+    daysback =&gt; -f $cachefile ? 2 : 10,
+    num_per_page =&gt; 50,
+    num_to_retrieve =&gt; 2000
+];
+
+
+# Set up the ignore regexp. (There are faster ways, but this works.)
+
+my @ignore;
+while ( &lt;DATA&gt; ) {
+    chomp;
+    s/^\s+//; s/\s+$//;
+    next if /^(?:;|$)/;
+    push @ignore, $_;
+}
+my $ignore = join('|', @ignore);
+
+# Set up a hash of md5s of the descriptions we've already seen.
+
+my %seen;
+open(IN, "&lt;", $cachefile) and do {
+    while ( &lt;IN&gt; ) {
+        chomp;
+        $seen{$_}++;		
+    }
+    close(IN);
+};
+
+my $ua = new LWP::UserAgent();
+$ua-&gt;agent("Mozilla/4.0 (compatible; MSIE 5.01; Windows 98");
+
+# Submit a search form. We exepct to get a 302 response with a Location:
+# for the real search results.
+
+my $req = POST $search, $searchform;
+my $response = $ua-&gt;request($req);
+my $resultpage = $response-&gt;headers()-&gt;header("location");
+
+my %jobByUrl;
+my %jobTitleByUrl;
+
+$|++; print "&lt;!-- "; #DEBUG
+
+# Get the first search result page
+
+$req = GET $resultpage;
+$response = $ua-&gt;request($req);
+
+while ( 1 ) {
+    last if not $response-&gt;is_success();
+
+    print ".";   #DEBUG
+
+    my $body = $response-&gt;as_string();
+    foreach my $line ( split "\n", $body ) {
+
+        if ( $line =~ m#^Position.*?href="(.*?)"&gt;(.*?)&lt;/a&gt;(.*)# ) {
+            my($url,$title,$description) = ($1,$2,$3);
+
+            # Skip stuff we don't care about
+            next if $title =~ /\b(?:$ignore)\b/io;
+
+            # Skip stuff we've already seen
+            my $md5 = md5_hex($description);
+            next if defined $seen{$md5};
+            $seen{$md5}++;
+
+            $jobByUrl{$url} = $line;
+            $jobTitleByUrl{$url} = $title;
+        }
+    }
+
+    # If there's a next page, get it. Otherwise we're done.
+    last if $body !~ /href="([^"]+)"&gt;Show next/;
+
+    $req = GET $1;
+    sleep(2);  # Don't hammer the server
+    $response = $ua-&gt;request($req);
+}
+
+print "--&gt;\n"; #DEBUG
+
+print &lt;&lt;"";
+&lt;!doctype html public "-//W3C//DTD HTML 4.0 Transitional//EN"&gt;
+&lt;html&gt;
+&lt;head&gt;&lt;title&gt;New jobs of interest on dice.com&lt;/title&gt;&lt;/head&gt;
+&lt;body bgcolor="#FFFFFF" text="#000000"
+      link="#FF0000" vlink="#990000" alink="#FF0000"&gt;
+
+print "No new jobs of interest\n" if 0 == keys %jobByUrl;
+
+# Sorting by URL groups recruiters together, which tends to group like
+# jobs together. YMMV.
+
+foreach my $url ( sort keys %jobByUrl ) {
+    print $jobByUrl{$url}, "\n";
+}
+
+print &lt;&lt;"";
+&lt;/body&gt;
+&lt;/html&gt;
+
+# Update the "seen" cache
+open(OUT, "&gt;", $cachefile) and do {
+    print OUT "$_\n" foreach ( keys %seen );
+    close(OUT);
+}
+
+
+__DATA__
+; Exclusion patterns. Any job title that contains any of these terms gets
+; ignored, so take care not to add stuff that'll give you false negatives.
+
+; ignore various uninteresting jobs
+
+sales
+underwriter
+tester
+qc
+administrator
+technician
+biologist
+chemist
+accounting
+accountant
+account
+accounts
+business development
+acount
+acounts
+acounting
+payroll
+
+; ... etc. my complete list elided in the interest of space
+</field>
+</data>
+</node>

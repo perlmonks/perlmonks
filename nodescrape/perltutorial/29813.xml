@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="29813" title="Undoable Objects" created="2000-08-26 17:12:31" updated="2005-08-15 11:57:20">
+<type id="956">
+perltutorial</type>
+<author id="1382">
+chromatic</author>
+<data>
+<field name="doctext">
+Suppose your Perl objects someday come to you and complain about their lack of memory.  "We've worked for you for years, but once you tell us to change something about ourselves, we can't remember being any other way!"  For example, if you were writing a web service that allowed users to edit their own documents, once they committed a change to that document (provided it's kept as an object somewhere), their prior work vanishes.
+&lt;p&gt;
+Pencils have erasers, and many applications have an Undo feature.  Here's one way of adding that to your Perl objects.
+&lt;p&gt;
+We'll start out simply enough:
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+
+package HistoryObj;
+
+sub new {
+	my $class = shift;
+	my $self = {
+		color =&gt; 'blue',
+		texture =&gt; 'rusty metal',
+		taste =&gt; 'salt',
+	};
+	bless($self, $class);
+	return $self;
+}&lt;/code&gt;
+Nothing surprising there.  We have some class defaults, and we could extend this constructor to allow us to override these defaults when creating a new object.  That's not the point here, but keep it in mind.
+&lt;code&gt;{
+	my %history;
+
+	sub _log {
+		my $self = shift;
+		my $attrib = shift;
+		my $value = $self-&gt;{$attrib};
+		push @{ $history{$self} }, [ $attrib, $value ];
+	}
+
+	sub undo {
+		my $self = shift;
+		return unless (scalar @{ $history{$self} });
+		my ($attrib, $value) = @{ pop @{ $history{$self} } };
+		$self-&gt;{$attrib} = $value;
+	}
+}&lt;/code&gt;
+Here's the dirty work.  We encapsulate two subroutines and a lexical variable in an inner scope.  The subroutines will, of course, be visible elsewhere.  They also happen to be the only way to get access to %history, which is the point.  (The _log() subroutine has a leading underscore to mark it as private.  That's a polite convention.  If you're feeling especially private, you could get more paranoid.)
+&lt;p&gt;
+The history hash is a class variable (not unique to any object instance!).  We key into it with $self, because that's an easy and unique identifier for different objects.
+For a value, we store a list containing the key that's changed and the previous value.  No surprise there.&lt;p&gt;
+The undo sub is pretty straightforward, with that explained.  First, we check to see if there's anything to undo.  If not, there's no point in continuing (as we'll get an undefined array error).  Otherwise, we yank out the attribute and previous value and make the change.
+&lt;p&gt;
+This does require one change to the accessor methods, however.  Note that I'm using a single method for each attribute, using the existence of arguments to decide whether to get or to set:
+&lt;code&gt;sub color {
+	my $self = shift;
+	if (@_) {
+		$self-&gt;_log('color');
+		$self-&gt;{color} = $_[0];
+	}
+	return $self-&gt;{color};
+}
+
+sub texture {
+	my $self = shift;
+	if (@_) {
+		$self-&gt;_log('texture');
+		$self-&gt;{texture} = $_[0];
+	}
+	return $self-&gt;{texture};
+}
+
+sub taste {
+	my $self = shift;
+	if (@_) {
+		$self-&gt;_log('taste');
+		$self-&gt;{taste} = $_[0];
+	}
+	return $self-&gt;{taste};
+}
+
+sub all {
+	my $self = shift;
+	my @values = @$self{qw( color texture taste )};
+	return join("\t", @values);
+}
+
+1;&lt;/code&gt;
+Nothing surprising there.  As you probably expected, there's a call to _log with the proper arguments before setting a new value.  The all() sub is only there to make the following example work:
+&lt;code&gt;#!/usr/bin/perl -w
+
+use strict;
+use HistoryObj;
+
+my $hist = HistoryObj-&gt;new();
+my $hist2 = HistoryObj-&gt;new();
+
+$hist-&gt;color('pink');
+$hist-&gt;texture('cotton candy');
+$hist-&gt;taste('sweet');
+print $hist-&gt;all(), "\n\n";
+
+$hist2-&gt;color('beet purple');
+$hist2-&gt;texture('slimy round goo');
+$hist2-&gt;taste('do not ask!');
+print $hist2-&gt;all(), "\n\n";
+
+for (1 .. 3) {
+    $hist-&gt;undo();
+    print $hist-&gt;all(), "\n\n";
+}
+
+for (1 .. 3) {
+    $hist2-&gt;undo();
+    print $hist2-&gt;all(), "\n\n";
+}&lt;/code&gt;
+Nothing surprising there, either.  (Please don't lick rusty metal or beets at home.  I'm a trained professional.)  We create a couple of objects, give them new values, and, one by one, undo the operations.
+&lt;p&gt;
+Here's a quick list of possible enhancements:
+&lt;ul&gt;
+	&lt;li&gt;Hide _log even further.&lt;/li&gt;
+	&lt;li&gt;Limit the number of undo levels.&lt;/li&gt;
+	&lt;li&gt;Add a redo function.&lt;/li&gt;
+	&lt;li&gt;Turn this into a Journaling system (for longer attribute values) with [CPAN://Algorithm::Diff].&lt;/li&gt;
+&lt;/ul&gt;	 </field>
+</data>
+</node>

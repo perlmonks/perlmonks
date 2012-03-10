@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="153451" title="Dump node fields" created="2002-03-21 17:44:03" updated="2005-08-22 15:40:20">
+<type id="14">
+superdoc</type>
+<author id="106850">
+pmdev</author>
+<data>
+<field name="doctext">
+&lt;form type="post"&gt;
+&lt;input type="hidden" name="node_id" value="["$$NODE{node_id}"]"&gt;
+Node ID: &lt;input type="text" name="dumpid" size="9"&gt;&lt;br&gt;
+ &amp;nbsp; - or -&lt;br&gt;
+Title: &lt;input type="text" name="dumptitle" size="40"&gt;&lt;br&gt;
+Type: &lt;input type="text" name="dumptype" size="20" 
+ maxsize="40"&gt;&lt;br&gt;
+&lt;input type="submit" name="dump_it" value="Dump It"&gt;
+&lt;/form&gt;
+[%
+my $WHAT = { Nothing =&gt; "Here" };
+
+if(  "" ne $q-&gt;param("dumpid")  ) {
+    $WHAT = getNodeById($q-&gt;param("dumpid"))
+         or return "ID " . $q-&gt;param("dumpid") . " not found.";
+}
+elsif(  "" ne $q-&gt;param("dumptitle")  ) {
+    if(  "" ne $q-&gt;param("dumptype")  ) {
+        $WHAT = getNode( $q-&gt;param("dumptitle"),
+                $q-&gt;param("dumptype") )
+             or return "Node (" . $q-&gt;param("dumptitle")
+                     . ") of type " . $q-&gt;param("dumptype")
+                     . " not found.";
+    }
+    else {
+        my @list = getNodeWhere(
+                    {title =&gt; $q-&gt;param("dumptitle")} )
+                or return "Node (" . $q-&gt;param("dumptitle") . ") not found.";
+
+        return join ", ", map {
+            my $id= $_-&gt;{node_id};
+            qq(&lt;a href="/?node_id=$NODE-&gt;{node_id}&amp;dumpid=$id"&gt;$id&lt;/a&gt;)
+        } @list  if  1 &lt; @list;
+        $WHAT = getNodeById($list[0]);
+    }
+}
+else {
+    return '';
+}
+
+return qq(&lt;div class="tough-beans"&gt;Dump permission denied.&lt;/div&gt;)
+    if !isGod($USER) &amp;&amp; !canUpdateNode($USER,$WHAT);
+
+return join $/,
+    qq|&lt;table border cellspacing="0"&gt;&lt;tr&gt;&lt;th&gt;Field&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;,
+       &lt;tr&gt;&lt;td&gt;node type&lt;/td&gt;&lt;td&gt;$WHAT-&gt;{type}{title}&lt;/td&gt;&lt;tr&gt;|,
+    map(
+        {
+            my( $x, $y ) = ( $_, $WHAT-&gt;{$_} );
+            if ($x eq "passwd") {
+               $y = "&lt;em&gt;hidden&lt;/em&gt;";
+            } elsif ($x eq 'vars') {
+               $y = htmlcode('displayvars','','vars',undef,$WHAT,'safe')
+            } elsif ($x eq 'type' &amp;&amp; ref $y) {
+               $y = qq(&lt;a href="?node_id=$y-&gt;{node_id}"&gt;$y-&gt;{title}&lt;/a&gt;)
+            } else {
+               $y= $q-&gt;escapeHTML($y);       
+            }
+            $x= $q-&gt;escapeHTML($x);
+            "&lt;tr&gt;&lt;td&gt;$x&lt;/td&gt;&lt;td&gt;$y&lt;/td&gt;&lt;/tr&gt;"
+        } sort keys %$WHAT
+    ), '&lt;/table&gt;';
+%]</field>
+</data>
+</node>

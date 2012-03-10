@@ -1,0 +1,275 @@
+<node>
+  <doctext>[%
+
+  my %order= (
+    nf =&gt; 'createtime DESC',
+    of =&gt; 'createtime ASC',
+    bt =&gt; 'title ASC',
+    rt =&gt; 'title DESC',
+    hr =&gt; 'reputation DESC',
+    lr =&gt; 'reputation ASC',
+    rn =&gt; 'RAND()',
+  );
+
+  my %labels = (
+    nf =&gt; 'Newest First',
+    of =&gt; 'Oldest First',
+    bt =&gt; 'By Title',
+    rt =&gt; 'By Title Reverse',
+    hr =&gt; 'Highest Reputation First',
+    lr =&gt; 'Lowest Reputation First',
+    rn =&gt; 'Random',
+  );
+
+  my $str= '';
+
+  if(  $q-&gt;param(&quot;orderby&quot;) =~ / /  ) {
+    my %redro= reverse %order;
+    $q-&gt;param( orderby =&gt;
+      ( $redro{ $q-&gt;param(&quot;orderby&quot;) } || 'nf' ) );
+  }
+
+  my $keywds = $DB-&gt;{dbh}-&gt;selectcol_arrayref(&quot;SELECT DISTINCT word FROM keywords&quot;);
+
+  $str .= qq[
+    &lt;p&gt;
+      This is where you can search for all the nodes which have been given
+      a particular keyword.  Just enter the keyword and select the order for the search.
+    &lt;/p&gt;
+    &lt;p&gt;
+      &lt;form action=&quot;?&quot; method=&quot;get&quot;
+       enctype=&quot;application/x-www-form-urlencoded&quot;&gt;
+        &lt;input type=&quot;hidden&quot; name=&quot;node_id&quot; value=&quot;] . getId($NODE) . qq[&quot; /&gt;
+        &lt;table&gt;
+          &lt;tr&gt;
+            &lt;td align=&quot;right&quot;&gt;
+              Keyword:
+            &lt;/td&gt;
+            &lt;td&gt;
+              ] . (@{$keywds} ? $q-&gt;popup_menu(
+                    -name    =&gt; 'keyword',
+                    -values  =&gt; $keywds ) : $q-&gt;textfield( 'keyword', '')) . qq[
+            &lt;/td&gt;
+            &lt;td width=&quot;5%&quot;&gt;&lt;/td&gt;
+            &lt;td align=&quot;right&quot;&gt;
+              Show ] . $q-&gt;textfield(
+                            'length', $VARS-&gt;{pmuslen} || 50, 3 ) . qq[
+            &lt;/td&gt;
+            &lt;td&gt;
+              nodes
+            &lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr&gt;
+            &lt;td align=&quot;right&quot;&gt;
+              Order by:
+            &lt;/td&gt;
+            &lt;td&gt;
+              ] . $q-&gt;popup_menu(
+                    -name    =&gt; 'orderby',
+                    -values  =&gt; [qw(nf of bt rt hr lr rn)],
+                    -labels  =&gt; \%labels ) . qq[
+            &lt;/td&gt;
+            &lt;td&gt;&lt;/td&gt;
+            &lt;td align=&quot;right&quot;&gt;
+              starting at
+              ] . $q-&gt;textfield('start', '0', 3) . qq[
+            &lt;/td&gt;
+            &lt;td&gt;.&lt;/td&gt;
+          &lt;/tr&gt;
+          &lt;tr&gt;
+            &lt;td align=&quot;right&quot;&gt;
+              ] . $q-&gt;checkbox( -name =&gt; 'showqa', -label =&gt; '' ) . qq[
+            &lt;/td&gt;
+            &lt;td&gt;
+              Show Categorized Q&amp;amp;A ([id://162297|Why?])
+            &lt;/td&gt;
+            &lt;td&gt;&lt;/td&gt;
+            &lt;td align=&quot;right&quot;&gt;
+              ] . $q-&gt;submit('sexisgood' =&gt; 'Search') . q[
+            &lt;/td&gt;
+          &lt;/tr&gt;
+        &lt;/table&gt;
+      &lt;/form&gt;
+    &lt;hr /&gt;];
+
+  my $showqa  = $q-&gt;param('showqa')     || 0;
+
+  my $orderby = $q-&gt;param('orderby');
+  $orderby= 'nf'   if  ! exists $order{$orderby};
+  my $skip    = abs $q-&gt;param('start')  || 0;
+  my $length  = abs $q-&gt;param('length') || $VARS-&gt;{pmuslen} || 50;
+
+  if ( $q-&gt;param('keyword') ) {
+    my $k = $q-&gt;param('keyword');
+    my $ksth = $DB-&gt;sqlSelectMany('node_id',
+                                  'keywords',
+                                  &quot;word = '$k'&quot;);
+    my $kywds = $ksth-&gt;fetchall_arrayref({});
+    if(!@$kywds) {
+      return $str . q[It seems that the &quot;] . $q-&gt;escapeHTML( $q-&gt;param('keyword') )
+         . q[&quot; keyword does not exist.  How very, very strange...];
+    }
+
+    my $count = @$kywds;
+    my %types = (
+      'note'                 =&gt; 'Reply',
+      'categorized answer'   =&gt; 'Q&amp;amp;A Answer',
+      'categorized question' =&gt; 'Q&amp;amp;A Question',
+      'snippet'              =&gt; 'Snippet',
+      'sourcecode'           =&gt; 'Source code',
+      'perlquestion'         =&gt; 'Seekers of Perl Wisdom',
+      'perlcraft'            =&gt; 'Craft',
+      'perlmeditation'       =&gt; 'Meditation',
+      'poem'                 =&gt; 'Perl Poetry',
+      'CUFP'                 =&gt; 'Cool Uses for Perl',
+      'obfuscated'           =&gt; 'Obfuscation',
+      'perltutorial'         =&gt; 'Tutorial',
+      'monkdiscuss'          =&gt; 'Perl Monks Discussion',
+      'modulereview'         =&gt; 'Module Review',
+      'bookreview'           =&gt; 'Book Review',
+      'perlnews'             =&gt; 'Perl News',
+    );
+
+    my @types = map {
+      getId( getType($_) )
+    } ( $q-&gt;param('showtype') || keys %types );
+
+    my $sql;
+
+    if ( $showqa ) {
+      $sql = sprintf q[
+        SELECT    contributor_id, nt.title
+        FROM      contributor
+        LEFT JOIN node     ON node.node_id = contributor_id
+        LEFT JOIN keywords ON node.node_id = keywords.node_id
+        LEFT JOIN node nt  ON nt.node_id = node.type_nodetype
+        WHERE     node.node_id IN (%s)
+        AND       keywords.word = ?
+        ORDER BY  node.%s
+        LIMIT     %d, %d],
+        join(',', map {$_-&gt;{node_id}} @$kywds),
+        $order{$orderby},
+        $skip,
+        1+$length;
+    } else {
+      $sql = sprintf q[
+        SELECT    node.node_id, nt.title
+        FROM      node
+        LEFT JOIN node nt  ON nt.node_id = node.type_nodetype
+        LEFT JOIN keywords ON node.node_id = keywords.node_id
+        WHERE     node.node_id IN (%s)
+        AND       keywords.word = ?
+        ORDER BY  node.%s
+        LIMIT     %d, %d],
+        join(',', map {$_-&gt;{node_id}} @$kywds),
+        $order{$orderby},
+        $skip,
+        1+$length;
+    }
+
+    my $sth  = $DB-&gt;getDatabaseHandle-&gt;prepare( $sql );
+
+    $sth-&gt;execute( $k );
+
+    my @nodes;
+    while ( my $n = $sth-&gt;fetchrow_hashref ) {
+      push @nodes, $n;
+    }
+
+# This shouldnt happen ,)
+    return $str . q[There are no matches, it seems.]
+      if  not $skip  and  not @nodes;
+
+    my @knodes;
+
+    my $more= $length &lt; @nodes;
+    pop @nodes   if  $more;
+    my $i = 0;
+    for my $n (@nodes) {
+      my $writeup = getNodeById($n-&gt;{node_id}, 'light');
+      my $title   = $writeup-&gt;{title};
+      next unless(canReadNode($USER, $writeup));
+
+      push @knodes, sprintf qq[
+          &lt;tr%s&gt;
+            &lt;td&gt;%d&lt;/td&gt;
+            &lt;td&gt;%s&lt;/td&gt;
+            &lt;td&gt;%s&lt;/td&gt;
+            &lt;td align=&quot;right&quot;&gt;%s&lt;/td&gt;
+          &lt;/tr&gt;],
+        $i % 2 == 0 ? ' class=&quot;highlight&quot;' : '',
+        getId( $writeup ),
+        linkNode( $writeup ),
+        ($types{$writeup-&gt;{type}{title}} ? $types{$writeup-&gt;{type}{title}} : $writeup-&gt;{type}{title}),
+        htmlcode('parseTimeInString','',$writeup-&gt;{createtime} );
+
+      $i++;
+    }
+
+    my @params= qw( keyword orderby showqa showtype ); # start length
+    my %params;
+    @params{@params}= map $q-&gt;param($_) || '', @params;
+    my $links= '';
+
+    if ( $skip ) {
+      $links .= sprintf q[
+          &lt;td&gt;Previous &lt;a href=&quot;%s&quot;&gt;%d&lt;/a&gt;&lt;/td&gt;],
+        urlGen(
+        {
+          node_id  =&gt; getId($NODE),
+          %params,
+          start    =&gt; $skip - $length &lt; 0 ? 0 : $skip - $length,
+          length   =&gt; $length,
+        }, -1),
+        $length;
+    }
+
+    if ( $more ) {
+      $links .= sprintf q[
+          &lt;td align=&quot;right&quot;&gt;Next &lt;a href=&quot;%s&quot;&gt;%d&lt;/a&gt;&lt;/td&gt;],
+        urlGen(
+        {
+          node_id  =&gt; getId($NODE),
+          %params,
+          start    =&gt; $skip + $length,
+          length   =&gt; $length,
+        }, -1),
+        $length;
+    }
+
+    $links = qq[&lt;table width=&quot;100%&quot;&gt;&lt;tr&gt;$links&lt;/tr&gt;&lt;/table&gt;]
+      if  $links;
+
+    $str .= sprintf qq[
+        &lt;p&gt;
+          These nodes all have stuff with keyword %s (showing %d-%d out of ~%d):
+        &lt;/p&gt;
+        %s
+        &lt;table id=&quot;matches&quot; width=&quot;100%&quot; cellspacing=&quot;0&quot; cellpadding=&quot;2&quot;&gt;
+          &lt;tr&gt;
+            &lt;td width=&quot;10%&quot;&gt;Node ID&lt;/td&gt;
+            &lt;td&gt;Node&lt;/td&gt;
+            &lt;td&gt;Section/Type&lt;/td&gt;
+            &lt;td align=&quot;right&quot; width=&quot;25%&quot;&gt;Created&lt;/td&gt;
+          &lt;/tr&gt;\n%s
+        &lt;/table&gt;
+        %s],
+      $k,
+      1+$skip,
+      $skip + @nodes,
+      $count,
+      $links,
+      join('', @knodes),
+      $links;
+
+  }
+  return $str;
+
+%]</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>490460</node_id>
+  <author_user>106850</author_user>
+  <title>Keyword Search</title>
+  <createtime>2005-09-09 03:40:02</createtime>
+  <nodeupdated>2005-09-08 23:40:02</nodeupdated>
+</node>

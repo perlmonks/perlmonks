@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="339131" title="It's a dog, but what kind? (polymorphism , in Perl OO)" created="2004-03-23 14:22:04" updated="2005-08-15 11:45:30">
+<type id="956">
+perltutorial</type>
+<author id="72516">
+blue_cowdawg</author>
+<data>
+<field name="doctext">
+&lt;h2&gt;My Inspiration for this tutorial&lt;/h2&gt;
+&lt;p&gt;
+The other day a former student of mine posed a programming
+problem in Perl to me via email. His problem was he needed
+to write code to handle some data where there were a lot of the 
+same functions were in common for the multiple data types
+but some of the underlying behaviors were different. 
+He showed me some code and lo and behold in the year since
+I had him in my class as a student he had taught himself 
+a modicum of Object Oriented Perl technique from the Damien
+Conway's book on the subject. 
+&lt;/p&gt;
+&lt;p&gt;
+What am I talking about? Well gentle reader, let me use 
+the following example.
+&lt;pre&gt;
+        Dog ----------&gt; Cattle Dog
+                +-----&gt; Samoyed
+                +-----&gt; Cocker Spaniel
+&lt;/pre&gt;
+The Cocker Spaniel, Cattle Dog and Samoyed are all of 
+type &amp;quot;Dog&amp;quot; and yet they each have different 
+traits and some of the same traits at the same time.
+For a list of attributes that they have in common (a 
+shortened list here for clarity) are as follows:
+&lt;ul&gt;
+&lt;li&gt; size&lt;/li&gt;
+&lt;li&gt; temperment&lt;/li&gt;
+&lt;li&gt; habits&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;/p&gt;
+&lt;h2&gt;Show me the code!&lt;/h2&gt;
+&lt;p&gt;
+Patience gentle reader! One way I could handle this 
+is to create a base class such that:
+&lt;code&gt;
+package dog;
+
+sub new {
+   my $proto=shift;
+   my $class=ref($proto)||$proto;
+   my $self = { # I'll add attrs later...
+         };
+   bless $self,$class;
+   return $self;
+}
+
+1;
+&lt;/code&gt;
+Then I would create a subclass for each breed of dog:
+&lt;code&gt;
+package dog::cocker;
+use dog;
+use vars qw/ @ISA /;
+@ISA=qw/dog/;
+
+sub new {
+    my $proto=shift;
+    my $class=ref($proto)||$proto;
+    my $self = { 
+            habits =&gt; 'barks at strangers',
+            size =&gt; 'small',
+            temperment =&gt; 'very loyal'
+       };
+     bless $self,$class;
+}
+
+1;
+&lt;/code&gt;
+and then to instantiate my class in a calling environment 
+I would do the following:
+&lt;code&gt;
+use dog::cocker;
+
+my $sasha=new dog::cocker;
+&lt;/code&gt;
+
+&lt;/p&gt;
+&lt;h2&gt;Teaching an old dog new tricks&lt;/h2&gt;
+&lt;p&gt;
+I think there is a better way. What if I could make the 
+base class &lt;i&gt;dog&lt;/i&gt; smarter and have it instantiate 
+the subclasses for me? Here is my smarter dog:
+&lt;code&gt;
+package dog; 
+
+sub new {
+    my $proto=shift;
+    my $class=ref($proto)||$class;
+    my $self={};   # We should be overriding this...
+    my $breed=shift;  # OK... so what kind of doggie are we?
+    if ( $breed ) { # if not nill...
+      $breed = "dog::" . $breed;
+      eval " use $breed; " ;
+      die $@ if $@;
+      $self= new $breed;
+      bless $self,$breed;
+    } else {
+      bless $self,$class; # kinda useless but we have to.
+      return $self;
+    }
+}
+sub bark { 
+    my $self=shift;
+    print "Woof!\n";
+}
+1;
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;
+OK... so what is going on here? Well now when we want to 
+instantiate a breed we do the following:
+&lt;code&gt;
+use dog;
+
+my $sasha= new dog('cocker');
+
+$sasha -&gt; bark();
+
+&lt;/code&gt;
+and what is going on internally in the dog base object is 
+is going to attempt to use a Perl module called 
+&amp;quot;dog::cocker&amp;quot; within the eval statement. If 
+the module does not exist we'll catch the error and the 
+instantiation will fail. 
+&lt;/p&gt;
+&lt;h2&gt;So what?&lt;/h2&gt;
+&lt;p&gt;
+Where this comes in handy is where we want to add a new 
+subclass. You create the new module as before:
+&lt;code&gt;
+package dog::samoyed;
+use dog;
+use vars qw/ @ISA /;
+@ISA=qw/dog/;
+
+sub new {
+    my $proto=shift;
+    my $class=ref($proto) || $proto;
+    my $self =&gt; {
+         habits =&gt; 'generally ignores strangers',
+         temperment =&gt; 'lazy', 
+         size =&gt; 'large'
+    };
+    bless $self, $class;
+}
+
+
+1;
+&lt;/code&gt;
+So now we can instantiate a Samoyed similarly.
+&lt;code&gt;
+.
+.
+.
+my $frosty = new dog('samoyed');
+.
+.
+.
+&lt;/code&gt;
+
+&lt;/p&gt;
+&lt;p&gt;
+Let's kick it up a notch! I'm going to add to the base 
+class some default attribute values.
+&lt;code&gt;
+# after the "my $self" line we add:
+     %def_attrs=(
+         voice =&gt; "woof",
+         color =&gt; "brown",
+         likes_chilren =&gt; "yes"
+    );
+
+#
+# After the $self = new $breed; line we do:
+    foreach my $key(keys %def_attrs){
+       $self-&gt;{$key} = $def_attrs{$key} if not $self-&gt;{key};
+     }
+
+&lt;/code&gt;
+The associative array &lt;i&gt;%def_attrs&lt;/i&gt; contains attributes
+that our derived objects can over-ride. In our 
+steps where &lt;i&gt;$self&lt;/i&gt; gets initialized we test to make 
+sure the derived object has not yet defined the attribute
+and we set it if it hasn't. 
+&lt;/p&gt;
+&lt;p&gt;
+Example of an override:
+&lt;code&gt;
+package dog::cattle_dog;
+use dog;
+use vars qw /@ISA/;
+@ISA=qw/dog/;
+
+sub new { 
+      my $proto=shift;
+      my $class=ref($proto)|| $proto;
+      my $self = {
+      temperment =&gt; 'fiercley loyal',
+      habits =&gt; 'leary of strangers',
+      size =&gt; 'medium',
+      voice =&gt; 'shriek', 
+      loves_children =&gt; 'slathered in barbecue sauce'
+      }; 
+      bless $self, $class;
+      return $self;
+}
+
+sub wag_tail {  # This is an override.. you'll see why later
+     print "Tail raises over back!\n";
+}
+
+1;
+&lt;/code&gt;
+&lt;/p&gt;
+
+&lt;h2&gt;putting it all together&lt;/h2&gt;
+&lt;p&gt;
+The base module in its entirety (sort of!):
+&lt;code&gt;
+package dog; 
+
+sub new {
+    my $proto=shift;
+    my $class=ref($proto)||$class;
+    my $self={};   # We should be overriding this...
+    my %def_attrs = (
+        color =&gt; "brown",
+        loves_children =&gt; "yes",
+        voice =&gt; "woof"
+    );
+    my $breed=shift;  # OK... so what kind of doggie are we?
+    if ( $breed ) { # if not nill...
+      $breed = "dog::" . $breed;
+      eval " use $breed; " ;
+      die $@ if $@;
+      $self= new $breed;
+      foreach my $key{keys %def_attrs){
+        $self-&gt;{$key} = $def_attrs{$key} if not $self-&gt;{$key};
+      }
+      bless $self,$breed;
+    } else {
+      bless $self,$class; # kinda useless but we have to.
+      return $self;
+    }
+}
+sub bark { 
+    my $self=shift;
+    print "Woof\n" if not $self-&gt;{voice};
+    printf "%s\n",$self-&gt;{voice} if $self-&gt;{voice};
+}
+
+#
+# Late addition
+sub wag_tail {
+   print "tail wagging\n";
+}
+1;
+&lt;/code&gt;
+and a simple test script:
+&lt;code&gt;
+use dog;
+use Data::Dumper;
+use strict;
+
+my $frosty = new dog('samoyed');
+my $cosette= new dog('cattle_dog');
+my $moose= new dog('cocker');
+
+print Dumper($frosty,$cosette,$moose);
+
+$moose-&gt;bark; $moose-&gt;wag_tail;
+$cosette-&gt;bark; $cosette-&gt;wag_tail;
+$frosty-&gt;bark; $frosty-&gt;wag_tail;
+&lt;/code&gt;
+Which when run yields:
+&lt;code&gt;
+$VAR1 = bless( {
+                 'voice' =&gt; 'yarf',
+                 'color' =&gt; 'brown',
+                 'habits' =&gt; 'does not even look  at strangers',
+                 'loves_children' =&gt; 'yes',
+                 'temperment' =&gt; 'lazy',
+                 'size' =&gt; 'large'
+               }, 'dog::samoyed' );
+$VAR2 = bless( {
+                 'voice' =&gt; 'shreik',
+                 'color' =&gt; 'brown',
+                 'habits' =&gt; 'bites strangers',
+                 'loves_children' =&gt; 'slathered in barbeque sauce',
+                 'temperment' =&gt; 'fiercely loyal',
+                 'size' =&gt; 'medium'
+               }, 'dog::cattle_dog' );
+$VAR3 = bless( {
+                 'voice' =&gt; 'harf',
+                 'color' =&gt; 'brown',
+                 'habits' =&gt; 'bark at strangers',
+                 'loves_children' =&gt; 'if well behaved',
+                 'temperment' =&gt; 'loyal',
+                 'size' =&gt; 'small'
+               }, 'dog::cocker' );
+harf
+butt wiggles
+shreik
+tail over back
+yarf
+tail wagging
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;h2&gt;Closing thoughts&lt;/h2&gt;
+&lt;p&gt;
+This is just the tip of the iceburg. There are many ways
+you can make use of this techique with many real world 
+applications. For instance: you are going to fork off 
+several sets of child processes with common environmental
+variables that need to be set and common command line 
+parameters plus a few unique ones. Write a base object 
+with the common values and parameters, have the derived
+objects override parameters or add new ones as needed and 
+have common &amp;quot;execute&amp;quot; method in the base object 
+to tie it all together. 
+&lt;/p&gt;
+&lt;p&gt;
+&lt;b&gt;UPDATE:&lt;/b&gt;Added &amp;quot;wag_tail&amp;quot; method to the 
+base object and overrode it in two cases. 
+&lt;/p&gt;</field>
+</data>
+</node>

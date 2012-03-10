@@ -1,0 +1,210 @@
+<node>
+  <doctext>&lt;p&gt;This tutorial will cover the basics of profiling your code.  I will tell you how to get profiling information and how to interpret it.
+
+&lt;readmore&gt;
+
+&lt;h3&gt;Modules you can use for profiling&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;[mod://Devel::DProf] is distributed with Perl&lt;/li&gt;
+&lt;li&gt;[mod://Devel::Profiler] is a pure Perl implementation.&lt;/li&gt;
+&lt;li&gt;[mod://Devel::FastProf] profiles by line rather than by function.&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;I generally try Devel::DProf first.  If it doesn't work (i.e., it crashes), I go to Devel::Profiler.
+
+&lt;h3&gt;How to run existing code under the profiler&lt;/h3&gt;
+
+&lt;p&gt;With Devel::DProf, it's
+&lt;c&gt;
+perl -d:DProf foo.pl
+&lt;/c&gt;
+&lt;p&gt;With Devel::Profiler, it's
+&lt;c&gt;
+perl -MDevel::Profiler foo.pl
+&lt;/c&gt;
+&lt;p&gt;...or you can &quot;&lt;c&gt;use Devel::Profiler&lt;/c&gt;&quot; anywhere in your code.
+
+&lt;p&gt;It's worth noting that the profiler will slow down the code you're running, so expect a slow program to get slower while you're trying to figure out why it's so slow.  Also, the raw output files can get very large, especially if your program runs a long time.
+
+&lt;h3&gt;How to get the results of profiling&lt;/h3&gt;
+
+&lt;p&gt;With profiling turned on, a file called &quot;tmon.out&quot; will be created in the current directory.  That file contains all the raw timing information for your run.  To get a condensed report, run
+&lt;c&gt;
+dprofpp
+&lt;/c&gt;
+&lt;p&gt;That will read &quot;tmon.out&quot; in the current directory and give you a summary of profiling information.
+
+&lt;h3&gt;Interpreting the results of profiling&lt;/h3&gt;
+
+&lt;p&gt;Now that we know how to get profiling data, we have to know what it means.  I'll take you through a series of examples to show you the meaning of the numbers you get.
+
+&lt;h4&gt;The basics&lt;/h4&gt;
+
+&lt;p&gt;Consider the following program:
+&lt;c&gt;
+main();
+
+sub main {
+    my $now = time();
+    for( my $x = 0; $x &lt;= 1_000_000; $x++ ) {
+        print scalar localtime, &quot;\n&quot; if $now != time();
+        $now = time();
+    }
+
+    return;
+}
+&lt;/c&gt;
+&lt;p&gt;This is a single call to &lt;c&gt;main()&lt;/c&gt;, which loops a million times.  On my system, I run this, and I get the following output from &lt;c&gt;dprofpp&lt;/c&gt;:
+&lt;c&gt;
+Total Elapsed Time = 1.859881 Seconds
+  User+System Time = 1.389881 Seconds
+Exclusive Times
+%Time ExclSec CumulS #Calls sec/call Csec/c  Name
+ 98.5   1.370  1.370      1   1.3700 1.3700  main::main
+ 0.72   0.010  0.010      2   0.0050 0.0050  main::BEGIN
+&lt;/c&gt;
+&lt;p&gt;Let's talk about what each of those numbers mean.
+&lt;dl&gt;
+&lt;dt&gt;Total Elapsed Time&lt;/dt&gt;
+&lt;dd&gt;This is wall clock time from the program's start to finish, no matter how that time was spent.&lt;/dd&gt;
+&lt;dt&gt;User+System Time&lt;/dt&gt;
+&lt;dd&gt;This is how much CPU time the program took.  This does not include time spent waiting on the disk, the network, or other tasks.  (&quot;User time&quot; is time spent in your code and &quot;system time&quot; is time the operating system spent serving your code.)&lt;/dd&gt;
+&lt;dt&gt;%Time&lt;/dt&gt;
+&lt;dd&gt;This is the percent of &quot;User+System Time&quot; spent exclusively in the specified function.  It does not include time spent in functions that this function called.&lt;/dd&gt;
+&lt;dt&gt;ExclSec (exclusive seconds)&lt;/dt&gt;
+&lt;dd&gt;Time spent just in this function, not in functions it called.&lt;/dd&gt;
+&lt;dt&gt;CumulS (cumulative seconds)&lt;/dt&gt;
+&lt;dd&gt;Time spent in this function, including time spent in functions that it called.&lt;/dd&gt;
+&lt;dt&gt;#Calls (number of calls)&lt;/dt&gt;
+&lt;dd&gt;Number of times the function was called.&lt;/dd&gt;
+&lt;dt&gt;sec/call (seconds per call)&lt;/dt&gt;
+&lt;dd&gt;The average number of seconds (in user+system time) spent in each call to this function.&lt;/dd&gt;
+&lt;dt&gt;Csec/c (cumulative seconds per call)&lt;/dt&gt;
+&lt;dd&gt;The average number of seconds spent in each call to this function, including time spent in the functions it called.&lt;/dd&gt;
+&lt;/dl&gt;
+
+&lt;h4&gt;Exclusive seconds vs. cumulative seconds&lt;/h4&gt;
+&lt;p&gt;The next example is meant to show the difference between exclusive seconds and cumulative seconds.
+&lt;c&gt;
+main();
+
+sub main { all_the_work() }
+
+sub all_the_work {
+    my $now = time();
+    for( my $x = 0; $x &lt;= 1_000_000; $x++ ) {
+        print scalar localtime, &quot;\n&quot; if $now != time();
+        $now = time();
+    }
+
+    return;
+}
+&lt;/c&gt;
+&lt;p&gt;In this program, &lt;c&gt;main()&lt;/c&gt; does nothing but call a single function &lt;c&gt;all_the_work()&lt;/c&gt;, which loops a million times.  Here's the data:
+&lt;c&gt;
+Total Elapsed Time = 1.809848 Seconds
+  User+System Time = 1.379848 Seconds
+Exclusive Times
+%Time ExclSec CumulS #Calls sec/call Csec/c  Name
+ 98.5   1.360  1.360      1   1.3600 1.3600  main::all_the_work
+ 0.00       -  1.360      1        - 1.3600  main::main
+ 0.00       -  0.010      2        - 0.0050  main::BEGIN
+&lt;/c&gt;
+&lt;p&gt;Notice that in the &lt;strong&gt;ExclSec&lt;/strong&gt; column, &lt;c&gt;all_the_work&lt;/c&gt; takes most of the time, and &lt;c&gt;main&lt;/c&gt; takes so little time, it's not even noted.  However, in &lt;strong&gt;CumulS&lt;/strong&gt;, both of them take most of the time.  The time spent in &lt;c&gt;all_the_work&lt;/c&gt; is included in the cumulative time spent in &lt;c&gt;main&lt;/c&gt;.
+
+&lt;h4&gt;Elapsed time vs. User+system time&lt;/h4&gt;
+
+&lt;p&gt;Here's the example:
+&lt;c&gt;
+main();
+
+sub main {
+    do_nothing();
+    all_the_work();
+}
+
+sub do_nothing { sleep 5 }
+
+sub all_the_work {
+    my $now = time();
+    for( my $x = 0; $x &lt;= 1_000_000; $x++ ) {
+        print scalar localtime, &quot;\n&quot; if $now != time();
+        $now = time();
+    }
+
+    return;
+}
+&lt;/c&gt;
+&lt;p&gt;In this one, &lt;c&gt;main()&lt;/c&gt; calls &lt;c&gt;do_nothing()&lt;/c&gt;, which doesn't do any work, but it takes five seconds to finish (using [doc://sleep]).  Then &lt;c&gt;main()&lt;/c&gt; calls &lt;c&gt;all_the_work()&lt;/c&gt;, which loops a million times.
+&lt;p&gt;Here's the data:
+&lt;c&gt;
+Total Elapsed Time = 6.809867 Seconds
+  User+System Time = 1.459867 Seconds
+Exclusive Times
+%Time ExclSec CumulS #Calls sec/call Csec/c  Name
+ 97.9   1.430  1.430      1   1.4300 1.4300  main::all_the_work
+ 0.68   0.010  0.010      2   0.0050 0.0050  main::BEGIN
+ 0.00       - -0.000      1        -      -  main::do_nothing
+ 0.00       -  1.430      1        - 1.4300  main::main
+&lt;/c&gt;
+&lt;p&gt;Notice that the elapsed time is a lot higher than the user+system time.  Notice also that the elapsed time doesn't show up in any of the other statistics.  The numbers for &lt;c&gt;do_nothing&lt;/c&gt; do not show that five seconds passed while it was &quot;running.&quot;
+&lt;p&gt;When there's a large gap between elapsed and user+system time like that, it is often useful to run &lt;c&gt;dprofpp&lt;/c&gt; with the &lt;strong&gt;-r&lt;/strong&gt; option.  Here's the same raw data used above, but displayed with &lt;c&gt;dprofpp -r&lt;/c&gt;:
+&lt;c&gt;
+Total Elapsed Time = 6.799829 Seconds
+         Real Time = 6.799829 Seconds
+Exclusive Times
+%Time ExclSec CumulS #Calls sec/call Csec/c  Name
+ 73.5   5.000  5.000      1   5.0000 5.0000  main::do_nothing
+ 26.1   1.780  1.780      1   1.7800 1.7800  main::all_the_work
+ 0.15   0.010  0.020      2   0.0050 0.0100  main::BEGIN
+ 0.00       -  6.780      1        - 6.7800  main::main
+&lt;/c&gt;
+&lt;p&gt;With the &lt;strong&gt;-r&lt;/strong&gt; option, &lt;c&gt;dprofpp&lt;/c&gt; reports elapsed times for all functions instead of just the CPU time.  With that, it's easy to see that most of the &lt;em&gt;real&lt;/em&gt; time was spent in &lt;c&gt;do_nothing()&lt;/c&gt;.
+&lt;p&gt;&lt;strong&gt;What causes differences between elapsed time and user+system time?&lt;/strong&gt;  This can be anything that your program waits on when it's not actively running.  Typically this is one of:
+&lt;ul&gt;
+&lt;li&gt;Network connections&lt;/li&gt;
+&lt;li&gt;Disk access&lt;/li&gt;
+&lt;li&gt;Other processes running on the same machine&lt;/li&gt;
+&lt;li&gt;Database access (which is often a combination of the above)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Other results available via &lt;c&gt;dprofpp&lt;/c&gt;&lt;/h3&gt;
+&lt;p&gt;The &lt;c&gt;dprofpp&lt;/c&gt; tool has options to make its output more useful in different situations.  By default it will show you the top 15 functions sorted by user+system time.  With the &lt;strong&gt;-g&lt;/strong&gt; option, you can have &lt;c&gt;dprofpp&lt;/c&gt; focus on one function.  With the &lt;strong&gt;-O&lt;/strong&gt; option, you can have it show any number of functions.
+&lt;h4&gt;Sorting options&lt;/h4&gt;
+&lt;dl&gt;
+&lt;dt&gt;&lt;strong&gt;-a&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;Alphabetical by &lt;strong&gt;name&lt;/strong&gt;&lt;/dd&gt;
+&lt;dt&gt;&lt;strong&gt;-z&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;(default) Sort by &lt;strong&gt;user+system time&lt;/strong&gt; used.&lt;/dd&gt;
+&lt;dt&gt;&lt;strong&gt;-l&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;Sort by &lt;strong&gt;number of calls&lt;/strong&gt; to the subroutines.&lt;/dd&gt;
+&lt;dt&gt;&lt;strong&gt;-v&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;Sort by &lt;strong&gt;average time&lt;/strong&gt; spent in subroutines.&lt;/dd&gt;
+&lt;/dl&gt;
+&lt;h4&gt;Time measurements to display&lt;/h4&gt;
+&lt;dl&gt;
+&lt;dt&gt;&lt;strong&gt;-s&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;Display &lt;strong&gt;system times&lt;/strong&gt; rather than user+system times.&lt;/dd&gt;
+&lt;dt&gt;&lt;strong&gt;-r&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;Display &lt;strong&gt;elapsed real times&lt;/strong&gt; rather than user+system times.&lt;/dd&gt;
+&lt;dt&gt;&lt;strong&gt;-u&lt;/strong&gt;&lt;/dt&gt;
+&lt;dd&gt;Display &lt;strong&gt;user times&lt;/strong&gt; rather than user+system times.&lt;/dd&gt;
+&lt;/dl&gt;
+&lt;h4&gt;More options&lt;/h4&gt;
+&lt;p&gt;There are also options to show call trees and do other interesting things.  See [mod://dprofpp|the dprofpp documentation] for the full scoop.
+
+&lt;/readmore&gt;
+
+&lt;h3&gt;Things I haven't covered&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;[mod://CGI] &amp;mdash; Make the CGI's directory writable by the CGI and look for a &quot;tmon.out&quot; file there (&lt;strong&gt;this is dangerous to do on a public web server&lt;/strong&gt;).&lt;/li&gt;
+&lt;li&gt;mod_perl &amp;mdash; See [id://580931]&lt;/li&gt;
+&lt;li&gt;[mod://DBI] &amp;mdash; See [id://273952] and [mod://DBI::Profile]&lt;/li&gt;
+&lt;/ul&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>633699</node_id>
+  <author_user>585085</author_user>
+  <title>Profiling your code.</title>
+  <createtime>2007-08-19 23:26:26</createtime>
+  <nodeupdated>2007-08-19 19:26:26</nodeupdated>
+</node>

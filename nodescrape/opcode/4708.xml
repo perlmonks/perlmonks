@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="4708" title="approve" created="2000-03-02 21:34:58" updated="2005-06-16 11:18:10">
+<type id="3545">
+opcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+use Everything::Experience;
+
+return   if  ! Everything::isApproved( $USER, 'CanConsider' );
+# return   if  $NODE-&gt;{author_user} == $USER-&gt;{user_id};
+
+my $flt = getNode( 'frontpage linktype', 'linktype' );
+my $frontpagelinktype = getId($flt);
+my $frontpageid = getId($HTMLVARS{default_node});
+my $lt_id = $query-&gt;param("linktype");
+
+my $sectid = $query-&gt;param('sectionid');
+$sectid  ||= $query-&gt;param('node_id');
+my $moveid = $query-&gt;param('node_id');
+
+foreach my $nodeid (  $query-&gt;param()  ) {
+   next   if  $nodeid !~ /\d+/;
+   local( $GNODE ) = getNodeById($nodeid);
+   if(  $nodeid == $moveid  ) {
+      next   if  htmlcode('writeupmover','',1);
+   }
+   next   if  $GNODE-&gt;{author_user} == $USER-&gt;{user_id};
+   foreach my $op (  $query-&gt;param($nodeid)  ) {
+      my $unop = $op =~ /^un(..)/ ? $1 : "un$op";
+
+      my $sth = $DB-&gt;getDatabaseHandle-&gt;prepare_cached( qq[
+          SELECT action
+            FROM approved
+           WHERE node_id = ?
+             AND action = ?
+              OR action = ?
+        ORDER BY tstamp DESC
+           LIMIT 1
+      ] );
+
+      $sth-&gt;execute( $nodeid, $op, $unop );
+
+      if ( my $r = $sth-&gt;fetchrow_arrayref ) {
+        return if @{ $r || [] }[0] eq $op;
+      }
+
+      if (  $op eq "frontpage"  ||  $op eq "fp"  ) {
+         updateLinks( $nodeid, $frontpageid, $frontpagelinktype );
+         updateLinks( $nodeid, $sectid, $lt_id );
+         $DB-&gt;sqlInsert( 'approved', {
+            user_id =&gt; getId($USER),
+            node_id =&gt; $nodeid,
+            action =&gt; 'fp'
+         } );
+      } elsif (  $op eq 'ok'  ) {
+         updateLinks( $nodeid, $sectid, $lt_id );
+         $DB-&gt;sqlInsert( 'approved', {
+            user_id =&gt; getId($USER),
+            node_id =&gt; $nodeid,
+            action =&gt; 'ok'
+         } );
+      } elsif (  $op eq 'unfp'  ) {
+         $DB-&gt;sqlInsert( 'approved', {
+            user_id =&gt; getId($USER),
+            node_id =&gt; $nodeid,
+            action =&gt; 'unfp'
+         } );
+      } elsif (  $op eq 'unok'  ) {
+         $DB-&gt;sqlInsert( 'approved', {
+            user_id =&gt; getId($USER),
+            node_id =&gt; $nodeid,
+            action =&gt; 'unok'
+         } );
+      } elsif (  $op eq "delete"  &amp;&amp;  isGod($USER)  &amp;&amp;  $sectid == 6345  ) {
+         nukeNode( $nodeid, $USER );
+      }
+   }
+}</field>
+</data>
+</node>

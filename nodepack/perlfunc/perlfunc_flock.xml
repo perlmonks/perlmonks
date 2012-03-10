@@ -1,0 +1,113 @@
+<node>
+  <doctext></doctext>
+  <type_nodetype>119</type_nodetype>
+  <name>&lt;P&gt;
+flock - lock an entire file with an advisory lock
+
+&lt;P&gt;
+&lt;HR&gt;
+</name>
+  <author_user>114</author_user>
+  <description>&lt;P&gt;
+Calls 
+&lt;CODE&gt;flock(2),&lt;/CODE&gt; or an emulation of it, on 
+&lt;FONT SIZE=-1&gt;FILEHANDLE.&lt;/FONT&gt; Returns 
+&lt;FONT SIZE=-1&gt;TRUE&lt;/FONT&gt; for success, 
+&lt;FONT SIZE=-1&gt;FALSE&lt;/FONT&gt; on failure. Produces a fatal error if used on a machine that doesn't implement 
+&lt;CODE&gt;flock(2),&lt;/CODE&gt; 
+&lt;CODE&gt;fcntl(2)&lt;/CODE&gt; locking, or 
+&lt;CODE&gt;lockf(3).&lt;/CODE&gt;
+  [perlfunc:flock|flock()]
+is Perl's portable file locking interface, although it locks only entire
+files, not records.
+
+&lt;P&gt;
+On many platforms (including most versions or clones of Unix), locks
+established by [perlfunc:flock|flock()] are &lt;STRONG&gt;merely advisory&lt;/STRONG&gt;. Such discretionary locks are more flexible, but offer fewer guarantees.
+This means that files locked with [perlfunc:flock|flock()] may be modified by programs that do not also use
+[perlfunc:flock|flock()]. Windows 
+&lt;FONT SIZE=-1&gt;NT&lt;/FONT&gt; and 
+&lt;FONT SIZE=-1&gt;OS/2&lt;/FONT&gt; are among the platforms which enforce mandatory locking. See your local documentation for details.
+
+&lt;P&gt;
+
+&lt;FONT SIZE=-1&gt;OPERATION&lt;/FONT&gt; is one of 
+&lt;FONT SIZE=-1&gt;LOCK_SH,&lt;/FONT&gt; 
+&lt;FONT SIZE=-1&gt;LOCK_EX,&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;LOCK_UN,&lt;/FONT&gt; possibly combined with 
+&lt;FONT SIZE=-1&gt;LOCK_NB.&lt;/FONT&gt; These constants are traditionally valued 1, 2, 8 and 4, but you can use the symbolic names if import them from the Fcntl module, either individually, or as a group using the ':flock' tag. 
+&lt;FONT SIZE=-1&gt;LOCK_SH&lt;/FONT&gt; requests a shared lock, 
+&lt;FONT SIZE=-1&gt;LOCK_EX&lt;/FONT&gt; requests an exclusive lock, and 
+&lt;FONT SIZE=-1&gt;LOCK_UN&lt;/FONT&gt; releases a previously requested lock. If 
+&lt;FONT SIZE=-1&gt;LOCK_NB&lt;/FONT&gt; is added to 
+&lt;FONT SIZE=-1&gt;LOCK_SH&lt;/FONT&gt; or 
+&lt;FONT SIZE=-1&gt;LOCK_EX&lt;/FONT&gt; then
+ [perlfunc:flock|flock()] will return immediately rather than blocking waiting for the lock (check
+the return status to see if you got it).
+
+&lt;P&gt;
+To avoid the possibility of mis-coordination, Perl flushes 
+&lt;FONT SIZE=-1&gt;FILEHANDLE&lt;/FONT&gt; before (un)locking it.
+
+&lt;P&gt;
+Note that the emulation built with 
+&lt;CODE&gt;lockf(3)&lt;/CODE&gt; doesn't provide shared locks, and it requires that 
+&lt;FONT SIZE=-1&gt;FILEHANDLE&lt;/FONT&gt; be open with write intent. These are the semantics that 
+&lt;CODE&gt;lockf(3)&lt;/CODE&gt; implements. Most (all?) systems implement 
+&lt;CODE&gt;lockf(3)&lt;/CODE&gt; in terms of 
+&lt;CODE&gt;fcntl(2)&lt;/CODE&gt; locking, though, so the differing semantics shouldn't bite too many people.
+
+&lt;P&gt;
+Note also that some versions of [perlfunc:flock|flock()] cannot lock things over the network; you would need to use the more
+system-specific [perlfunc:fcntl|fcntl()] for that. If you like you can force Perl to ignore your system's 
+&lt;CODE&gt;flock(2)&lt;/CODE&gt; function, and so provide its own 
+&lt;CODE&gt;fcntl(2)-based&lt;/CODE&gt; emulation, by passing the switch
+ &lt;CODE&gt;-Ud_flock&lt;/CODE&gt; to the &lt;EM&gt;Configure&lt;/EM&gt; program when you configure perl.
+
+&lt;P&gt;
+Here's a mailbox appender for 
+&lt;FONT SIZE=-1&gt;BSD&lt;/FONT&gt; systems.
+
+&lt;P&gt;
+&lt;PRE&gt;    use Fcntl ':flock'; # import LOCK_* constants
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub lock {
+        flock(MBOX,LOCK_EX);
+        # and, in case someone appended
+        # while we were waiting...
+        seek(MBOX, 0, 2);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    sub unlock {
+        flock(MBOX,LOCK_UN);
+    }
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    open(MBOX, &amp;quot;&amp;gt;&amp;gt;/usr/spool/mail/$ENV{'USER'}&amp;quot;)
+            or die &amp;quot;Can't open mailbox: $!&amp;quot;;
+&lt;/PRE&gt;
+&lt;P&gt;
+&lt;PRE&gt;    lock();
+    print MBOX $msg,&amp;quot;\n\n&amp;quot;;
+    unlock();
+&lt;/PRE&gt;
+&lt;P&gt;
+See also [perlfunc:../../lib/DB_File|the DB_File manpage] for other 
+&lt;CODE&gt;flock()&lt;/CODE&gt; examples.
+
+&lt;HR&gt;
+</description>
+  <createtime>1999-08-24 18:43:06</createtime>
+  <node_id>306</node_id>
+  <synopsis>&lt;P&gt;
+flock 
+&lt;FONT SIZE=-1&gt;FILEHANDLE,OPERATION&lt;/FONT&gt;
+
+&lt;P&gt;
+&lt;HR&gt;
+</synopsis>
+  <title>perlfunc:flock</title>
+  <nodeupdated>2005-08-15 09:28:50</nodeupdated>
+</node>

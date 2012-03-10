@@ -1,0 +1,154 @@
+<node>
+  <doctext>Another of the (good) &lt;a			     href=&quot;http://www.yetanother.org/damian/&quot;&gt;Dr. Damian Conway&lt;/a&gt;'s
+    modules, &lt;tt&gt;[cpan://Inline::Files]&lt;/tt&gt; is another &lt;i&gt;tour de force&lt;/i&gt; of
+    Perl source code filtering, symbol table manipulation, overridden
+    builtins  and a wholly outlandish yet useful concept, wrapped in
+
+    an entirely Perlish syntax.
+  &lt;/p&gt;
+  &lt;p&gt;
+    (In case you're wondering, yes, I like the module)
+  &lt;/p&gt;
+
+  &lt;h3&gt;A word of warning!&lt;/h3&gt;
+  &lt;p&gt;
+    If you're a &quot;hands-on&quot; person, you might want to install and use
+    this module before finishing to read the documentation or this
+    review.  &lt;em&gt;PLEASE&lt;/em&gt; be careful, and use the &lt;tt&gt;-backup&lt;/tt&gt;
+    flag to the module, &lt;em&gt;at least&lt;/em&gt; until you understand what it
+    does!  Say &quot;&lt;code&gt;use Inline::Files -backup&lt;/code&gt;&quot; instead of
+    &quot;&lt;code&gt;use Inline::Files&lt;/code&gt;&quot;!
+  &lt;/p&gt;
+    
+  &lt;h3&gt;What does it do?&lt;/h3&gt;
+  &lt;p&gt;
+    Ever needed to package a few small files along with your program?
+    Well, you can use &lt;tt&gt;[DATA]&lt;/tt&gt;.  But that just gives you one
+    &quot;file&quot;.  And it's always on the &lt;tt&gt;DATA&lt;/tt&gt; filehandle, which
+    might not suit your programming style.
+  &lt;/p&gt;
+  &lt;p&gt;
+    Or you can use the &quot;here-document&quot; syntax to get at some strings
+    in your program.  That gives you as many strings as you like, but
+    you can't use file operators to read them.  And changing them can
+    be tricky (see below for just how easy &lt;tt&gt;Inline::Files&lt;/tt&gt;
+    makes it to &lt;em&gt;change&lt;/em&gt; your files...).
+  &lt;/p&gt;
+
+  &lt;p&gt;
+    &lt;tt&gt;Inline::Files&lt;/tt&gt; lets you read &quot;virtual files&quot; which you
+    enclose in your program's source.  At &lt;tt&gt;[BEGIN]&lt;/tt&gt; time it
+    does its magic, and you have some new files available to you.
+  &lt;/p&gt;
+
+  &lt;h3&gt;Virtual files&lt;/h3&gt;
+  &lt;p&gt;
+    At the end of your program, you can put any number of what
+    &lt;tt&gt;Inline::Files&lt;/tt&gt; calls &lt;em&gt;virtual files&lt;/em&gt;.  These are
+    just regions of you text beginning with special markers
+    &lt;tt&gt;__&lt;i&gt;YOUR_CHOICE_OF_ID&lt;/i&gt;__&lt;/tt&gt;.  You can then read the
+    contents of this &quot;virtual file&quot; by reading the [filehandle]
+    &lt;tt&gt;&amp;lt;&lt;i&gt;YOUR_CHOICE_OF_ID&lt;/i&gt;&amp;gt;&lt;/tt&gt;.  Note that
+    &lt;tt&gt;&lt;i&gt;YOUR_CHOICE_OF_ID&lt;/i&gt;&lt;/tt&gt; is the name of a filehandle, so
+    it should be in UPPER CASE, or it won't be recognised.
+  &lt;/p&gt;
+  &lt;p&gt;
+    More than one virtual file can be associated with the same ID;
+    reading from the filehandle will retrieve them in order.
+  &lt;/p&gt;
+  &lt;p&gt;
+    More information is available about these virtual files.  In
+    particular, you can get a list of the &quot;virtual file
+    &lt;em&gt;names&lt;/em&gt;&quot; associated with each ID; &lt;tt&gt;[open]&lt;/tt&gt; is
+    overloaded to know how to open these files by their names.  You
+    can also get the name of the current file being read by the ID, as 
+    well as some more esoteric information.
+  &lt;/p&gt;
+
+  &lt;h4&gt;An example&lt;/h4&gt;
+  &lt;p&gt;
+    &lt;blockquote&gt;&lt;code&gt;
+#!/usr/local/bin/perl -w
+use Inline::Files;
+
+my ($a,$b,$a_end,$b_end);
+for($a=&lt;A&gt;, $b=&lt;B&gt;;
+    ! $a_end || ! $b_end;
+    ($a_end or $a=&lt;A&gt;), ($b_end or $b=&lt;B&gt;)) {
+  $a_end=1, $a='' unless defined $a;
+  $b_end=1, $b='' unless defined $b;
+  chomp($a);
+  chomp($b);
+  printf &quot;%35s  |  %35s\n&quot;, $a, $b;
+}
+
+__A__
+This is a block of text.
+Note that this text had best
+have *SHORT* lines, or we
+could have some formatting
+trouble!
+__B__
+The quick brown fox jumps
+over the lazy dog.  The cow
+jumps over the moon.
+      &lt;/code&gt;&lt;/blockquote&gt;
+    This code arranges 2 blocks of text in a nice manner; the text is
+    read directly from a virtual file, which is nicer than having to
+    split on all newlines of a string.
+  &lt;/p&gt;
+  &lt;p&gt;
+    It's also a nice way to test some code you want to write to run on 
+    real filehandles, while keeping everything in one file.
+  &lt;/p&gt;
+
+  &lt;h3&gt;Writing&lt;/h3&gt;
+  &lt;p&gt;
+    Not content with letting your programs read parts of themselves in 
+    weird and wonderful ways, Dr. Conway also lets your programs
+    &lt;em&gt;write&lt;/em&gt; those parts!
+  &lt;/p&gt;
+  &lt;p&gt;
+    If your program file is &lt;em&gt;writable&lt;/em&gt;, all its virtual files
+    are opened in read-write mode.  To rewrite the file, just
+    &lt;tt&gt;[seek]&lt;/tt&gt; back to the beginning and rewrite it.  (Or be more
+    creative if you like.)  You can even create &lt;em&gt;new&lt;/em&gt; virtual
+    files as your program is running.
+  &lt;/p&gt;
+  &lt;p&gt;
+    This is a cheap and useful way of keeping some &quot;sticky&quot;
+    configuration data attached to your Perl scripts (note, however,
+    that this is per-script or per-module configuration data, rather
+    than per-user or per-instance data).
+  &lt;/p&gt;
+  &lt;p&gt;
+    See the fine manual and the examples provided with the module in
+    the &lt;tt&gt;demo/&lt;/tt&gt; subdirectory for more examples.
+  &lt;/p&gt;
+  &lt;h4&gt;What &lt;tt&gt;-backup&lt;/tt&gt; does&lt;/h4&gt;
+  &lt;p&gt;
+    &lt;small&gt;
+      If your program is writing virtual files, you should be very
+      afraid: Your program is getting rewritten to disk continually.
+      &lt;tt&gt;-backup&lt;/tt&gt; makes a backup copy of your program when it
+      loads, just in case.  Use it if you're writing to virtual files!
+    &lt;/small&gt;
+  &lt;/p&gt;
+
+  &lt;h3&gt;Prerequisites&lt;/h3&gt;
+  &lt;p&gt;
+    &lt;tt&gt;Inline::Files&lt;/tt&gt; is a pure Perl extension, and doesn't
+    require a C compiler to install.  It &lt;em&gt;does&lt;/em&gt; require that
+    you have &lt;tt&gt;[Filter::Util]&lt;/tt&gt; installed for your Perl, and
+    &lt;em&gt;that&lt;/em&gt; extension contains some C files.
+  &lt;/p&gt;</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>43894</author_user>
+  <createtime>2001-07-23 13:41:48</createtime>
+  <itemdescription>Multiple virtual files at the end of your code</itemdescription>
+  <identifier></identifier>
+  <node_id>99012</node_id>
+  <usercomment></usercomment>
+  <title>Inline::Files</title>
+  <nodeupdated>2005-08-15 14:41:51</nodeupdated>
+</node>

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="96321" title="Renaming and Moving Files" created="2001-07-13 08:16:40" updated="2005-07-21 01:27:35">
+<type id="121">
+perlcraft</type>
+<author id="80749">
+tachyon</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -w
+
+# here is my take on a very well worn theme
+# this script will rename all the files of a given extension
+# in a given directory to a new extension and then offers the 
+# option to copy them to a new directory with or without
+# deleting the originals. Interface is via prompts.
+
+use strict;
+use Fcntl qw(:flock);
+
+my ($dir, $new_dir, $from, $to);
+my $flock   = 0;    # set to 1 to flock
+my $timeout = 10;   # timout waiting for flock
+
+until ($dir) {
+    print 'Enter dir for renaming: ';
+    chomp ($dir = &lt;STDIN&gt;);
+    $dir =~ tr|\\|/|;
+    unless (-d $dir) {
+        print "Directory $dir does not exist\n";
+        $dir = '';
+    }
+}
+$dir .= '/' unless $dir =~ m|/$|;
+
+until ($from) {
+    print 'Rename from: ';
+    chomp ($from = &lt;STDIN&gt;);
+    my $count = 0;
+    while(&lt;$dir*$from&gt;) {$count++}
+    unless ($count) {
+        print "There are no files in $dir that match *$from\n";
+        $from = '';
+    }
+}
+
+print 'Rename to: ';
+chomp ($to = &lt;STDIN&gt;);
+
+my $count = 0;
+while (&lt;$dir*$from&gt;) {
+    my ($old,$new);
+    $old = $new = $_;
+    $new =~ s/$from$/$to/;
+    unless (exist($new)) {      
+       if (rename $old, $new) { 
+           print "Renamed $old to $new\n";
+           $count++;
+       }
+       else {
+           warn "Unable to rename $old to $new $!\n";
+       }
+    }
+}
+print "Renamed $count files\n";
+exit unless $count;
+
+print "Do you want to copy the renamed files to a new dir?\n";
+print "Enter a new dir to copy or just hit enter to not copy: ";
+chomp ($new_dir = &lt;STDIN&gt;);
+exit unless $new_dir;
+$new_dir =~ tr|\\|/|;
+$new_dir .= '/' unless $new_dir =~ m|/$|;
+
+print "Delete old files in $dir after copying (y/n) ";
+my $delete = (&lt;STDIN&gt; =~ m/^y/) ? 1 : 0;
+
+makedir($new_dir);
+move($delete);
+exit;
+
+##################################################################
+
+sub makedir {
+    my $dir = shift;
+  return if -d $dir;
+    mkdir $dir or die "Unable to make new dir $dir $!\n";
+}
+
+sub exist {
+    my $file = shift;
+    if (-e $file) {
+        print "File $file exists, owerwrite (y/n) ";
+      return (&lt;&gt; =~ m/^y/i) ? 0 : 1
+    }
+ return 0;
+}
+
+sub move {
+     my $delete = shift;
+     while(&lt;$dir*$to&gt;) {
+        my $file = $_;
+        (my $newfile) = $file =~ m/$dir(.*)$/;
+        $newfile = $new_dir.$newfile;
+        unless (exist($newfile)) {
+            open(INFILE, "&lt;$file") or die "Unable to open $file $!\n";
+            open(OUTFILE, "&gt;$newfile") or die "Unable to open $file $!\n";
+            binmode INFILE;
+            binmode OUTFILE;
+            if ($flock) {
+                my $count = 0;
+                until (flock OUTFILE, LOCK_EX) {
+                    sleep 1;
+                    die "Can't lock file $newfile: $!\n" if ++$count &gt;= $timeout;
+                }
+            } 
+            while (read(INFILE, my $buffer, 16384)) {
+                print OUTFILE $buffer;
+            } 
+            close INFILE;
+            close OUTFILE;
+            print "Copied  $file to $newfile\n";
+            if ($delete) {
+                if (unlink $file) { 
+                    print "Deleted $file\n";
+                } else {
+                    warn "Unable to delete $file $!\n";
+                }
+            }
+        }
+    }
+}
+</field>
+</data>
+</node>

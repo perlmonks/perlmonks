@@ -1,0 +1,132 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>voteview</displaytype>
+  <page>[%
+    use Everything::Experience;
+
+    my $isGod= isGod($USER);
+    my $isUser= &quot;user&quot; eq $NODE-&gt;{type}{title};
+    return &quot;You see none of your votes here.\n&quot;
+        if(  ! $isGod  &amp;&amp;  ! $isUser  );
+
+    my $isSelf= getId($USER) == getId($NODE);
+    my $votescast= $isSelf;
+    $votescast= $query-&gt;param(&quot;votescast&quot;)
+        if(  $isGod  );
+
+    my $form= &quot;&quot;;
+    my @votes;
+    {
+        my $limit=  &quot;&quot;;
+        my $select= &quot;vote_id&quot;;
+        my $user=   &quot;voter_user&quot;;
+        my $order=  &quot;desc&quot;;
+        if(  $isUser  ) {
+            $form= join &quot;\n&quot;,
+                htmlcode('openform'),
+                $query-&gt;escapeHTML( 'Limit ([-][[skip,]max]):' ),
+                $query-&gt;textfield( -name =&gt; 'votelimit', -size =&gt; 10 ),
+            '';
+            $form .= join &quot;\n&quot;,
+                $query-&gt;checkbox( &quot;votescast&quot;, &quot;&quot;, &quot;1&quot;, &quot;Votes cast&quot; ),
+                &quot;&lt;b&gt;by&lt;/b&gt; this user&quot;,
+            ''
+                if(  $isGod  );
+            $form .= join &quot;\n&quot;,
+                $query-&gt;submit( &quot;submit&quot;, &quot;submit&quot; ),
+                &quot;&lt;/form&gt;\n&quot;;
+            $limit= $query-&gt;param(&quot;votelimit&quot;) || &quot;&quot;;
+            $order= &quot;asc&quot;   if  $limit =~ s/^-//;
+            $limit= &quot;20&quot;    if  $limit !~ /^(\s*\d+\s*,)?\s*\d{1,3}\s*$/;
+            $limit= &quot;limit $limit&quot;;
+            if(  $votescast  ) {
+                $select= &quot;voter_user&quot;;
+                $user=   &quot;voted_user&quot;;
+            } elsif(  $isGod  ) {
+                $select= 'voted_user';
+            } else {
+                $select= join ' ',
+                    'voter_user=', getId($USER), 'and voted_user';
+            }
+        }
+        my $csr= $DB-&gt;sqlSelectMany(
+            &quot;vote_id, weight, votetime, ip, $user as user_id&quot;,
+            &quot;vote&quot;,
+            join( ' ',
+                $select, '=', getId($NODE),
+            ),
+            &quot;order by votetime $order $limit&quot;,
+        );
+        while(  my $VOTE= $csr-&gt;fetchrow_hashref()  ) {
+            push @votes, $VOTE;
+        }
+    }
+
+    if(  0 == @votes  ) {
+        return(
+            ( ! $isUser )
+                ?   '&lt;i&gt;None have cast their vote on this node&lt;/i&gt;' :
+            ( $isGod )
+                ?   sprintf( '%s&lt;br /&gt;&lt;i&gt;This user has %s no votes&lt;/i&gt;',
+                        $form,
+                        ( $votescast ) ? &quot;cast&quot; : &quot;received&quot;,
+                    ) :
+            ( $isSelf )
+                ?   '&lt;i&gt;You have never voted.&lt;/i&gt;'
+                :   &quot;&lt;i&gt;You have voted on none of this monk's nodes.&lt;/i&gt;&quot;
+        );
+    }
+
+    my $rows= '';
+    my $plus= 0;
+    my $minus= 0;
+    my $hilite= '';
+    foreach my $vote ( @votes ) {
+        $vote-&gt;{votetime}= htmlcode(
+            'ParseTimeInString','',
+            {   string =&gt; $vote-&gt;{votetime},
+                format =&gt; 'short',
+            },
+        );
+        $rows .= sprintf(
+            &quot;&lt;tr%s&gt;%s&lt;/tr&gt;\n&quot;,
+            $hilite= $hilite ? '' : ' class=&quot;highlight&quot;',
+            join &quot;\n&quot;,
+                map( sprintf( '&lt;td%s&gt;%s&lt;/td&gt;', @$_ ),
+                    ( $isUser )
+                        ?  [ '', linkNode( $vote-&gt;{vote_id} ) ]
+                        :  [ '', $vote-&gt;{ip} ],
+                    ( $isGod || $isSelf )
+                        ?  [ '', linkNode( $vote-&gt;{user_id} ) ]
+                        :  (),
+                    [ ' align=&quot;center&quot;', $vote-&gt;{weight} ],
+                    [ ' align=&quot;right&quot;', $vote-&gt;{votetime} ],
+                ),
+        );
+        if ( $vote-&gt;{weight} &lt; 0 ) {
+            $minus++;
+        } else {
+            $plus++;
+        }
+    }
+
+    return join &quot;\n&quot;,
+        $form,
+        &quot;&lt;table width='100%'&gt;&lt;tr&gt;&lt;th&gt;&quot;,
+        $isUser ? &quot;Title&quot; : &quot;IP Address&quot;,
+        ( $isGod || $isSelf ) ? &quot;&lt;/th&gt;&lt;th&gt;User&quot; : &quot;&quot;,
+        &quot;&lt;/th&gt;&lt;th&gt;Vote&lt;/th&gt;&quot;,
+        &quot;&lt;th&gt;Date and Time&lt;/th&gt;&lt;/tr&gt;&quot;,
+        $rows,
+        &quot;&lt;/table&gt;&quot;,
+        &quot;Total of $plus ++ and $minus -- votes =&quot;,
+        $plus-$minus,
+    '';
+%]
+</page>
+  <author_user>929</author_user>
+  <createtime>2000-03-21 00:10:20</createtime>
+  <node_id>5768</node_id>
+  <title>node voteview page</title>
+  <nodeupdated>2005-08-07 04:20:43</nodeupdated>
+</node>

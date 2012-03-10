@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="587193" title="Precedence for Idiots" created="2006-12-01 09:11:11" updated="2006-12-01 04:11:11">
+<type id="956">
+perltutorial</type>
+<author id="66612">
+Melly</author>
+<data>
+<field name="doctext">
+&lt;h1&gt;Introduction&lt;/h1&gt;
+
+&lt;p&gt;Please note that this tutorial is undergoing revision and expansion, so the comments that follow it may apply to an earlier version. This version is dated: 5-Dec-2006&lt;/p&gt;
+
+&lt;h1&gt;The Basics - Getting Your Sums Right&lt;/h1&gt;
+
+&lt;p&gt;If, like me, you don't come from a comp-sci background, then precedence-awareness of [doc://perlop#Operator-Precedence-and-Associativity--operator,-precedence-precedence-associativity|operators] probably only goes as far as knowing that &lt;code&gt;2+3*4&lt;/code&gt; means &lt;code&gt;2+(3*4)&lt;/code&gt;, and that if you want &lt;code&gt;(2+3)*4&lt;/code&gt;, then you'd better damn well say so.&lt;/p&gt;
+
+&lt;p&gt;Beyond that, &lt;code&gt;5-1+2&lt;/code&gt; might have you scratching your head - which has precedence - the '-' or the '+'? The answer is 'whichever comes first' - they have equal precedence but left associativity, so &lt;code&gt;5-1+2&lt;/code&gt; is &lt;code&gt;(5-1)+2&lt;/code&gt;, but &lt;code&gt;5+1-2&lt;/code&gt; is &lt;code&gt;(5+1)-2&lt;/code&gt; (although you'll have fun proving that last one).&lt;/p&gt;
+
+&lt;p&gt;... and it's worth mentioning for the comp-sci challenged that left-associativity means "for a sequence of operators of equal precedence, give the left-most operator the precedence". Right-associativity means the reverse. For example, ** (the 'to-the-power-of' operator) has right-associativity, so &lt;code&gt;2**3**4&lt;/code&gt; is &lt;code&gt;2**(2**3)&lt;/code&gt;, not &lt;code&gt;(2**2)**3&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;So far, it's all pretty straight-forward. Whether or not you know what the rules for precedence are for the basic maths operators, you are aware that they exist and need to exist, and, if in doubt, or if you just want to make things clearer for yourself or the code-maintainer, you can always use brackets to make the order of operations explicit.&lt;/p&gt;
+
+
+&lt;h1&gt;First Among Equals&lt;/h1&gt;
+
+&lt;p&gt;So far, so good  - that is until we get to the numeric-equality test, '==' and the assignment operator, '='.&lt;/p&gt;
+
+&lt;p&gt;The first thing to note (or at least remember) about these is that don't really have anything in common with each other. Nor do either have any strict equivalent in maths (unlike, say, '*' and '/', etc.).&lt;/p&gt;
+
+&lt;p&gt;It may be tempting to think otherwise, since &lt;code&gt;$x = 2*4&lt;/code&gt; (Perl) seems to behave a bit like &lt;code&gt;X = 2 x 4&lt;/code&gt; (maths). However, since we can use '=' to assign just about anything to $x, including "hello world", it really doesn't have anything to do with numbers.&lt;/p&gt;
+
+&lt;p&gt;In Perl, '==', and its evil-twin, '!=', are perhaps a bit closer to the maths-class meaning of '=', since all are associated with the numeric equality of the calculations on either side - however, in maths if the two sides don't match the operator, then you've probably made a mistake, whereas in Perl if the two sides don't match the operator, then you've just performed a valid test.&lt;/p&gt;
+
+&lt;p&gt;Nevertheless, the notion of precedence for these operators is somewhat confusing - if precedence is important, does that mean that we have to write &lt;code&gt;($x+$y) == (12/3)&lt;/code&gt; to avoid something like &lt;code&gt;$x+($y == 12/3)&lt;/code&gt; happening? And what would that mean anyway?&lt;/p&gt;
+
+&lt;p&gt;By and large, you don't need to worry. Both '=' and '==' have such low precedence that they will almost always behave as you expect (and certainly as far as any maths-based functions go), without any need for parenthesis.&lt;/p&gt;
+
+
+&lt;h1&gt;Logical Questions&lt;/h1&gt;
+
+&lt;p&gt;However, there are some traps when we start combining '==' and '=' with the various logical operators, such as 'and' and 'or', and their alternatives, '&amp;&amp;' and '¦¦', as these do have lower precedence.&lt;/p&gt;
+
+&lt;p&gt;For example, &lt;code&gt;(5 or 2 == 12)&lt;/code&gt; doesn't mean "does 5 or 2 equal 12?" (which would be false), instead it translates to &lt;code&gt;5 or (2 == 12)&lt;/code&gt;, or "if 5 is true or if 2 equals 12" (which is true - 5 is a 'true' value).&lt;/p&gt;
+
+&lt;p&gt;To add to the confusion, '&amp;&amp;' and '¦¦' have a higher precedence than '=', whereas 'and' and 'or' have a lower precedence. This means that &lt;code&gt;$x = 4==5 ¦¦ 5==5&lt;/code&gt; has quite a different meaning than &lt;code&gt;$x = 4==5 or 5==5&lt;/code&gt; - the first will set $x to 1 ('true') if either 4 or 5 is equal to 5, and will set $x to false if they are not. The second version will set $x to true or false purely on the basis of whether 4 is equal to 5 (and will go on to check whether 5 is equal to 5 if it fails to set $x to a value).&lt;/p&gt;
+
+&lt;p&gt;Below is a short table that will hopefully make all of this a little clearer.&lt;/p&gt;
+
+&lt;table border="1"&gt;
+&lt;tr&gt;&lt;td&gt;Function&lt;/td&gt;&lt;td&gt;Meaning&lt;/td&gt;&lt;td&gt;$x is now..&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = 5 == 6 or 5 == 5&lt;/td&gt;&lt;td&gt;($x = (5 == 6)) or ($x = (5 == 5))&lt;/td&gt;&lt;td&gt;FALSE&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = (5 == 6 or 5 == 5)&lt;/td&gt;&lt;td&gt;$x = ((5 == 6) or (5 == 5))&lt;/td&gt;&lt;td&gt;TRUE&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = 5 == 6 ¦¦ 5 == 5&lt;/td&gt;&lt;td&gt;$x = ((5 == 6) ¦¦ (5 == 5))&lt;/td&gt;&lt;td&gt;TRUE&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;($x = 5 == 6) ¦¦ 5 == 5&lt;/td&gt;&lt;td&gt;($x = 5 == 6) ¦¦ 5 == 5&lt;/td&gt;&lt;td&gt;FALSE&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = 5 ¦¦ 6 == 6&lt;/td&gt;&lt;td&gt;$x = (5 ¦¦ (6 == 6))&lt;/td&gt;&lt;td&gt;5&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = (5 ¦¦ 6) == 6&lt;/td&gt;&lt;td&gt;$x = ((5 ¦¦ 6) == 6)&lt;/td&gt;&lt;td&gt;TRUE&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = 5 or 6 == 6&lt;/td&gt;&lt;td&gt;($x = 5) ¦¦ ($x = (6 == 6))&lt;/td&gt;&lt;td&gt;5&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = 1 == 2 &amp;&amp; 3&lt;/td&gt;&lt;td&gt;$x = (1 == 2) &amp;&amp; $x = 3&lt;/td&gt;&lt;td&gt;3&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;$x = 1 == 2 ¦¦ 3&lt;/td&gt;&lt;td&gt;$x = (1 == 2) ¦¦ $x = 3&lt;/td&gt;&lt;td&gt;FALSE&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+&lt;p&gt;The real lesson here is that when you start mixing '==' or '=' with any logical operators, get into the habit of using parenthesis... and just to rub that in, let's take a look at another logical operator, the slightly obscure, but extremely useful '?:' - and a particular trap you can fall into due to making unwarranted assumptions about the behavior of '='.&lt;/p&gt;
+
+
+&lt;h1&gt;?: - If If/Else fails...&lt;/h1&gt;
+
+&lt;p&gt;The '?:' operator is probably the least-known operator, so let's take a quick look at what it does.&lt;/p&gt;
+
+&lt;p&gt;The basic syntax is: &lt;code&gt;&lt;test&gt;?&lt;value to return if test is true&gt;:&lt;value to return if test is false&gt;&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;Now, the "?:" construct is [doc://perlop#Conditional-Operator-operator,-conditional-operator,-ternary-ternary-?: |very useful] - basically, it means that we can replace the following code:&lt;/p&gt;
+
+&lt;code&gt;
+if($x){
+  $y=1;
+}
+else{
+  $y=0;
+}
+&lt;/code&gt;
+
+&lt;p&gt;with:&lt;/p&gt;
+
+&lt;code&gt;
+$y = $x ? 1 : 0;
+&lt;/code&gt;
+
+&lt;p&gt;Which is all well and good - unless you make the [id://586664|mistake] of writing:&lt;/p&gt;
+
+&lt;code&gt;
+$x ? $y=1 : $y=0;
+&lt;/code&gt;
+
+&lt;p&gt;If you run the above code, you will find that, whatever value you assign to $x, you are always told that, apparently, $x was false (i.e. $y is set to 0).&lt;/p&gt;
+
+&lt;p&gt;So how did that happen, why was it confusing (IMHO), and what can you do about it?&lt;/p&gt;
+
+&lt;p&gt;Well, to illustrate what happened, let's write an alternative version that doesn't exhibit the problem, but looks pretty much identical (using a reg-ex substitution instead of '='):&lt;/p&gt;
+
+&lt;code&gt;
+$x ? $y=1 : $y=~s/.*/0/;
+&lt;/code&gt;
+
+&lt;p&gt;This time, we get the result we expect. So what happened in the bad version that didn't happen here? Well the first thing to notice in the [doc://perlop#Operator-Precedence-and-Associativity--operator,-precedence-precedence-associativity|operator-precedence table] is that '=~' has a higher precedence than '?:', but '=' has a lower precedence. So what? All that means, presumably, is that we decide on the truth or falsehood of our initial condition before we assign any value to $y (which sounds like a good thing). &lt;/p&gt;
+
+&lt;p&gt;Well... no. What precedence conceptually means in this context is "where is the boundary of our false expression?" and the answer is "it's when we hit an operator with a lower precedence than '?:'"&lt;/p&gt;
+
+&lt;p&gt;So &lt;code&gt;$x ? $y=1 : $y=0&lt;/code&gt; can be expressed as &lt;code&gt;($x ? $y=1 : $y)=0&lt;/code&gt; - which, if $x is false, leads to &lt;code&gt;($y)=0&lt;/code&gt; (correct), but if $x is true, leads to &lt;code&gt;($y=1)=0&lt;/code&gt; (uh-oh - we did set $y to 1, but then immediately reset it to 0).&lt;/p&gt;
+
+&lt;p&gt;Now, when we replace a false expression such as &lt;code&gt;$y=0&lt;/code&gt; with &lt;code&gt;$y=~s/.*/0/&lt;/code&gt;, the higher precedence of '=~' means that Perl evaluates this as:&lt;/p&gt;
+
+&lt;code&gt;
+$x ? $y=1 : ($y=~s/.*/0/)
+&lt;/code&gt;
+
+&lt;p&gt;which is probably what we (the comp-sci challenged) expected in the first example.&lt;/p&gt;
+
+&lt;p&gt;Bottom line, '?:' can benefit from parenthesis just as much as &lt;code&gt;(2+3)*5&lt;/code&gt; - here is the bad code made good:&lt;/p&gt;
+
+&lt;code&gt;
+$x ? $y=1 : ($y=0);
+&lt;/code&gt;
+
+&lt;p&gt;As a small side-note, really we ought to be writing &lt;code&gt;$x ? ($y=1) : ($y=0);&lt;/code&gt;, but Perl 'knows' that the function between '?' and ':' must be our 'true' function and is kind enough to add the virtual parenthesis for us...&lt;/p&gt;
+
+&lt;p&gt;...and, as noted before, we can avoid the need for parenthesis, and save a few key-strokes, by writing:&lt;/p&gt;
+
+&lt;code&gt;
+$y = $x ? 1 : 0;
+&lt;/code&gt;
+
+&lt;p&gt;... which is really what we should have done in the first place - there is an Meditation discussing the use of '?:' at [id://587227].&lt;/p&gt;
+
+
+&lt;h1&gt;A Final Word&lt;/h1&gt;
+
+&lt;p&gt;This is not meant to be an exhaustive look at precedence and operators - I haven't mentioned the bit-wise operators for example. However, I hope I've covered the issues likely to fox the comp-sci challenged (basically, if you're using bit-wise operators, I assume you know what you're doing).&lt;/p&gt;
+
+&lt;p&gt;Also, I'm half-tempted (well, 25% tempted) to replace this tutorial with just the one sentence "USE LOTS OF PARENTHESIS" - it's certainly the bottom line. They will make your code more readable, and you will avoid most of the traps associated with precedence.&lt;/p&gt;
+
+&lt;p&gt;That said, don't go over the top:&lt;/p&gt;
+
+&lt;code&gt;
+$x = ((((((1 * 2) * 3) * (4 ** 2)) * 5) * 6) * 7)
+&lt;/code&gt;
+
+&lt;p&gt;is not really helping anyone....&lt;/p&gt;
+
+&lt;!-- Node text goes above. Div tags should contain sig only --&gt;
+&lt;div class="pmsig"&gt;&lt;div class="pmsig-66612"&gt;
+Tom Melly, pm@tomandlu.co.uk
+&lt;/div&gt;&lt;/div&gt;</field>
+</data>
+</node>

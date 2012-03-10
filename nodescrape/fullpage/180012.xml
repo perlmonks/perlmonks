@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="180012" title="node content xml page" created="2002-07-07 14:58:04" updated="2004-09-12 03:00:17">
+<type id="122">
+fullpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="doctext">
+[%
+  use XML::Fling;
+  my $numperpage=50;
+
+  return unless isGod($USER) or $$USER{title} eq "shotgunefx";
+
+my %types=(
+   user=&gt;['title','doctext'],
+   note=&gt;['title','doctext'],
+   perlquestion=&gt;['title','doctext'],
+   perlman=&gt;['title','doctext'],
+   perlfunc=&gt;['title','doctext'],
+   perlmeditation=&gt;['title','doctext'],
+   perlcraft=&gt;['title','doctext'],
+   'perlfaq nodetype'=&gt;['title','doctext'],
+   perltutorial=&gt;['title','doctext'],
+   obfuscated=&gt;['title','doctext'],
+   sourcecode=&gt;['title','codedescription','codecategory','codeauthor','doctext'],
+   'categorized question'=&gt;['title','doctext'],
+   'categorized answer'=&gt;['title','doctext'],
+   modulereview=&gt;['title','doctext','itemdescription','usercomment','identifier'],
+   bookreview=&gt;['title','doctext','itemdescription','usercomment','identifier'],
+   snippet=&gt;['title','doctext','snippetdesc','snippetcode'],
+   poem=&gt;['title','doctext'],
+   perlfunc=&gt;['name','synopsis','description'],
+   sitefaqlet=&gt;['title','doctext']
+);
+
+my @ids;
+
+foreach(keys %types){
+   push @ids, getId(getType($_))."\n";
+}
+
+  my $start=$query-&gt;param('start') || 1;
+  my $end=$query-&gt;param('end') || $start+$numperpage-1;
+  $end=$start+$numperpage-1 if $end-$start&gt;$numperpage-1;
+  
+  my $dbh=$DB-&gt;getDatabaseHandle();
+
+  my $sth=$dbh-&gt;prepare("select node_id from node where node_id between ? and ?");
+  #and type_nodetype in(".join(',',@ids).")");
+  $sth-&gt;execute($start,$end);
+
+  my @node_ids;
+  while(my $C=$sth-&gt;fetchrow_hashref){
+     push @node_ids, $$C{node_id};
+  }
+
+  my @data;
+  my $xml = new XML::Fling ( \@data, ("&lt;","&gt;\n")x3 );
+      $xml-&gt;header("windows-1252")-&gt;
+      start('NODECONTENTS')-&gt;
+        element('INFO', site      =&gt; $HTMLVARS{site_url},
+                        sitename  =&gt; $HTMLVARS{site_name},
+                        start     =&gt; $start,
+                        end       =&gt; $end,
+  );
+  foreach(@node_ids){
+     my $N=getNodeById($_);
+     my $U=getNodeById($$N{author_user});
+     my $nodecontents;
+     foreach(@{$types{$$N{type}{title}}}){
+      $nodecontents.= "$$N{$_}\n";
+     }
+
+     $xml-&gt;element('NODE', node_id   =&gt; $_, 
+                           title     =&gt; $$N{title},             
+                           nodetype=&gt;$$N{type}{title},
+                           type_id=&gt;$$N{type_nodetype},
+                           createtime=&gt;$$N{createtime},
+                           author=&gt;$$U{title},
+                           author_id=&gt;$$U{node_id},
+                           parent_node=&gt;$$N{parent_node}, root_node=&gt;$$N{root_node},$nodecontents
+);
+  }
+ 
+  $xml-&gt;end();
+  return join '', @data;
+%]</field>
+</data>
+</node>

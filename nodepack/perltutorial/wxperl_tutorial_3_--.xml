@@ -1,0 +1,236 @@
+<node>
+  <doctext>Continuing in the series.&lt;br&gt;
+This code takes up where the last tutorial left off -- displaying an image -- and the ability to add directories and images to a treeview for browsing. This does build on top of the other tutorials I've written, and so has less detailed commenting, as I assume you've read them. :-)&lt;br/&gt;
+----
+&lt;readmore&gt;
+&lt;code&gt;#!/usr/bin/perl
+
+use Wx ;
+
+package MyApp;
+    use strict;
+    use vars qw(@ISA);
+    use Wx qw(:everything);
+    use Wx::Event qw(EVT_MENU);
+    @ISA=qw(Wx::App);
+
+    sub OnInit {
+      my $this = @_;
+      my $frame = MyFrame-&gt;new( &quot;Mini-image demo&quot;, [-1,-1], [-1,-1]);
+      #my $this-&gt;{FRAME}=$frame;
+      unless ($frame) {print &quot;unable to create frame -- exiting.&quot;; return undef}
+      $frame-&gt;Show( 1 );
+      1;
+    }
+
+
+package MyFrame;
+    use vars qw(@ISA);
+    use strict;
+    #
+    #   All we load here are constants used
+    #   to keep the image stretched to the dimensions of the window.
+    #
+    use Wx qw(wxWidth wxHeight wxLeft wxTop wxDefaultPosition wxDefaultSize
+              wxID_CANCEL wxCentreX wxCentreY);
+    use Wx::Event qw(:everything);
+    #
+    #   Wx::Image loads the Image control and all of the Image handlers.
+    #
+    use Wx::Image;
+    use IO::File;
+    use Wx::Event ;
+    @ISA=qw(Wx::Frame);
+
+
+    sub new {
+        my $class = shift;
+        my $this = $class-&gt;SUPER::new( undef, -1, $_[0], $_[1], $_[2] );
+        #
+        #   replace the filename with something appropriate.
+        #
+        my $file = IO::File-&gt;new( &quot;c:/docume~1/porterje/wx-ex.jpg&quot;, &quot;r&quot; );
+        unless ($file) {print &quot;Can't load file.&quot;;return undef};
+        binmode $file;
+        my $handler = Wx::JPEGHandler-&gt;new();
+        my $image = Wx::Image-&gt;new();
+        my $bmp;    # used to hold the bitmap.
+        $handler-&gt;LoadFile( $image, $file );
+        $bmp = $image-&gt;ConvertToBitmap();
+
+        if( $bmp-&gt;Ok() ) {
+            #  create a static bitmap called ImageViewer that displays the
+            #  selected image.
+            $this-&gt;{ImageViewer}= Wx::StaticBitmap-&gt;new($this, -1, $bmp);
+        }
+        $this-&gt;{ScaleImage}=0;
+        $this-&gt;{TreeCtrl}= MyTreeCtrl-&gt;new($this, -1);
+
+        $this-&gt;SetAutoLayout( 1 );  # allow wxperl to manage control sizing &amp; placement
+        # Layout constraints provide the guides
+        # for wxperl's autolayout.
+        my $b1 = Wx::LayoutConstraints-&gt;new();
+        my $b2 = Wx::LayoutConstraints-&gt;new();
+
+        # These constrainst define the placement and
+        # dimensions of the controls they're bound to,
+        # and can be either absolute, or relative to
+        # other controls
+        $b1-&gt;left-&gt;Absolute(0);
+        $b1-&gt;top-&gt;Absolute(0);
+        $b1-&gt;width-&gt;PercentOf( $this, wxWidth,50);
+        $b1-&gt;height-&gt;PercentOf( $this, wxHeight, 100);
+        $this-&gt;{TreeCtrl}-&gt;SetConstraints($b1);
+
+        $b2-&gt;left-&gt;RightOf($this-&gt;{TreeCtrl});
+        $b2-&gt;top-&gt;Absolute(0);
+        $b2-&gt;width-&gt;PercentOf( $this, wxWidth,50);
+        $b2-&gt;height-&gt;PercentOf( $this, wxHeight, 100);
+        $this-&gt;{ImageViewer}-&gt;SetConstraints($b2);
+
+
+        #
+        # Set up the menu bar.
+        #
+        my $file_menu = Wx::Menu-&gt;new();
+        my ($OPEN_NEW_DIR, $REMOVE_DIR, $SCALE_IMAGE, $APP_QUIT)=(1..100);
+        $file_menu-&gt; Append( $OPEN_NEW_DIR, &quot;&amp;Open A Directory\tCtrl-O&quot;);
+        $file_menu-&gt;AppendSeparator();
+        $file_menu-&gt;Append($SCALE_IMAGE,&quot;&amp;Scale Images To Window\tCtrl-S&quot;,&quot;&quot;,1);
+        $file_menu-&gt;AppendSeparator();
+        $file_menu-&gt;Append ($APP_QUIT, &quot;E&amp;xit\tCtrl-x&quot;,&quot;Exit Application&quot;);
+        #
+        # Note that even though there are 6 options, only
+        # 4 of them are active as they're the only ones
+        # bound to event handlers.
+        #
+        EVT_MENU($this, $OPEN_NEW_DIR, \&amp;OnDirDialog);
+        EVT_MENU($this, $SCALE_IMAGE,  \&amp;Set_Scale);
+        EVT_MENU($this, $APP_QUIT,     sub {$_[0]-&gt;Close( 1 )});
+
+        my $menubar= Wx::MenuBar-&gt;new();
+        $menubar-&gt;Append ($file_menu, &quot;&amp;File&quot;);
+        $this-&gt;SetMenuBar($menubar);
+
+        $this;  # return the frame object to the calling application.
+    }
+
+    # Set_Scale changes a scalar flag which will determine
+    # if a displayed image is resized to fit the full
+    # dimensions of the image control.
+    sub Set_Scale {
+        my $this = shift;
+        # yes, I could have used NOT here.
+        if ($this-&gt;{ScaleImage}){$this-&gt;{ScaleImage}=0} else {$this-&gt;{ScaleImage}=1};
+    }
+
+
+    #
+    #   OnDirDialog scans a user specified directory for images.
+    #
+    sub OnDirDialog {
+        my( $this, $event ) = @_;
+
+        my $dialog = Wx::DirDialog-&gt;new( $this );
+
+        unless ( $dialog-&gt;ShowModal == wxID_CANCEL ) {
+            $this-&gt;{TreeCtrl}-&gt;ScanDir($dialog-&gt;GetPath);
+        }
+        $dialog-&gt;Destroy;
+    }
+
+
+
+package MyTreeCtrl;
+    use vars qw (@ISA);
+    use strict;
+    use Wx qw(:everything);
+    use Wx::Event qw(EVT_TREE_SEL_CHANGED EVT_TREE_ITEM_ACTIVATED) ;
+    use Win32;
+    use HTML::SimpleLinkExtor;
+    use LWP::MediaTypes qw(guess_media_type);
+    use LWP::UserAgent;
+    @ISA=qw(Wx::TreeCtrl);
+
+sub new {
+        my $class = shift;
+        my $this = $class-&gt;SUPER::new( @_  );
+        EVT_TREE_SEL_CHANGED ($this,$this, \&amp;OnChange);
+        my $root=$this-&gt;AddRoot(&quot;Image listings&quot;); #add one default item.
+
+        $this;
+}
+#
+# Scandir adds a child node to the treeview that
+# lists the directory, and then sets each image file to
+# be a child of that newly created node.
+#
+sub ScanDir {
+    my $this=shift;
+    my $dir=shift;
+    $dir =~tr/\\/\//;
+    if ($dir !~/[\/]$/) {$dir.=&quot;/&quot;}
+    $dir=Win32::GetShortPathName($dir);
+    my (@files) =glob &quot;$dir*.jpg&quot;;
+    push @files, glob &quot;$dir*.gif&quot;;
+    my $item = $this-&gt;AppendItem ($this-&gt;GetRootItem, &quot;$dir (&quot;.scalar @files.&quot;) files&quot;);
+    foreach (@files) {$this-&gt;AppendItem ($item,&quot;$_&quot;)}
+}
+
+#
+# event handler for selecting different images.
+#
+sub OnChange {
+    my ($this, $event) =@_;
+    my $item = $event-&gt;GetItem();
+    if ($item== $this-&gt;GetRootItem()) {return} # return if user clicked on the root node.
+
+    my $txt = $this-&gt;GetItemText($item);
+    my $ext;
+    my $handler;
+    $txt=reverse $txt;
+    if ($txt=~/^(.*?)\./){
+        $ext=lc(reverse($1));
+    }
+    $txt=reverse ($txt);
+    # this is cheesy, but the autosensing handler doesn't work,
+    # or I can't get it to work appropriately.
+    if ($ext eq &quot;jpg&quot;){$handler = Wx::JPEGHandler-&gt;new()};
+    if ($ext eq &quot;gif&quot;){$handler = Wx::GIFHandler-&gt;new()};
+    # create file
+    my $file;
+    $file = IO::File-&gt;new( $txt, &quot;r&quot; ) or return undef;
+    binmode $file;
+    return unless $handler; # exit if problems occur during handle creation
+    #and stuff into the image handler.
+    my $image = Wx::Image-&gt;new();
+    my $bmp;    # used to hold the bitmap.
+    $handler-&gt;LoadFile( $image, $file ) or print &quot;can't load file!&quot;;
+    $bmp = $image-&gt;ConvertToBitmap();
+
+    if( $bmp-&gt;Ok() ) {
+        #  create a static bitmap called ImageViewer that displays the
+        #  selected image.
+        my $parent=$this-&gt;GetParent();
+        my $img =$parent-&gt;{ImageViewer};
+        my $size= $img-&gt;GetSize();
+        $img-&gt;SetBitmap($bmp);
+        if ($parent-&gt;{ScaleImage}){$img-&gt;SetSize($size)};
+        $parent-&gt;Clear();
+        $img-&gt;Refresh;
+    }
+}
+
+package main;
+
+my $app = MyApp-&gt;new(); # create
+$app-&gt;MainLoop();       # go
+
+&lt;/code&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>122227</node_id>
+  <author_user>24736</author_user>
+  <title>wxPerl tutorial 3 --</title>
+  <createtime>2001-10-30 21:27:25</createtime>
+  <nodeupdated>2005-08-15 14:49:31</nodeupdated>
+</node>

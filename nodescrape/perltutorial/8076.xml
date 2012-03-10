@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="8076" title="Basic Objects with Overloaded Operators" created="2000-04-19 20:32:17" updated="2005-08-15 11:58:56">
+<type id="956">
+perltutorial</type>
+<author id="7995">
+perlmonkey</author>
+<data>
+<field name="doctext">
+As I ventured into the OO world of perl (coming from C++) I thought
+perl was lacking some of the greatest features of OOP, such as 
+overloaded operators.  It was not until recently that I found an
+article which pointed out that you can indeed overload operators in 
+perl, allowing the abilility to really polish off a complete object.
+The article was in &lt;I&gt;The Perl Journal&lt;/I&gt;, 'Operator Overloading in Perl'
+(Fall 1999) by Hildo Biersma.  Read it for a more in depth review.
+&lt;BR&gt;&lt;BR&gt;
+The object I wrote here is by no means complete, but it should display
+the techniques that can be utilized to create robust object modules.
+&lt;BR&gt;&lt;BR&gt;
+For a fairly simplistic concept I chose to write a Complex number 
+object.  Now nobody actually needs this package, since we have 
+Math::Complex, but you can validate my results with the standard 
+package, if you are so inclined.
+&lt;BR&gt;&lt;BR&gt;
+First the basic object:
+&lt;CODE&gt;package Complex;
+use Carp;
+
+#a '_' prefix on variables is a common way to indicate private
+#   variables. (Note that in Perl nothing is actually private
+#   ... well that is a lie - you can use encapsulation to make
+#   variables private, so if you want really private variables
+#   then go read Damian Conway's "Object Oriented Perl" ).
+sub _REAL {0}                   #_REAL is a constant '0'
+sub _IMAG {1}                   #_IMAG is a constant '1'
+
+sub new
+{   
+    my $class = shift;          #get class name ('Complex')
+    my $real  = shift;          #get first argument
+    my $img   = shift;          #get second argument
+    my $self = [$real, $img];   #create anon array with arguments
+    bless $self, $class;        #bless the array as a Complex object
+    return $self;               #return our new object
+}
+
+sub AUTOLOAD
+{
+    my $sub = $AUTOLOAD;        #get global $AUTOLOAD function name
+    my $self  = shift;          #get the current object
+    my $value = shift;          #get an optional parameter
+    
+    $sub =~ s/.*://;            #strip off package name
+    
+    #let the system handle 'DESTROY' function calls
+    return if $sub =~ /DESTROY/;
+    
+    #make function call upper case to match our constants
+    my $sub = uc($sub);
+    
+    #call the function (should be 'REAL' or 'IMAG' which will
+    #   return 0 or 1 respectively).  The eval will trap runtime
+    #   errors in case someone calls a function that is not _REAL 
+    #   or _IMAG.
+    my $position = eval("&amp;_".$sub);
+
+    #if the position is not a number then they called something
+    #   bogus like $obj-&gt;print, which would call &amp;_PRINT from the
+    #   eval, then $postion would be 'undef'
+    unless( $position =~ /\d/ )
+    {
+        croak("Subroutine undefined: \"$AUTOLOAD\"");
+    }
+
+    #if no parameter then they just want the Real or Imag value
+    #   returned instead of set.
+    if( not defined $value )
+    {   
+        #return the value associated with the position in the array
+        #   that was returned from the eval above.
+        return $self-&gt;[$position];
+    }
+    else
+    {   
+        #a value was passed in, so assign it to the position in the
+        #   array that was returned from the eval above.  This
+        #   returns $value also, which is not strictly needed;
+        return $self-&gt;[$position] = $value;
+    }
+}
+&lt;/CODE&gt;
+That is it for a basic object.  You can do a lot more, but the
+fundamentals are all here.  The above object is actually a Array
+reference (in the 'new' function), which is probably not standard.  It 
+can just as easily be done with a hash reference.  The main reason 
+I choose the array is arrays use about half the memory, and it is 
+easier to enforce 'strict' coding.  For more reasons on arrays vs 
+hashes read &lt;I&gt;The Perl Journal&lt;/I&gt; article 'Perl Heresies: Building 
+Objects Out of Arrays' (Spring 1999) where Greg Bacon compares and 
+contrasts the use of arrays and hashes as objects.  Good article.
+&lt;BR&gt;&lt;BR&gt;
+Anyway what the above module provides is the following functionality:
+&lt;CODE&gt;use Complex;
+#create a new object
+my $x = new Complex;
+
+#create a new object with initial values
+my $y = new Complex(5, -3);
+
+$x-&gt;Real(3);                 #set $x's real part to '3'
+$x-&gt;Imag(-5);                #set $x's imaginary part to '-5'
+
+print $x-&gt;Real." ".$y-&gt;Imag; #prints '3 -3'
+&lt;/CODE&gt;
+The Real, and the Imag functions are not strictly defined in the 
+Complex package.  Perl will first look for the actual function 
+Complex::Real, but if that is not available then it will set $AUTOLOAD
+to 'Complex::Real' then call the Complex::AUTOLOAD function.  Perl 
+will pass AUTOLOAD the same arguments that it would have passed 
+'Complex::Real' had it existed.  So for $x-&gt;Real(3), the first 
+argument is '$x', and the second argument is '3'.  Our AUTOLOAD 
+function above returns a value if there is not a second argument, 
+otherwise it sets the value.
+&lt;BR&gt;&lt;BR&gt;
+Now the fun and exciting overloaded operators.  To do this we use the
+overloaded module as follows:
+&lt;CODE&gt;use overload
+    "\"\"" =&gt; \&amp;Cmp_string,
+    "+"    =&gt; \&amp;Cmp_add,
+    "*"    =&gt; \&amp;Cmp_multiply;
+&lt;/CODE&gt;
+The first one is the "" operator which stringifies the object.  The
+function &amp;Cmp_string will be called in the following lines:
+&lt;CODE&gt;    print $x;             #prints '3 - 5I'
+    my $str = "$x";       #$str = '3 - 5I'
+&lt;/CODE&gt;
+The second operator is the + or addition operator.  The function 
+&amp;Cmp_add will be called in the following lines:
+&lt;CODE&gt;    $x = $x + $y;
+    $y = $x + 2;
+    $y =  2 + $x;
+&lt;/CODE&gt;
+Similarly the last operator is in the * or multiplication operator.
+The function &amp;Cmp_multiply will be called in the following lines:
+&lt;CODE&gt;    $y = $x * $x;
+    $y = $x * 2;
+    $y =  2 * $x;
+&lt;/CODE&gt;
+Finally the only thing left to do is to actually implement the
+overloaded functions.  This is my limited implementation:
+&lt;CODE&gt;sub Cmp_string
+{
+    #get the object
+    my $a = shift;
+    
+    #figure out what sign to put between the real
+    #   and imaginary part. I do this so we don't get
+    #   something like '3 + -5I', although it fairly 
+    #   irrelevant
+    my $sign = ($a-&gt;Imag &gt; 0) ? " + " : " - ";
+    
+    #return a string that looks like '3 - 5I'
+    return $a-&gt;Real.$sign.abs($a-&gt;Imag)."I";
+}
+
+sub Cmp_add
+{
+    #get the calling object;  $a is always the Complex object, it
+    #   does not matter if we call '$x + 2' or '2 + $x' or 
+    #   '$x + $y' ... this $a will always be $x.
+    my $a = shift;
+    
+    #get the second object, either a number or an object
+    my $b = shift;
+    
+    #if $b is not a Complex object do the simple math
+    unless( $b-&gt;isa( 'Complex' ) )
+    {
+        #return a new Complex object after doing the simple
+        #   arithmetic
+        return new Complex( $a-&gt;Real + $b, $a-&gt;Imag );
+    }
+    
+    #return a new Complex object after doing the 'complex'
+    #   arithmetic    
+    return new Complex($a-&gt;Real+$b-&gt;Real, $a-&gt;Imag+$b-&gt;Imag); 
+}
+
+sub Cmp_multiply
+{
+    #get the calling object;  $a is always the Complex object, it
+    #   does not matter if we call '$x * 2' or '2 * $x' or 
+    #   '$x * $y' ...  this $a will always be $x.
+    my $a = shift;
+
+    #get the second object, either a number or an object
+    my $b = shift;
+
+    unless( $b-&gt;isa( 'Complex' ) )
+    {   
+        #return a new Complex object after doing the simple
+        #   arithmetic
+        return new Complex( $a-&gt;Real * $b, $a-&gt;Imag * $b);
+    }
+    
+    #figure out the new real and imaginary parts.  Good'ol
+    #   FOIL method anybody?
+    my $real = ($a-&gt;Real * $b-&gt;Real) + ($a-&gt;Imag * $b-&gt;Imag * -1);
+    my $imag = ($a-&gt;Real * $b-&gt;Imag) + ($a-&gt;Imag * $b-&gt;Real); 
+    
+    #return a new Complex object after doing the 'complex'
+    #   arithmetic    
+    return new Complex($real, $imag);
+}
+&lt;/CODE&gt;
+So that is it.  The functions are not too difficult, pretty
+much standard stuff.  However I would not consider these to be very
+robust.  I do not actually do any type checking on the second
+parameter for the Cmp_add and Cmp_multiply.  I just check if is a
+reference of any kind then go ahead.  If somebody passed in HASH
+reference we should definitely treat that different than a 'Complex'
+reference.&lt;BR&gt;
+&lt;B&gt;Update:&lt;/B&gt; Per a comment in a subnode I changed the code to now
+to proper type-checking via the isa routine.  I previously 
+was just checking to see if &lt;CODE&gt;ref($b) =~ /\S/&lt;/CODE&gt; which
+is pretty weak.
+&lt;BR&gt;&lt;BR&gt;
+To put it all together:
+&lt;CODE&gt;package Complex;
+use Carp;
+use strict;
+use vars '$AUTOLOAD';
+use overload
+    "\"\"" =&gt; \&amp;Cmp_string,
+    "+"    =&gt; \&amp;Cmp_add,
+    "*"    =&gt; \&amp;Cmp_multiply;
+
+#a '_' prefix on variables is a common way to indicate private
+#   variables. (Note that in Perl nothing is actually private
+#   ... well that is a lie - you can use encapsulation to make
+#   variables private, so if you want really private variables
+#   then go read Damian Conway's "Object Oriented Perl" ).
+sub _REAL {0}                   #_REAL is a constant '0'
+sub _IMAG {1}                   #_IMAG is a constant '1'
+
+sub new
+{   
+    my $class = shift;          #get class name ('Complex')
+    my $real  = shift;          #get first argument
+    my $img   = shift;          #get second argument
+    my $self = [$real, $img];   #create anon array with arguments
+    bless $self, $class;        #bless the array as a Complex object
+    return $self;               #return our new object
+}
+
+sub AUTOLOAD
+{
+    my $sub = $AUTOLOAD;        #get global $AUTOLOAD function name
+    my $self  = shift;          #get the current object
+    my $value = shift;          #get an optional parameter
+    
+    $sub =~ s/.*://;            #strip off package name
+    
+    #let the system handle 'DESTROY' function calls
+    return if $sub =~ /DESTROY/;
+    
+    #make function call upper case to match our constants
+    my $sub = uc($sub);
+    
+    #call the function (should be 'REAL' or 'IMAG' which will
+    #   return 0 or 1 respectively).  The eval will trap runtime
+    #   errors in case someone calls a function that is not _REAL 
+    #   or _IMAG.
+    my $position = eval("&amp;_".$sub);
+
+    #if the position is not a number then they called something
+    #   bogus like $obj-&gt;print, which would call &amp;_PRINT from the
+    #   eval, then $postion would be 'undef'
+    unless( $position =~ /\d/ )
+    {
+        croak("Subroutine undefined: \"$AUTOLOAD\"");
+    }
+
+    #if no parameter then they just want the Real or Imag value
+    #   returned instead of set.
+    if( not defined $value )
+    {   
+        #return the value associated with the position in the array
+        #   that was returned from the eval above.
+        return $self-&gt;[$position];
+    }
+    else
+    {   
+        #a value was passed in, so assign it to the position in the
+        #   array that was returned from the eval above.  This
+        #   returns $value also, which is not strictly needed;
+        return $self-&gt;[$position] = $value;
+    }
+}
+
+sub Cmp_string
+{
+    #get the object
+    my $a = shift;
+    
+    #figure out what sign to put between the real
+    #   and imaginary part. I do this so we don't get
+    #   something like '3 + -5I', although it fairly 
+    #   irrelevant
+    my $sign = ($a-&gt;Imag &gt; 0) ? " + " : " - ";
+    
+    #return a string that looks like '3 - 5I'
+    return $a-&gt;Real.$sign.abs($a-&gt;Imag)."I";
+}
+
+sub Cmp_add
+{
+    #get the calling object;  $a is always the Complex object, it
+    #   does not matter if we call '$x + 2' or '2 + $x' or 
+    #   '$x + $y' ... this $a will always be $x.
+    my $a = shift;
+    
+    #get the second object, either a number or an object
+    my $b = shift;
+    
+    #if $b is not a Complex object do the simple math
+    unless( $b-&gt;isa( 'Complex' ) )
+    {
+        #return a new Complex object after doing the simple
+        #   arithmetic
+        return new Complex( $a-&gt;Real + $b, $a-&gt;Imag );
+    }
+    
+    #return a new Complex object after doing the 'complex'
+    #   arithmetic    
+    return new Complex($a-&gt;Real+$b-&gt;Real, $a-&gt;Imag+$b-&gt;Imag); 
+}
+
+sub Cmp_multiply
+{
+    #get the calling object;  $a is always the Complex object, it
+    #   does not matter if we call '$x * 2' or '2 * $x' or 
+    #   '$x * $y' ...  this $a will always be $x.
+    my $a = shift;
+
+    #get the second object, either a number or an object
+    my $b = shift;
+
+    unless( $b-&gt;isa( 'Complex' ) )
+    {   
+        #return a new Complex object after doing the simple
+        #   arithmetic
+        return new Complex( $a-&gt;Real * $b, $a-&gt;Imag * $b);
+    }
+    
+    #figure out the new real and imaginary parts.  Good'ol
+    #   FOIL method anybody?
+    my $real = ($a-&gt;Real * $b-&gt;Real) + ($a-&gt;Imag * $b-&gt;Imag * -1);
+    my $imag = ($a-&gt;Real * $b-&gt;Imag) + ($a-&gt;Imag * $b-&gt;Real); 
+    
+    #return a new Complex object after doing the 'complex'
+    #   arithmetic    
+    return new Complex($real, $imag);
+}
+
+#module exit status
+1;
+&lt;/CODE&gt;&lt;PRE&gt;
+Of course for more info you must read:
+perldoc overload: for definitions of all the possibilites for
+                  overloading operators and other functions.
+perldoc perlobj:  For a complete intro to perl objects
+&lt;A HREF="http://www.manning.com/Conway/index.html"&gt;Object Oriented Perl&lt;/A&gt; By Damian Conway: this books is well written
+                                       and has more info than you
+                                       will ever need.&lt;/PRE&gt;</field>
+</data>
+</node>

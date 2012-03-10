@@ -1,0 +1,258 @@
+<node>
+  <doctext>&lt;p&gt;The following is intended as a very basic introduction to getting up
+and going with databases using Perl and [mod://DBI]. SQLite (through
+[mod://DBD::SQLite]) is assumed for all the sample code below because
+it is very easy to get going (just install the module) and for many
+people will be the only database they need for quite a while.&lt;/p&gt;
+&lt;readmore&gt;
+&lt;p&gt;It is usual in this sort of tutorial to pass over the error handling.
+Despite that I've generally included error handling in the samples
+below. I also use transacted processing from the get go. Although this
+tutorial is intended to introduce the very basics of databases, it is
+also intended to demonstrate safe and robust technique right from the
+start.&lt;/p&gt;
+&lt;p&gt;Ok, so lets dive straight in by creating a simple database containing
+a single table of two columns:&lt;/p&gt;
+&lt;code&gt;
+use strict;
+use warnings;
+use DBI;
+
+#1
+my $dbh = DBI-&gt;connect (&quot;dbi:SQLite:Test.sqlite&quot;);
+die &quot;connect failed: $DBI::errstr&quot; if ! $dbh;
+
+#2
+local $dbh-&gt;{AutoCommit} = 0;    # Use transacted processing
+local $dbh-&gt;{RaiseError} = 1;    # die on processing errors
+local $dbh-&gt;{PrintError} = 0;    # Suppress printing errors
+
+#3
+my $sql =
+    qq{CREATE TABLE People (name VARCHAR(128), age INTEGER)};
+
+#4
+eval {
+    $dbh-&gt;do ($sql);
+    $dbh-&gt;commit ();
+};
+
+#5
+if ($@) {
+    # An error occurred
+    $dbh-&gt;rollback ();
+    die $@;
+}
+&lt;/code&gt;
+&lt;p&gt;Assuming the script ran without errors  you may be wondering if
+anything actually happened? As a first check look in the directory you
+ran the script from for a file called Test.sqlite. If the file exists the
+database has been created. If you can't find it most likely the current
+directory when you ran the script is not what you thought it was - I'll wait a
+moment while you figure it out. &lt;/p&gt;
+&lt;p&gt;If an error did occur (maybe you don't have write permission for the
+current directory) the file may have been generated in any case, but the 
+table probably wasn't created. Much more robust error handling provided by JavaFan in reply to the original meditation is shown below. Note too that
+some databases don't provide roll back support for some operations including
+table creation.&lt;/p&gt;
+&lt;c&gt;
+local $dbh-&gt;{RaiseError} = 1;
+local $dbh-&gt;{PrintError} = 0;
+eval {
+    $dbh-&gt;begin_work;
+    ... queries go here ...
+    $dbh-&gt;commit;
+    1;
+} or do {
+    my $err = $@ || &quot;Unknown error&quot;;
+    eval {
+        $dbh-&gt;rollback;
+        1;
+    } or do {
+        $err .= &quot;[ROLLBACK FAILED: &quot; . ($@ || &quot;Unknown reasons&quot;) . &quot;]&quot;;
+    }
+    die $err;
+}
+&lt;/c&gt;
+&lt;p&gt;With the file found you can use one of several tools to examine the
+database. An internet search for &quot;SQLite Browser&quot; should find a copy
+of SQLite Database Browser which will open the database file and allow
+you to examine and manipulate it. If you use Firefox then the SQLite
+Manager add-on may be the thing for you. In either case point the tool
+at Test.sqlite and confirm that it contains a People table with name
+and age columns. Such database management tools help enormously in
+checking that your database software is doing as you expect and in
+fixing the occasional processing glitch or performing adhoc queries.&lt;/p&gt;
+&lt;p&gt;You may have noticed that there is no mention of [mod://DBD::SQLite]
+in the code. Not to worry, [mod://DBI] figures out from the connect
+string (see &lt;b&gt;#1&lt;/b&gt; and discussion below) which database driver it
+should use. &lt;/p&gt;
+&lt;p&gt;The code following &lt;b&gt;#1&lt;/b&gt; connects to the database (creating the
+database file if it doesn't exist already). The connect string
+specifies the database driver type and provides information to the
+driver about the connection. For SQLite the driver uses the third part
+of the connection string as the file name for the database.&lt;/p&gt;
+&lt;p&gt;The &lt;b&gt;#2&lt;/b&gt; code then configures some error handling related stuff.
+Setting &lt;code&gt;AutoCommit&lt;/code&gt; to 0 sets the database to a mode where
+changes to the database are effectively buffered until
+&lt;code&gt;commit&lt;/code&gt; is called. This allows a related set of changes to
+the database to be effected in a single call or else easily undone by
+a call to &lt;code&gt;rollback&lt;/code&gt; (if something failed during processing
+for example).&lt;/p&gt;
+&lt;p&gt;Setting &lt;code&gt;RaiseError&lt;/code&gt; to 1 causes errors to be handled by
+using die when the error happens rather than setting an error flag and
+hoping that the calling code will notice the issue.&lt;/p&gt;
+&lt;p&gt;Taken together setting &lt;code&gt;AutoCommit&lt;/code&gt; to 0 and
+&lt;code&gt;RaiseError&lt;/code&gt; to 1 help make database processing very robust
+because errors get handled when they happen and the database doesn't
+get left in a corrupt state if processing fails in some fashion.&lt;/p&gt;
+&lt;p&gt;Now take a look at &lt;b&gt;#3&lt;/b&gt;. The string is the SQL statement that is
+used to generate the &lt;b&gt;People&lt;/b&gt; table. The table contains two
+columns of data named &lt;b&gt;name&lt;/b&gt; and &lt;b&gt;age&lt;/b&gt;. The &lt;b&gt;name&lt;/b&gt;
+column is set to contain variable length strings up to 128 characters
+long. The &lt;b&gt;age&lt;/b&gt; column is set to contain integer values. Note
+though that SQLite uses the type information provided in the create
+statement as a hint to how the data is expected to be used, but
+doesn't feel obliged to actually store it that way. In this regard
+SQLite is much more forgiving than many other database engines. Note
+too that SQL is case insensitive for key words, but by convention they
+are given in upper case.&lt;/p&gt;
+&lt;p&gt;Tucked away in the safety of an [doc://eval] following &lt;b&gt;#4&lt;/b&gt; are
+the two statements that actually result in creating the table and
+updating the database: the &lt;code&gt;do&lt;/code&gt; and &lt;code&gt;commit&lt;/code&gt;
+lines. &lt;code&gt;do&lt;/code&gt; is actually short hand for two statements:
+&lt;code&gt;prepare&lt;/code&gt; and &lt;code&gt;execute&lt;/code&gt;. It can be used when a
+statement handle is not returned (more about statement handles later)
+and where the SQL statement only needs to be executed once.&lt;/p&gt;
+&lt;p&gt;Let's move on. Time to add some data to our table:&lt;/p&gt;
+&lt;code&gt;
+use strict;
+use warnings;
+use DBI;
+
+my $dbh = DBI-&gt;connect (&quot;dbi:SQLite:Test.sqlite&quot;);
+die &quot;connect failed: $DBI::errstr&quot; if ! $dbh;
+$dbh-&gt;{AutoCommit} = 0;    # Use transacted processing
+$dbh-&gt;{RaiseError} = 1;    # die on processing errors
+
+my %people = (
+    Fred  =&gt; 23,
+    Jane  =&gt; 22,
+    Boyd  =&gt; 27,
+    Tania =&gt; 28,
+    Julie =&gt; 27,
+    Kyle  =&gt; 21,
+);
+
+#1
+my $sql = qq{INSERT INTO People (name, age) VALUES (?, ?)};
+
+my $entries = 0;
+
+eval {
+    my $sth = $dbh-&gt;prepare ($sql); #2
+
+    while (my ($name, $age) = each %people) { #3
+        ++$entries if $sth-&gt;execute ($name, $age); #4
+    }
+
+    $dbh-&gt;commit (); #5
+    return 1;
+} or do {
+    my $err = $@ || &quot;Unknown error inserting data&quot;;
+    
+    eval {$dbh-&gt;rollback ()} or $err .= &quot;\n   Rollback processing failed!&quot;;
+    die $err;
+};
+
+print &quot;Added $entries rows to the People table\n&quot;;
+&lt;/code&gt;
+&lt;p&gt;This code starts just the same as the previous script with connection
+to the database and setting up of the error handling. In later sample
+scripts this boilerplate code will be omitted, but you'll need to
+provide it for the scripts to run.&lt;/p&gt;
+&lt;p&gt;Again you can use your SQLite browser/manager to confirm that the
+script has done some work. Notice that there is now some data in the
+&lt;b&gt;People&lt;/b&gt; table, in fact the data given in the
+&lt;code&gt;%people&lt;/code&gt; hash in the script.&lt;/p&gt;
+&lt;p&gt;As in the first script a little SQL and a couple of function calls get
+the work done. The SQL statement at &lt;code&gt;#1&lt;/code&gt; is used to set up
+a statement handle that is used to insert data into the table. The
+VALUES part gives the values to be inserted.  Notice that question
+marks (place holders) are used in place of the actual data. It is
+possible to supply the data in the SQL statement, but that should be
+avoided for several reasons (to avoid quoting issues and injection
+attacks for a start). The data to be inserted is supplied later in the
+&lt;code&gt;execute&lt;/code&gt;  (&lt;b&gt;#4&lt;/b&gt;).&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;prepare&lt;/code&gt; call generates a statement handle that is
+used to insert the data. The while loop (&lt;b&gt;#3&lt;/b&gt;) iterates over the
+key/value pairs in the &lt;code&gt;%people&lt;/code&gt; hash. For each iteration
+of the loop the &lt;code&gt;execute&lt;/code&gt; (&lt;b&gt;#4&lt;/b&gt;) inserts a name/age
+pair. Notice that two parameters (&lt;code&gt;$name, $age&lt;/code&gt;) are passed
+in and match the two place holders (&lt;code&gt;?, ?&lt;/code&gt;) in the SQL
+statement. When the loop completes &lt;code&gt;commit&lt;/code&gt; (&lt;b&gt;#5&lt;/b&gt;) is
+called to complete the transaction and commit the changes to the
+database.&lt;/p&gt;
+&lt;p&gt;Actually the whole insert loop can be replaced with:&lt;/p&gt;
+&lt;code&gt;
+$entries = $sth-&gt;execute_array ({}, [keys %people], [values %people]);
+&lt;/code&gt;
+&lt;p&gt;which is both more compact and very likely more efficient, but only
+works if you can efficiently build the parallel arrays of values. Notice
+that an array reference is passed in for each place holder in the SQL
+statement. For the moment you can ignore the empty hash reference
+passed as the first parameter - it's there so you can pass attributes
+in to execute, but much of the time it's not needed.&lt;/p&gt;
+&lt;p&gt;Thus far we have created a database, created a table and added some
+data to it. But what a database is really about is getting the data
+back out again. Most often we only want to get a subset of the data
+out of a database by searching through the data using some criteria
+for selecting the data we want. Say for example we wanted to search
+the data we've added to the database for people whose name ends in the
+letter 'e' and with an age less than 25?&lt;/p&gt;
+&lt;code&gt;
+#1
+my $sql = qq{SELECT name, age FROM People WHERE name LIKE ? AND age &lt; ?};
+
+eval {
+    #2
+    my $sth = $dbh-&gt;prepare ($sql);
+
+    $sth-&gt;execute ('%e', 25); #3
+
+    #4
+    while (my $row = $sth-&gt;fetchrow_hashref ()) {
+        printf &quot;%-10s %3d\n&quot;, @{$row}{'name', 'age'};
+    }
+};
+&lt;/code&gt;
+&lt;p&gt;This time the script prints the results rather than updating the
+database. The SQL (&lt;b&gt;#1&lt;/b&gt;) is a select statement which will
+retrieve rows containing name and age columns from the People table
+where the name ends in the letter 'e' (% matches anything, rather like
+.* in a Perl regular expression) and age is less than 25. The execute 
+(&lt;b&gt;#3&lt;/b&gt;) fetches the data from the database and the while loop (&lt;b&gt;#4&lt;/b&gt;) 
+iterates over the rows that were fetched one at a time to print the results.&lt;/p&gt;
+&lt;p&gt;Ok, that's got a simple single table database created, some data added
+and a search made on it. Databases provide a vast amount more power
+than we have looked at so far, and a lot of that comes when several
+tables are involved in a search, but that is a tutorial for another
+day. Mean time the documentation for the flavour of SQL understood by
+SQLite at [http://www.sqlite.org/lang.html] is a good reference for
+SQL.&lt;/p&gt;
+&lt;p&gt;Thank you [mje] and [JavaFan] for your contributions incorporated 
+in this tutorial which were provided in reply to the original 
+meditation (see [id://894254])&lt;/p&gt;
+&lt;p&gt;&lt;small&gt;&lt;b&gt;Update&lt;/b&gt; Changed SELECT example to use place holders as &quot;suggested&quot; by [Tanktalus].&lt;/small&gt;&lt;/p&gt;
+&lt;!-- Generated using PerlMonks editor version 1 --&gt;
+&lt;div class=&quot;pmsig&quot;&gt;&lt;div class=&quot;pmsig-461912&quot;&gt;
+True laziness is hard work
+&lt;/div&gt;&lt;/div&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>896028</node_id>
+  <author_user>461912</author_user>
+  <title>Databases made easy</title>
+  <createtime>2011-03-28 17:10:55</createtime>
+  <nodeupdated>2011-03-28 17:10:55</nodeupdated>
+</node>

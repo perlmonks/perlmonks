@@ -1,0 +1,84 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+use strict;
+
+# Just a little script to screen the given files for corrupt images
+# and delete/move/report them if so instructed. 
+# Depends on Image::Magick being installed
+
+# -r           : delete corrupt images
+# -q           : mention filenames of corrupt images, keep quiet otherwise.
+# -m directory : move to directory, takes precedence over -r. Will be created
+#                if not already there.
+# -f file      : instead of taking filenames from the command line, take them
+#                from file (&quot;-&quot; if you want to use a pipe)
+
+# example : find -type f | cleaner.pl -m ./corrupt -f -
+# will move all corrupt images to ./corrupt, being pretty verbose
+
+use Image::Magick;
+use Getopt::Std;
+use File::Basename;
+
+getopts('rqm:f:');
+our($opt_r, $opt_q, $opt_m, $opt_f, @filelist);
+my $count=0;
+
+if ($opt_f) {
+  open FILELIST, $opt_f;
+  @filelist = &lt;FILELIST&gt;;
+  close FILELIST;
+} else { 
+  @filelist = @ARGV; 
+}
+
+if ($opt_m) {
+  if (!-d $opt_m) { mkdir $opt_m or die &quot;can't create directory $opt_m\n&quot;; }
+}
+
+foreach my $file (@filelist) {
+  $count++;
+  chomp $file;
+  if (-f $file) {
+    $opt_q or print &quot;Testing &quot; . sprintf (&quot;%4d&quot;,$count) . &quot;/&quot; .
+     sprintf (&quot;%4d&quot;, scalar @filelist) . &quot; &quot; . basename($file) . &quot; ... &quot;;
+    my $p = new Image::Magick;
+    my $s = 0;
+    my $error = $p-&gt;Read($file);
+    if ($error) { 
+      $error =~ /(\d+)/;        
+      my $errorcode = $1;
+      if ($errorcode == 330) {
+        $opt_q or print &quot;which does not exist&quot;;
+      } elsif ($errorcode == 325) {            
+        $opt_q or print &quot;which seems to be corrupt ... &quot;;
+        $opt_q or (($opt_r or $opt_m) or print &quot;keeping it anyway.&quot;);
+        if ($opt_m) { 
+          $opt_q or print &quot;moving to $opt_m ... &quot;;
+          ($s = rename $file, $opt_m.'/'.basename($file) 
+           and print &quot;done.&quot;)
+           or ($opt_q or print &quot;could not move $file to $opt_m&quot;);
+        } elsif ($opt_r) { 
+          $opt_q or print &quot;deleting ... &quot;;
+          ($s = unlink $file and print &quot;done.&quot;) 
+           or ($opt_q or print &quot;could not delete $file&quot;);
+        } # if ($opt_
+        $opt_q and print &quot;$file\n&quot;;
+      } elsif ($errorcode == 320) {
+        $opt_q or print &quot;which is not an image&quot;;
+      } else {
+        $opt_q or print &quot;which yielded an error : $error&quot;;
+      } # if (errorcode=
+    } else {
+      $opt_q or print &quot;which is fine&quot;;
+    } # if (error)
+  $opt_q or ($s ? print &quot;\n&quot; : print &quot;, skipping.\n&quot;);
+  } # if (-f $file)
+}</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>106851</node_id>
+  <author_user>106842</author_user>
+  <title>find &amp; delete corrupt images</title>
+  <createtime>2001-08-22 01:23:25</createtime>
+  <nodeupdated>2005-07-19 14:08:39</nodeupdated>
+</node>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="296606" title="DOS Wrapper" created="2003-10-04 20:24:42" updated="2005-08-11 10:08:30">
+<type id="121">
+perlcraft</type>
+<author id="288770">
+bl0rf</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl -W
+
+# Copyright Jacob Filipp, 2003
+# This program is provided as is, you are free to use
+# it in any way as long as the copyright notice is
+# in the code
+ 
+# Yes dear monks, Quick-And-Dirty-Operating-System (DOS)
+# is still used. Here is a tiny shell wrapper in Perl,
+# to implement all the wonderful features that DOS lacks
+# ,like command aliasing. Although this tiny script is
+# meagre compared to your mathematical-script prowess
+# it is very flexible and someone might actually like
+# to use it ( from sheer curiosity, of course ).
+
+# The only fancy trick it has is the ability to launch
+# your browser when a URL is typed ( the first case in
+# the dispatch table. Interactive progs are run in a
+# separate window.
+
+use Strict;     # just for you monks, I never use it
+
+$SIG{ CHLD } = sub{ wait() };
+
+$browser_path  = 'C:\Program Files\Internet Explorer\iexplore';
+$prompt   = sub{ 'Sh-wrap&gt;' };	# can be a routine...
+@kids = ();			# forked processes
+
+# dispatch table with regexes, used to execute commands
+# based on a shell command passed to it as an argument
+
+%dispatch = (
+
+'^(http://)?\S+\.(\w){3}.*$'        =&gt;sub{
+	my $kpid = fork();
+	if( $kpid == 0 ){ exec("\"$browser_path\" $_[0]") and exit}
+	else { push( @kids, $kpid ); sleep 1 }
+# sleep needed to make sure that child acts first
+	},
+
+'^cd\s'		=&gt; sub
+	{ $_[0] =~ s!^cd\s!!; chdir($_[0]) },
+
+'^(exit|quit)$'	=&gt; sub{ kill( 9, @kids); exit },
+
+'^(ftp|telnet|edit|debug).*'	=&gt; sub { `start $_[0]` }
+# interactive progs in new window
+# will barf when running ftpd, telnetter, editors, debuggame etc...
+);
+
+WH: while(1)
+{
+
+print $prompt-&gt;();
+my $line = &lt;&gt;;
+chomp $line;
+
+foreach $regex ( keys %dispatch )
+ {
+   if( $line =~ m!$regex! )
+   { $dispatch{ $regex }-&gt;($line); next WH }
+   # permit only one match
+ }
+
+print `$line`;
+
+}</field>
+</data>
+</node>

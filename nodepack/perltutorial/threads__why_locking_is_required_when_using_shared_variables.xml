@@ -1,0 +1,190 @@
+<node>
+  <doctext>&lt;p&gt;I was recently faced with a thread that used &lt;c&gt;.=&lt;/c&gt; on a shared variable, and I wondered if that was safe. I figured I'd write up a introductory tutorial on the answer I found. For simplicity, we'll look at &lt;c&gt;++&lt;/c&gt; first.
+
+&lt;hr&gt;
+
+&lt;p&gt;The following code outputs 400,000:
+
+&lt;c&gt;
+my $count     = 100_000;
+my $num_calls = 4;
+
+my $sum = 0;
+sub inc { ++$sum for 1..$count; }
+
+inc() for 1..$num_calls;
+print(&quot;$sum\n&quot;);   # 400000
+&lt;/c&gt;
+
+&lt;p&gt;If you ran the 4 calls to &lt;c&gt;inc&lt;/c&gt; in parallel, would the answer still be 400,000? Not likely, if you don't change &lt;c&gt;inc&lt;/c&gt;.
+
+&lt;c&gt;
+use threads;
+use threads::shared;
+
+my $count     = 100_000;
+my $num_calls = 4;
+
+my $sum : shared = 0;
+sub inc { ++$sum for 1..$count; }
+
+$_-&gt;join for map { threads-&gt;create( \&amp;inc ) } 1..$num_calls;
+print(&quot;$sum\n&quot;);   # 314813
+&lt;/c&gt;
+
+&lt;p&gt;That's because there is a [wp://race condition].
+
+&lt;c&gt;
++=======================+
+|          CPU          |
++-----------+-----------+
+| thread 1  | thread 2  |
++===========+===========+
+| ...       |           |   T
+| load $sum |           |   i
+| inc       |           |   m
++-----------+-----------+   e
+|           | ...       |   |
+|           | load $sum |   |
+|           | inc       |   v
+|           | save $sum |
+|           | ...       |
++-----------+-----------+
+| save $sum |           |
+| ...       |           |
++===========+===========+
+&lt;/c&gt;
+
+&lt;p&gt;The solution is to protect the [wp://critical section] using a thread synchronization mechanism such as &lt;c&gt;lock&lt;/c&gt;.
+
+&lt;c&gt;
+use threads;
+use threads::shared;
+
+my $count     = 100_000;
+my $num_calls = 4;
+
+my $sum : shared = 0;
+sub inc { for (1..$count) { lock($sum); ++$sum } }
+
+$_-&gt;join for map { threads-&gt;create( \&amp;inc ) } 1..$num_calls;
+print(&quot;$sum\n&quot;);   # 400000
+&lt;/c&gt;
+
+&lt;p&gt;Whenever an transformation operation (read &amp;#8658; manipulate &amp;#8658; write) is performed on a shared variable, locking is needed. See [mod://threads::shared] for tools to do this.
+
+&lt;p&gt;The program behind the &lt;c&gt;&lt;spoiler&gt;&lt;/c&gt; below outputs results similar to the following:
+
+&lt;c&gt;
+++s     sum = 233564 (expecting 400000)
+s+=1    sum = 143915 (expecting 400000)
+c.=l    length = 248149 (expecting 400000)
+c=c.l   length = 123360 (expecting 400000)
+&lt;/c&gt;
+
+&lt;p&gt;As you can see, &lt;c&gt;+=&lt;/c&gt;, &lt;c&gt;.=&lt;/c&gt; and &lt;c&gt;= .&lt;/c&gt; are also not atomic. The program can only prove that an operator isn't atomic (i.e. is interruptable). It cannot prove that an operator is atomic (i.e. is not interruptable). If you're getting the &quot;expecting&quot; result, try upping &lt;c&gt;$count&lt;/c&gt; and/or &lt;c&gt;$threads&lt;/c&gt;.
+
+&lt;spoiler&gt;
+&lt;c&gt;
+use v5.8.0;
+
+use strict;
+use warnings;
+
+use threads;
+use threads::shared;
+
+
+{
+   my $count   = 100_000;
+   my $threads = 4;
+
+   my $sum : shared = 0;
+
+   sub inc {
+      for (1..$count) {
+         ++$sum;
+      }
+   }
+
+   $_-&gt;join
+      for map { threads-&gt;create( \&amp;inc ) }
+          0..$threads-1;
+
+   print(&quot;++s     sum = $sum (expecting &quot; . ($count*$threads). &quot;)\n&quot;);
+}
+
+{
+   my $count   = 100_000;
+   my $threads = 4;
+
+   my $sum : shared = 0;
+
+   sub inc_assign {
+      for (1..$count) {
+         $sum += 1;
+      }
+   }
+
+   $_-&gt;join
+      for map { threads-&gt;create( \&amp;inc_assign ) }
+          0..$threads-1;
+
+   print(&quot;s+=1    sum = $sum (expecting &quot; . ($count*$threads). &quot;)\n&quot;);
+}
+
+{
+   my $count   = 100_000;
+   my $threads = 4;
+
+   my $content : shared = '';
+
+   sub append {
+      my ($letter) = @_;
+      for (1..$count) {
+         $content .= $letter;
+      }
+   }
+
+   $_-&gt;join
+      for map { threads-&gt;create( \&amp;append, chr(ord('a')+$_) ) }
+          0..$threads-1;
+
+   print(&quot;c.=l    length = &quot; . length($content) .
+         &quot; (expecting &quot; . ($count*$threads). &quot;)\n&quot;);
+}
+
+{
+   my $count   = 100_000;
+   my $threads = 4;
+
+   my $content : shared = '';
+
+   sub concatenate {
+      my ($letter) = @_;
+      for (1..$count) {
+         $content = $content . $letter;
+      }
+   }
+
+   $_-&gt;join
+      for map { threads-&gt;create( \&amp;concatenate, chr(ord('a')+$_) ) }
+          0..$threads-1;
+
+   print(&quot;c=c.l   length = &quot; . length($content) .
+         &quot; (expecting &quot; . ($count*$threads). &quot;)\n&quot;);
+}
+&lt;/c&gt;
+&lt;/spoiler&gt;
+
+&lt;p&gt;&lt;b&gt;Update&lt;/b&gt;: Added the preface and links to Wikipedia.
+
+&lt;p&gt;&lt;small&gt;Added to [Tutorials] by [planetscape] &lt;readmore title=&quot;view votes&quot;&gt;( keep:0 edit:6 reap:0 )&lt;/readmore&gt;&lt;/small&gt;&lt;/p&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>579444</node_id>
+  <author_user>381608</author_user>
+  <title>Threads: why locking is required when using shared variables</title>
+  <createtime>2006-10-19 14:47:06</createtime>
+  <nodeupdated>2006-10-19 10:47:06</nodeupdated>
+</node>

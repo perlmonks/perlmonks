@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="163914" title="repeatedchatter" created="2002-05-03 17:13:07" updated="2005-07-07 09:57:03">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+   my( $from, $text, $to, $You )= @_;
+
+   $text= substr( $text, 0, 255 ); # Truncate to match what DB stores
+   $You ||= "You";
+
+   if(  $to == $HTMLVARS{default_user}  ) {
+      $query-&gt;param( "sentmessage",
+         "&lt;i&gt;$You can't send messages to "
+         . linkNode($to) . "&lt;/i&gt;"
+      );
+      return 1;
+   }
+
+   my $isDup;
+   if ( !$to &amp;&amp; $from == $USER-&gt;{node_id} ) {
+       # check last message by this user
+       $isDup=$text eq $VARS-&gt;{last_chatter};
+       $VARS-&gt;{last_chatter}=$text;
+   }
+
+   if ( !$isDup ) {
+       # check last 500 seconds worth of messages by this user
+       my $for_user= $to ? "and for_user=?" : "";
+       my $table= $for_user ? 'message' : 'chatter';
+       my $time_constraint= !$for_user
+                          ?  " and epoch &gt;= unix_timestamp(now()) - 500"
+                          :  " and tstamp &gt;= date_sub(now(), interval 500 second)";
+
+       my $dbh = $DB-&gt;getDatabaseHandle();
+       my $sth = $dbh-&gt;prepare_cached( "select * from $table"
+           . " where author_user=? and msgtext=? $for_user "
+           . $time_constraint
+       );
+       $sth-&gt;execute( $from, $text, $for_user ? ($to) : () );
+       $isDup= $sth-&gt;fetchrow_hashref;
+       $sth-&gt;finish();
+   }
+
+   if(  $isDup  ) {
+      $query-&gt;param( "sentmessage",
+         "&lt;i&gt;Whoa, Cowboy!  $You said that already.  Don't 'reload'?&lt;/i&gt;"
+      );
+      return 1;
+   }
+
+   if(  $to  ) {
+      local( $AUTHOR )= getNodeById($from,'light');
+      $query-&gt;param( "sentmessage",
+         qq[&lt;i&gt;$You said "&lt;/i&gt;]
+          . htmlcode( 'parselinksinchatter','', $text )
+          . qq[&lt;i&gt;" to ] . linkNode($to) . "&lt;/i&gt;" );
+   }
+
+   return !1;
+</field>
+</data>
+</node>

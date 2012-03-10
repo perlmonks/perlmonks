@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="127673" title="Perl ran SETI@Home for us." created="2001-11-26 23:22:00" updated="2005-07-21 01:28:47">
+<type id="121">
+perlcraft</type>
+<author id="127615">
+rje</author>
+<data>
+<field name="doctext">
+Two years ago, when a colleague had root access to our
+lab's SUN 4500s (8 processors each, each running at 500mhz),
+we decided that all those spare processor cycles were
+going to waste.  With his knowledge of UNIX calls and
+my affinity for perl, we came up with a SETI runner which
+fired up new instances when the system was idle, and
+killed instances when the system load went up.
+&lt;readmore&gt;
+
+my $uptime       = "uptime";  # or whatever it's called...
+
+my $setiRoot     = '/usr/bin/seti';
+my $setiBinary   = 'setiathome';
+my $setiFlags    = '';
+my $setiLog      = 'seti.log';
+
+my $napTime      = 2;
+
+my $maxInstances = 8;    # maximum number of SETI instances
+my $minInstances = 0;    # minimum number of SETI instances
+my $lowThreshold = 8.00; # start SETI
+my $hiThreshold  = 9.00; # stop SETI
+
+my @setiPids;            # pid array
+
+while(1)
+{
+   sleep( $napTime );
+   
+   my $uptime = `$uptime`;
+   
+   $uptime = $1 if $uptime =~ /load average: (\d+\.\d\d)/;
+
+   print STDERR "load average: $uptime\n";
+   
+   #
+   # if the uptime is below a certain load,
+   # then fire up a new SETI instance.
+   #
+   &amp;startSETI
+      if ( ($uptime &lt; $lowThreshold) &amp;&amp; (@seti &lt; $maxInstances) );
+   
+   #
+   # if the uptime is above a certain load,
+   # then kill a SETI instance.
+   #
+   &amp;stopSETI
+      if ( ($uptime &gt; $hiThreshold) &amp;&amp; (@seti &gt; $minInstances) );
+}
+
+#
+# Organize our list of PIDs
+#
+sub startSETI
+{
+   print STDERR "Firing up a SETI...\n";
+   print STDERR "We have ", scalar( @setiPids ), " PIDs:\n";
+   print STDERR join( " ", @setiPids ), "\n";
+   # list all processes
+   my $number = scalar( @setiPids );
+      
+   chdir( "$setiRoot/seti$number" );
+   
+   print STDERR "Working directory: $setiRoot/seti$number\n";
+   
+   push( @setiPids, `$setiBinary $setiFlags &gt; $setiLog` );
+}
+
+#
+# Quick and dirty killer
+#
+sub stopSETI
+{
+   print STDERR "Shutting down a SETI...\n";
+   
+   kill 9, pop @setiPids;
+}
+</field>
+</data>
+</node>

@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="570712" title="Common Causes for &quot;Modification of a read-only value attempted&quot;" created="2006-08-31 22:58:31" updated="2006-08-31 18:58:31">
+<type id="956">
+perltutorial</type>
+<author id="502468">
+imp</author>
+<data>
+<field name="doctext">
+
+You tried, directly or indirectly, to change the value of a
+constant. This type of error frequently occurs at a distance and is difficult to trace. The magic of $_ is often involved, but is not responsible.
+&lt;p&gt;
+
+&lt;p&gt;Common causes:
+&lt;ol&gt;
+&lt;li&gt;
+&lt;a href="#loop_lvalue"&gt;
+  Treating a loop variable as an lvalue
+&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;a href="#map_grep"&gt;
+Modifying $_ inside foreach, map or grep
+&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;a href="#param_lvalue"&gt;
+  Modifying elements of @_ directly
+&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;a href="#sort_modify"&gt;
+  Modifying $a or $b inside sort
+&lt;/a&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;a href="#sort_vivify"&gt;
+  Autovivifying $a or $b inside sort
+&lt;/a&gt;
+&lt;/li&gt;
+
+&lt;li&gt;&lt;a href="#default_unlocalized"&gt;
+  Modifying an unlocalized $_
+&lt;/a&gt;&lt;/li&gt;
+
+&lt;/ol&gt;
+
+
+&lt;p&gt;
+
+&lt;a name="loop_lvalue"&gt;
+  &lt;h4&gt;Treating a loop variable as an lvalue&lt;/h4&gt;
+&lt;/a&gt;
+&lt;code&gt;
+for my $x (1,2) {
+  $x++;
+}
+&lt;/code&gt;
+
+In this example $x is aliased to the constant '1', so when the loop body attempts to increment $x an error is triggered. See &lt;a href="#lists_with_constants"&gt;Lists With Constant Values&lt;/a&gt; for more details.
+
+
+&lt;a name="map_grep"&gt;
+&lt;h4&gt;
+Modifying $_ inside [doc://perlsyn#Foreach-Loops-for-foreach|foreach], [doc://map] or [doc://grep]
+&lt;/h4&gt;
+&lt;/a&gt;
+
+&lt;code&gt;
+for (1,2) {
+  chomp;
+}
+
+for ("foo", @list) {
+  s/foo/bar/;
+}
+
+@array = map  { $_++ } (1,2);
+@array = grep { $_++ } (1,2);
+&lt;/code&gt;
+
+In all of these examples $_ is aliased to a constant, and when the loop body attempts to modify $_ an error is triggered. See &lt;a href="#lists_with_constants"&gt;Lists With Constant Values&lt;/a&gt; for more details.
+
+
+&lt;a name="param_lvalue"&gt;
+&lt;h4&gt;Modifying elements of @_ directly
+&lt;/h4&gt;
+&lt;/a&gt;
+&lt;code&gt;
+sub incr {
+  $_[0]++;
+}
+my $n = 1;
+incr($n); # good
+incr(1);  # bad
+&lt;/code&gt;
+
+Modifying elements of &lt;code&gt;@_&lt;/code&gt; directly allows you to
+modify the variable that was passed to the function. For example, in the above example &lt;i&gt;$n&lt;/i&gt; is now 2. But an error will occur when a constant is passed, as in the second call.
+
+
+&lt;a name="sort_modify"&gt;
+&lt;h4&gt;Modifying $a or $b inside [doc://sort]&lt;/h4&gt;
+&lt;/a&gt;
+&lt;code&gt;
+@array = sort { $a++ } (1,2);
+&lt;/code&gt;
+
+It is permissible (but ill-advised) to modify $a and $b within sort. However, modifying a constant that is aliased to $a or $b is still an error.
+
+&lt;a name="sort_vivify"&gt;
+&lt;h4&gt;Autovivifying $a or $b inside [doc://sort]&lt;/h4&gt;
+&lt;/a&gt;
+&lt;code&gt;
+my @bad;
+$bad[0] = [1];
+$bad[2] = [2];
+@bad = sort {$a-&gt;[0] &lt;=&gt; $b-&gt;[0]} @bad;
+&lt;/code&gt;
+
+The variables $a and $b are aliased to each item in the list being sorted, and as such modifying them is possible - but will cause an error if the current element is unmodifiable. A common cause of this is sorting an array of references when where the list has a gap. In this situation $a will be undef, and autovivification by dereferencing will trigger an error.
+
+
+
+
+&lt;a name="default_unlocalized"&gt;
+&lt;h4&gt;Modifying an unlocalized $_&lt;/h4&gt;
+&lt;/a&gt;
+&lt;code&gt;
+for (1,2) {
+  my $data = prompt_user();
+}
+
+sub prompt_user {
+   print "Enter a number\n";
+   while (&lt;STDIN&gt;) {
+     # Do stuff
+   }
+}
+&lt;/code&gt;
+
+This example will cause an error because the [doc://perlsyn#Foreach-Loops-for-foreach|for] loop aliases $_ to the literal '1', and then calls prompt_user which attempts to read a line from STDIN and store it in $_ - which is still aliased to '1'.
+
+&lt;p&gt;
+The error will also occur in this simplified scenario:
+&lt;code&gt;
+for (1,2) {
+    while (&lt;STDIN&gt;) {
+    }
+}
+&lt;/code&gt;
+
+
+&lt;h3&gt;Guidelines to avoid read-only errors:&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;Don't treat loop variables as a lvalue if there is any chance a constant value will be included&lt;/li&gt;
+&lt;li&gt;Don't modify an unlocalized $_&lt;/li&gt;
+&lt;li&gt;Don't modify $_ inside map or grep&lt;/li&gt;
+&lt;li&gt;Don't modify $a or $b inside sort&lt;/li&gt;
+&lt;li&gt;Don't dereference $a or $b inside sort without checking that they exist and are references&lt;/li&gt;
+&lt;li&gt;Don't use $_ for the loop variable unless it is a very trivial loop&lt;/li&gt;
+&lt;li&gt;Don't modify elements of @_ directly&lt;/li&gt;
+&lt;/ol&gt;
+
+
+
+&lt;hr&gt;
+&lt;h3&gt;Notes&lt;/h3&gt;
+&lt;a name="lists_with_constants"&gt;
+&lt;h4&gt;Lists With Constant Values&lt;/h4&gt;
+&lt;/a&gt;
+Within the context of this document the important thing to understand is what expressions result in modifiable objects.
+
+The following expressions have constants in them:
+&lt;code&gt;
+$_++ for (1,2);
+$_++ for (1,@array);
+@array = map {$_++} (1,@array);
+&lt;/code&gt;
+
+And the following are safe:
+&lt;code&gt;
+my @array = (1,2);
+for (@array) {
+  $_++;
+}
+&lt;/code&gt;
+
+&lt;code&gt;
+my ($x,$y) = (1,2);
+for ($x,$y) {
+  $_++;
+}
+&lt;/code&gt;
+
+For an explanation of lists versus arrays I recommend the following:
+&lt;ul&gt;
+&lt;li&gt;[id://451421]&lt;/li&gt;
+&lt;li&gt;[href://http://japhy.perlmonk.org/articles/pm/2000-02.html|"List" Is a Four-Letter Word]&lt;/li&gt;
+&lt;/ul&gt;</field>
+</data>
+</node>

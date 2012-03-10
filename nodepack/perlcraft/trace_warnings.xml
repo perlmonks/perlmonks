@@ -1,0 +1,53 @@
+<node>
+  <doctext># I wrote this to find an annoying warning in a large package
+# of functions. Its rather simple, but I found it fairly useful.
+package TraceWarning;
+
+require Exporter;
+
+@ISA = qw(Exporter);
+@EXPORT = qw(TRACE_W);
+
+#######################################################################
+# This code will provide more verbose warning messages.
+#   In addition to displaying the warning messages, it will display
+#   the last non-fatal OS error and the sub-routine call stack.
+##################################################################ADAM#
+
+sub TRACE_W
+{
+    print STDERR &quot;Warning: $_[0]&quot;;           # Print the warning.
+    $! and print STDERR &quot;Error:   $!\n&quot;;     # If error, print it
+    $! = 0;                                  # and reset.
+    my ($index, @callStack) = (0, (&quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;TRACE STACK ERROR&quot;));
+
+    while (@callStack = caller(++$index))    # Trace the call stack.
+    { 
+        my ($routineName, $fileNameAndLine) = (&quot; $callStack[3]&quot;, &quot;&quot;);
+        # If the file name is available, append it to the trace mesg.
+            if ($callStack[1] ne &quot;Home&quot;)  
+            {
+                $fileNameAndLine = &quot; ($callStack[1]:$callStack[2])&quot;;
+            }
+        print STDERR &quot;$index$routineName$fileNameAndLine\n&quot;;
+    } 
+}
+
+BEGIN
+{
+    # Insist on warning messages being on.
+    $^W = 1;
+
+    # Catch warnings and display additional information.
+    $SIG{__WARN__} = \&amp;TRACE_W;
+}
+
+__END__
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>10984</node_id>
+  <author_user>9135</author_user>
+  <title>Trace Warnings</title>
+  <createtime>2000-05-10 16:05:03</createtime>
+  <nodeupdated>2005-08-04 02:59:49</nodeupdated>
+</node>

@@ -1,0 +1,45 @@
+<node>
+  <type_nodetype>5</type_nodetype>
+  <displaytype>display</displaytype>
+  <page>[%
+    my $vars= getVars($NODE);
+    return &quot;&lt;b&gt;This node is restricted to gods\n&lt;/b&gt;&quot;
+        if  $vars-&gt;{gods_only}  and  !isGod($USER);
+
+    my $ret= '&lt;p&gt;'
+      . linkNode($NODE,'(edit)',{displaytype=&gt;'edit'})
+      . ' - '
+      . linkNode(
+            getNode( &quot;Node Lister&quot;, &quot;superdoc&quot; ),
+            &quot;List $NODE-&gt;{type}{title} nodes&quot;,
+            { 'whichtype' =&gt; $NODE-&gt;{type}{node_id} } )
+      . &quot;&lt;/p&gt;\n&quot;;
+
+    $ret .= &quot;&lt;h3&gt;Description:&lt;/h3&gt;&quot;.htmlcode('parselinksincontent','',$NODE-&gt;{doctext}).&quot;&lt;hr /&gt;\n&quot;
+        if  $NODE-&gt;{doctext};
+
+    if(  ! $NODE-&gt;{code}  ) {
+        $ret .= &quot;&lt;b&gt;No SQL to execute&lt;/b&gt;\n&quot;;
+    } elsif(  ! $q-&gt;param('runsql')  ) {
+        $ret .= htmlcode( 'wrapcode','', &quot;\n$NODE-&gt;{code}\n&quot; )
+          . htmlcode('openform')
+          . $q-&gt;submit('runsql') . &quot;&lt;/form&gt;\n&quot;;
+    } else {
+        $ret .= htmlcode(
+            'exec_sql_query','',
+            {
+                exec    =&gt; 1,
+                sql     =&gt; &quot;\n$NODE-&gt;{code}\n&quot;,
+                no_form =&gt; 1,
+                no_query=&gt; 1,
+            } );
+    }
+    return $ret;
+%]
+</page>
+  <author_user>357600</author_user>
+  <createtime>2004-10-07 19:09:35</createtime>
+  <node_id>397476</node_id>
+  <title>sqlquery display page</title>
+  <nodeupdated>2005-08-12 08:43:54</nodeupdated>
+</node>

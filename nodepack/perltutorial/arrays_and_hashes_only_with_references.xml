@@ -1,0 +1,117 @@
+<node>
+  <doctext>&lt;p&gt;I am teaching right now a friend, who wants a new job, and just yesterday thought about how to explain array of arrays or hash of hashes etc. Here is how I tried:&lt;/p&gt;
+&lt;p&gt;For a little bit forget about array (@) and hash (%) notation. Stick only to variable ($) or in other words, reference symbol and see how easy (I hope) it is.&lt;/p&gt;
+&lt;p&gt;Always when you want hash, use curly brackets {}, always if array - square brackets [].
+And on one nesting level treat everything as list of scalars, nothing more, nothing less.&lt;/p&gt;
+&lt;code&gt;
+$arrayref = [1, 3, 5, 7];
+$hashref = {key1=&gt;val1, key2=&gt;val2, key3=&gt;val3};
+&lt;/code&gt;
+&lt;p&gt;When you need some value from hash or array, do following:&lt;/p&gt;
+&lt;code&gt;
+# want array element - use square brackets
+$value = $$arrayref[2];
+# want hash element - use curly brackets
+$othervalue = $$hashref{key2};
+&lt;/code&gt;
+&lt;p&gt;Lets build more complicated structure. The first rule: don't use any reference more than once while building another structure. Second rule: treat reference as normal scalar value.&lt;/p&gt;
+&lt;code&gt;
+# array of arrays
+
+# array - square brackets. Created three times, remember, every reference can be used only once to build another structure.
+$arrayref1 = [1, 3, 5, 7];
+$arrayref2 = [1, 3, 5, 7];
+$arrayref3 = [1, 3, 5, 7];
+# array of arrays - again: array = square brackets, and it is still only list of scalars, nothing more
+$array_of_arrays = [$arrayref1, $arrayref2, $arrayref3];
+# see how it looks (notice, that Dumper operates only on references. What kind of brackets do you see in the dump?):
+use Data::Dumper;
+print Dumper $array_of_arrays;
+
+# now: get one element. We have three elements in hmm, lets say, 'outer' level, so the last one will be(array-square brackets):
+$$array_of_arrays[2].....
+# and there are 4 values in 'inner' level, so lets take last one:
+$value = $$array_of_arrays[2][3];
+&lt;/code&gt;
+&lt;p&gt;Easy, isn't it? Now with hashes, similarly, only other brackets:&lt;/p&gt;
+&lt;code&gt;
+# hash of hashes
+
+# hash - curly brackets
+$hashref1 = {key1 =&gt; value1, key2 =&gt; value2, key3 =&gt; value3, key4 =&gt; value4};
+$hashref2 = {key1 =&gt; value1, key2 =&gt; value2, key3 =&gt; value3, key4 =&gt; value4};
+$hashref3 = {key1 =&gt; value1, key2 =&gt; value2, key3 =&gt; value3, key4 =&gt; value4};
+
+# hash of hashes, which brackets? :)
+$hash_of_hashes = {key11 =&gt; $hashref1, key22 =&gt; $hashref2, key33 =&gt; $hashref3};
+
+# see how it looks:
+use Data::Dumper;
+print Dumper $hash_of_hashes;
+
+# get an element. Nothing surprising, starting from 'outer' level:
+$$hash_of_hashes{key22}.........
+# and end with 'inner' key
+$$hash_of_hashes{key22}{key4};
+&lt;/code&gt;
+&lt;p&gt;That's it. Easy? I think so. Lets mix the structures. The rules stay the same: use every reference only once, treat reference as a scalar, curly brackets = hash, square brackets = array.&lt;/p&gt;
+&lt;code&gt;
+$monk1 = 'Jack';
+$monk2 = 'John';
+$monk3 = 'Mark';
+$monk4 = 'Rudolf';
+
+#order of monks important - using array - square brackets
+$bank_left1 = [$monk1, '', $monk2];
+$bank_left2 = [];
+$bank_left3 = [];
+$bank_left4 = [];
+# order of banks important - use array
+$left_nave = [$bank_left1, $bank_left2, $bank_left3, $bank_left4];
+
+$bank_right1 = [];
+$bank_right2 = [$monk3];
+$bank_right3 = [];
+$bank_right4 = [];
+$right_nave = [$bank_right1, $bank_right2, $bank_right3, $bank_right4];
+
+# existence of elements is important, order not - lets do hash
+$church = {'left nave'=&gt;$left_nave, 'right nave'=&gt;$right_nave, 'altar'=&gt;1, 'tabernacle'=&gt;1};
+
+# lets declare hash of arrays at once, order of plants not important, but array is here more convenient.
+# See, instead of (key, value) pairs I use (key, reference-to-array).
+$garden = {'plants'=&gt;['potato', 'carrot', 'apple tree'], 'monks'=&gt;[$monk4], 'rain'=&gt;1};
+
+# and finally whole monastery, not rich, but its our home :)
+$monastery = {'church'=&gt;$church, 'garden'=&gt;$garden};
+
+# see how it looks and where monks reside:
+use Data::Dumper;
+print Dumper $monastery;
+&lt;/code&gt;
+&lt;p&gt;Now is time to go back to @ and %. Rules are simple: if you have reference $arrayref to an array and need to use it as array, just write @$arrayref. Similarly use $hashref as %hashref if some function needs hash. Two simple examples:&lt;/p&gt;
+&lt;code&gt;
+# using @ in join function
+$arrayref = $$monastery{'garden'}{'plants'};
+print &quot;Plants: &quot;, join &quot;, &quot;, @{$arrayref}; # or @$arrayref
+# or just
+# print &quot;Plants: &quot;, join &quot;, &quot;, @{$$monastery{'garden'}{'plants'}};
+
+# using % in keys function
+$hashref_churchelems = $$monastery{'church'};
+print &quot;\nChurch elements: &quot;, join &quot;, &quot;, keys %{$hashref_churchelems};
+# or just
+# print &quot;\nChurch elements: &quot;, join &quot;, &quot;, keys %{$$monastery{'church'}};
+print&quot;\n&quot;;
+
+# monk sitting in church -&gt; in left nave -&gt; in first bank -&gt; as first
+print &quot;Monk: &quot;, $$monastery{'church'}{'left nave'}[0][0], &quot;\n&quot;;
+&lt;/code&gt;
+&lt;p&gt;That's how structures look from ref point of view.&lt;/p&gt;</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>674203</node_id>
+  <author_user>645387</author_user>
+  <title>Arrays and hashes only with references</title>
+  <createtime>2008-03-14 09:50:21</createtime>
+  <nodeupdated>2008-03-14 05:50:21</nodeupdated>
+</node>

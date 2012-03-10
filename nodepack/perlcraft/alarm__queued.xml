@@ -1,0 +1,423 @@
+<node>
+  <doctext>#
+# Second of a three part post of modules that implement
+# an extension of Perl's built-in alarm functionality.
+#
+# See [Alarm::_TieSIG] and [Alarm::Concurrent]
+# for the other two parts.
+#
+# Updated!  Fixed one or two minor issues and
+# fixed the documentation a bit.
+#
+package Alarm::Queued;
+
+use strict;
+
+=head1 NAME
+
+Alarm::Queued - Allow multiple, queued alarms.
+
+=head1 DESCRIPTION
+
+This module is an attempt to enhance Perl's built-in
+alarm/C&lt;$SIG{ALRM}&gt; functionality.
+
+The built-in function, and its associated signal handler,
+allow you to arrange for your program to receive a SIGALRM
+signal, which you can then catch and deal with appropriately.
+
+Unfortunately, due to the nature of the design of these
+signals (at the OS level), you can only have one alarm
+and handler active at any given time.  That's where this
+module comes in.
+
+This module allows you to define multiple alarms, each
+with an associated handler.  These alarms are queued, which
+means that if you set one alarm and then set another alarm,
+shorter than the first, the second alarm does not go off
+until after the first one has gone off and been handled.
+(If you'd like to have the alarms go off as their set time
+expires, regardless of whether or not previous alarms are
+still pending, see Alarm::Concurrent.)
+
+To set an alarm, call the C&lt;setalarm()&gt; function with the
+set time of the alarm and a reference to the subroutine
+to be called when the alarm goes off.  You can then go on
+with your program and the alarm will be called after the
+set time has passed.
+
+It is also possible to set an alarm that does not have a
+handler associated with it using C&lt;Alarm::Queued::alarm()&gt;.
+(This function can also be imported into your namespace,
+in which case it will replace Perl's built-in alarm for
+your package only.)
+
+If an alarm that does not have a handler associated
+with it goes off, the default handler, pointed to by
+C&lt;$Alarm::Queued::DEFAULT_HANLDER&gt;, is called.  You can
+change the default handler by assigning to this variable.
+
+The default C&lt;$Alarm::Queued::DEFAULT_HANDLER&gt; simply
+dies with the message &quot;Alarm clock!\n&quot;.
+
+=head1 IMPORT/EXPORT
+
+No methods are exported by default but you can import
+any of the functions in the L&lt;FUNCTIONS|&quot;FUNCTIONS&quot;&gt; section.
+
+You can also import the special tag C&lt;:ALL&gt; which will
+import all the functions in the L&lt;FUNCTIONS|&quot;FUNCTIONS&quot;&gt; section.
+
+=head1 OVERRIDE
+
+If you import the special tag C&lt;:OVERRIDE&gt;, this module
+will override Perl's built-in alarm function for
+B&lt;every namespace&gt; and it will take over Perl's magic
+C&lt;%SIG&gt; variable, changing any attempts to read or write
+C&lt;$SIG{ALRM}&gt; into calls to C&lt;gethandler()&gt; and
+C&lt;sethandler()&gt;, respectively.
+
+This can be useful when you are calling code that tries
+to set its own alarm the &quot;old fashioned way.&quot;  It can also,
+however, be dangerous.  Overriding alarm is documented and
+should be stable but taking over C&lt;%SIG&gt; is more risky (see
+L&lt;CAVEATS|&quot;CAVEATS&quot;&gt;).
+
+Note that if you do I&lt;not&gt; override alarm and C&lt;%SIG&gt;, any
+code you use that sets &quot;legacy alarms&quot; will disable all of
+your queued alarms.  You can call C&lt;Alarm::Queued::restore()&gt;
+to reinstall the Alarm::Queued handler.  This function may
+not be imported.
+
+=cut
+
+use Alarm::_TieSIG; # In case they want to take over $SIG{ALRM}.
+use Carp;
+
+use Exporter;
+use vars qw( @ISA @EXPORT_OK %EXPORT_TAGS );
+@ISA = qw(Exporter);
+@EXPORT_OK = qw(
+  setalarm
+  clearalarm
+  alarm
+  sethandler
+  gethandler
+);
+%EXPORT_TAGS = (
+  ALL =&gt; [@EXPORT_OK],
+);
+
+#
+# Exporter doesn't allow hooks for handling
+# special tags.  So, we have to do it ourselves.
+#
+sub import {
+  my $thispkg = shift;
+
+  # Look for and remove special :OVERRIDE tag.
+  my $override = 0;
+  @_ = grep { ($_ eq ':OVERLOAD') ? ($override = 1, 0) : 1 } @_;
+
+  if($override) {
+    $thispkg-&gt;export('CORE::GLOBAL', 'alarm');
+    Alarm::_TieSIG::tiesig(); # ALL YOUR %SIG ARE BELONG TO US!!!
+  };
+
+  $thispkg-&gt;export_to_level(1, $thispkg, @_); # export the rest
+}
+
+# Called for an alarm with no defined handler.
+sub _default_handler {
+  die &quot;Alarm clock!\n&quot;;
+}
+
+use vars '$DEFAULT_HANDLER';
+$DEFAULT_HANDLER = \&amp;_default_handler; # Overeridable.
+
+#
+# Each element of @ALARM_QUEUE should be a pointer
+# to an array containing exactly three elements:
+#
+#  0) The duration of the alarm in seconds
+#  1) The time at which the alarm was set
+#  2) A pointer to a subroutine that should be called
+#     when the alarm goes off.
+#
+use vars qw( @ALARM_QUEUE );
+@ALARM_QUEUE = ();
+
+restore(1);  # Install our alarm handler.
+
+# Custom alarm handler.
+sub _alrm {
+  return unless(@ALARM_QUEUE);
+
+  # Call handler for this alarm and remove it from the queue.
+  my $handler = shift(@ALARM_QUEUE)-&gt;[2] || $DEFAULT_HANDLER;
+  $handler-&gt;();
+
+  while(@ALARM_QUEUE) {
+    my $time_remaining = $ALARM_QUEUE[0][1]+$ALARM_QUEUE[0][0]-time;
+    if($time_remaining &lt;= 0) {
+      $handler = shift(@ALARM_QUEUE)-&gt;[2] || $DEFAULT_HANDLER;
+      $handler-&gt;(); # Call handler for this alarm.
+    } else {
+      CORE::alarm($time_remaining);
+      last;
+    }
+  }
+}
+
+
+#********************************************************************#
+
+=head1 FUNCTIONS
+
+The following functions are available for use.
+
+=over 4
+
+=item setalarm SECONDS CODEREF
+
+Sets a new alarm and associates a handler with it.
+This handler is called when the specified number of
+seconds have elapsed I&lt;and&gt; all previous alarms
+have gone off.  See L&lt;DESCRIPTION|&quot;DESCRIPTION&quot;&gt; for
+more information.
+
+=cut
+sub setalarm($$) {
+  my ($alarm, $code) = @_;
+
+  unless(not defined($code) or UNIVERSAL::isa($code, 'CODE')) {
+    croak(&quot;Alarm handler must be CODEREF&quot;);
+  }
+
+  push( @ALARM_QUEUE, [ $alarm, time(), $code ] );
+  CORE::alarm($alarm) if(@ALARM_QUEUE == 1);
+}
+
+=item clearalarm INDEX LENGTH
+
+=item clearalarm INDEX
+
+=item clearalarm
+
+Clears one or more previously set alarms.  The index is
+an array index, with 0 being the currently active alarm
+and -1 being the last (most recent) alarm that was set.
+
+INDEX defaults to 0 and LENGTH defaults to 1.
+
+If you clear the active alarm and it was blocking other
+alarms from going off, those alarms are immediately triggered.
+
+=cut
+sub clearalarm(;$$) {
+  my $index  = shift || 0;
+  my $length = shift || 1;
+
+  splice @ALARM_QUEUE, $index, $length;
+
+  unless($index) {
+    while(@ALARM_QUEUE) {
+      my $time_remaining = $ALARM_QUEUE[0][1]+$ALARM_QUEUE[0][0]-time;
+      if($time_remaining &lt;= 0) {
+        my $handler = shift(@ALARM_QUEUE)-&gt;[2] || \&amp;default_handler;
+        $handler-&gt;(); # Call handler for this alarm.
+      } else {
+        CORE::alarm($time_remaining);
+        last;
+      }
+    }
+  }
+}
+
+=item alarm SECONDS
+
+=item alarm
+
+Creates a new alarm with no handler.  A handler can
+later be set for it via sethandler() or C&lt;$SIG{ALRM}&gt;,
+if overridden.
+
+For the most part, this function behaves exactly like
+Perl's built-in alarm function, except that it sets up a
+concurrent alarm instead.  Thus, each call to alarm does
+not disable previous alarms unless called with a set time
+of 0.
+
+Calling C&lt;alarm()&gt; with a set time of 0 will disable the
+last alarm set.
+
+If SECONDS is not specified, the value stored in C&lt;$_&gt;
+is used.
+
+=cut
+sub alarm(;$) {
+  my $alarm = @_ ? shift : $_;
+
+  if($alarm == 0) {
+    clearalarm(-1);
+  } else {
+    push( @ALARM_QUEUE, [ $alarm, time(), undef ] );
+    CORE::alarm($alarm) if(@ALARM_QUEUE == 1);
+  }
+}
+
+=item sethandler INDEX CODEREF
+
+=item sethandler CODEREF
+
+Sets a handler for the alarm found at INDEX in the queue.  This
+is an array index, so negative values may be used to indicate
+a position relative to the end of the queue.
+
+If INDEX is not specified, the handler is set for the last
+alarm in the queue that doesn't have one associated with it.
+This means that if you set multiple alarms using C&lt;alarm()&gt;,
+you should arrange their respective C&lt;sethandler()&gt;'s in the
+I&lt;opposite&gt; order.
+
+=cut
+sub sethandler($;$) {
+
+  unless(not defined($_[-1]) or UNIVERSAL::isa($_[-1], 'CODE')) {
+    croak(&quot;Alarm handler must be CODEREF&quot;);
+  }
+
+  if(@_ == 2) {
+    $ALARM_QUEUE[$_[0]]-&gt;[2] = $_[1];
+  } else {
+    foreach my $alarm (reverse @ALARM_QUEUE) {
+      if(not defined $alarm-&gt;[2]) {
+        $alarm-&gt;[2] = shift();
+        last;
+      }
+    }
+  }
+}
+
+=item gethandler INDEX
+
+=item gethandler
+
+Returns the handler for the alarm found at INDEX in the queue.
+This is an array index, so negative values may be used.
+
+If INDEX is not specified, returns the handler for the currently
+active alarm.
+
+=cut
+sub gethandler(;$) {
+  my $index = shift || 0;
+  return(
+    ($index &lt; @ALARM_QUEUE and $index &gt; -1)
+      ?
+    $ALARM_QUEUE[$index][2]
+      :
+    undef
+  );
+}
+
+=item restore FLAG
+
+=item restore
+
+This function reinstalls the Alarm::Queued alarm handler
+if it has been replaced by a &quot;legacy alarm handler.&quot;
+
+If FLAG is present and true, C&lt;restore()&gt; will save the
+current handler by setting it as a new queued alarm (as
+if you had called C&lt;setalarm()&gt; for it).
+
+This function may not be imported.
+
+Note:  Do B&lt;not&gt; call this function if you have imported
+the C&lt;:OVERLOAD&gt; symbol.  It can have unpredictable results.
+
+=cut
+sub restore(;$) {
+  return if(defined($SIG{ALRM}) and $SIG{ALRM} == \&amp;_alrm);
+
+  my $oldalrm = CORE::alarm(5);
+
+  if($oldalrm and shift) {
+    # Save legacy alarm.
+    setalarm($oldalrm, $SIG{ALRM});
+  }
+
+  # Install our alarm handler.
+  $SIG{ALRM} = \&amp;_alrm;
+}
+
+=head1 CAVEATS
+
+=over 4
+
+=item *
+
+C&lt;%SIG&gt; is Perl magic and should probably not be messed
+with, though I have not witnessed any problems in the
+(admittedly limited) testing I've done.  I would be
+interested to hear from anyone who performs extensive
+testing, with different versions of Perl, of the
+reliability of doing this.
+
+Moreover, since there is no way to just take over
+C&lt;$SIG{ALRM}&gt;, the entire magic hash is usurped and any
+other C&lt;%SIG}&gt; accesses are simply passed through to the
+original magic hash.  This means that if there I&lt;are&gt; any
+problems, they will most likely affect all other signal
+handlers you have defined, including C&lt;$SIG{__WARN__}&gt;
+and C&lt;$SIG{__DIE__}&gt; and others.
+
+In other words, if you're going to use the :OVERRIDE
+option, you do so at your own risk (and you'd better be
+pretty damn sure of yourself, too).
+
+=item *
+
+The default C&lt;$DEFAULT_HANDLER&gt; simply dies with the
+message &quot;Alarm clock!\n&quot;.
+
+=item *
+
+All warnings about alarms possibly being off by up to a full
+second still apply.  See the documentation for alarm for more
+information.
+
+=item *
+
+The alarm handling routine does not make any allowances
+for systems that clear the alarm handler before it is
+called.  This may be changed in the future.
+
+=item *
+
+According to L&lt;perlipc/&quot;Signals&quot;&gt;, doing just about I&lt;anything&gt;
+in signal handling routines is dangerous because it might
+be called during a non-re-entrant system library routines
+which could cause a memory fault and core dump.
+
+The Alarm::Queued alarm handling routine does quite a bit.
+
+You have been warned.
+
+=back
+
+=head1 AUTHOR
+
+Written by Cory Johns (c) 2001.
+
+=cut
+
+1;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>77786</node_id>
+  <author_user>51515</author_user>
+  <title>Alarm::Queued</title>
+  <createtime>2001-05-03 21:27:29</createtime>
+  <nodeupdated>2005-08-13 06:37:40</nodeupdated>
+</node>

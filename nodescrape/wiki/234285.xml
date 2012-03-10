@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="234285" title="pmdev wiki through 2003-02-08" created="2003-02-10 19:41:25" updated="2005-08-02 09:37:35">
+<type id="68046">
+wiki</type>
+<author id="8948">
+ar0n</author>
+<data>
+<field name="doctext">
+Continued from [id://242483]...
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-02-08&lt;br /&gt;
+the code to rewrite the cache in the [message] opcode is nearly trivial, just a cut-n-paste from [chatterbox].  One problem is that there are three different places in [message] where this has to happen.  So I wanted to make some smart nodes similar to [htmlcode] but capable of returning a list of values.  But that requires changes to *.pm files.
+&lt;/p&gt;&lt;p&gt;
+So instead just make an [updatechatter] htmlcode (already waiting for you) and call it from three places in [message] and one place in [chatterbox].  My search code is pretty conprehensive so I don't think you'll have any problems using nlgoto (though I have no idea what it was meant to be for).
+&lt;/p&gt;&lt;p&gt;
+You could also set the expiration time based on the oldest message in the chatterbox (but with a minimum of 60 or 30) (have [showchatter] squirrel the oldest message's time in %HTMLVARS or something) so things expire closer to how they currently do.
+&lt;/p&gt;&lt;p&gt;
+I think it is important to skip all of the caching for people who /ignore.  Checking for /ignore is trivial.  This will mean you'll have to be careful to not cache public chatter obeying /ignore when a person who is /ignore-ing chats something.  (So maybe just invalidating the cache is a good first step.)
+&lt;/p&gt;&lt;p&gt;
+Part of the reason this really bothers me is because the chatterbox XML ticker has this same bug and I could see it happen when watching the DB transactions.  The cache would expire and one instance would start the query to get the chatter to update the cache, but things were slow enough that it wouldn't finish in time and so 5 other instances would give up waiting and submit the same query and these would clog up the DB.  But what doesn't make sense now that I'm thinking about your patch is that this nearly identical query is done (and &lt;b&gt;much&lt;/b&gt; more often) by [showchatter] and I don't think I ever saw it clog up the DB...
+&lt;/p&gt;&lt;p&gt;
+Okay, I'm supposed to be doing something else but the curiousity killed me.  The problem is that the chatterbox XML ticker uses a form of select on tstamp that the MySQL optimizer can't handle.  tstamp needs to be factored out to be by itself on one side of the inequality.  I can't divert from my real tasks to do that right now, so anyone feel free to make it match the one in [showchatter] (including changing the 600 to 500).  This change also needs to be done to the newest nodes XML ticker (to match how [newest nodes] does it now).
+&lt;/p&gt;&lt;p&gt;
+Sorry, I was in such shock when I realized how nodelets are and aren't cached that it took a while to digest things.  And finally having that mental dissonance about the query being so &lt;b&gt;very&lt;/b&gt; slow and yet being run for every single page hit cleared up, I can see that this will be a great idea.
+&lt;/p&gt;&lt;p&gt;
+But one way you can reduce the "hurry, everyone update it, it just expired" problem follows.  Note that you seem to underestimate this problem.  With your current code, when the cache expires, every page hit tries to update the cache until they all notice that it has been done.  It gets pretty easy for this to cause dozens of mod_perls to be updating the cache at the same time...
+&lt;/p&gt;&lt;p&gt;
+But you can improve this by having the code that checks for expiration to add, say, rand(30) to the timestamp.  So make the minimum update interval 30 but with rand(30) added when you check for expiration and we'll be in great shape.
+&lt;/p&gt;&lt;p&gt;
+Thanks tons for looking at this, writing that patch, forcing me to think about, not freaking out when I freaked out, and (I hope) doing a few of things I've suggested.
+&lt;/p&gt;&lt;p&gt;
+BTW, since I'm updating the wiki, [PodMaster], [Aristotle], [Mr. Muskrat], and [jaybonci] (and probably others) thanks for the patches.  It looks like someone besides me applied [PodMaster]'s (we should put [PodMaster] into [pmdev] so [crazyinsomniac] doesn't have to get dusted off for stuff like this) so there are a couple I don't have to feel guilty about anymore.  &amp;#91;I kinda hoped to use parselinks/htmlScreen() everywhere instead of escapeHTML() everywhere just so &lt;code&gt;[]&lt;/code&gt; still makes links, but that's a minor point&amp;#93;.  My real-job project is near the deadline and I'm probably going to miss it, so I've been pretty scarse and haven't found the time to digest and apply patches.
+&lt;/p&gt;&lt;p&gt;
+And, of course, a big thanks to [ar0n] and [Petruchio] for lots of things.
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-02-08&lt;br /&gt;
+OK, there's an RFC patch showing my basic idea at [id://233651].  The basic idea is that we cache the rendered version of the public chatter for the [chatterbox] nodelet, and invalidate it in the [message] [opcode].  As you can see, the patch is designed to be minimal.  It requires no new nodes or changes to the db.  There needs to be a small patch to [message], too, but the required changes there are almost trivial, for the first version.  For the second version (which will make the race condition noted later harder to hit), there are some larger changes there, but no larger then the this patch.  There are a number of problems with it, however.  &lt;/p&gt;
+&lt;p&gt;First off, there's a bit of a race.  When the cache becomes invalid (either because somebody talked, or because it's timed out), there's a window between when the chatterbox nodelet is fetched from the DB and when it's written back out with the new cached text, during which if a second request for the chatterbox nodelet comes through, both processes will rewrite the cache, causing two queries against the [messages] dbtable (which is still better then what we're seeing now), and two writes of the cached text back to [message] (we currently don't have any writes).  Changing [message] to recreate the cache, rather then mearly invalidating it, will cause this race to happen only when the cached copy times out, rather then being invalidated by a talker, which will make it much less of a problem.&lt;/p&gt;
+&lt;p&gt;Also, there's the problem of tradeoffs.  In my proposed world order, we're rewriting [chatterbox] fairly often, and stuffing more data in it.  However, we're not performing nearly as many complex queries aginst [messages], which is a good thing, IMnsHO.  (It's not a tremendously complex query, but it's far from simple, and we're doing it for every hit on the chatterbox!)&lt;/p&gt;
+&lt;p&gt;Hmmpf.  I just thought of another problem, and more specificly, another way in which the chatterbox's contents vary from user to user: /ignores.  Almost any form of caching of the rendered chatterbox would destroy /ignore.  Either we'd have to check if the user is ignoring anybody, and if so, ignore the cache, or we'd have to make /ignore not work against public chatter.  Ignoring the cache would mean increased code complexity, and increased web server time.  It wouldn't actively hurt the db server's performance, but it would decrese how much we're helping it.&lt;/p&gt;
+&lt;p&gt;Anyway, next problem: I'm reusing the nlgoto field of the nodelet table.  Anybody know what it was for?&lt;/p&gt;
+&lt;p&gt;This caching scheme doesn't help other consumers of public chatter at all.  Fullpage chat and the chatterbox xml ticker would be just as load-heavy as always -- more so, in fact, since they would be less likely to be in the db server's cache.&lt;/p&gt;
+&lt;p&gt;Anyway, does anybody see problems that I'm missing?  Am I missing a way around these problems?  Will Rocky fall for Natalia's trap?  Do you think it's not worth implementing given all these gotchas?  I'm of the oppinion that while this isn't perfect, it's a lot better then what we've got now, and given a little more work, will be amazingly much better then what we've got now.  Even if not, this has helped me understand Everything better, and made [tye] notice that we're not using the existing caching mechinisims for most of the nodelets.&lt;/p&gt;
+&lt;p&gt;[demerphq], 2003-02-07&lt;br /&gt;
+Idea: Long nodes are often composed of little text and a large chunk of code. Why not add an option to make the codifier (excuse the liberty) a little smarter? To say show only the first N lines, and turn the rest into a readmore.  Top level nodes would of course be rendered properly. Anyway. A thought for someone with a bit of time on their hands. :-)
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-02-07&lt;br /&gt;
+I havn't realized we got /quite/ that many hits that it'd end up recreating the cache more then once (there's a window just barely larger then the time to create the text in which the second request would need to occour).  Anyway, we could also have the [message] opcode (or an htmlcode which both it and all other paths that create messages call, since it's much easier to call a [htmlcode] then an [opcode]) recreate the cache.
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-07&lt;br /&gt;
+Hmm.  If the [message] opcode rewrote the cache, then there might be hope for such a scheme...  The devil is in the details...
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-07&lt;br /&gt;
+The main advantage of caching the rendered chatterbox is that it reduces web server load.  We don't have a problem with web server load.
+&lt;/p&gt;&lt;p&gt;
+For a cache to be effective, you need to prevent 20 requests all trying to update it at the same time right after it gets invalidated.  About the only workable solution I see is a separate cache-managing process (perhaps one per web server).  The benefits are not such that I consider that to be my top priority, though I encourage others to work on it.  Perhaps coordinate with [perrin] who I think is working on better caching.
+&lt;/p&gt;
+&lt;p&gt;[Aristotle], 2003-02-07&lt;br /&gt;
+I'm all for splitting /msg's and public chatter into separate nodelets. I've always found it irksome that that nodelet covers both functions, even though I understand the logic.
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo] - Fri Feb 7 6:24 AM EST&lt;br /&gt;
+&lt;p&gt;Recently, I've been thinking about caching for the rendered form of the chatterbox.  Basically, the biggest question I have is if it's acceptable to split public chatter and private chatter into two separate nodelets. It's possible either way, but if we do so, we get to have the caching free -- we can leverage the existing nodelet-caching code, but only if we make the chatterbox static across time and user boundries. Making the chatterbox nodelet cachable as a whole would mean moving private messages elsewhere (another nodelet, most likely), making the hints always-on, and removing the "(hh:mm ago)" part of the time hint (title attribute) on the last publicchatter. I think those are acceptable losses. If people don't want to move the private chatter elsewhere, we can "simply" recreate the caching code, create some place to put the cached HTML (or reuse the currently-unused, if I understand correctly, caching fields for the chatterbox nodelet), and cache only the rendered portion, loosing only the relitive-to-now part of the title of the last entry -- that's the only thing that changes constantly on that part.&lt;/p&gt;
+&lt;p&gt;Also, we need to change everything that generates public chatter to explicitly invalidate the cache.  That's not difficult, I think -- most of it goes through the [message] opcode.&lt;/p&gt;
+&lt;p&gt;My other question is, of course, why hasn't somebody ([tye], I'm looking at you) already done this?&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;
+[crazyinsomniac] - Fri Feb  7 05:12:11 2003 GMT&lt;br &gt;
+Some fresh patches [id://233091] [id://233089] ([id://233091])
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;[Aristotle], 2003-02-04&lt;br /&gt;
+[diotalevi] couldn't approve [id://232692], nor did [merlyn] or I. What's up? [diotalevi] mentions he moved it from discussion first.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-02-04&lt;br /&gt;
+Conceded. If you restrict that sort of scrubbing to internal links I revoke all my objections.
+&lt;/p&gt;
+&lt;p&gt;[JayBonci], 2003-02-04&lt;br /&gt;
+Forbidding opcode params is not sufficient. You can also edit documents with GET parameters that refer back to the site, throw in infinitely recursive code, add users to groups, and many many other things without an opcode invokation. To hunt down every piece of protected functionality on the site, and regex it out isn't the right approach. I still hold that any perlmonks-referencing URL on that page shouldn't be dynamic. There are a finite number of fields that are affected (thanks to htmlScreen). All it takes is to identify those fields and scrub them to see if they refer to perlmonks and they are dynamic.  Is this best placed inside a container here, or as a custom override inside of htmlScreen bears discussing.
+&lt;/p&gt;
+&lt;p&gt;[Aristotle], 2003-02-04&lt;br /&gt;
+Yes, browsers will follow redirects for images (I've written a random-image-CGI before that relies on this and works). I don't like forbidding GET parameters altogether in IMGs as a reaction. As I understand it, images can only be used on homenodes, which can also contain anything else so someone could &amp;lt;link rel="stylesheet" type="text/css" href="?/node=foo&amp;opcode=bar"&gt; just as easily. HTML tags aren't even parsed there, to the best of my knowledge, so your fix wouldn't work. At the same time, if it did, it'd make using images from dynamic sources impossible - such as linking your XP chart from [jcwren]'s stats pages.
+&lt;p&gt;&lt;p&gt;It'd be a sledgehammer fix for a symptom at best, but not a solution. Parsing URLs and checking for forbidden &lt;tt&gt;opcode&lt;/tt&gt; params would be the correct way to approach this. It would require homenodes to actually be filtered, of course, otherwise there are too many places to hide URLs in.
+&lt;/p&gt;&lt;p&gt;I have no idea how you can address the issue of external redirects..
+&lt;/p&gt;
+&lt;p&gt;[JayBonci], 2003-02-03&lt;br /&gt;
+Added a patch [parselinks - (patch)], to address a security concern with image sources. There is nothing to stop someone from exploiting our open URL API to create trojan image sources using the browser's auto-loading of images to fetch a URL calling priviledged opcodes.
+&lt;/p&gt;
+&lt;p&gt;For instance: &amp;lt;img src=/?node_id=12345678&amp;op=nuke&amp;gt;&lt;/p&gt;
+Sure, it's a broken image, but the browser doesn't know that until it has wiped out a pile of sensitive nodes, or added some malicious user to [gods]. I've submitted a fix for this problem in the patch, which eliminates img items with a src that contains a ?.  
+&lt;/p&gt;
+&lt;p&gt;The patch assumes that most everything goes through [parselinks] (htmlcode), as it does on E2. The other approach would be to strip them at submit time, but the change would have to be made into all doctext bearing maintenances.&lt;/p&gt;
+&lt;p&gt;The other side of this vulnerability is retrieving a URL that is a redirect to a local site priviledged opcode, but I am now sure if browsers follow HTTP redirects for images. My guess would be yes. The second stage of this (which I will be patching in ecore1.0, pre.8, e2, etc) are referrer vulnerabilities from offsite links. This is a much lower priority problem, but one I'd like to sit down and address as well. Comments on either security problem are welcome.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[JayBonci], 2003-02-03&lt;br /&gt;
+I've added a patch [PmDev Nodelet - (patch)], that adds htmlpage display functionality to the PmDev nodelet. Please consider applying it. It's fairly trivial (no overhead, the node is already in the cache, etc). It'd make it easier for me (and no doubtedly others) to get a grip on what pages are used where. Thanks&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-02-03 1:23pm CST&lt;br /&gt;
+I've submitted two patches that work in conjunction, [id://232349] and [id://232365].  They address the issue of giving the user control over showing reaped nodes in [Newest Nodes].&lt;/p&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-02-03&lt;br /&gt;
+Okay, evidently I didn't read [AcidHawk]'s patch close enough.  I think it is a great idea to allow a user the option of removing reaped nodes from [Newest Nodes].&lt;/p&gt;&lt;p&gt;[AcidHawk] actually proposed a Reaped Nodes node which would complement [Newest Nodes] in that it would show recently reaped nodes.  It would be easy to implement I think.  Just change 'AND author_user != 52855' to 'AND author_user = 52855'. (:  Either way would work for me.&lt;/p&gt;
+&lt;p&gt;[Aristotle], 2003-02-03&lt;br/ &gt;
+Well, [tye], &lt;tt&gt;linkWiki()&lt;/tt&gt; seems to be fine. I hit &lt;em&gt;edit&lt;/em&gt; a bunch of time on the wikis I have access to today and didn't seem to be able to get the wiki timestamp updated - none of them showed up as having new content. I really believe the spurious updates are typo fixes and similar cosmetic changes that aren't readily apparent on viewing the wiki.&lt;/p&gt;
+&lt;p&gt;[belg4mit], 2003-02-01&lt;br/ &gt;
+Would some kind [gods] please update [link_handlers]?
+perldoc is broken. It would seem that the new bit should be
+&lt;code&gt;http://www.google.com/custom?q=$escaped&amp;cof=LW%3A425%3BL%3Ahttp%3A%2F%2Fwww.perldoc.com%2Fimages%2Fperldoc_banner.gif%3BLC%3A%23336699%3BLH%3A50%3BAH%3Acenter%3BS%3Ahttp%3A%2F%2Fwww.quantumfx.com%2F%3BAWFID%3A0b5c80a50a841d31%3B&amp;domains=www.perldoc.com&amp;sitesearch=www.perldoc.com&lt;/code&gt;
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-02-01&lt;br /&gt;
+If anyone is going to remove reaped nodes from [newest nodes], then please make it a user setting.  I don't want to lose track of reaped nodes, thankyouverymuch.
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-02-01, a day of great sorrow.&lt;br /&gt;
+[wil], [pmdev]ils can only write patches; only [gods] can approve them, and apply them.  Thus, all changes to code are at the will of the [gods].  Obviously, [ar0n] likes the proposed changes, or he wouldn't have patched the code to do it.
+&lt;/p&gt;
+&lt;p&gt;[wil], 2003-02-01&lt;br /&gt;
+Ok, I'm not sure if this is just me or should there be some sort of consensus between pmdevers before such changes are made? Or maybe the gods did approve such a change -- and if they did, can that actually be noted in the wiki text for future reference? It just seems to me as it stands that [somerandomuser] has asked for something to be done, it gets done and changes a site feature for everyone without anyone being consulted? At least that's how this wiki development was portrayed or parsed by me.
+
+&lt;/p&gt;
+&lt;p&gt;[ar0n], 2003-02-01&lt;br /&gt;
+To be frank, what AcidHawk gave you doesn't do a thing.  &lt;tt&gt;linkNode()&lt;/tt&gt; returns an HTML tag that links to the given node, so I'm not sure why he's comparing it to [NodeReaper]'s ID.  I'm also not quite sure as to why he thinks &lt;tt&gt;map { ... } @nodes unless ( ... )&lt;/tt&gt; will do what he wants it to.
+&lt;/p&gt;
+&lt;p&gt;
+I created and applied a patch implementing the solution you described below.
+&lt;/p&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-02-01&lt;br /&gt;
+[AcidHawk] spoke with [tye] in the CB about removing [NodeReaper] from [Newest Nodes].  I spoke with [tye] via /msg and he approved giving [AcidHawk] the relevent code.  So I sent [AcidHawk] an email with the code for [Newest Nodes] and [id://3627].  This morning I received the patch so I submitted [id://231871] for [AcidHawk].&lt;/p&gt;
+&lt;p&gt;I have a different patch for the same thing but I haven't submitted it yet.  My approach was to add 'AND author_user != 52855' to lines 14 and 25.&lt;br /&gt;
+Comments?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[jaybonci], 2003-01-30&lt;br /&gt;
+&lt;p&gt;Honestly, I feel that a security sweep would do just as well as releasing the code. Everything core is not exactly the most transparent system, and a lot of security bugs are hard to find or conceptualize on the system. Likewise, a sweep through by a few people who are familiar with the system (and could coordinate by flagging checked code) could make just as much difference and also minimize the risks, quietly and discretely.&lt;/p&gt;
+&lt;p&gt;I would encourage people for the long term good of perlmonks to start considering adding to the forward development of ecore 1.0.  Migrating to that system is not a trivial task, but that is the direction that we should be moving in. Chromatic and I are two active developers on it, and it has many improvements in security and architecture (and possibly performance) over .8.  This is a goal at least for E2 once 1.0 is released, and many of the same efforts can be joined here as well for perlmonks.  For the good of the communities that depend on Everything as their upstream and the good of the Engine itself, I'd strongly urge you to take a solid look at the development core and would personally help anyone in doing so.&lt;/p&gt;
+&lt;p&gt;[tye], 2003-01-29&lt;br /&gt;
+I was hoping to post a reply to the latest call for free-for-all access to the PM source.
+&lt;blockquote&gt;&lt;em&gt;
+Also, security by obscurity is no security at all.
+&lt;/em&gt;&lt;/blockquote&gt;
+I understand the point of that old saw, but it isn't actually true.  A great deal of security is obscurity.  If I were designing a new system, then I'd certainly open the design to public review rather than keep the design secret.  That is quite a bit different than having a live system that has had several security problems found (and fixed) in the last few months.
+&lt;/p&gt;&lt;p&gt;
+Opening up free access to the source could certainly increase the rate at which any remaining security problems are found.  However, there wouldn't be a team looking specifically for security problems so the ones found would most likely be by people doing the looking for "bad" reasons and so we might not even get the security problems fixed if they are exploited subtley enough.
+&lt;/p&gt;&lt;p&gt;
+[mt2k] couldn't have guessed how to munge things without access to the source.  I'll take a layer of obscurity until such time as a good security review of the site has been completed.
+&lt;/p&gt;&lt;p&gt;
+The other problem is wasted time.  If we start getting patches from random yahoos who think they have are helping but don't have a solid clue, then we just make the resource problem worse.  I've personally lobbied and gotten &lt;b&gt;two&lt;/b&gt; [gods] added specifically to help get the good patches that [pmdev|you guys] have already provided but [gods|us deadbeats] haven't applied.  One had "real life" get in the way for several months and the other switched to working on site documentation so there are still probably half-a-dozen patches that should be applied but haven't been.
+&lt;/p&gt;&lt;p&gt;
+So I think the best plan for "getting help" is to continue to add people who meet the requirements of 1) trust and 2) competence to [pmdev] if they show an interest in contributing.  The addition of [gods] is a much more serious matter but I think it has been long enough that it might be time to consider the next candidate there...
+&lt;/p&gt;&lt;p&gt;
+If random people want to tackle what I consider the #1 problem, the node cache, then they can download 0.8 as I don't think there are any PM-specific changes to that part of the code.
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-01-29&lt;br /&gt;
+I hope this isn't going too far outside of the scope of this forum, but why isn't perlmonks an open source project?  Lately, we've seen a fair number of [monkdiscuss]es that are people trying to help with coding perlmonks, to make our little Everything better and faster.  Yes, these are mostly misguided... but opening up the source would help that, at least a litte.  My proposal is that we open up the source code, possibly in a phased manner, to viewing by mear mortals.  (Perhaps only those of a certian level or above, and nonanon, to maintain some measure of paranoia.)  The wiki would remain open only to pmdevils, as would patch submittion (but put a ? on that later).  Those measures are neccessary to maintain a low-noize place to work on the PM engine.&lt;/p&gt;
+&lt;p&gt;I can see only two reasons not to do this.  The first is the possiblity of people seeing, and exploiting, bugs in the PM code with their new access.  pmdev hasn't been completly effective in stoping that.  (Please, just accept that as a datapoint, not a chance to rant.  Low-noize, remember?).  Also, security by obscurity is no security at all.  The other reason is 31334ism.  Really, I felt like I'd really made it around here when I became a [pmdev]il.  (Even more so when the term [pmdev]il became common usage ;).)  However, we can't afford elietism.  With enough eyes, all bugs are transparent, and we've got a lot of well-trained eyes we aren't using.&lt;/p&gt;
+&lt;p&gt;Thoughts?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-01-28&lt;br /&gt;
+I took the freedom to submit [id://230809|a nearly identical patch] after seeing the horrible abuse of &lt;tt&gt;UL&lt;/tt&gt; tags that was going on at that node.
+&lt;/p&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-01-28&lt;br /&gt;
+After discussing it in the chatterbox, I have submitted [id://230695] which changes Petition the Friar to Petition the Monastery, fixes some punctuation, and adds a mention that it posts to [id://1040].&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-01-28&lt;br /&gt;
+Is there a reason my [id://229992] was not applied? The "moving" options on NtC really bug me, so I intentionally kept it as simple as possible this time in order to avoid it needing any extensive testing to make it quick glance over and apply. I'd very grateful if any of the [gods] would apply it or tell me why it wasn't. &lt;tt&gt;:)&lt;/tt&gt; &lt;b&gt;Update:&lt;/b&gt; Thanks!
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-01-28&lt;br /&gt;
+I noticed that [id://972] had a link to a nonexistant node [Report a bug].  It's a superdoc so I was able to submit [id://230668]. &lt;b&gt;Thank you!&lt;/b&gt;&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-01-27 &lt;b&gt;Updated:&lt;/b&gt; 2003-01-29&lt;br /&gt;
+When is the last time we used [id://924], [id://925], [id://926], [id://927] &amp; [id://928]?&lt;br /&gt;And has the [Site Documentation Clan] removed any/all links to them?&lt;br /&gt;  Can we delete these nodes as well as the &lt;a href="/?node_id=106927&amp;whichtype=919"&gt;bugs&lt;/a&gt;?&lt;br /&gt;Or should I patch them so that people understand that we no longer use them?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[ar0n], 2003-01-27&lt;br /&gt;
+If you're curious, the new handleLinks() code is in [linkhandler] and [link handlers].  [link handlers] only return a label and URL (unlike the old [handlelinks settings]) so we'll be able to use &lt;code&gt;&amp;node=google://Foo&lt;/code&gt; and have the server send a redirect to the equivalent Google URL.
+&lt;/p&gt;&lt;p&gt;
+[http://perlmonks.org/testsite/] is running an older version of [linkhandler], before [tye] made his changes to the code I was working on.  I haven't yet updated it with his code because it's such a pain to update the .pm files every time.  I'll get to it shortly.  If all goes well, we'll have new linking code somewhere in the next few days.
+&lt;/p&gt;
+&lt;p&gt;[wil]&lt;br /&gt;
+Thanks, [theorbtwo]. [ar0n] pointed me in the right direction and suggested it might also be a good idea to wait up to see what changes, if any, will be done to the link handlers. And besides, it seems as the way it's set already, I might have to argue my reasoning behind an extra database call. :-)&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-01-27&lt;br /&gt;
+[wil], look at [handlelinks], and [handlelinks settings].  Also, [tye] has spoken (in public) about changes to them in PMDs recently; see also [tye&amp;nbsp;].  If you want to look further up the chain, try using [search internal code] to find references to [handelinks].
+&lt;/p&gt;
+&lt;p&gt;[wil], 2003-01-27&lt;br /&gt;
+Where can I find the node that handles funny loking &lt;code&gt;[ | ]&lt;/code&gt; URLs? When someone creates a URL that looks like &lt;code&gt;[id://12345|wil is an idiot!]&lt;/code&gt; I want to put the actual node title, and not the title someone gave to the link, in the TITLE= atribute of the HTML tag so when I mouseover the link it will tell me the original node title and not the clever, whitty title someone else gave to it. Is this an extra database call? Is this something stupid? Or would someone else at least find this useful?
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[ar0n], 2003-01-27&lt;br /&gt;
+Usually it's just an editor who likes consistency.  I did it in the past as well.  If you're an editor, you can hit the 'history' link in the [Editors Nodelet].  This is a relatively new feature, as I only added it a month or so ago.  The edit history tells me it was [jeffa] who edited your node, and the only change he made was in the title.
+&lt;/p&gt;
+&lt;p&gt;[Aristotle], 2003-01-27&lt;br /&gt;
+I just saw my reply to [id://230060] changed title. It was originally &lt;em&gt;Re: Are those maintained?&lt;/em&gt; but changed when the parent node changed per my consideration. Is this a new automated feature? (I know it didn't happen before.)&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[ar0n], 2003-01-26&lt;br /&gt;
+I have added all frontpage/approval links from the [links] DB table to [approved].  Since [links] does not store who did what, I used [root]
+as a default.
+&lt;/p&gt;
+&lt;p&gt;
+Now that we no longer have to keep track of [links] (all the approval data is stored in [approved] now), we/I can update the section displays.  [Section Display] is a work-in-progress to that end.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;
+[crazyinsomniac] Thu Jan 30 02:17:20 2003 GMT&lt;br /&gt;
+That is not a good idea.  When thinking about doing something like this, please do follow up (investigate).  Strangedoc differs from a Superdoc in 1 critical way, links aren't parsed (compare [Strangedoc display page] to [Superdoc display page]).
+&lt;CODE&gt;
+[{parsecode:doctext}]  # Superdoc
+# IS NOT THE SAME AS
+[{parsecode:doctext,1}] # Strangedoc
+&lt;/CODE&gt;
+&lt;/p&gt;
+&lt;p&gt;[Aristotle], 2003-01-26&lt;br /&gt;
+Would a simple change of [id://11911] to [superdoc] (as opposed to [strangedoc]) suffice to make it not show [vroom] as owner and sometime in 2000 as creation date, like [id://3333]? They both inherit from [document] and don't seem to add any fields, if I'm reading all the information right, so I'm guessing it should be easy to switch types on them.&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[grinder] 2003-01-23 18:30 UTC&lt;/p&gt;
+&lt;p&gt;I have submitted [id://229377] for the issue raised in [id://229284].&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[tye], 2003-01-21&lt;br /&gt;
+Thanks for archiving the wiki, [theorbtwo].  Archives resealed.
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-01-21&lt;br /&gt;
+I've created [pmdev wiki through 2003-01-20] and opened write access to the previous archive (which will need its top link updated).  When [theorbtwo] is done rolling the wiki over, I'll make the two archives read-only.  Thanks for offering, [theorbtwo].  (I moved this paragraph up after I reworded it to make it clearer.)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-01-21&lt;br /&gt;
+I find it annoying that [NodeReaper] is listed in [id://3557].  So I have submited a patch ([id://228799]) that will fix it. &lt;b&gt;Thank you!&lt;/b&gt;&lt;/p&gt;
+
+&lt;p&gt;[grinder] 2003-01-23 18:29 UTC&lt;/p&gt;
+&lt;p&gt;I wish to register my dissent :).&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2003-01-21&lt;br /&gt;
+Makes much sense, sensi.  I'll start work on it this afternoon (billing hours to my employer that I'm actualy working on perlmonks isn't somthing I should do often).  Can you check that the httpds have read (and not only write) access to &lt;code&gt;/tmp/everything.errlog&lt;/code&gt;?
+&lt;p&gt;Also, can you (or [ar0n]) please roll-over the wiki?  It's starting to get slow.  I think it requires [gods]' access to do so, or I would.&lt;/p&gt;
+&lt;/p&gt;
+&lt;p&gt;[tye], 2003-01-21&lt;br /&gt;
+(For months this wasn't happening but, once again...) The most common reason for an error is DB server overload which can generate dozens (perhaps hundreds) of errors.  The worst thing to do in such a situation is to add to the DB server load by writing records of the errors to a table.
+&lt;/p&gt;&lt;p&gt;
+What would be useful would be to separate the current /tmp/everything.errlog into two streams, a trace log and an error log.  The current printLog() should be for trace log entries.  But the error reporting mechanism should only write one record to the trace log and put any extra details (like the code in question and the call stack -- both of which are rarely useful at this point, unfortunately) into the error log.  Even if we eliminate the usually-useless details, a separate error log is useful.
+&lt;/p&gt;&lt;p&gt;
+The trace log sometimes contains sensitive information and so shouldn't be made available to [pmdev].  The error log might as well, but there is a solution for that: provide a pmdevsuperdoc page where you can enter an error number and get back the details on the error (by searching backward in the error log).  It would only work if done via the web server where the error happened.  A link to get to the other server would be nice on such a page.
+&lt;/p&gt;
+&lt;p&gt;[ar0n], 2003-01-21&lt;br /&gt;
+It would probably be useful, but only to a limited extent considering the size
+of [pmdev] and thus the probability that there's always someone around to see the
+error message.&lt;/p&gt;
+&lt;p&gt;Server errors are already written to the server error log.  This is how I was able to retrieve the chattebrox error listed below.  If you write something to save it to the DB as well, you may want to consider just having it messaged to the [pmdev] inbox, so we don't have to create yet another table. But that's just an opinion.  It's not real probable for writing some message to the DB to mess something up, as most code is nicely secluded from the rest, and can't do much harm.
+&lt;/p&gt;
+&lt;p&gt;Just for the record, all [gods] are generally equally capable of making decisions regarding the functioning of Perl Monks.
+&lt;/p&gt;
+&lt;p&gt;[theorbtwo], 2003-01-20&lt;br /&gt;
+I wasn't surprised at all to get it, as I've said before, I simply was called away on somthing else, so didn't record it in time.&lt;/p&gt;
+&lt;p&gt;It would be useful, though, for [pmdev]ils, as opposed to only über-[gods] (those with direct access to the server), to be able to translate error IDs to full error messages.  [tye], if I wrote code to dump the errors to a table as well as the server error log, and a thingie to display the records, would you put it in?  I know I start a lot of projects that I never finish, but there's no harm in starting them.  The only downside I see to doing it this way is that if the error turns out to be somthing really serious, trying to write to the DB may fail, or even mess things up, but that doesn't sound real probable.&lt;/p&gt;
+&lt;/p&gt;
+&lt;p&gt;Continued in [id://228724]&lt;/p&gt;</field>
+</data>
+</node>

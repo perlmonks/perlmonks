@@ -1,0 +1,73 @@
+<node>
+  <doctext>Author: &lt;A HREF=&quot;alan@mfgrtl.com&quot;&gt;Alan Citterman&lt;/A&gt;&lt;BR&gt;
+&lt;BR&gt;
+I had a project where I needed to extract data from a file and send&lt;BR&gt;
+it to a customer. The file in question was from a database, and it&lt;BR&gt;
+had been exported to a CSV text file.&lt;BR&gt;
+&lt;BR&gt;
+I would have tried to write my own regular expression to handle this,&lt;BR&gt;
+but my overall knowledge of Perl isn't that good. However, after some&lt;BR&gt;
+research, I found a reference to this module.&lt;BR&gt;
+&lt;BR&gt;
+&lt;CODE&gt;
+#!/usr/bin/perl
+use strict;
+use Text::CSV;
+&lt;/CODE&gt;
+I knew that the text file had lines of data that I didn't need, and&lt;BR&gt;
+that there was an easily recognizable pattern in those lines, so I could&lt;BR&gt;
+use a regular expression to put those lines into a trash file.&lt;BR&gt;
+&lt;BR&gt;
+&lt;CODE&gt;
+my $input=&quot;input.csv&quot;;
+my $output=&quot;output.txt&quot;;
+my $trash=&quot;trashfile&quot;;
+my $csv=Text::CSV-&gt;new();     #Creates a new Text::CSV object
+
+open(INFILE,$input) || die &quot;Can't open file $input&quot;;
+open(OUTFILE,&quot;&gt;$output&quot;) || die &quot;Can't open file $output&quot;;
+open(TRASH,&quot;&gt;$trash&quot;) || die &quot;Can't open file $trash&quot;;
+&lt;/CODE&gt;
+&lt;BR&gt;
+Now to start reading the data from the file, store it in the $_ variable&lt;BR&gt;
+and print it to the trash file if its not good, or parse the variable, and&lt;BR&gt;
+print it to the output file if it is.&lt;BR&gt;
+&lt;BR&gt;
+&lt;CODE&gt;
+while (&lt;INFILE&gt;) {
+if (/&quot;X&quot;/) {   #The trash data has these 3 characters in it
+  print TRASH &quot;$_\n&quot;;
+}
+else {  #Now to deal with the data I want to keep
+  if($csv-&gt;parse($_)) {       #checks to see if data exists in $_ and parses it if it does
+    my @fields=$csv-&gt;fields;  # puts the values from each field in an array
+    my $elements=@fields;     #gets the number of elements in the array
+    for ($x=0;$x&lt;$elements;$x++) {
+      print OUTFILE &quot;$fields[$x]\t&quot;;
+    }
+  }
+}
+}
+&lt;/CODE&gt;
+Now that the files have been written to, I can close them up, and remove&lt;BR&gt;
+the trash file&lt;BR&gt;
+&lt;BR&gt;
+&lt;CODE&gt;
+close INFILE;
+close OUTFILE;
+close TRASH;
+
+unlink $trash;
+&lt;/CODE&gt;
+
+All in all, a very useful module.</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>21156</author_user>
+  <createtime>2001-01-10 21:27:39</createtime>
+  <itemdescription>Manipulation routines for comma-separated values</itemdescription>
+  <identifier></identifier>
+  <node_id>51001</node_id>
+  <usercomment></usercomment>
+  <title>Text::CSV</title>
+  <nodeupdated>2005-08-15 08:47:51</nodeupdated>
+</node>

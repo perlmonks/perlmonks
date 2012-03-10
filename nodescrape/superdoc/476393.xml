@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="476393" title="Call for a Recount" created="2005-07-20 03:28:36" updated="2005-08-22 15:40:20">
+<type id="14">
+superdoc</type>
+<author id="106850">
+pmdev</author>
+<data>
+<field name="doctext">
+[%
+ my $html = "";
+ my $batchsize = 1000;
+ my @results;
+
+ my $submitted = $q-&gt;param('sexisgood');
+
+ my $desc = $q-&gt;param('descending');
+ $desc = 1 if ! $submitted;
+#$q-&gt;param(descending =&gt; $desc);
+ my $noupd = $q-&gt;param('noupdate');
+ my $isgod = isGod($USER);
+ $noupd = 1 if ! $submitted || ! $isgod;
+#$q-&gt;param(noupdated =&gt; $noupd);
+
+ my $timelimit = $q-&gt;param('timelimit');
+ $q-&gt;param('timelimit', ($timelimit = 10))
+    if !defined $timelimit || $timelimit &lt; 1 || $timelimit &gt; 99;
+
+ if ($submitted) {
+     my $from = $q-&gt;param('fromnode') || 1;
+     my $to = $q-&gt;param('tonode') || $DB-&gt;sqlSelect('MAX(node_id)','node');
+     $from = 1 if $from &lt; 1;
+
+     ($from, $to) = (-$to, -$from) if $desc;
+     $html .= "Processing nodes ".abs($from)." to ".abs($to)."&lt;br /&gt;\n";
+     my $next = $from;
+     my $endtime = time() + $timelimit;
+
+     my $dbh = $DB-&gt;getDatabaseHandle();
+     my $sth = $dbh-&gt;prepare(&lt;&lt;EOSELECT)
+select 
+  node_id, 
+  reputation, 
+  votescast,
+  sum(weight),
+  count(weight)
+from node 
+  left join vote on (node_id=vote_id)
+where node_id between ? and ?
+group by node_id desc
+having 
+  count(weight) = 0 and (reputation != 0 or votescast != 0) or
+  count(weight) != 0 and
+    (votescast != count(weight) or reputation != sum(weight)) and
+    max(votetime) &lt; date_sub(now(), interval 1 minute)
+limit 10
+EOSELECT
+         or return "prepare to check votes failed: $DBI::errstr";
+
+     while ($next &lt; $to &amp;&amp; time() &lt; $endtime) {
+         my $limit = $next + $batchsize - 1;
+         $limit = $to if $limit &gt; $to;
+
+         my @between = sort { $a &lt;=&gt; $b } abs($next), abs($limit);
+         $sth-&gt;bind_param( 1, $between[0] )
+             and $sth-&gt;bind_param( 2, $between[1] )
+             or return "bind_param to check votes failed: $DBI::errstr";
+
+         my @row = $dbh-&gt;selectrow_array( $sth );
+         return "select nodes to fix votes failed: $DBI::errstr" if $sth-&gt;err;
+
+         if ($row[0]) {
+             # process $node_id
+
+             if ( ! $noupd ) {
+                 my $err = htmlcode( 'fix_node_votes', $row[0] );
+                 push @row, $err;
+             }
+
+             push @results, \@row;
+
+             $next = ( $desc ? -$row[0] : $row[0] ) + 1;
+         } else {
+             $next = $limit + 1;
+         }
+     }
+
+     $html .= join "",
+         "&lt;table border=1&gt;&lt;tr&gt;",
+         join( "&lt;/tr&gt;\n&lt;tr&gt;",
+             $q-&gt;th([
+                 "Node",
+                 "Old&lt;br /&gt;reputation", "Old&lt;br /&gt;votescast",
+                 "New&lt;br /&gt;reputation", "New&lt;br /&gt;votescast",
+                 "Error"
+             ]),
+             map $q-&gt;td($_), @results
+         ),
+         "&lt;/tr&gt;&lt;/table&gt;";
+
+     $html .= "Processed nodes ".abs($from)." to ".abs($next-1)."&lt;br /&gt;\n";
+
+     if ($next &gt; $to) {
+         $html .= "Finished!";
+         return $html;
+     }
+
+     if ($desc) {
+         $q-&gt;param('tonode', -$next);
+     } else {
+         $q-&gt;param('fromnode', $next);
+     }
+
+ }
+
+ join '',
+     htmlcode('openform'),
+     "From&amp;nbsp;node:", $q-&gt;textfield(-name =&gt; 'fromnode', -size =&gt; 9, -maxlength =&gt; 9),
+     " To&amp;nbsp;node:", $q-&gt;textfield(-name =&gt; 'tonode', -size =&gt; 9, -maxlength =&gt; 9),
+     " Time&amp;nbsp;Limit&amp;nbsp;(s):", $q-&gt;textfield(-name =&gt; 'timelimit', -size =&gt; 2, -maxlength =&gt; 2),
+     $q-&gt;br,
+     $q-&gt;checkbox(-name =&gt; 'descending', -checked =&gt; $desc),
+     $q-&gt;checkbox(-name =&gt; 'noupdate', -checked =&gt; $noupd, ( $isgod ? () : -disabled ) ),
+     $q-&gt;br,
+     htmlcode('closeform'),
+     $q-&gt;hr,
+     $html;
+
+%]
+</field>
+</data>
+</node>

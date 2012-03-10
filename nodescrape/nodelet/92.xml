@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="92" title="Ratings" created="1999-10-04 18:35:06" updated="715827882">
+<type id="9">
+nodelet</type>
+<author id="114">
+gods</author>
+<data>
+<field name="nlcode">
+&lt;table width=100%&gt;&lt;tr&gt;&lt;td bgcolor=#CCCCCC&gt;
+
+
+[{openform}]
+[%
+my $str = "";
+
+return "&lt;i&gt;you have no rating points left&lt;/i&gt;" if (not $$VARS{rating_points});
+if (not defined $$VARS{ratings}) { $$VARS{ratings}="";}
+my @ratednodes = split ',', $$VARS{ratings};
+
+$str .= "you have &lt;b&gt;$$VARS{rating_points}&lt;/b&gt; votes left&lt;br&gt;";
+
+my $id = getId $NODE;
+return $str if (grep { /$id/ } @ratednodes);
+
+if ($query-&gt;param("add_rating")) {
+  my $RATING = insertNode(
+    "$$USER{title}'s rating for node ".getId($NODE),
+    $NODETYPES{rating}, $USER,
+    {rated_node =&gt; getId($NODE),
+    points =&gt; $query-&gt;param("add_rating")}
+  );
+
+  push @ratednodes, getId($NODE);
+  $$VARS{ratings} = join ",", @ratednodes;
+  $$VARS{rating_points}--;
+  return "thanks for voting&lt;br&gt;you have &lt;b&gt;$$VARS{rating_points}&lt;/b&gt; votes left";
+}
+
+
+#use links to get direct pointer to rating
+#so we can see if we let the current noder rate or not
+my @list = (-1, 1);
+my %vals = ($list[0] =&gt; "I dont like this node", $list[1] =&gt; "I like this node");
+$str .= "your vote:&lt;br&gt;"
+  .$query-&gt;radio_group("add_rating", \@list, "", "true", \%vals);
+$str .= $query-&gt;submit("maybsex", "ok")
+  .$query-&gt;end_form;
+$str;
+%]
+&lt;/TD&gt;&lt;/TR&gt;
+&lt;/TABLE&gt;</field>
+<field name="parent_container">
+20</field>
+</data>
+</node>

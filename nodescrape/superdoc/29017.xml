@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="29017" title="and search" created="2000-08-22 14:49:21" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+[{openform}]
+Your search words: &lt;input type="textfield" name="searchwords"&gt;&lt;BR&gt;
+Root nodes only: &lt;input type="checkbox" name="rootonly"&gt;
+[{closeform}]
+[%
+my $searchstr=$query-&gt;param('searchwords');
+return unless $searchstr;
+my @words=split(/\s+/,$searchstr);
+@words=sort{length $b &lt;=&gt; length $a} @words;
+my $wherestr;
+my $note_id=getId(getType("note"));
+my $rootonly=$query-&gt;param('rootonly');
+foreach(@words){
+    $_="doctext like \"\%$_\%\"";
+}
+$wherestr=join ' and ',@words;
+my $csr;
+$csr=$DB-&gt;sqlSelectMany("document_id","document",$wherestr) unless $rootonly;
+$csr=$DB-&gt;sqlSelectMany("document_id","document,node","type_nodetype!=$note_id and document_id=note_id and ".$wherestr) if $rootonly;
+my $str;
+while(my $N=$csr-&gt;fetchrow_hashref){
+   $str.="\n".linkNode($$N{document_id})."&lt;BR&gt;";
+}
+$str;
+%]</field>
+</data>
+</node>

@@ -1,0 +1,169 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+use strict;
+
+## recursively comparing arbitrary heterogenous data structures
+## an experiment in functional programming idioms implemented in perl
+##
+## by anders pearson &lt;anders@columbia.edu&gt;
+## 2001-07-06
+##
+## functions to traverse two arbitrary complex data structures
+## (lists of lists, lists of hashes, lists of hashes of lists and scalars,
+## etc, etc) comparing them by value. 
+## 
+## known issues: 
+##   - does not deal with GLOB,CODE,LVALUE or other more exotic types
+##   - makes no provision for avoiding circular references.
+##     ie, it WILL get stuck on them
+##
+## enjoy and let me know if you see any problems or can think of
+## better ways to do anything.
+
+########### driver functions
+
+# takes references to two data structures and returns
+# 1 if they are different, 0 if they're the same
+# order agnostic (ie ['foo','bar'] == ['bar','foo'])
+
+sub diff {
+    my $r1 = shift;
+    my $r2 = shift;
+    # ld expects references to lists
+    if (&quot;ARRAY&quot; eq ref $r1 &amp;&amp; &quot;ARRAY&quot; eq ref $r2) {
+        return &amp;ld(&quot;&quot;,&quot;&quot;,$r1,$r2,0,1);
+    } else {
+	# if they're not references to lists, we just make them
+        return &amp;ld(&quot;&quot;,&quot;&quot;,[$r1],[$r2],0,1);
+    }
+}
+
+# same as diff but not order agnostic
+# ['foo','bar'] != ['bar','foo']
+sub diff_order {
+    my $r1 = shift;
+    my $r2 = shift;
+    # ld expects references to lists
+    if (&quot;ARRAY&quot; eq ref $r1 &amp;&amp; &quot;ARRAY&quot; eq ref $r2) {
+        return &amp;ld(&quot;&quot;,&quot;&quot;,$r1,$r2,0,0);
+    } else {
+	# if they're not references to arrays, we just make them
+        return &amp;ld(&quot;&quot;,&quot;&quot;,[$r1],[$r2],0,0);
+    }
+}   
+
+# recursively compares two lists by value
+# works for damn near any reasonably complex structure
+# including: lists of scalars, lists of lists, lists of hashes, 
+# lists of hashes of lists of arrays of scalars, etc, etc.
+# arguably should be called data_structures_diff
+# argument $order == 1 means that we don't care about the order
+# ie ['foo','bar'] == ['bar','foo']
+
+sub ld {
+    my $x      = shift;       # first element of first list
+    my $y      = shift;       # first element of second list
+    my $r1     = shift;       # reference to rest of first list
+    my $r2     = shift;       # reference to rest of second list
+    my $sorted = shift;       # whether or not the lists have been sorted
+    my $order  = shift;       # whether we're order agnostic with lists
+
+    my $DIFFERENT = 1;
+    my $SAME      = 0;
+
+    my @xs = @$r1;
+    my @ys = @$r2;
+
+    if(!$sorted &amp;&amp; $order) {
+	@xs = sort @xs;
+	@ys = sort @ys;
+	$sorted = 1;
+    }
+
+    if ($#xs != $#ys) {
+	# lists are different lengths, so we know right off that
+	# they must not be the same.
+	return $DIFFERENT;
+    } else {
+
+	# lists are the same length, so we compare $x and $y
+	# based on what they are
+	if (!ref $x) {
+
+	    # make sure $y isn't a reference either
+	    return $DIFFERENT if ref $y;
+
+	    # both scalars, compare them
+	    return $DIFFERENT if $x ne $y;
+	} else {
+
+	    # we're dealing with references now
+	    if (ref $x ne ref $y) {
+
+		# they're entirely different data types
+		return $DIFFERENT;
+	    } elsif (&quot;SCALAR&quot; eq ref $x) {
+
+		# some values that we can actually compare
+		return $DIFFERENT if $$x ne $$y;
+	    } elsif (&quot;REF&quot; eq ref $x) {
+
+		# yes, we even handle references to references to references...
+		return $DIFFERENT if &amp;ld($$x,$$y,[],[],0,$order);
+	    } elsif (&quot;HASH&quot; eq ref $x) {
+
+		# references to hashes are a little tricky
+		# we make arrays of keys and values (keeping
+		# the values in order relative to the keys)
+		# and compare those.
+		my @kx = sort keys %$x;
+		my @ky = sort keys %$y;
+		my @vx = map {$$x{$_}} @kx;
+		my @vy = map {$$y{$_}} @ky;
+		return $DIFFERENT
+		    if &amp;ld(&quot;&quot;, &quot;&quot;, \@kx,\@ky,1,$order) || 
+			&amp;ld(&quot;&quot;, &quot;&quot;, \@vx,\@vy,1,$order);
+	    } elsif (&quot;ARRAY&quot; eq ref $x) {
+		return $DIFFERENT if &amp;ld(&quot;&quot;,&quot;&quot;,$x,$y,0,$order);
+	    } else {
+		# don't know how to compare anything else
+		die &quot;sorry, can't compare type &quot;, ref $x;
+	    }
+	}
+	if (-1 == $#xs) {
+
+	    # no elements left in list, this is the base case.
+	    return $SAME;
+	} else {
+	    return &amp;ld(shift @xs,shift @ys,\@xs,\@ys,$sorted,$order);
+	}
+
+    }
+}
+
+# some simple examples
+my @l1 = qw/foo bar baz/;
+my @l2 = qw/bar foo baz/;
+
+print &quot;d:  &quot;, &amp;diff(\@l1,\@l2), &quot;\n&quot;;
+print &quot;do: &quot;, &amp;diff_order(\@l1,@l2), &quot;\n&quot;;
+push @l1, {x =&gt; 'y'};
+print &quot;d:  &quot;, &amp;diff(\@l1,\@l2), &quot;\n&quot;;
+print &quot;do: &quot;, &amp;diff_order(\@l1,@l2), &quot;\n&quot;;
+push @l2, {x =&gt; 'y'};
+print &quot;d:  &quot;, &amp;diff(\@l1,\@l2), &quot;\n&quot;;
+print &quot;do: &quot;, &amp;diff_order(\@l1,@l2), &quot;\n&quot;;
+push @l1, [1,2,3];
+push @l2, [3,2,1];
+print &quot;d:  &quot;, &amp;diff(\@l1,\@l2), &quot;\n&quot;;
+print &quot;do: &quot;, &amp;diff_order(\@l1,@l2), &quot;\n&quot;;
+
+__END__
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>94507</node_id>
+  <author_user>77866</author_user>
+  <title>recursively comparing heterogenous data structures</title>
+  <createtime>2001-07-06 16:14:18</createtime>
+  <nodeupdated>2005-08-01 13:27:20</nodeupdated>
+</node>

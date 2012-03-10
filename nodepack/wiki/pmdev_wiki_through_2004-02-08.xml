@@ -1,0 +1,659 @@
+<node>
+  <doctext>Continued from [id://361810]
+
+&lt;p&gt;[demerphq], 2004-02-08&lt;br /&gt;
+I worked up a more flexible approach, and brought my code and names into line I think with [tye]s thinking. I put the code on my [pad://demerphq|scratchpad] for viewing.  Basically its meant to be a code node that is called with arguments for what type ('Best' or 'Selected' or whatever, type 0 and 1) the time period of the sample (in days), with 0 as all, the size of the list, 10 or 20 or whatever, how fresh the data should be (in seconds). If the data selected is too old, the table is updated with new best nodes and selected nodes, and the output is returned. It also knows how to do html or xml output, assuming that I am correct that XML::Fling is ok with html output as well (I cant think why it wouldnt be, but...). This way it can be used as part of a nodelet, or a ticker, or called multiple times from another page. [theorbtwo] pointed me at a new code node thingee, but i cant remember where it is... Anyway, gnight.
+&lt;/p&gt;
+&lt;p&gt;[demerphq], 2004-02-08&lt;br /&gt;
+Ok, I started working on this today. My thinking was to write it from the POV of absolutely minimizing server load for displaying the lists. I hadn't considered the freshness issue of the daily/weekly view but its no problem to add a switch to change what the source of the data is.  My current thinking is to use a table like 
+&lt;/p&gt;
+&lt;code&gt;
+/* Please bear in mind I do sybase not MySQL.... */
+CREATE TABLE picked_nodes (
+  node_id INT(11)       NOT NULL,
+  node_name CHAR(240)   NOT NULL,
+  author_id INT(11)     NOT NULL,
+  author_name CHAR(240) NOT NULL,
+  node_rep INT(11)      NOT NULL,
+  days INT(3)           NOT NULL,
+  picktype int(1)       NOT NULL, /* 0=best, 1=select */
+  seq_num int(3)        NOT NULL,
+  UNIQUE INDEX idx_seq_num     (seq_num ASC,days ASC,picktype ASC)
+) MAX_ROWS=2000 PACK_KEYS=1
+&lt;/code&gt;
+&lt;p&gt;
+With the following update script: (&lt;strong&gt;Update: commented out..&lt;/strong&gt;)
+&lt;/p&gt;
+&lt;!--
+&lt;code&gt;
+my $seth=$dbh-&gt;prepare(qq[
+    INSERT INTO picked_nodes (node_id, node_name, author_id, author_name, node_rep, days, picktype, seq_num)
+                      VALUES (?,       ?,         ?,         ?,           ?,        ?,    ?,        ?)
+]);
+
+$dbh-&gt;do(&quot;DELETE FROM best_nodes&quot;);
+
+my %seen_id;
+foreach my $args (
+  #Days,Limit,Keep
+  [   1,   70, 10 ], # 10 of the best   75 of today
+  [   7,  125, 10 ], # 10 of the best  125 of week
+  [  28,  250, 10 ], # 10 of the best  250 of month
+  [ 182,  500, 10 ], # 10 of the best  500 of the half year
+  [ 365, 1000, 20 ], # 20 of the best 1000 of the year
+  [   0, 2000, 20 ], # 20 of the top 2000 of all time.
+
+) {
+  my ($days,$limit,$num)=@$args;
+  my $WHERE=$days ? &quot;WHERE ( n.ucreatetime + 86400 * ? ) &gt; unix_timestamp()&quot; : &quot;&quot;
+  my $geth=$dbh-&gt;prepare_cached(qq[
+    SELECT n.node_id     node_id,
+           n.title       node_name,
+           a.node_id     author_id,
+           a.title       author_name
+           n.reputation  node_rep,
+      from node n, node a
+    $WHERE
+     ORDER BY n.reputation DESC, n.node_id DESC
+     LIMIT ?
+  ]);
+
+  $geth-&gt;execute(($days ? $days : ()),$limit);
+  my $best=0;
+  my @pick;
+  while (my @row=$geth-&gt;selectrow_array()) {
+    if ($best&lt;$num) {
+        next if $seen_id{$row[0]}++;
+        $seth-&gt;execute(@$_,$days,0,$best++);
+    } else {
+        next if $seen_id{$row[0]};
+        push @pick,\@row;
+    }
+  }
+  # from perldoc -q shuffle
+  my $i;
+  for ($i = @pick; --$i; ) {
+    my $j = int rand ($i+1);
+    @pick[$i,$j] = @pick[$j,$i];
+  }
+  # throw away the rest of the deck
+  splice @pick,$num if @pick&gt;$num;
+  # and insert the sorted remainder
+  my $pick=0;
+  foreach my $node ( sort {    $b-&gt;[-1] &lt;=&gt; $a-&gt;[-1]  # reputation desc
+                            || $b-&gt;[0]  &lt;=&gt; $a-&gt;[0]   # node_id desc 
+                                                      # (newer get a better chance)
+                    } @pick )
+  {
+      $seen_id{$row[0]}++;
+      $seth-&gt;execute($@_,$days,1,$pick++);
+  }
+}
+&lt;/code&gt;
+--&gt;
+&lt;p&gt;
+Which is just a starting point. I realize you said you didnt want names like &quot;node_id&quot; reused, (the underscore rule I dont quote understand...) but I wrote this before you wrote yours, and I think you can see why I would still argue its ok: the whole idea is to avoid any fetches against the node table when displaying the best nodes, everything should be self contained in the picked_nodes table. (But ill change if you feel its necessary.) And yes my intention was to store the reps and displaying &quot;as of&quot; when they are displayed (actually, I was very seriously thinking of omitting rep when displaying entirely.)
+&lt;/p&gt;
+&lt;p&gt;
+The logic is that the best nodes are prestored and the sample of the day, along with titles and author details so that a single fetch with the appropriate picktype ordered by days will get all the sets back in a single fetch (I havent dealt with the 1/7 uncached in the above code yet) which can then be easily converted into a table. No joins against the node table, no secondary fetches for the author details, etc. All of that is done on the cron job.
+&lt;p&gt;
+As for the XML standardization effort, I really hate the element style of XML for its wastefulness, but since you insist, ill look into changing things. (While muttering and grumbling.... :-)
+&lt;/p&gt;
+&lt;hr/&gt;
+&lt;p&gt;[tye], 2004-02-08&lt;br /&gt;
+I don't think that scheme will work for best of day, as that list certainly needs to be less than one day old.  Having best of week be stale will also present problems.  Are you going to present the reps as of the batch run or fetch and show recent reps and if so are you going to re-sort based on them.  I'd probably go with storing the reps and displaying &quot;as of&quot; for weekly and longer lists.
+&lt;/p&gt;&lt;p&gt;
+For best of day, it'd be interesting to compare the DB load of selecting the last 24 hours of nodes ordered by rep (desc) limit 10 vs. caching the approximate rep cut-off for such and selecting the last 24 hours of nodes where rep is above the cut-off (adjusting the cut-off in the cache when it gets too close or not close enough).
+&lt;/p&gt;&lt;p&gt;
+Please don't name fields 'node_id' (nor reuse other field names) as it makes constructing queries more awkward.  Please use underscores in field names iff the field contains a node ID.
+&lt;/p&gt;&lt;p&gt;
+Thanks for the work on standardizing the XML feeds.  It is my experience that we have less trouble with XML feeds the fewer attributes we use.  So I'd rather standardize XML feeds in that direction (every datum in its own nested tag).
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2004-02-08&lt;br /&gt;
+In light of [tye]s comment in PMD, I was thinking of the following: A table with three columns: ID, node_id, days. ID would be unique for the table (PK-Auto increment), node_id is obvious, days would indicate how many days going back the sample was from. Each night when $NORM was caluclated the table would be emptied an repopulated. So if we were to do best of year, best of month, best of week and best of day, we would insert the appropriate amount needed by the random code. So for instance we would have say 1000 x days=0, 500 x days=30, 100 x days=7 and 50 x days=1. As they would be inserted in sorted order the index on ID would be sufficient to get them in sorted order out the query when needed.  The random code would extract the full lot (and possibly cache it anyway), the best of would select only the required limited rows. 
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-02-07&lt;br /&gt;
+Hopefully the patch I posted today to [Best Nodes] will relieve us of the need of discussing them all the time. :-) OTOH, probably not. &lt;br /&gt;
+Update: its been tested now on the secret test server. Didnt crash and I dont think its performance is noticably different.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-02-01&lt;br /&gt;
+Ok, ive posted two new patches for [addnewnoteform] and [addnewform]. Part of what I did was a cleanup aimed at ultimately refactoring them.  I also did it partly because certain variables were named differently ($text and $starttext and $html and $str) which made keeping things in synch errorprone.  There is now support for a seperate template variable $VARS-&gt;{template_text}. The current logic works like this:
+if there is a template then its used, if there is additionally a signature its assumed it doesnt have pmsig tags, and they are added automatically. If there is only a signature then it is used and is only wrapped if it doesnt contain sig tags. A warning is generated if a pmsig tag lies at the start of the text, which occurs always when the signature is wrapped. A link to the documentation included in the warning.&lt;br /&gt;
+I have &lt;strike&gt;yet to change&lt;/strike&gt; also patched [user settings] to support the new field. This included links to the documentation for pmsigs and also sample pmsig tags for use. I dont know that I did the latter part correctly.&lt;br /&gt;
+Also I didnt address [tye]s point of splitting the data. Theres no need given the way the logic works. If they only use the signature value it acts old style. If they use the template value it works new style. Documentation would need to be updated once the patches are applied, but they are good enough for the start I think.
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-01-30&lt;br /&gt;
+Regarding my intentions for the signature handling. If [BazB] wants to look into the code changes required for having a seperate template and signature data then all the power to him! I think thats a cool idea and have no problem with his stuff replacing mine.&lt;br /&gt;
+Having said that however, until that is done here is what my plans were:
+&lt;ul&gt;
+&lt;li&gt;
+Add a notification to the page (not the form data which annoyed people) when the signature wrapping has occured. (Along with a link to the features documentation)
+&lt;/li&gt;
+&lt;li&gt;
+Add a notification that detects when the node is fully or mostly wrapped in sig tags. (Along with a link to the the documentation)
+&lt;/li&gt;
+&lt;li&gt;
+Add a link from the appropriate part of [User Settings] to [Customized Signature Handling] to explain how to set up a signature.
+&lt;/li&gt;
+&lt;/ul&gt;
+The one issue that I see with splitting the template from the signature is that a lot of users just wont bother to make the appropriate changes so I think well want to implement the above two features anyway.  So I dont see any reason not to do both.&lt;br /&gt;
+Furthermore if [BazB] or anyone else makes such patches before I get there then no problem for me.  I created the [Customized Signature Handling] documentation specifically so that the implementation code could link to it and thus be self documenting. If anybody does procede in this direction then let me or the SDC know and we'll change the doc node appropriately.&lt;br /&gt;
+Also, we need a better name for the documentation node. Ideas?
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-01-29&lt;br /&gt;
+I don't want the sig tacked on as a separate step.  We should keep it easy for people to customize their sig per node, so it needs to be present in the text form. (Wouldn't it be nice if people took the time to remove items that don't apply like &quot;Code is untested unless otherwise stated&quot; when they didn't write any code or if they actually did test it, for example.)
+&lt;/p&gt;&lt;p&gt;
+However, I think separating the template from the sig would be fine, because then people wouldn't have to paste DIV tags into their template/sig.  Don't forget to write code to split all current users' sigs based on where they've put their DIV tags.
+&lt;/p&gt;&lt;p&gt;
+If you really want to take this on, then you'll need to coordinate with [demerphq] as it conficts with the changes he is making.
+&lt;/p&gt;&lt;p&gt;
+I have a feeling I am forgetting some complication of having separate template/sig, but I just can't think of what it is.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[BazB], 2004-01-29&lt;br /&gt;
+Looking at [id://322009], it looks like [demerphq] is in the process of picking this one up - see his comment of 2004-01-22 there.&lt;br /&gt;
+
+I'm still of the opinion that separating response templates and signatures is a good thing.
+&lt;/p&gt;
+&lt;hr /&gt;
+
+
+&lt;p&gt;[dvergin], 2004-01-29&lt;br /&gt;
+Responding to [BazB]'s query below about why signatures are pre-loaded at form generation time rather than being added at the time the form is submitted. I found the recent conversation in the [Cabalists' Wiki] very helpful (see: [boo_radley] and [demerphq] 2004-01-22 and 23). Don't miss the link to [Customised Signature Handling].
+&lt;/p&gt;
+&lt;p&gt;
+The short course is that the sig is pre-loaded because of the way sigs are used for more than just a pithy quip at the bottom of a posting and sometimes you want to modify or drop the sig (e.g. for a short response where the sig would be longer than the response).
+&lt;/p&gt;
+&lt;p&gt;
+Note that there is now a link to the [Cabalists' Wiki] in the PmDev Nodlet.
+&lt;/p&gt;
+
+&lt;hr /&gt;
+
+&lt;p&gt;[theorbtwo], 2004-01-29&lt;br /&gt;
+Adding a new [user settings] setting is easy.  Just add the code to user settings to be able to set it, and the code (using %VARS, or is that $VARS, I don't remember) to use it.  It will autovivify to undef if not set, but be careful, as it will get saved again as empty-string.  Or is that ' '.  Sorry, I'm a little frazzle-brained at the moment.
+&lt;/p&gt;
+
+&lt;p&gt;[BazB], 2004-01-29&lt;br /&gt;
+
+I've recently been added to [pmdev] (thanks [theorbtwo]!), and I'm still finding my feet.&lt;br /&gt;
+I'm tempted to submit a simple patch to [addnewform] and [addnewnoteform] to place some whitespace between the top of textarea and the signature div tag (and possibly a &lt;code&gt; &lt;!-- write above this line --&gt; &lt;/code&gt; comment) to try and steer users to writing their comments in the right place.&lt;br /&gt;
+As an [editor] (and after beening alerted to this issue by [bart]) I've found a number of posts where the signature div tags have surrounded the entire post.&lt;br /&gt;&lt;br /&gt;
+
+I'm wondering if this a good idea. Is there a reason why signatures can't be added to the post at submit time instead of pre-populating text areas?&lt;br /&gt;&lt;br /&gt;
+
+&lt;b&gt;Update, a few hours later&lt;/b&gt;. OK, I've looked [id://289201], particularly [tye]'s reply at [id://289686].&lt;br /&gt;
+(Mis)using the signature to template replies is interesting, but it does make for extra work (mostly for the authors), moving the div tags around.&lt;br /&gt;
+
+How about separating reply templates and signatures? Again, I'm new to this - is adding an extra user preference a complex affair? Should I be waffling about this in PMD rather than here?
+&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[Coruscate], 2004-01-29&lt;br /&gt;
+Note if you will what happens if you go to the [login] page and hit the submit button without entering a username. Instant Internal Server Error. The simple fix should be adding one line to sub confirmUser within Everything/HTML.pm:&lt;br /&gt;
+&lt;code&gt;
+sub confirmUser {
+    my ($nick, $crpasswd, $ticker) = @_;
+
+    # line added to handle undef nicknames
+    return 0 unless defined $nick;
+&lt;/code&gt;&lt;br /&gt;
+This should also take care of any other methods which may be calling confirmUser() with an undefined nickname. Or, if we wish to stay away from confirmUser(), to restrict it to only the opLogin itself:&lt;br /&gt;
+&lt;code&gt;
+sub opLogin
+{
+    my $user = $query-&gt;param(&quot;user&quot;);
+    my $passwd = $query-&gt;param(&quot;passwd&quot;);
+    my $user_id;
+    my $cookie;
+
+    # modified to handle undefined username
+    $user_id = defined($user) ? (
+      confirmUser( $user, crypt($passwd,$user),
+        ( $query-&gt;param('ticker') eq 'yes' ) )
+    ) : 0;
+&lt;/code&gt;
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[VSarkiss], 2004-01-28&lt;br /&gt;
+Added [id://324739|a patch] to remove [Petruchio]'s comment from [nodelet container].  We all know he's working on it, right?  Just to shrink the amount of data transmitted (few bytes x number of nodelets).  [Petruchio] concurs with change.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2004-01-24&lt;br /&gt;
+[tye]++, all breakage that I knew of looks resolved now.  And I'll remember to be careful adding new fields in the future.&lt;/p&gt;
+&lt;p&gt;Re the [other users] stuff, [tye], [coruscate], and [theorbtwo|myself] were brainstorming the other day, and I think we together hatched a plan that should help things.  In addition to having the user nodes store the last hit time of the user, have a sepperate table.  Delete the users' old entry in the table, and add a new one, when they hit a page.  On every display of other users, delete the outdated rows, and dump the table.  The idea is that this table should stay short -- the number of rows should be approxamately the number of users online, rather then the number of users in the system.  The only real downsides I see are increased complexity, and increased data dupilcation.  (The later shouldn't be too much of a problem, as none of this requires any sort of high reliability.)  Also, it may mean less database round-trips against the user -- but I still don't really understand the node cache on a deep enough level to say much about that.&lt;/p&gt;
+&lt;p&gt;There was also an idea about a generalized cache htmlcode, but I need to get going.&lt;/p&gt;
+&lt;p&gt;I'd love feedback or implementation of that idea.&lt;/p&gt;
+&lt;p&gt;Also, re the signature stuff, we need a htmlcode for &quot;does this string contain the divs&quot;, and one for &quot;return the inital text we should put in the textbox&quot;.  Whenever you see yourself repeating code, a htmlcode is a good idea -- just like subs.&lt;/p&gt;
+&lt;p&gt;Write a patch against [request for new code node] for things like this, BTW.&lt;/p&gt;
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Zaxo], 2004-01-24&lt;br /&gt;
+Cool, [tye], it works.&lt;/p&gt;
+&lt;p&gt;Looking at my [id://322272] again, I don't think it's worth applying without the LIMIT placeholder. The original sprintf code is ugly (imo), but it works fine for security and integer coerciom. That leaves the theoretical improvement in statement caching as the only reason to have the patch. Without both variables in placeholders I doubt that that will happen. I'm going to look for the reason the limit placeholder doesn't work here.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-01-24&lt;br /&gt;
+I renamed node.lastupdate to node.nodeupdated and probably fixed [recently updated home nodes] and can qvickly fix the stuck nodelets, but I'm going to sleep first.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[theorbtwo], 2004-01-18&lt;br /&gt;
+To explain more what [tye] said, there's [pmmodule] nodes that let you view module code, as it exists on the server.  That'd let you view the version of perl, via [Config.pm] (as well as all the compile-time detected bits).  To answer your questions directly: perl 5.6.1, DBI 1.20, DBD::mysql 2.0419, mysql itself &quot;Ver 11.18 Distrib 3.23.56&quot;, and all under FreeBSD 4.6-STABLE.  The version of Everything has significant divergent evolution from the version at everydevel, but was once 0.8 (I think).  Oh, that's what I missed, apache itself: 1.3.27, Apache.pm 1.27, Apache::Registry 2.01.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-01-18&lt;br /&gt;
+Thanks, [Zaxo].  Looks nice.  FYI, the change you made to the inequality wouldn't be enough to get MySQL to use an index.  You need to use something like
+&lt;code&gt;createtime &gt;= DATE_ADD(NOW(),INTERVAL -$days DAY)&lt;/code&gt;.
+&lt;/p&gt;&lt;p&gt;
+The [gods] have [module version report] that should be opened up so [pmdev] can use it and should be updated to report the MySQL version, Perl version, perhaps Apache, FreeBSD, or other versions.  You can also ask for [pmmodule] nodes to be added for things like DBD/mysql.pm.  And [SQL Prompt] should probably allow [pmdev] access if the query starts with &quot;explain &quot;.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[Zaxo], 2004-01-19&lt;br /&gt;
+Thanks, [tye], I've edited [id://322272] to conform to your comments. Too bad about the placeholder LIMIT. I now coerce &lt;tt&gt;$limit&lt;/tt&gt; into an integer before it is interpolated in SQL.&lt;/p&gt;
+&lt;p&gt;Is there a [pmdev] resource to tell what are our target versions of MySQL, Everything, Perl, DBD::mysql,... ?&lt;/p&gt;
+&lt;p&gt;&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-01-18&lt;br /&gt;
+I wouldn't like wasting a table column for date info in [message inbox].  As for &quot;it's a good stopgap measure&quot;, [theorbtwo], perhaps you didn't understand what I'm talking about there -- it just plain doesn't apply to [message inbox].
+&lt;/p&gt;&lt;p&gt;
+Yes, a preview ID table with properly atomic updates (which means we'd have one race condition due to the lack of transactions where we might want to nuke a just-added node -- not much of a problem) would be nice, [demerphq].  I think the details beyond that get a bit tricky (it'd be nice to be intelligent about &lt;i&gt;offering&lt;/i&gt; to update, etc.).  The recent spike in duplicates probably has a lot to do with the site being extra slow, BTW.
+&lt;/p&gt;&lt;p&gt;
+Thanks for the patch, [Zaxo].  Good catch on several points there.  It brings several things to mind, some only somewhat related to that patch.
+&lt;/p&gt;&lt;p&gt;
+I pretty much hate here-docs (they prevent you from just reindenting when you move code, they are broken by invisible whitespace (trailing spaces), and they lead to people doing silly things like &lt;code&gt;@{[...]}&lt;/code&gt; because they are a pain to close/reopen and then must always end in newlines).  So I'd much rather keep the &lt;code&gt;q[ ]&lt;/code&gt;.
+&lt;/p&gt;&lt;p&gt;
+You've left out the parens in an expression (it doesn't break this code, but we've seen that break code twice recently so I don't think it is the best style -- leaving out parens for statement-level calls is fine).
+&lt;/p&gt;&lt;p&gt;
+I've heard reports that &quot;LIMIT ?&quot; doesn't work for some versions of MySQL/DBD... and testing shows that it doesn't work at PerlMonks (even with the 'int' there).
+&lt;/p&gt;&lt;p&gt;
+We don't have an index on user.lasttime and we probably never will (it gets updated *way* too frequently), but if we did, it would be important to rewrite the expression so user.lasttime was by itself on one side of the inequality (otherwise MySQL won't figure out that it can use the index).  I mostly mention this in case anyone fixes the &quot;best nodes&quot; queries (which currently require the entire node table to be scanned -- and I think that may get done once for each httpd process every time the nodelet expires).
+&lt;/p&gt;&lt;p&gt;
+Although spaces outside of parens and not inside (like this) make sense in an English sentence, I find it visually wrong for most code (where the parens don't really mean the same thing).  We've seen the fun you can have with the first part, &quot;print (&quot;, but I find code easier to read when both of those aspects are changed (no space outside the parens and &lt;i&gt;consistant&lt;/i&gt; spaces around the things inside the parens): &lt;code&gt;print( $this, $that );&lt;/code&gt;.  But I suspect I may have an up-hill battle on that point.  For example, the unpatched parts of that code didn't have whitespace inside parens and even used &quot;my (&quot;.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[Zaxo], 2004-01-18&lt;br /&gt;
+Just getting my feet wet here. I've posted [id://322272] to tighten up the SQL called by the [Other Users] list. I haven't seen a route to inject wild SQL, since it currently seems to be called with no arguments, but this closes that possibility. It may also improve statement caching.&lt;/p&gt;
+&lt;p&gt;
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2004-01-17&lt;br /&gt;
+Rgarding dupe checking: If each new node form was provided with a hidden unique id and a table was created tracking whether such ids were already used then dupes would be easily prevented. On submit the dupe-id would be checked to see if it already had a node id assigned to it. If it did, then the node would be rejected with a link to the already created node, otherwise it would insert a record into the dupe-id table containing the dupe-id and the node-id of the newly inserted node. 
+&lt;/p&gt;
+&lt;p&gt;
+Also, Ill be posting some pm-sig related mods in the next week to improve the documentation of the feature and add an alert when it appears the user is having their whole node wrapped accidentally. [Aristotle]: Regarding your two classes in one stuff, I have two issues. First off it just adds to the complexity of determining if the sig contains the tags. Second it joins two features that may or may not be wanted. Consider that some users may want to have some stuff that is displayed even if their personal sig is blocked ([Podmaster] might want his name not to be blocked but instead only the colored stuff blocked) but want to have the whole lot blocked if the the reader doesnt want any signature stuff at all. Maybe thats a bad excuse but it works for me.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2004-01-15&lt;br /&gt;
+As to the message inbox patch, we could go with your right-aligned idea if we added an extra column to the table for date info.  Thanks for putting your comments here -- something we all too often forget about, even I do, while I try to press for more transparency.  Replyable patches should help.  Anyway, I've already changed the patch for that paren issue, on which you're absolutely right.  As to it's applicabilty to [message inbox], while I certianly agree that a better UI needs to be done, it's a good stopgap measure.  And it's applicability to the [editors node display page] is certianly something I had in mind, I just tend to keep the reason field short, because it's length can be limiting.  I'll write more on the [editor's wiki].  (Remember, fellow [pmdev]ils, you can read that.)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-01-15&lt;br /&gt;
+I'd find having the dates up-front and not *quite* lined up (due to varying lengths of monknames) to be pretty annoying.  Having them before the monk name would be better (I'd rather have less clutter, but I could live with it).  I like the 'hover' dates but can see people wanting to be able to see more than one at once.  It'd be cool to have the dates right-justified at the end of each message, but w/o CSS that probably requires they be on separate lines (I'm no HTML expert, so help me out here), which would waste space (but maybe that isn't so bad?).
+&lt;/p&gt;&lt;p&gt;
+So I'm leaning toward &quot;2004-01-15 16:44:27; &lt;i&gt;[tye] says&lt;/i&gt; Achoo!&quot; (though that wouldn't have been my first choice).  Ideas/oppinions?
+&lt;/p&gt;&lt;p&gt;
+I /msg'd [theorbtwo] with feedback on his latest two patches then realized I should have made the comments here.  Re [id://321502], please don't leave off parens in code like &lt;code&gt;getId $AUTHOR == $HTMLVARS{guest_user}&lt;/code&gt; as we just fixed a bug caused by such lack of parens; use &lt;code&gt;getId($AUTHOR)&lt;/code&gt;, please.  I prefer parens even on empty method calls like &lt;code&gt;$q-&gt;params()&lt;/code&gt;. My comments on its interface changes I'll put in the [editors' wiki].
+&lt;/p&gt;&lt;p&gt;
+Re [id://321505], the &quot;reason&quot; mentioning [message inbox] misses a point, I think.  The point of [message inbox] is that it uses a separate form field that can't send public chatter anyway so that the username is found in a separate field (and we need a couple of patches that provide a 'fill in username here' field with a radio button beside it and then teach op=message to use this field for the username to reply to if that radio button is checked).  But the field could be used in the form that the previous patch updated.
+&lt;/p&gt;&lt;p&gt;
+Thanks for the patches, [crazyinsomniac] and [theorbtwo].
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[crazyinsomniac], 2004-01-11&lt;br /&gt;
+We need some kind of timestamp in dem inboxes,
+really, we do *ahem* [id://240370].
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2004-01-10&lt;br /&gt;
+You can't create a [patch] for them, but you can patch them.  You could put them someplace you find convenient or patch the empty 'new code' node.
+&lt;/p&gt;&lt;p&gt;
+If you have a better idea for node presentation then work up a working example.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2004-01-10&lt;br /&gt;
+In trying to update my [id://167905] I've discovered that the site CSS is needlessly specific. If you take a look at [id://234493] and [id://204962] you'll see many selectors of the form &lt;em&gt;element.classname&lt;/em&gt;, even though in the HTML source there's only one kind of element that carries that class. Because they are more specific, such selectors take precendence over selectors of the form &lt;em&gt;.classname&lt;/em&gt;. In almost none of the cases is it necessary to be so specific; it only makes writing custom stylesheets clumsier. There's also the style in [id://234493] that consists almost completely of &lt;tt&gt;inherit&lt;/tt&gt;. This is superfluous since it is already the default, which is in effect at that point because the stylesheet is the first one referenced on all pages. Unfortunately the pages in question are [rawpage] types, so I can't patch them.
+&lt;/p&gt;&lt;p&gt; I also noticed that the &lt;tt&gt;post_*&lt;/tt&gt; classes we used to have were dropped. A pity. As well, we're emitting &lt;tt&gt;id=&lt;/tt&gt; attributes with identical values for several tags on every page; this is invalid. There are also many &lt;tt&gt;BGCOLOR=&lt;/tt&gt; in our tables where there really should be &lt;tt&gt;class=&lt;/tt&gt; and a &lt;tt&gt;background-color&lt;/tt&gt; property for that class.
+&lt;/p&gt;&lt;p&gt; Finallly, in the long term, most all of our table (in table (in table)) markup should be replaced by nested (ordered|unordered|definition) lists. That would make the site much more accessible to disabled visitors as well as better readable using console browsers or things such as WAP devices, not to mention easier to scrape. And of course easier to style using CSS.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[grinder], 2003-12-29&lt;br /&gt;
+I hope someone can apply [id://317553] reasonably quickly as it would correct some broken off-site links.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Corion], 2003-12-05&lt;br /&gt;
+I don't know if the work invested is worth it - people should know that they can't edit their considerations and should thus be careful when entering text (I copy and paste node IDs for that reason). If it is easily implemented, I would go for it, but how many changes to considerations to we actually expect?&lt;br /&gt;
+People being able to clarify their considerations could be a good thing, but if you can't say it in one line, better post a PerlMonks Discussion on it.&lt;br /&gt;
+I see more and more considerations that I consider bogus (for example the &lt;tt&gt;awk&lt;/tt&gt; question was considered off-topic), but that problem won't be solved by this.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[castaway], 2003-12-05&lt;br /&gt;
+Actually the whole point of it *was* to edit what people say, mostly in the type of case where they've said 'dupe of id://XXX', and mistyped the id, or something. (ie not edit the meaning, just the 'format'). I see the main usage for it being people fixing their own considerations.. It's all a case of trusting the [editors], as we do to just 'fix' nodes, and not change their content (which they could, but dont). It's just a quicker way around the 'wait for people to vote something, unconsider, reconsider with corrected text' thing, in the few cases where the consideration is too confusing to make any sense of.
+&lt;p&gt;
+/me is waiting for [tye]s new, improved, approvals code..
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-12-01&lt;br /&gt;
+I just realized more why I don't like editing consideration reasons.  Editors should be janitors, cleaning up seriously broken formatting and improving titles.  Editors should not edit the content of what people say.
+&lt;/p&gt;&lt;p&gt;
+Consideration reasons should not contain much formatting, so I don't see many cases where editing a consideration reason would be both useful and not be modifying the content of what the original considerer wrote.  There will be rare cases, but I think that slope is too slippery and we should just stay off of it rather than offer the ability and try to get editors to only use it in those rare cases.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[tye], 2003-11-30&lt;br /&gt;
+&lt;blockquote&gt;&lt;i&gt;
+which should not appear if the user has no signature (unlike the sig DIVs we currently generate regardless 
+&lt;/i&gt;&lt;/blockquote&gt;&lt;p&gt;
+No, we don't.  Users w/o .sigs get no div tags in their nodes.
+&lt;/p&gt;&lt;p&gt;
+I know almost no CSS and so asked for advice on that more than once.  I'm often surprised how inconsistant responses to CSS questions are. (:
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[Aristotle], 2003-11-30&lt;br /&gt;
+As far as the sig CSS is concerned - it's just hard to get it right if the signature is going to end up as part of the node content. I guess we don't want to back out of it entirely now that we've made a move in that direction. One idea might be to have a separate textarea for the signature whose content only gets wrapped in DIV tags on node creation, and which should not appear if the user has no signature (unlike the sig DIVs we currently generate regardless of whether that is the case). That way, people wouldn't make the same mistakes as currently and there'd be at least a semblance of structure.
+&lt;/p&gt;&lt;p&gt;Btw, do you do know that you can assign more than one class to a single tag? It's not necessary to use two nested DIVs to get both a generic &lt;tt&gt;pmsig&lt;/tt&gt; and a &lt;tt&gt;pmsig-usernode&lt;/tt&gt; class in there. &lt;a href=&quot;http://www.w3.org/TR/html401/struct/global.html#h-7.5.2&quot;&gt;The type of the class attribute's value is defined to be &quot;cdata-list&quot;&lt;/a&gt;, which means you can say &lt;tt&gt;&amp;lt;div class=&quot;pmsig pmsig-114691&quot;&gt;&amp;lt;/div&gt;&lt;/tt&gt;. Thinking about it I might actually whip up a screenscraper to go back and edit my nodes accordingly.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-11-30&lt;br /&gt;
+I'm thinking about disabling the &quot;release patch to pmdev&quot; feature.  Instead, for now, howabout we all just agree to not use it unless there is a real collaberation going on, one patch per user involved causes problems, and you list the authors in the patch reason?
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-11-30&lt;br /&gt;
+I've rewritten almost all of the consideration/approval code to make a big cut in database load.  I hope to install it RSN.
+&lt;/p&gt;&lt;p&gt;
+I don't like the idea of editors editing consideration reasons.  It only takes 1 other person to vote &quot;keep&quot; and the node can be unconsidered and reconsidered which records the author of the new consideration text and lets people revote based on the update.  I disagree that the vote is about the node.
+&lt;/p&gt;&lt;p&gt;
+If the consideration suggests a new title badly, I'll vote &quot;keep&quot;.  An improvement to the title suggestion could make me vote &quot;edit&quot;.  If someone considers a node as &quot;off topic&quot; or &quot;no effort&quot; I'll vote &quot;keep&quot; but if it is updated to indicate that it actually is also a duplicate, then I'll check that fact and then vote &quot;delete&quot;.
+&lt;/p&gt;&lt;p&gt;
+The editor history table might be a good place to record considerations when they are unconsidered.
+&lt;/p&gt;&lt;p&gt;
+I'm not yet sure whether I like or don't like the &quot;vote and consider at once&quot; idea.
+&lt;/p&gt;&lt;blockquote&gt;&lt;i&gt;
+I think the whole idea was too ill-thought-out in the first place.
+&lt;/i&gt;&lt;/blockquote&gt;&lt;p&gt;
+So should we be backing out the pmsig CSS or what?
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-11-30
+&lt;/p&gt;&lt;p&gt;[castaway]: even the second reload could be avoided - currently the nodelet offers &quot;Consider &amp;#91; ] &lt;em&gt;Reason:&lt;/em&gt; &amp;#91;&#195;?&#194;&#183;&#195;?&#194;&#183;&#195;?&#194;&#183;]&quot; (italic text added for clarity). It could instead say &quot;Consider &amp;#91; ] with reason &amp;#91;&#195;?&#194;&#183;&#195;?&#194;&#183;&#195;?&#194;&#183;] and vote ( ) edit ( ) delete (*) nada&quot;. I can't imagine why someone would vote &quot;keep&quot; on his consideration, but I can imagine (because I do so myself sometimes) considering a node one is not sure about one way or other. (And if someone &lt;em&gt;really&lt;/em&gt; wants to consider but vote keep, it's only another reload away. In case anyone ever does.)
+&lt;/p&gt;&lt;p&gt;Keeping votes is ok, but I don't think the &quot;considerer&quot; should be able to edit his consideration. He can always /msg [editors] or something should it be necessary (as used to be done for accidental considerations), but there &lt;em&gt;are&lt;/em&gt; cases where kept votes in conjunction with free changeability of the reason &lt;em&gt;would&lt;/em&gt; be prone to abuse. I could consider a node for a title fix, then change it to &quot;promote to tutorials&quot; or something. I can't think of any more right now, but I've seen retroactive modifiability abused often enough that I would have a &lt;em&gt;very&lt;/em&gt; uneasy gut feeling about voting, were this implemented as is.
+&lt;/p&gt;&lt;p&gt;[diotalevi]: I think the whole idea was too ill-thought-out in the first place. Anything you try to do to make it less horribly flawed will just be hacks.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[diotalevi], 2003-11-30&lt;br /&gt;
+In [id://310973] the data shows some 10% of posts with pmsig tags have mistagged the content as a signature. I'd like to patch [create] so it can look for doctext that matches &lt;code&gt;m(^\s*&lt;div class=&quot;pmsig&quot;)&lt;/code&gt; and redirect to a [preview page]-alike with a warning about the .sig. That'd take a new superdoc wouldn't it? Is that a hard thing to get?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[castaway], 2003-11-30&lt;br /&gt;
+I was thinking of looking at the xml tickers too, things keep occuring to me to do with them. I was waiting for [demerphq] to get on and post and/or explain what he was planning to do with them, so as not to repeat work twice.. But he's taking his time..&lt;/p&gt;
+&lt;p&gt;On another note, I've got a patch for the [Approval nodelet] waiting to be posted. Currently it does the following:&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;Shows vote buttons immediately after a consideration has been made (current implementation requires a reload to vote).
+&lt;/li&gt;&lt;li&gt;Allows writers of considerations, editors and gods to edit/reconsider a considered node by presenting a textfield containing the current consideration text (changes the author to whoever re-considered, keeps votes as they were).
+&lt;/li&gt;&lt;/ul&gt;
+&lt;p&gt;I chose to keep the current set of votes, since they (should be) are about the node itself, and not about the consideration. Eg. if someone considers a node to be deleted, and I think it should just be edited, I vote edit, changing the text of the consideration to say edit rather than delete shouldnt change my opinion of the content. 
+&lt;/p&gt;&lt;p&gt;It's all been tested here as far as possible, anyone have any opinions before I post the patch?
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2003-11-29&lt;br /&gt;
+Yep, you're missing something.  Just go to the node of the table.  (Database tables should have nodes of type [dbtable] to go with them.  If you find one missing, just tell a god, they're trivial to create, because they have no real content (the display pages just ask the db.  See [run your own perlmonks] for code to convert the display pages into a CREATE TABLE statement.))  For example, note that going to [message] gives a [multiple nodes were drunk] page with the opcode and the dbtable.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-11-29&lt;br /&gt;
+Am I missing something? How can I inspect the database schema used for certain tables? I was thinking of taking a stab at implementing [tye]'s [id://310368|plans for the private message xml ticker], but that requires me to have an idea of just what the corresponding table looks like.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[crazyinsomniac] 2003-11-17&lt;br /&gt;
+[lucky://rfc2616.txt|10.5.2 501 Not Implemented] (&lt;CODE&gt;[lucky://rfc2616.txt|10.5.2 501 Not Implemented]&lt;/CODE&gt;)
+results in
+&lt;a href=&quot;http://www.google.com/search?q=rfc2616.txt&amp;btnI=I&quot;&gt;rfc2616.txt&lt;/a&gt;
+which is a bug.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-10-16&lt;br /&gt;
+If you only have 428 rows, then the sql optimizer is likely to skip using keys in lots of cases.  Results on PM:
+&lt;table border=1&gt;
+ &lt;tr&gt;&lt;th&gt;table&lt;/th&gt;&lt;th&gt;type&lt;/th&gt;&lt;th&gt;possible_keys&lt;/th&gt;&lt;th&gt;key&lt;/th&gt;
+  &lt;th&gt;key_len&lt;/th&gt;&lt;th&gt;ref&lt;/th&gt;&lt;th&gt;rows&lt;/th&gt;&lt;th&gt;Extra&lt;/th&gt;&lt;/tr&gt;
+ &lt;tr&gt;&lt;td&gt;node&lt;/td&gt;&lt;td&gt;ref&lt;/td&gt;&lt;td&gt;author&lt;/td&gt;&lt;td&gt;author&lt;/td&gt;
+  &lt;td&gt;4&lt;/td&gt;&lt;td&gt;const&lt;/td&gt;&lt;td&gt;1028&lt;/td&gt;
+  &lt;td&gt;where used; Using filesort&lt;/td&gt;
+ &lt;/tr&gt;
+&lt;/table&gt;
+Which still isn't great.  That's okay, as the proper way to fix duplicate detection is to have a preview ID table.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2003-10-14&lt;br /&gt;
+Two new patches, [id://299083] and [id://299085], submited.  These make the duplicate detection actualy tell the user what node they duplicated, and suggests editing the node or replying to it.  I was going to go further, and extending the duplicate test to also check if the new node had the same title as the last node the author wrote (unless it was a [note] or [categorizedanswer]).  This would require getting the title of the last node they authored, however, at least on my local PM, mysql can't find any indexes to help with this operation:
+&lt;code&gt;
+mysql&gt; explain select title from node where author_user=979 order by node_id desc limit 1;
++-------+-------+---------------+---------+---------+------+------+------------+
+| table | type  | possible_keys | key     | key_len | ref  | rows | Extra      |
++-------+-------+---------------+---------+---------+------+------+------------+
+| node  | index | NULL          | PRIMARY |       4 | NULL |  428 | where used |
++-------+-------+---------------+---------+---------+------+------+------------+
+&lt;/code&gt;
+This is, to say the least, seriously suboptimal.  It is saying, I think, that it has to examine every node in existance.  (There are 428 nodes on my dev copy.)  Ideas, guys?  We could simply store the title of the last node written into $VARS, I suppose, but that feels rather icky.  [repeatedchatter] checks the last 500s worth of chatter, could do similar here, but explain seems to give even worse data for that.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[dvergin], 2003-10-05 &amp;nbsp;
+Confirmed. S'working now. Thanks, [Petruchio]. 
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-10-05&lt;br /&gt;
+Cool! This is very nice.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Petruchio], 2003-10-05&lt;br /&gt;
+Okay, I changed a thing or two... let's try again. And by the way,
+'show containers' always has presented a bit of a warped view of things.
+What we're after, right now, is simply for you guys to be able to use it.
+Making it nice is a whole 'nother thing.  :-)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-10-05&lt;br /&gt;
+Same for me, nothing happens.
+&lt;/p&gt;&lt;p&gt;[dvergin], the cave map was not intended to just be a compilation of cribbed notes. I just never got any further.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Petruchio], 2003-10-05&lt;br /&gt;
+Hrm. Well, that's a bit anticlimactic, isn't it? I'll try to find out why
+it's not working for you.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[dvergin], 2003-10-05&lt;br /&gt;
+Um-hum... But what does 'Show Containers' *do*? I have tried it on several different pages. And 'containers=show' appears in the url. But with a cursory skimming of the various pages under the influence of containers=show, nothing new leaps out. (Perhaps it requires a permission other than pmdev which you have and I do not.)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Petruchio], 2003-10-05&lt;br /&gt;
+I have moved the 'Show Containers' link from the Admin Nodelet to the PmDev
+Nodelet, for your spelunking pleasure. FWIW, I like the map, and would like
+to have more docs.  Feel free to ask me questions, if you're not going to be
+overly disappointed in a &quot;suboptimally punctal&quot; response, or an answer of
+&quot;I don't know&quot;. :-) Have fun.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[dvergin], 2003-10-03&lt;br /&gt;
+Helpful notes, [Aristotle]. Thanks. I'll spend some time with that. I'm still hoping there might be someone willing to indulge some questions so I can build that up into something that has less of a &quot;personal crib notes&quot; sort of feel. 
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Aristotle], 2003-10-03&lt;br /&gt;
+I attempted something like this: [id://243469]. It's mostly a compilation of notes I cribbed from reading this wiki's archives.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[dvergin], 2003-10-03&lt;br /&gt;
+Okay, it's step-up time. I lost my best sharp stick some time back, but I have taken a couple of pretty good pokes at this PmDev thing with an old blunt stick I had laying around. I've read the wikis and looked at the various pages linked in the PmDev Nodelet. It looks like all the details are there (here and there) and I'm sure I would figure it all out if I took the time and didn't mind putting others to bother because of a few experimental goof-ups.
+&lt;/p&gt;
+&lt;p&gt;But then the next person has to go through the whole thing again when it is their turn. I'd rather use that learning time in a way that has a long-term benefit for the community as a whole.
+&lt;/p&gt;
+&lt;p&gt;
+So... I'd be up for preparing a &quot;So Now You're a PmDev&quot; document. If such a thing already exists, I'd be glad for a reference to it. Otherwise, is there someone who knows their way around this place who would be willing to partner with me to fill me in on how things work? (It would also be nice to have a nice pmdev-only node to begin putting the material in.)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-09-29&lt;br /&gt;
+In reply to the comments in [id://295146], you can determine if a patch is against Perl code or HTML code by the type of the node being patched and so the choice of &lt;code&gt;&lt;!-- submitted by tye --&gt;\n&lt;/code&gt; vs. &lt;code&gt;# submitted by tye\n&lt;/code&gt; could be made with certainty and no &quot;danger&quot;.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2003.09-29 CEST&lt;br /&gt;
+I've been working on my local PM of late.  This has generated a lot of patches to fix warnings.  PM runs with warnings disabled for most code; I work with warnings enabled, and displayed.  Does anybody want these?&lt;/p&gt;
+&lt;p&gt;I've been working on getting patches replyable and voteable on my local PM.  It's remarkably easy to get them votable.  Making them replyable is decently easy, if the replies are notes -- that is, readable to all.  I would personaly prefer this.  However, I realize this is a step that the gods are not ready for yet.  Therefore, I'm continuing to work on it.  I belive I'm nearly there.  The changes so far are fairly minimal, and in most cases make the code more clear.  I belive the same changes could also be used to simplify the Q&amp;A section code, which also uses a non-note reply type.&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;[theorbtwo], 2003-09-28 CEST&lt;br /&gt;
+Suggested updates to the [pmdev allowed xml fields], to add in fields that pmdevs can curently screenscrape, but not get from the xml.
+&lt;code&gt;
+strangedoc =&gt; 'code',
+
+opcode     =&gt; 'code',
+image      =&gt; 'src,alt,description' # there's also a thumbsrc, which there is no way to retreive
+# pmmodule -- can't get the code from the xml view, but the code isn't actualy in the db
+# nodelet -- updateinterval and nlgoto aren't sanely retriveable
+htmlpage  =&gt; 'pagetype_nodetype,parent_container,ownedby_theme',  # no sane way to find mimetype
+setting   =&gt; 'vars',
+theme     =&gt; 'vars',
+# nodegroup, usergroup, nodeletgroup -- the group field, which isn't a normal field.
+data      =&gt; 'doctext',
+rawpage   =&gt; 'doctext,datatype',
+&lt;/code&gt;
+This is intended to be added to the existing settings.  (If you can't do that easily, let me know, and I can /msg you the encoded vars.)
+&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;[demerphq], 2003-09-28&lt;br /&gt;
+Ive posted patches to the signature logic in [addnewform] and [addnewnoteform]. Applying them will make the signature logic consistant between the two, and also adds autodetection for signatures with the new tags already in them, as well as not putting the tags on nodes without an autosignature.&lt;br /&gt;
+I've also added [showhints] to preview and reply pages to make them consistant with rootlevel node completion.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[demerphq], 2003-09-21&lt;br /&gt;
+Ok, well I only messaged because I see it as a security issue. Normally I wouldn't. 
+&lt;/p&gt;
+&lt;p&gt;
+However I strongly do not agree with you that this is a client issue that should be resolved there. First off, control chars pass through to the HTML display, which is ugly indeed. Even if at that level there is no attack vector, it does demonstrate how easy it is to overlook the matter. Second, given the somewhat hokey nature of the XML feeds I dont think that that many people actually are using proper XML parsing techniques. Third, its just as easy for them to just write the data directly to a log file and read it raw. Unless there is a clear stated &lt;i&gt;benefit&lt;/i&gt; in preserving these characters they should be removed at source.
+Fourth, I think its worth remembering that amongst more modern programmers knowledge of this attack vector is not well spread. Amongst security aware people it is. 
+&lt;/p&gt;
+&lt;p&gt;
+Anyway, im not going to argue about this beyond what I am putting here. (And no this isnt being passive/agressive. :-) As I said I dont have any time to champion it through the DEV process. Furthermore I personally am not vulnerable in the slightest. Nevertheless my view on security is that its better to secure something once, properly, then have everyone implement their own partial measures. Just as it is better to use one of the established modules to produce/parse HTML or do CGI etc.
+&lt;/p&gt;
+&lt;p&gt;
+Doing it the other way round may never end up with an attack. On the other hand it may. Why take the risk for a reason that has no clearly articulated benefits? What need do we have in the CB for transmitting control chars? What do we really lose by blocking them out? What do we gain from doing so. Cost/benefit analysis of this one says to me that this is a simple call: filter them out. (Im willing to quibble about the chars over 127, but 0..31? What do we need them for in the CB again?)
+&lt;/p&gt;
+&lt;p&gt;
+I would see translation to an safe alternate representation as an acceptable solution however. But to leave them in a form where they can be directly viewed? Bad plan, for no real gain. *shrugs and shakes head disapprovingly*
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-09-20&lt;br /&gt;
+We all get as much of an indication when the wiki is updated as when new /msgs arrive so there is no point in sending a /msg to note a wiki update.
+&lt;/p&gt;&lt;p&gt;
+Actually, this &quot;vulernerability&quot; probably isn't a problem right now because control characters aren't valid in XML and so if you tried to do this you'd likely find that the text client's choice of XML module chokes on the XML and the client just dies (or else the client developer has already run into this is already stripping/whatever any control characters before decoding the XML).
+&lt;/p&gt;&lt;p&gt;
+Certainly don't restrict to &lt;code&gt;[ -~]&lt;/code&gt;.  Yes, characters 0-31 and 128-159 need to be dealt with.  Perhaps they should be turned into &lt;code&gt;&amp;#...;&lt;/code&gt; entities -- it would be interesting to see what the practical end-results of such would be.
+&lt;/p&gt;&lt;p&gt;
+I don't particularly consider it a good idea to make the XML feed &quot;safe&quot; for naive text-only clients.  I'd rather client authors be informed so they can deal with the problem in a sane way.
+&lt;/p&gt;&lt;p&gt;
+I could see stripping 0-8,10-31 and a few of 128-159 (ESC+128 in particular) in the code that takes *in* chatter lines, but I'd rather preserve them if there is a good way to do so.  I'd love to translate them to the proper Unicode character that displays the glyph that represents the control character in question (though I suspect few common fonts have such -- which is okay, they'll just show as a &quot;box&quot; or whatever for people who don't care to upgrade their fonts).  Clients that out Latin-1 instead of UTF-8 can choose to strip/transform such as they like and there is no &quot;risk&quot; involved.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[demerphq], 2003-09-20&lt;br /&gt;
+Its just come to my attention that the way the CB works could be used to attack an end user using a text based chat logger/viewer.  The CB will accept and pass on almost any kind of text such as ANSI control chars. There are a variety of vulnerabilities in assorted ANSI display tools, which could conceivably be used to toast somebodies machine. I suggest the next time the CB code is patched that somebody scrubs control sequences from the display, and probably restrict the char set to 32-127. If I find time I will try to put together a patch, but I don't really have the time to see a patch through the PMDEV process right now.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[tye], 2003-09-15&lt;br /&gt;
+Archived wiki and restored truncated bits.
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[Mr. Muskrat], 2003-09-05&lt;br /&gt;
+I have [id://289343|patched] [id://153] as outlined in [id://174180].&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[dvergin], 2003-08-31&lt;br /&gt;
+Regarding editing [Tutorials] ([VSarkiss] asked about this on 2003-08-26), 
+[Editors] (and perhaps other clans) can edit the [Tutorials] page. But you have to go to the [id://91810] page and *then* click on 'edit' in the Editors Nodelet. If you attempt to edit the standard [id://954] page, you will be refused access. 
+&lt;hr /&gt;
+&lt;p&gt;[belg4mit], 2003-08-28&lt;br /&gt;
+Added section for pending patch comment/review in the middle of the [id://222493] (below Todo list, above [Kudra]'s cruft).
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[tye], 2003-08-27&lt;br /&gt;
+I wouldn't find votes useful (for the reason I gave in [id://283945]).  I'd love more feedback on patches.  Put such in the to-do wiki which hasn't been touched in many months.
+&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[belg4mit], 2003-08-27&lt;br /&gt;
+/me wonders if we ought to have voting on patches. Not to have any sort of
+auto-commit, but for the less sexy ones to be reviewed and develop a consensus
+for the [gods] to take under advisement.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[VSarkiss], 2003-08-26&lt;br /&gt;
+Out of curiousity, why is the [Tutorials] source in an [includefile]?  I know
+brother [footpad] put a lot of work into it, but it's gotten a little out of
+sync. For instance, the new Portugese tutorials don't show up.  Could we
+convert it to a different node type so [editors], [SiteDocClan] and/or
+[pmdev] can update it?&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[theorbtwo], 2003-08-01&lt;br /&gt;
+Actualy, I did notice that little inconsistency when writing the patch.  It probably would have been better to refactor adding and removing ignores into an htmlcode (yeah, that does rather ignore that htmlcodes were designed to give html, so?).  However, allowing op= via get probably is useful enough to be worth it... too bad, as it would be an easy fix, if it worked.  (IOW, it wasn't an unintentional inconsistency, I changed my mind -- without mentioning it, which is probably poor form...)&lt;/p&gt;
+&lt;p&gt;Update: Fixed typo in the patch.  How the hell did that happen?  I could have sworn it was right, and at least one person looked at it after I submitted it...  Oh, and check your clock, tye.&lt;/p&gt;
+&lt;/p&gt;&lt;hr&gt;
+&lt;p&gt;[tye], 2003-08-01&lt;br /&gt;
+Regarding [id://280021], I guess [theorbtwo] has reconsidered his idea to disallow op= via GET. q-:
+&lt;/p&gt;&lt;p&gt;
+We use op= via GET in several places already.  So I think we'll end up with user settings for whether to escape/hide &lt;img&gt; in home nodes and whether to allow op= via GET and chastise anyone who allows both.  I will certainly choose escaping of &lt;img&gt; and allow op= via GET (and change op=nuke to give a confirmation page).
+&lt;/p&gt;&lt;hr /&gt;
+
+&lt;p&gt;[Mr. Muskrat], 2003-07-28 1555 CDT&lt;br /&gt;
+I have submitted a [id://278613|patch] for [id://9953] that corrects the link to the [id://237040].&lt;/p&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-07-28 1533 CDT&lt;br /&gt;
+I have submitted a [id://278604|patch] for [id://5938] as mentioned below.&lt;/p&gt;&lt;hr /&gt;
+&lt;p&gt;[belg4mit], 2003-27-07&lt; br/&gt;
+&lt;blockquote&gt;[eric256] says I was just thinking it would be nice to have search results include a link to super search with the same query. hope this is the right place to ask!&lt;/blockquote&gt;
+I'm thinking this is a bad idea. Namely because I would guess that people
+use very simple search terms for simple search, and such queries are not
+optimized for Super Search. Besides which, there's the matter of picking
+the default mapping.
+&lt;br /&gt;&lt;br /&gt;PS&amp;gt; Would it be possible to backup the wiki/setup a cron job to do so? NN4 can't edit/handle giant &lt;tt&gt;textarea&lt;/tt&gt;s.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[Mr. Muskrat], 2003-07-18 1415 CDT&lt;br /&gt;
+Take a look at [id://5938].  See the paragraph that begins &quot;Now you're probably wondering what are levels and experience good for?&quot;  I think that this can be removed.  I've mentioned it in the [id://174180] as well.  If no one objects, I'll submit a patch to remove it.&lt;/p&gt;
+&lt;hr /&gt;
+
+&lt;p&gt;[theorbtwo], 2003-07-10 0930 CEST&lt;br /&gt;
+As far as the CSS stuff, any reason to allow op= on GET at all?  I say we just allow node access for GET (including wierd nodes that take parameters), and make everything else use POST.  I don't think that should be too onerous.  OTOH, I can think of ways to make a browser do a POST (Use document.write to create a form, then submit it with JS).&lt;/p&gt;
+&lt;p&gt;Anyway, that's not my primary reason for writing this.  Watching nodes is.  That is, the oft-requsted feature of being able to get a /msg for replies to any node, not just your own nodes.  I'd like to implement it, but before I go off and write a bunch of code, I want the oppinon of a God on it, esp since my plan calls for a new colum in the [document] table, which is a fairly major thing to do.&lt;/p&gt;
+&lt;p&gt;I'd like to change [msgonreplytopost] to, instead of checking to see if the author of the parent to the new node has the approps setting set, /msg everybody in the parent nodes msgonreply feild (a space-sepperated list of user nodeids (actualy, we want another space at the end of the list, too)).&lt;/p&gt;
+&lt;p&gt;The msgonreply setting wouldn't be removed, but it would change in meaning.  [node maintaince create] would check that setting, and if set, would make the msgonreply feild contain the nodeid of the author.&lt;/p&gt;
+&lt;p&gt;As far as the UI for users to add and remove themselves from the watchign list, I was thinking a checkbox near the voting radiobuttons.  When generated, it'd need to do an index to see if the user is watching.  When set (via the vote button, I suppose), it'd remove or add the user from the list, as approprate.&lt;/p&gt;
+&lt;p&gt;OK, now, disadvantages I see.  First off, adding the new field is difficult (I should think) in terms of user effort and in terms of disk and cpu load.  Secondly, the more often you update a node, and the longer it takes to do it, the more likely you are to have problems with race conditions.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[crazyinsomniac], 2003-07-06&lt;br /&gt;
+That's not a solution [belg4mit].  I do that for regular surfing, but monks can still steal votes from me and such.  Sure I could avoid homenodes ... or .... but like I said, it's not a solution.
+Everything based websites are more vulnerable because the API is well documented,
+so anyone even remotely interested in messing with us can.
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[belg4mit], 2003-07-06&lt;br /&gt;
+One option to consider, would be to make what I do automagic...
+I usually surf the site at perlmonks.org but when I visit homenodes
+I use www.perlmonks.org (thus the cookie does not transfer, except
+for bad useragents such as some on Mac, altternately one could
+use perlmonks.com)
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[wil], 2003-07-06&lt;br /&gt;
+I vote we just [nuke] and ban [Coruscate].
+&lt;/p&gt;
+&lt;hr /&gt;
+&lt;p&gt;[crazyinsomniac], 2003-07-06&lt;br /&gt;
+I have once more been reminded of the current state of XSS-attack vulnerability
+by [Coruscate].
+He has a bug on his page that redirects all requests coming from his homenode
+to ?op=message;....
+and there's nothing stopping him from doing op=nuke;node_id=22609;#bye bye tye
+and if someone powerful enough happens upon [Coruscate]s homenode, 
+poof goes their node.
+&lt;p&gt;
+I say we either scrub scrub scrub scrub homenode text more harshley (completely disallow SRC attributes, and tags which have them -- who needs images),
+or make certain opcodes (like nuke) be VOID if coming via a GET request.
+The first solution is preferable.
+It's easy enough to avoid links, buttons and javascript, but how do ya avoid images?(yeah, use Mozilla)
+Let's nip in this in the bud already.
+
+
+&lt;/p&gt;
+&lt;hr /&gt;
+Continued in [id://291673]</doctext>
+  <type_nodetype>68046</type_nodetype>
+  <node_id>328159</node_id>
+  <author_user>142755</author_user>
+  <title>pmdev wiki through 2004-02-08</title>
+  <createtime>2004-02-11 00:48:39</createtime>
+  <nodeupdated>2005-08-09 12:43:33</nodeupdated>
+</node>

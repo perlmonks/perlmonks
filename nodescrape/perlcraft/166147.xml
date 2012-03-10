@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="166147" title="html/file security cgi [revisited]" created="2002-05-13 07:11:20" updated="2005-07-21 01:31:35">
+<type id="121">
+perlcraft</type>
+<author id="166142">
+UberDragon13</author>
+<data>
+<field name="doctext">
+When I get a chance I will repost this with the changes suggested by
+you fine Perl Monks.  Remember This is my second perl script
+attempt.  I know I have much to learn.  Please keep the feedback coming
+
+UPDATE[05/15/2002]: I have begun 'fixing' this code.  I realize I still have not
+incorporated the use of strict; and I still have textual
+ passwords that need to be encrypted.  I'm still reading! :)
+
+UPDATE[05/16/2002]: I have incorporated crypt() into the code.
+  I also am now using alot of the CGI.pm features.
+ I am having one heck of a time adding strict to this though.
+
+UPDATE[05/17/2002]: I have actually gotten strict to work! I had to do a little
+ restructuring but it works!  I am going to post a Node in SoPW.  See if there
+ is anything else I need to change on this before I call it good code!
+
+
+
+#!/usr/bin/perl -w
+# (Put the address to the location of PERL on your system.  Find
+#  it with 'which perl')
+use strict;
+use CGI qw/:standard/;
+use CGI::Cookie;
+
+# Where are you keeping the graphic that will be used in place of of
+# The requested graphic (thru ubersecure.cgi?img=Name) if password is not found
+my $imgfile = "/home/user/www/cgi-bin/ubersecure/secure.gif";
+
+# Where you are keeping UberData.txt which holds your KEY|Location
+my $datafile = "/home/user/www/cgi-bin/ubersecure/uberdata.txt";
+
+# Will You need multiple logins or a single login?  (1=multiple,0=single)
+my $multi_in = 1;
+
+# This should point to your uberaccess.txt which holds the name|pass information
+# This is not required for the single user mode
+my $accessfile = "/home/user/www/cgi-bin/ubersecure/uberaccess.txt";
+
+# Password required to login for single user mode.(Default pass is: 1234)
+# This will also be a valid password for multi user mode.
+# You MUST encrypt this password, you can use the following tool:
+# http://www.YourSite.com/cgi-bin/ubersecure/ubersecure.cgi?url=passwd
+my $pass = "USaH0nvPrucUo";
+
+# UserName required to login for single user mode.
+# This will also be a valid login for multi user mode.
+my $goodnick = "1234";
+
+# Address to this script.
+my $thisscript = "http://www.YourSite.com/cgi-bin/ubersecure.cgi";
+
+#Name of the page that you are logging into.
+my $pagename = "UberSecure Test Page";
+
+#Send mail to YOU when someone logs in?
+# 1 = On
+# 0 = Off
+my $send_mail = 0;
+
+#Send mail to YOU when a Keyword / URL isn't found?
+my $send_mail_badurl = 0;
+
+# UNIX path to the mail program on your system.
+# elm, Mail, etc.  If you run into problems, turn mail sending off.
+my $mail = "/var/qmail/bin/qmail-inject";
+
+#Email address to send mail to (your personal e-mail address.)
+#You MUST put a backslash (\) in front of the 'at' (@) sign in the e-mail
+# address.
+my $to_email = "UberDragon13\@hotmail.com";
+
+# Do you wish to log logins?  (1/0)
+# LOG file is NOT auto cleared.  You will have to edit it by hand.  If you
+# delete it, remember to chmod the new file 644 when you re-make it.
+my $log = 1;
+
+#Ask for an e-mail address?  (Will be logged.)
+my $email = 0;
+
+# What is the address to the log file?  (Remember to create the file and
+#                                         to chmod it 644)
+my $log_file = /home/user/www/cgi-bin/ubersecure/ubersecure.log";
+
+# Path to your system's date program for logging.
+my $date_prog = "/bin/date";
+
+# Settings for page colors.
+my $text = "#000000";
+my $link = "green";
+my $vlink = "#663300";
+my $bgcolor = "#FFFFFF";
+my $background = "http://www.YourSite.com/graphics/rb-bak6.jpg";
+my $bgproperties = "fixed";
+##########################################################################
+my $date = `$date_prog '+%D %H:%M:%S'`;
+my $salt = "US";
+my %in = &amp;getcgi;
+
+if ($in{'url'} eq "passwd") { &amp;passwd; exit; }
+
+# Check for presence of Cookie and Parse info into $in
+if ( (cookie('pass')) &amp;&amp; (cookie('name')) ) {
+   $in{'name'} = cookie('name');
+   $in{'pass'} = cookie('pass');
+}
+
+# Check for presence of Access File and Parse info into name and password
+if ($multi_in == 1) {
+  open (DATA, "&lt;$accessfile") or access_error and exit;
+  while(&lt;DATA&gt;){
+    chomp;
+    my ($acc,$accpass) = split'\|',$_;
+    if ( ($acc eq $in{'name'}) &amp;&amp; ($accpass eq $in{'pass'}) ) {
+      $goodnick = $acc;$pass = $accpass;
+    }
+  }
+ close(DATA);
+
+}
+# Check for img link and no password
+if ( ($in{'img'}) &amp;&amp; ($in{'pass'} ne $pass) ) {
+  print header;
+  open(FILE,"$imgfile");
+  while(&lt;FILE&gt;) { print $_; }
+  exit;
+}
+# Make sure its a valid login then do commands
+if ( ($in{'name'} eq $goodnick) &amp;&amp; ($in{'pass'} eq $pass) ) {
+  &amp;send_mail;&amp;log_in;
+  my $cookie_set1 = "Set-Cookie: name=$in{'name'}\n";
+  my $cookie_set2 = "Set-Cookie: pass=$in{'pass'}\n";
+  print $cookie_set1;
+  print $cookie_set2;
+  print header;
+  open (DATA, "&lt;$datafile") or &amp;data_error and exit;
+  while(&lt;DATA&gt;){
+    my ($key,$url)=split'\|',$_;
+    if($key eq $in{'url'}){
+      open(FILE,"$url");
+      while(&lt;FILE&gt;) { print $_; }
+      exit;
+    }
+    if($key eq $in{'img'}){
+      open(FILE,"$url");
+      while(&lt;FILE&gt;) { print $_; }
+      exit;
+    }
+
+  }
+  close(DATA); &amp;key_error; exit;
+}
+# Display Page For Login Error Due to bad pass
+elsif ( ($in{'pass'}) &amp;&amp; ($in{'pass'} ne $pass) ) {
+	&amp;print_badlogin;exit;
+}
+# Display Page for Login Error Due to Bad Login Name
+elsif ( ($in{'name'}) &amp;&amp; ($in{'name'} ne $goodnick) ) {
+	&amp;print_badlogin;exit;
+}
+# Put up page for user to login
+else {
+	print header;&amp;print_login;exit;
+}
+##########################################################################
+# If Specified Send Email to Webmaster about UberSecure
+##########################################################################
+
+sub send_mail {
+ if ( cookie() ) { return 1; }
+  if ($send_mail == 1) {
+   if (-x $mail) {
+    open(MAIL, "|$mail");
+    print MAIL ("To: $to_email\n",
+                "From: UberSecure_v1.1.0\n",
+                "Subject: Login Detected by $in{'name'}\n",
+                "User has logged in to UberSecure v1.1.0\n\n",
+                "$ENV{'REMOTE_ADDR'} (with $ENV{'HTTP_USER_AGENT'})\n\n",
+                "$date\n",
+                "  Name: $in{'name'}\n");
+	if ($email == 1) {
+	  print MAIL "  E-mail: $in{'email'}\n";
+	}
+	close(MAIL);
+  }
+ }
+}
+sub send_mail_badurl {
+ if ($send_mail_badurl == 1) {
+  if (-x $mail) {
+   open(MAIL, "|$mail");
+   print MAIL ("To: $to_email\n",
+               "From: UberSecure_v1.1.0\n",
+               "Subject: Bad URL Key Attempt at $in{'url'}$in{'img'}\n",
+               "$in{'name'} has logged in to UberSecure v1.1.0
+                                            to access --\&gt; $in{'url'}\n\n",
+               "Unfortunately $in{'url'}$in{'img'} does not exist
+                                            in your data file.\n\n",
+               "$ENV{'REMOTE_ADDR'} (with $ENV{'HTTP_USER_AGENT'})\n\n",
+               "$date\n",
+               "  Name: $in{'name'}\n");
+	if ($email == 1) {
+	  print MAIL "  E-mail: $in{'email'}\n";
+   }
+   close(MAIL);
+  }
+ }
+}
+##########################################################################
+# Display Error Page if The Password is Incorrect
+##########################################################################
+
+sub print_badlogin {
+&amp;logerror("Login attempt for $in{'name'} Invalid Attempt");
+print header;
+begin_html("Bad Login Information to $pagename");
+
+print &lt;&lt;"html";
+&lt;center&gt;
+&lt;font size=5&gt;Login Error to: &lt;b&gt;$pagename&lt;/b&gt;&lt;br&gt;&lt;br&gt;
+&lt;/font&gt;
+Please try your Login again!  &lt;a href="$thisscript?url=$in{'url'}"&gt;click here!&lt;/a&gt;
+&lt;/center&gt;
+html
+print end_html;
+exit;
+}
+##########################################################################
+# Display Login Page if No Login/Pass In Cookie
+##########################################################################
+
+sub print_login {
+  begin_html("Login to $pagename");
+  print "&lt;font size=5&gt;Please login to &lt;u&gt;$pagename&lt;/u&gt;&lt;/font&gt;";
+  print start_form(-method=&gt;'post',
+			    -action=&gt;"$thisscript?url=$in{'url'}");
+  print textfield(-name=&gt;'name',
+			    -size=&gt;25,
+			    -maxlength=&gt;25);print " Login Name&lt;BR&gt;";
+  if ($email == 1) {
+  print textfield(-name=&gt;'email',
+				-size=&gt;25,
+				-maxlength=&gt;25);print " Email Address&lt;BR&gt;";
+  }
+  print password_field(-name=&gt;'pass',
+				-size=&gt;25,
+				-maxlength=&gt;25);print " Login Password&lt;BR&gt;&lt;BR&gt;";
+
+  print hidden(-name=&gt;'url',
+			     -default=&gt;$in{'url'});
+
+
+  print submit(-name=&gt;'Submit',
+    			-value=&gt;'Submit');
+
+  print endform;print end_html;
+  exit;
+}
+##########################################################################
+# Parse Information sent thru the URL Command line into $in{}
+##########################################################################
+
+sub getcgi {
+    my $cgi = CGI-&gt;new();
+    my %in = %{$cgi-&gt;Vars};
+    if ($in{'pass'}){$in{'pass'} = crypt($in{'pass'}, $salt);}
+    return %in;
+}
+
+sub logerror {
+  if (! -e "$log_file") {
+		open(FILE, "&gt;$log_file");
+		print FILE "File START $date\n";
+		close(FILE);
+  }
+  if ($log == 1) {
+	my $error = $_[0];
+	open(FILE, "&gt;&gt;$log_file");
+	print FILE "ERROR: $ENV{'REMOTE_ADDR'} (with $ENV{'HTTP_USER_AGENT'}) $date";
+   print FILE "  Name: $in{'name'}\n";
+	if ($email == 1) {
+		print FILE "  E-mail: $in{'email'}\n";
+	}
+   if($in{'url'}){print FILE "  Error Msg: $error [?url=$in{'url'}]\n\n";}
+   if($in{'img'}){print FILE "  Error Msg: $error [?img=$in{'img'}]\n\n";}
+	close(FILE);
+  }
+}
+
+sub log_in {
+   if ($log == 1) {
+	if (! -e "$log_file") {
+		open(FILE, "&gt;$log_file");
+		print FILE "File START $date\n";
+		close(FILE);
+	}
+	open(FILE, "&gt;&gt;$log_file");
+	print FILE "LOGIN: $ENV{'REMOTE_ADDR'} (with $ENV{'HTTP_USER_AGENT'}) $date";
+   print FILE "  Name: $in{'name'}\n";
+	if ($email == 1) {
+		print FILE "  E-mail: $in{'email'}\n";
+	}
+   if($in{'url'}){print FILE "  Command: ?url=$in{'url'}\n\n";}
+   if($in{'img'}){print FILE "  Command: ?img=$in{'img'}\n\n";}
+	close(FILE);
+   }
+}
+
+##########################################################################
+# Display Error Page if Specified Key is not in Data File
+##########################################################################
+sub key_error {
+&amp;send_mail_badurl;&amp;logerror("Specified Key Not Found");
+my $show;
+if($in{'img'}){$show = $in{'img'}};
+if($in{'url'}){$show = $in{'url'}};
+begin_html("Error - Specified Key Not Found");
+
+print &lt;&lt;"EOF";
+&lt;p&gt;&lt;font size="+5"&gt;&lt;b&gt;&lt;font face="Geneva, Arial, Helvetica, san-serif"&gt;
+ERROR 404&lt;/font&gt;&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font face="Verdana, Arial, Helvetica,
+ sans-serif" size="4"&gt;URL Location Not Found - &lt;b&gt;$show&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;Email the &lt;a href="mailto:$to_email"&gt;WebMaster&lt;/A&gt; and let them know!&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&lt;font face="Verdana, Arial, Helvetica, sans-serif" size="-1"&gt;
+    UberSecure v1.3.0 by &lt;a href="
+    mailto:UberDragon13\@Yahoo.com?subject=UberSecure%20v1.3.0%20-%20$thisscript"&gt;
+    UberDragon13\@Yahoo.com&lt;/a&gt;&lt;/font&gt;&lt;/p&gt;
+EOF
+print end_html;
+exit;
+ }
+##########################################################################
+# Display Error Page if Data File is Missing
+##########################################################################
+
+sub data_error {
+&amp;logerror("Missing Data File at $datafile");
+begin_html("Error - Missing Data File");
+print &lt;&lt;"EOF";
+&lt;p&gt;&lt;font size="+5"&gt;&lt;b&gt;&lt;font face="Geneva, Arial, Helvetica, san-serif"&gt;
+ERROR 404&lt;/font&gt;&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font face="Verdana, Arial, Helvetica,
+ sans-serif" size="4"&gt;DataFile Not Found - &lt;b&gt;$datafile&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;Check your configuration in UberSecure.cgi and verify the file exists
+  where the path says it does.&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&lt;font face="Verdana, Arial, Helvetica, sans-serif" size="-1"&gt;
+    UberSecure v1.3.0 by &lt;a href="
+    mailto:UberDragon13\@Yahoo.com?subject=UberSecure%20v1.3.0%20-%20$thisscript"&gt;
+    UberDragon13\@Yahoo.com&lt;/a&gt;&lt;/font&gt;&lt;/p&gt;
+EOF
+print end_html;
+exit;
+}
+##########################################################################
+# Display Error Page if Access File is Missing
+##########################################################################
+
+sub access_error {
+&amp;logerror("Missing Access file at $accessfile");
+print header;
+begin_html("Error - Missing Access List File");
+print &lt;&lt;"EOF";
+&lt;p&gt;&lt;font size="+5"&gt;&lt;b&gt;&lt;font face="Geneva, Arial, Helvetica, san-serif"&gt;
+ERROR 404&lt;/font&gt;&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;&lt;p&gt;&lt;font face="Verdana, Arial, Helvetica,
+ sans-serif" size="4"&gt;AccessFile Not Found  - &lt;b&gt;$accessfile&lt;/b&gt;&lt;/font&gt;&lt;/p&gt;
+&lt;p&gt;Check your configuration in UberSecure.cgi and verify the file exists
+  where the path says it does.&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&amp;nbsp;&lt;/p&gt;
+&lt;p&gt;&lt;font face="Verdana, Arial, Helvetica, sans-serif" size="-1"&gt;
+    UberSecure v1.3.0 by &lt;a href="
+    mailto:UberDragon13\@Yahoo.com?subject=UberSecure%20v1.3.0%20-%20$thisscript"&gt;
+    UberDragon13\@Yahoo.com&lt;/a&gt;&lt;/font&gt;&lt;/p&gt;
+EOF
+print end_html;
+exit;
+}
+##########################################################################
+# Begin the HTML Document
+##########################################################################
+sub begin_html {
+print start_html(           -title=&gt;$_[0],
+			    -meta=&gt;{'author'=&gt;'UberSecure HTML Generator',
+			            'copyright'=&gt;'copyright 2002 UberSecure'},
+			    -BGPROPERTIES=&gt;$bgproperties,
+             -BACKGROUND=&gt;$background,
+			    -BGCOLOR=&gt;$bgcolor,
+			    -TEXT=&gt;$text,
+			    -LINK=&gt;$link,
+			    -VLINK=&gt;$vlink,
+			    -ALIGN=&gt;'center',);
+}
+##########################################################################
+# Subroutine to help admin encrypt the user file password data
+##########################################################################
+sub passwd {
+  if ($in{'htname'}) {
+   if ($in{'htpass'} ne $in{'htpass2'}) {
+      print header;
+      begin_html('Password Mismatch');
+      print &lt;&lt;"EOF";
+      The two passwords you entered DO NOT match!&lt;BR&gt;&lt;BR&gt;
+      &lt;a href="$thisscript?url=passwd"&gt;Click Here&lt;/a&gt; To try again.
+EOF
+      print end_html;
+      exit;
+   }
+   elsif(($in{'htname'}) &amp;&amp; ($in{'htpass'})) {
+      print header;
+      begin_html('Encrypted Results');
+      my $htpass = crypt($in{'htpass'}, $salt);
+      print &lt;&lt;"EOF";
+      Simply Copy/Paste the Encrypted Line to your uberaccess.txt&lt;BR&gt;&lt;BR&gt;
+      Please NOTE There is no known way to decrypt() this Password!&lt;BR&gt;
+      Make sure your User remembers his/her password.&lt;BR&gt;&lt;BR&gt;
+      Encrypted Access line for &lt;code&gt;User[&lt;u&gt;$in{'htname'}&lt;/u&gt;]&lt;/code&gt;
+      with the &lt;code&gt;password[&lt;u&gt;$in{'htpass'}&lt;/u&gt;]&lt;/code&gt; is:&lt;BR&gt;&lt;BR&gt;
+      &lt;h1&gt;$in{'htname'}|$htpass&lt;/h1&gt;
+EOF
+      print end_html;
+      exit;
+   }
+  }
+  print header;
+  begin_html('Get Encrypted Password');
+  print "Fill out this form to produce the encrypted
+          password line in your uberaccess.txt&lt;BR&gt;Note: Login Names and
+          Passwords are &lt;u&gt;case sensitive&lt;/u&gt;!";
+
+  print start_form(-method=&gt;'post',
+			    -action=&gt;"$thisscript?url=passwd");
+
+  print textfield(-name=&gt;'htname',
+			    -size=&gt;25,
+			    -maxlength=&gt;25),
+			    " Enter Login Name&lt;BR&gt;&lt;BR&gt;";
+
+  print password_field(-name=&gt;'htpass',
+				-size=&gt;25,
+				-maxlength=&gt;25),
+				" Enter Desired Password&lt;BR&gt;&lt;BR&gt;";
+
+  print password_field(-name=&gt;'htpass2',
+				-size=&gt;25,
+				-maxlength=&gt;25),
+				" RE-Enter Desired Password&lt;BR&gt;&lt;BR&gt;";
+
+  print hidden(-name=&gt;'url',
+			     -default=&gt;'passwd');
+
+
+  print submit(-name=&gt;'Get Encrypted Line',
+    			-value=&gt;'Get Encrypted Line');
+
+  print endform, end_html;
+  exit;
+
+}
+
+##########################################################################
+# End of Program
+##########################################################################
+
+</field>
+</data>
+</node>

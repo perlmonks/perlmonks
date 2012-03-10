@@ -1,0 +1,244 @@
+<node>
+  <doctext>&lt;SMALL&gt;* if you think that &lt;B&gt; -e, -p, -n,-l, -0,-a, -F &amp; -M&lt;/B&gt; don't seem &lt;I&gt;that&lt;/I&gt; uncommon to you, then this probably isn't the tutorial for you.
+&lt;/SMALL&gt;
+&lt;P&gt;
+&lt;P&gt;
+&lt;P&gt;
+Perl has a bewildering array of choices, some you probably already know -w(warnings), -T(tainting) and -i (inline editing), but the rest?: 
+&lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+(from perl --help)
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;SMALL&gt;
+&lt;PRE&gt;
+&lt;P&gt;
+Usage: perl &amp;#091;switches&amp;#093; &amp;#091;--&amp;#093; &amp;#091;program file&amp;#093; &amp;#091;arguments&amp;#093;&lt;P&gt;
+  -0&amp;#091;octal&amp;#093;       specify record separator (\0, if no argument)
+  -a              autosplit mode with -n or -p (splits $_ into @F)
+  -C              enable native wide character system interfaces
+  -c              check syntax only (runs BEGIN and CHECK blocks)
+  -d&amp;#091;:debugger&amp;#093;   run program under debugger
+  -D&amp;#091;number/list&amp;#093; set debugging flags (argument is a bit mask or alphabets)
+  -e 'command'    one line of program (several -e's allowed, omit programfile)
+  -F/pattern/     split() pattern for -a switch (//'s are optional)
+  -i&amp;#091;extension&amp;#093;   edit &lt;&gt; files in place (makes backup if extension supplied)&lt;P&gt;
+  -Idirectory     specify @INC/#include directory (several -I's allowed)
+  -l&amp;#091;octal&amp;#093;       enable line ending processing, specifies line terminator
+  -&amp;#091;mM&amp;#093;&amp;#091;-&amp;#093;module  execute `use/no module...' before executing program
+  -n              assume 'while (&lt;&gt;) { ... }' loop around program
+  -p              assume loop like -n but print line also, like sed
+  -P              run program through C preprocessor before compilation
+  -s              enable rudimentary parsing for switches after programfile
+  -S              look for programfile using PATH environment variable
+  -T              enable tainting checks
+  -t              enable tainting warnings
+  -u              dump core after parsing program
+  -U              allow unsafe operations
+  -v              print version, subversion (includes VERY IMPORTANT perl info)
+  -V&amp;#091;:variable&amp;#093;   print configuration summary (or a single Config.pm variable)
+  -w              enable many useful warnings (RECOMMENDED)&lt;P&gt;
+  -W              enable all warnings
+  -X              disable all warnings
+  -x&amp;#091;directory&amp;#093;   strip off text before #!perl line and perhaps cd to directory
+&lt;P&gt;
+&lt;P&gt;
+&lt;P&gt;
+&lt;/PRE&gt; 
+&lt;/SMALL&gt;
+
+&lt;P&gt;
+Here we're going to be looking at options we can use with command line scripts, so those opts whose usage falls outside this spec, are beyond the scope of this document and will not be presented for your delectation, though for the curious a full description of what each and every option does can be found in perlrun. &lt;P&gt;
+&lt;P&gt;
+Options covered herein therefor and whencebefore: &lt;P&gt;
+&lt;CODE&gt;
+	-e, -p, -n,-l, -0,-a, -F, -M 
+&lt;/CODE&gt;
+&lt;P&gt;
+
+&lt;H3&gt;First up: -e (execute)&lt;/H3&gt;
+
+Without this none of our examples will work, use it to run script input from the command line, aka one-liners: &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -e '$date=localtime(time); print $date;' 
+&lt;/CODE&gt;
+
+&lt;P&gt;
+you could pass a 200 line script like this - though you might find it a pain to write all on one line. With '-e' beware of quoting though - try running this : &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -e &quot;$date=localtime(time); print $date;&quot;
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;P&gt;
+Windows (using command.com) prefers double quotes, but the above won't work in on *nix, where shells prefer single quotes, and is the style used for the rest of this tutorial. MacOS users (&gt;=OS9) can get more info about command line switches and using them in MacPerl &lt;A HREF=&quot;http://www.macperl.com/macperl/ptf_book/r/MP/405.Operators.html#17&quot;&gt;here&lt;/A&gt;. &lt;P&gt;
+
+&lt;H3&gt;Next up: -l (line endings)&lt;/H3&gt;
+
+You probably noticed after running the previous example, that your shell prompt was rammed against the date output from the script, annoying when that happens isn't it. We could of course slap a new line in there: 
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -e '$date=localtime(time); print $date,&quot;\n&quot;;'
+&lt;/CODE&gt;
+&lt;P&gt;
+but all that quoting gets you carpal tunnel syndrome fast, instead try this: &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -l -e '$date=localtime(time); print $date;'
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;-l&lt;/CODE&gt; is used with &lt;CODE&gt;-n&lt;/CODE&gt; and &lt;CODE&gt;-p&lt;/CODE&gt; and has a dual nature  - on input it behaves like &lt;CODE&gt;chomp()&lt;/CODE&gt;, automatically removing newline characters, while on output, as we've seen, it becomes the anti-chomp, adding newlines. &lt;P&gt;
+caveat: it works it's magic only on &lt;code&gt;print()&lt;/code&gt;
+&lt;P&gt;
+
+&lt;H3&gt;Next up: -n (looping)&lt;/H3&gt;
+
+this option is shorthand for: &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	while(&lt;&gt;) { }
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;P&gt;
+&lt;SMALL&gt;
+(Puzzled by this code example?: the empty diamond operator '&lt;&gt;' means it expects input from outside the script).
+&lt;/SMALL&gt;
+&lt;BR&gt;
+Try passing a text file to this one-liner and see how many words have &quot;ear&quot;s : &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -l -n -e 'print $1 if /(\w+ear)/' some.txt 
+&lt;/CODE&gt;&lt;P&gt;
+&lt;P&gt;
+Ok I lied, there is a difference between the longhand perl &lt;CODE&gt;while (&lt;&gt;) { }&lt;/CODE&gt; statement and &lt;CODE&gt;-n&lt;/CODE&gt;:  you can't use &lt;CODE&gt;next&lt;/CODE&gt; or &lt;CODE&gt;last&lt;/CODE&gt; to exit the loop - however you can use &lt;CODE&gt;BEGIN{ }&lt;/CODE&gt; and &lt;CODE&gt;END { }&lt;/CODE&gt; blocks to get pre and post loop code, run a text file containing some numbers through this baby:&lt;P&gt;
+&lt;CODE&gt;
+perl -l -n -e 'BEGIN{$sum=0;} $sum=$sum+ $1 if /(\d+)/;print $1; END {print &quot;Total: &quot;,$sum}'
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;H3&gt;Next up: -p (looping plus)&lt;/H3&gt;
+
+in longhand it looks like this: &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	while(&lt;&gt;) { print ; }
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;P&gt;
+&lt;SMALL&gt;
+(Puzzled by this code example?: the empty print statement means it prints the $_ variable).&lt;P&gt;
+&lt;/SMALL&gt;
+&lt;BR&gt;
+Run a text through this script and tell it like it is:
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -l -p -e 's/Microsoft/Micro\$\$\$oft/g' some.txt
+&lt;/CODE&gt;
+&lt;P&gt;
+Remember the same caveat applies to &lt;CODE&gt;-p&lt;/CODE&gt; as &lt;CODE&gt;-n&lt;/CODE&gt; - you can't break out of the loop with &lt;CODE&gt;next&lt;/CODE&gt; or &lt;CODE&gt;last&lt;/CODE&gt;. You can use &lt;CODE&gt;BEGIN{ }&lt;/CODE&gt; and &lt;CODE&gt;END { }&lt;/CODE&gt; blocks however:&lt;P&gt;
+&lt;CODE&gt;
+perl -l -n -e 'BEGIN{open (OUT,/path/to/file || die } print  if /^.*\w{2,}.*$/gm; END {close (OUT); }'
+&lt;/CODE&gt;
+&lt;P&gt;
+
+&lt;H3&gt; Next up: -a (split)&lt;/H3&gt;
+&lt;P&gt;
+in longhand: &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	split;
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;SMALL&gt;
+(Puzzled by this code example?: this means the same as @_=split (' ',$_).)
+&lt;/SMALL&gt;
+&lt;P&gt;
+&lt;P&gt;
+The resulting data is put into an array called @F, needs to be used with either &lt;CODE&gt;-n&lt;/CODE&gt; or &lt;CODE&gt;-p&lt;/CODE&gt;. Run a text or string through this script and print out the 5th word of each line: 
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -l -a -n -e 'print $F[5]' some.txt
+&lt;/CODE&gt;
+
+&lt;P&gt;
+If you need to split data on something other than whitespace use &lt;CODE&gt;-F&lt;/CODE&gt;&lt;I&gt;patt&lt;/I&gt; (split pattern): 
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -l -a -F: -n -e 'print $F[0]' /etc/passwd 
+&lt;/CODE&gt;
+
+&lt;H3&gt;Next up: -0 (record separator)&lt;/H3&gt;
+
+Note that's a ZERO not the letter 'O'. Using this is like messing with &lt;CODE&gt;$/&lt;/CODE&gt; in a script, so if you're on an old style MacOS box and you want to edit a text file created on Unix: 
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -012 -e ...
+&lt;/CODE&gt;
+&lt;P&gt;
+You can set any character to be the record separator by giving its octal value to &lt;CODE&gt;-0&lt;/CODE&gt;. Caveat programmer - by assigning a value to &lt;CODE&gt;-0&lt;/CODE&gt; it will logically also affect &lt;CODE&gt;-l&lt;/CODE&gt;. 
+&lt;P&gt;
+
+There are two special octal codes which are used for paragraph mode and slurp mode respectively: 
+&lt;P&gt;
+
+&lt;CODE&gt;
+	-00 ( paragraph mode) -0777 (slurp mode) 
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;SMALL&gt;
+(Puzzled by this code topic?: when perl reads in a file it breaks the data into lines by looking for a newline (\n) character by default. This behaviour can be changed by putting a new value into the $/ variable, notably $/=&quot;&quot; tells perl to see two or more consecutive empty lines as a single empty line allowing you to read in paragraphs at a time, instead of lines. $/=&quot;undef&quot; will allow you to read in a whole file. Like a reminder to the truth of relativity and the relativity of truth, Perl's \n doesn't have a fixed value, panning across systems it's \012 on Unix, on Windows \015\012 and pre OSX Mac \015, so dealing with files originating from other OS needs means your \n, wasn't their\n.)
+&lt;/SMALL&gt;
+
+&lt;H3&gt;Finally: -M (&amp; -m) (modules)&lt;/H3&gt;
+
+The difference is not so huge between these two opts 
+&lt;P&gt;
+&lt;CODE&gt;
+	-M like use Module; 
+	 
+	-m is like use Module(); 
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;SMALL&gt;
+(Puzzled by this code topic?: when you use a module you have two choices:
+&lt;P&gt;
+(a) to pull the functions from the module into your script so you can call them as if they were in your script: 
+&lt;P&gt;
+&lt;CODE&gt;
+	use Wallace(gromit); 
+
+	$saveTheDay=gromit(data);
+&lt;/CODE&gt;
+&lt;P&gt;
+&lt;P&gt;
+b) leave them where they are and call them by their full name:
+&lt;P&gt;
+&lt;CODE&gt;
+	$saveTheDay=Wallace::gromit(data); 
+&lt;/CODE&gt;
+&lt;P&gt;
+	)
+&lt;/SMALL&gt;
+&lt;P&gt;
+Useful for quick checking a module version &lt;P&gt;
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -l -MNet::Telnet -e'print $Net::Telnet::VERSION'
+&lt;/CODE&gt;
+&lt;P&gt;
+ or grabbing a web page 
+&lt;P&gt;
+&lt;CODE&gt;
+	perl -MLWP::Simple -e '$content = get(&quot;http://www.perlmonks.org/&quot;);print $content' 
+&lt;/CODE&gt;
+&lt;P&gt;
+</doctext>
+  <type_nodetype>956</type_nodetype>
+  <node_id>324749</node_id>
+  <author_user>324092</author_user>
+  <title>Uncommon* but Useful Perl Command Line Options for One-liners</title>
+  <createtime>2004-01-28 14:31:44</createtime>
+  <nodeupdated>2005-08-15 13:49:57</nodeupdated>
+</node>

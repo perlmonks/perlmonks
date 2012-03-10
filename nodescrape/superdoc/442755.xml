@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="442755" title="Cabal Matrix" created="2005-03-28 03:47:55" updated="2005-08-22 15:36:03">
+<type id="14">
+superdoc</type>
+<author id="485628">
+PublicAccess</author>
+<data>
+<field name="doctext">
+&lt;p&gt;Who's who in the [Cabal]&lt;/p&gt;
+[%
+use Data::Dumper;
+my %cabal;
+my $cabal = getNode('cabal','usergroup');
+
+my @groups = @{$cabal-&gt;{group}};
+my %groups;
+my %godlike;
+
+@groups{@groups} = ();
+
+while (my $subgroup = shift @groups) {
+    my $nodegroup = selectNode $subgroup;
+
+    if ($nodegroup-&gt;{type}{title} eq "usergroup") {
+        foreach my $userid (@{$nodegroup-&gt;{group}}) {
+            my $user = getNodeById($userid);
+            # add (or add another group to) a user row
+            if ($user-&gt;{type}{title} ne "usergroup") {
+                $cabal{$userid}{$subgroup} = $subgroup;
+                $cabal{$userid}{node} ||= $user;
+                if ( $subgroup == 114 and $user-&gt;{nick} ) {
+                  my $nick=getNode($user-&gt;{nick},'user');
+                  $cabal{$nick-&gt;{user_id}}{114}=$userid;
+                  $cabal{$userid}{114}=$nick-&gt;{user_id};
+                  $godlike{$nick-&gt;{user_id}}=$userid;
+                }
+            }
+            # add nested groups to the queue
+            elsif (!exists $groups{$userid}) {
+                undef $groups{$userid};
+                push @groups, $userid;
+            }
+        }
+    } else {
+        # somebody added a user to [cabal]; go ahead and show it
+        # (as a row, not a column)
+        $cabal{$subgroup}{node} ||= $nodegroup;
+        delete $groups{$subgroup};
+    }
+}
+
+@groups = sort { $a &lt;=&gt; $b } keys %groups;
+my @rows;
+my @cabal = sort { $cabal{$b}{node}{lasttime} cmp
+                   $cabal{$a}{node}{lasttime} } keys %cabal;
+
+foreach my $user (@cabal) {
+    my $usernode = $cabal{$user}{node};
+    my @row = ($user,
+               map {!$cabal{$user}{$_} ? 0 : 
+                      $cabal{$user}{$_}==$_ ? $_ : 
+                        linkNode($_)
+                        .($godlike{$user} 
+                          ? '&lt;br/&gt;via&lt;br/&gt;' 
+                          : '&lt;br/&gt;see also&lt;br/&gt;' )
+                        .linkNode( $cabal{$user}{$_} ) 
+                   } @groups
+    );
+    my $lasthere = htmlcode('timesince', '', $usernode-&gt;{lasttime}, '');
+    push @rows,
+      $query-&gt;td([map { !$_  ? '&amp;nbsp;' : /^\d/ ? linkNode $_ : $_  } @row]) .
+      $query-&gt;td({-align=&gt;'right'}, $lasthere);
+}
+
+return $query-&gt;table(
+    {-border=&gt;1, -cellpadding=&gt;2},
+    $query-&gt;Tr($query-&gt;th('User'),
+               $query-&gt;th({-colspan=&gt;scalar keys %groups}, 'Member of'),
+               $query-&gt;th('Last Here')
+               ),
+    $query-&gt;Tr(\@rows)
+);
+%]</field>
+</data>
+</node>

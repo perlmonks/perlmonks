@@ -1,0 +1,46 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>499687</node_id>
+  <author_user>357600</author_user>
+  <title>move2sect</title>
+  <createtime>2005-10-12 17:15:50</createtime>
+  <code>my ( $movetotype, $sectid, $oldsect, $newsect ) = @_;
+
+my $SETTING= getVars( getNode('approval nodelet settings','setting') );
+my %nonapprovable = (
+  perltutorial =&gt; &quot;pending Tutorials&quot;,
+  offtopicroot =&gt; &quot;the offtopic ghetto&quot;,
+  perlnews =&gt; &quot;Perl News&quot;
+);
+my %allowedTypes =
+  map { $_ =&gt; 1 } (split(/,/, $SETTING-&gt;{types}), keys %nonapprovable );
+
+return &quot;Type unchanged&quot; if $movetotype eq $NODE-&gt;{type}{title};
+return &quot;Not allowed to move to type $movetotype&quot; if ! $allowedTypes{$movetotype};
+
+my $section_id = $SETTING-&gt;{ &quot;${movetotype}_node&quot; };
+if ($section_id) {
+  $$newsect = getNodeById( $section_id )-&gt;{title};
+} elsif ($nonapprovable{$movetotype}) {
+  $$newsect = $nonapprovable{$movetotype};
+} else {
+  return &quot;unexpected node type $movetotype&quot;;
+}
+
+$$oldsect = getNodeById( $$sectid )-&gt;{title};
+$NODE-&gt;{type_nodetype} = getId(getType($movetotype));
+updateNode($NODE,-1);
+
+$DB-&gt;sqlInsert( 'edithistory', {
+  starttext      =&gt; $$oldsect,
+  endtext        =&gt; $$newsect,
+  editor_user    =&gt; getId($USER),
+  -edittime       =&gt; 'now()',
+  fieldname      =&gt; '-section',
+  edithistory_id =&gt; getId($NODE),
+});
+
+return 0;  # done
+</code>
+  <nodeupdated>2005-10-12 13:15:50</nodeupdated>
+</node>

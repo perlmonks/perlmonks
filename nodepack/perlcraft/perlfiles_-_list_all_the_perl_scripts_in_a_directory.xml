@@ -1,0 +1,132 @@
+<node>
+  <doctext>#! /usr/bin/perl -w
+#
+# david landgren
+# perlfiles -- print out the names of all perl scripts in the given directories
+# handy for backticking into vi or grep...
+
+=for perlmonks
+[NB: this was posted in CUFP, which was probably the
+wrong place so it wound up here.
+
+My Perl coding leans more to [id://66379|this] than
+[isbn://1884777791|that] but I am trying to get out of
+the habit.
+
+Be that as it may, I have a ridiculously simple Perl
+script that I use dozens of times a day, and no doubt
+other people will find it useful. It simply prints out
+the names of all the files in a directory that are perl
+files. I can use this to backtick the list into &lt;tt&gt;vi&lt;/tt&gt;
+or &lt;tt&gt;grep&lt;/tt&gt;.
+
+Have fun.
+=cut
+
+use strict;
+use Getopt::Std;
+use vars qw/$opt_u/;
+
+getopts 'u';
+
+@ARGV = ('.') unless @ARGV;
+
+my @files;
+foreach my $dir( @ARGV ) {
+	opendir D, $dir or die &quot;Cannot open directory $dir: $!\n&quot;;
+	while( defined (my $file = readdir(D)) ) {
+		next if $file eq '.' or $file eq '..';
+		$file = &quot;$dir/$file&quot;;
+		open IN, $file or next;
+		my $line = &lt;IN&gt;;
+		close IN;
+		if( $line =~ m{^#!\s*/usr/(?:local/)?bin/perl} ) {
+			if( $opt_u ) {
+				print &quot;$file\n&quot;;
+			}
+			else {
+				push @files, $file;
+			}
+		}
+	}
+	closedir D;
+}
+exit if $opt_u;
+
+local $, = &quot;\n&quot;;
+print sort(@files), &quot;\n&quot;;
+
+=head1 NAME
+
+perlfiles
+
+=head1 SYNOPSIS
+
+B&lt;perlfiles&gt; [B&lt;-u&gt;] [directory] [...]
+
+=head1 DESCRIPTION
+
+Print the names of all perl scripts in a directory. If
+no directory is given the current directory is assumed.
+
+The script opens each file, and looks at the first line
+to decide whether it looks like a shebang line that
+would launch perl.
+
+=head1 OPTIONS
+
+=over 5
+
+=item B&lt;-u&gt;
+
+Unsorted. Do not sort the files, rather, print out the
+filenames in directory order.
+
+=back
+
+=head1 EXAMPLES
+
+C&lt;perlfiles&gt;
+
+	./bar
+	./foo
+	./rat
+	
+C&lt;vi `perlfiles`&gt;
+
+Edit all the perl files in the current directory.
+
+C&lt;vi $(grep -l 'use Socket' $(perlfiles /usr/local/bin))&gt;
+
+Edit all the perl files in /usr/local/bin that use the
+Socket module (assuming a bash- or ksh-like shell).
+
+=head1 BUGS
+
+Will be fooled by any script that uses a tricky shebang
+line, or a C&lt;C:\perl\bin\perl.exe&gt; path. In the latter
+case you probably don't have a real shell, so this
+script probably isn't of much use (and probably in the
+former as well for all I know).
+
+=head1 COPYRIGHT
+
+Copyright (C) 2001 David Landgren.
+
+This script is free software; you can redistribute it
+and/or modify it under the same terms as Perl itself.
+
+=head1 AUTHOR
+
+    David &quot;grinder&quot; Landgren
+    eval {join chr(64) =&gt; qw[landgren bpinet.com]}
+
+=cut
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>68971</node_id>
+  <author_user>29008</author_user>
+  <title>perlfiles - list all the perl scripts in a directory</title>
+  <createtime>2001-04-02 10:36:03</createtime>
+  <nodeupdated>2005-08-05 04:38:05</nodeupdated>
+</node>

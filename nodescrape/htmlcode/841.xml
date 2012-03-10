@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="841" title="superdoc title chooser" created="1999-10-21 20:19:43" updated="2004-12-28 22:50:08">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $part ) = @_;
+$part ||= 0;
+
+my $uid   = getId( $USER );
+
+use Everything::Experience;
+$HTMLVARS{level_titles} ||= getVars( getNode('level titles','setting') );
+
+my %types = (
+  14   =&gt; 'superdoc',
+  1857 =&gt; 'categorized_question',
+  1888 =&gt; 'categorized_answer'
+);
+
+my $type = $types{ $NODE-&gt;{type_nodetype} } || 'other';
+my $nid  = getId( $NODE );
+
+my $whom;
+if ( $uid == $NODE-&gt;{author_user}  &amp;&amp;  $uid != $HTMLVARS{guest_user} ) {
+    $whom = linkNode( $USER, 'you' ) . '!!!';
+} else {
+    my $title = '';
+    if ($NODE-&gt;{author_user} != $HTMLVARS{guest_user}) {
+        my $AUTHOR = $NODE-&gt;{author_user};
+        getRef( $AUTHOR );
+
+        if ( exists $AUTHOR-&gt;{experience} &amp;&amp; $AUTHOR-&gt;{experience} &gt;= 0 ) {
+            $title = $HTMLVARS{level_titles}{getLevel($AUTHOR)};
+            $title = $q-&gt;span( { class =&gt; 'attribution-title' }, " ($title)" ) if $title;
+        }
+    }
+    
+    $whom = linkNode( $NODE-&gt;{author_user} ) . $title;
+}
+
+
+
+my $str = '';
+my $pmdev_ok=Everything::isApproved($USER,getNode( 'pmdev', 'usergroup' ));
+
+if(  2 != $part  ) {
+    $str .= $q-&gt;h3(
+      { class =&gt; $type },
+      length $NODE-&gt;{title} 
+        ? $q-&gt;escapeHTML( $NODE-&gt;{title} ) 
+        : "&amp;#91;untitled node, ID $NODE-&gt;{node_id}&amp;#93;"
+    );
+    if(  'other' eq $type  ) {
+      $str .= $q-&gt;span(
+        { class =&gt; 'attribution' },
+        " by $whom"
+      );
+    } elsif ($pmdev_ok) {
+      $str .= $q-&gt;span(
+        { class =&gt; 'attribution' },
+        "( $whom )"
+      );  
+    }
+    return $str   if  1 == $part;
+}
+
+if(  'other' eq $type  ) {
+  $str .= $q-&gt;span(
+    { class =&gt; 'attribution' },
+    "on ",
+    htmlcode( 'parsetime','', 'createtime' ),
+  );
+}
+
+my $nodeid = linkNode( $NODE, getId($NODE) );
+my $type = $pmdev_ok ? linkNode( $NODE-&gt;{type} ) : $NODE-&gt;{type}{title};
+
+my $code='';
+$code  = linkNode($NODE, 'code', { displaytype =&gt; 'viewcode' })
+    if $pmdev_ok and htmlcode('lookup_patchable_field');
+
+my $print=linkNode( $NODE, 'print', { displaytype =&gt; 'print' } );
+my $wreplies=linkNode( $NODE, 'w/&amp;nbsp;replies',
+                       { displaytype =&gt; 'print', replies =&gt; 1 } );
+my $xml=linkNode( $NODE, 'xml', { displaytype =&gt; 'xml' } );
+
+$str .= ' ' . $q-&gt;span(
+  { class =&gt; 'addlinks' },
+  '(&amp;nbsp;#' . $nodeid . '='. $type. ':&amp;nbsp;'
+  . join(', ', grep { $_ } $print.'&amp;nbsp;'.$wreplies, $xml, $code ) 
+  . '&amp;nbsp;)'
+);
+
+return $str;</field>
+</data>
+</node>

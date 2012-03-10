@@ -1,0 +1,117 @@
+<node>
+  <doctext>#!/usr/bin/perl -w
+
+#
+# This is my first useful piece of code, and I would like
+# comments from people in the know, and anyone else.
+# Specifically, what have I don't wrong, what have I done
+# well? Is there a better way to do it, without using a
+# database? 
+# 
+# I know about some problems, like I should probably be 
+# using html::template, rather than having the first and 
+# second half of the pages sitting in different files
+# Also, it doesn't find all the results. I'll post 
+# some sample data below, for you to look at.
+# Thank you in advance.
+# Once all the changes have been made, should I update
+# this post to show the improvements you've suggested?
+# This was my first go with CGI, databases, and SQL.
+# I will be grateful for any suggestions.
+
+####
+#Data Sample
+#Here are the first three lines of the CSV file
+#&quot;H0001-12&quot;,&quot;0810827085&quot;,$40.00,&quot;FUNCTIONAL SINGING VOICE&quot;,,&quot;MUSI&quot;
+#&quot;H0001-13&quot;,&quot;0921513097&quot;,$5.00,&quot;DIGNITY OF DUST - FREIBERG&quot;,,&quot;ENGL&quot;
+#&quot;H0001-14&quot;,&quot;0919626726&quot;,$5.00,&quot;HDOGRAM&quot;,&quot;PK PAGE&quot;,&quot;ENGL&quot;
+
+#!/usr/bin/perl -w
+
+use strict;
+use DBI;
+use CGI;
+
+$|++;
+
+my @names;
+my $connectstr;
+my $dbh;
+my $sql;
+my $sth;
+my $count=0;
+my $q;
+my $search;
+my $criteria;
+
+$connectstr=&quot;DBI:CSV:f_dir=/home/httpd/data;&quot; .
+                        &quot;csv_eol=\n;&quot; .
+                        &quot;csv_sep_char=,;&quot; .
+                        &quot;csv_quote_char=\&quot;&quot;;
+@names=qw(Consign ISBN Price Title Author Subject);
+
+$q=CGI-&gt;new;
+print $q-&gt;header(-expires=&gt;&quot;-1d&quot;);
+
+open HTML, &quot;startpage&quot; or die &quot;opening startpage: $!\n&quot;;
+print while(&lt;HTML&gt;);
+close HTML or warn &quot;closing startpage: $!\n&quot;;
+
+$search=$1 if ($q-&gt;param('search') =~ /^(Title|Author|ISBN|Subject)$/);
+die &quot;from bad input!\n&quot; unless ($search);
+
+$criteria=$1 if($q-&gt;param('criteria') =~ /(\w*)/);
+die &quot;from bad input!\n&quot; unless ($criteria);
+$criteria =~ tr/a-z/A-Z/;
+
+print $q-&gt;p(&quot;Searching for $search matching $criteria&quot;);
+
+$dbh=DBI-&gt;connect($connectstr)
+	or die &quot;opening connection: $DBI::errstr; stopped\n&quot;;
+$dbh-&gt;{'csv_tables'}-&gt;{'onshelf'} = {'col_names' =&gt; [@names]}; 
+
+$sql=&quot;SELECT * FROM onshelf WHERE $search like ?&quot;;
+
+$sth=$dbh-&gt;prepare($sql)
+	or die &quot;preparing $sql: $DBI::errstr stopped\n&quot;; 
+
+$count=$sth-&gt;execute(&quot;%$criteria%&quot;)
+	or die &quot;executing $sql: $DBI::errstr stopped\n&quot;;
+
+$sth-&gt;bind_columns(\my ($consign, $isbn, $price, $title, $author, $subject));
+
+print $q-&gt;p(&quot;Found $count results&quot;);
+
+print $q-&gt;start_table({-border=&gt;&quot;1&quot;});
+while($sth-&gt;fetch())
+{
+        print $q-&gt;start_Tr(),
+              $q-&gt;td({-width=&gt;'90', -valign=&gt;&quot;top&quot;}, $consign),
+              $q-&gt;td({-width=&gt;'100', -valign=&gt;&quot;top&quot;}, $isbn),
+              $q-&gt;td({-width=&gt;'180', -valign=&gt;&quot;top&quot;}, $title),
+              $q-&gt;td({-width=&gt;'150', -valign=&gt;&quot;top&quot;}, $author),
+              $q-&gt;td({-width=&gt;'50', -valign=&gt;&quot;top&quot;}, $subject),
+              $q-&gt;td({-width=&gt;'60', -align=&gt;&quot;right&quot;, -valign=&gt;&quot;top&quot;},$price),
+              $q-&gt;end_Tr();
+}
+print $q-&gt;end_table();
+
+$dbh-&gt;disconnect();
+
+open HTML, &quot;endpage&quot; or die &quot;opening end page: $!\n&quot;;
+print while(&lt;HTML&gt;);
+close HTML or warn &quot;closing HTML: $!\n&quot;;
+
+
+#
+#Updated March 27, as per tye's suggestions. Thanks Tye.
+#Updated March 27th, again, as per dkubb's suggestions.
+#
+</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>67704</node_id>
+  <author_user>6211</author_user>
+  <title>A Little review for a little DBI and CGI?</title>
+  <createtime>2001-03-28 00:19:21</createtime>
+  <nodeupdated>2005-07-27 23:24:36</nodeupdated>
+</node>

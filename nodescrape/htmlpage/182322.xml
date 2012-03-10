@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="182322" title="dbtable index page" created="1999-11-02 20:59:01" updated="2005-04-16 14:52:30">
+<type id="5">
+htmlpage</type>
+<author id="929">
+developers</author>
+<data>
+<field name="page">
+&lt;p&gt;Indices for database table ["$NODE-&gt;{title}"]&lt;/p&gt;
+[%
+   my $table = $NODE-&gt;{title};
+   my @cols = qw(
+      Name Dup Seq Column Coll Card SubPt Packed Comment );
+   my %cols = ( Name=&gt;'Key_name', Seq=&gt;'Seq_in_index',
+      Dup=&gt;'Non_unique', Column=&gt;'Column_name',
+      Coll=&gt;'Collation', Card=&gt;'Cardinality',
+      SubPt=&gt;'Sub_part', Packed=&gt;'Packed',
+      Comment=&gt;'Comment' );
+   my @fields;
+   {
+      my $dbh= $DB-&gt;getDatabaseHandle();
+      my $sth= $dbh-&gt;prepare( "show index from $table" );
+      $sth-&gt;execute();
+      while(  my $rec= $sth-&gt;fetchrow_hashref()  ) {
+         push @fields, $rec;
+      }
+      $sth-&gt;finish();
+   }
+   my $str = "";
+
+   $str .= "&lt;table border=1&gt;\n";
+   $str .= " &lt;tr&gt;\n";
+   foreach my $fieldname (  @cols  ) {
+      $str .= qq[  &lt;td bgcolor="#cccccc"&gt;
+         &lt;font color="#000000"&gt;$fieldname&lt;/font&gt;&lt;/td&gt;\n];
+   }
+   $str .= " &lt;/tr&gt;\n";
+
+   foreach my $field (  @fields  ) {
+      $str .= " &lt;tr&gt;\n";
+      foreach my $value (  @{$field}{@cols{@cols}}  ) {
+         $value = "&amp;nbsp;"   if  $value eq "";
+         $str .= "  &lt;td&gt;$value&lt;/td&gt;\n";
+      }
+      $str .= " &lt;/tr&gt;\n";
+   }
+   $str .= "&lt;/table&gt;\n";
+
+   return $str;
+%]</field>
+<field name="displaytype">
+index</field>
+</data>
+</node>

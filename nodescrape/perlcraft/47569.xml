@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="47569" title="Supersplit" created="2000-12-20 10:34:05" updated="2005-08-12 20:49:18">
+<type id="121">
+perlcraft</type>
+<author id="41288">
+jeroenes</author>
+<data>
+<field name="doctext">
+package SuperSplit;
+use strict;
+
+=head1 NAME
+
+SuperSplit - Provides methods to split/join in two dimensions
+
+=head1 SYNOPSIS
+ use SuperSplit;
+ 
+ #first example: split on newlines and whitespace and print
+ #the same data joined on tabs and whitespace. The split works on STDIN
+ #
+ print superjoin( supersplit() );
+ 
+ #second: split a table in a text file, and join it to HTML
+ #
+ my $array2D   = supersplit( \*INPUT )  #filehandle must be open
+ my $htmltable = superjoin( '&lt;/TD&gt;&lt;TD&gt;', "&lt;/TD&gt;&lt;/TR&gt;\n  &lt;TR&gt;&lt;TD&gt;", 
+                                 $array2D );
+ $htmltable    = "&lt;TABLE&gt;\n  &lt;TR&gt;&lt;TD&gt;" . $htmltable . "&lt;/TD&gt;&lt;/TR&gt;\n&lt;/TABLE&gt;";
+ print $htmltable;
+ 
+ #third: perl allows you to have varying number of columns in a row,
+ # so don't stop with simple tables. To split a piece of text into 
+ # paragraphs, than words, try this:
+ #
+ undef $/;
+ $_ = &lt;&gt;;
+ tr/.!();:?/ /; #remove punctiation
+ my $array = supersplit( '\s+', '\n\s*\n', $_ );
+ # now you can do something nifty as counting the number of words in each
+ # paragraph
+ my @numwords = (); my $i=0;
+ for my $rowref (@$array) {
+    push( @numwords, scalar(@$rowref) );  #2D-array: array of refs!
+    print "Found $numwords[$i] \twords in paragraph \t$i\n";
+    $i++;
+ }
+
+=head1 DESCRIPTION
+
+Supersplit is just a consequence of the possibility to use 2D arrays in 
+perl. Because this is possible, one also wants a way to conveniently split 
+data into a 2D-array (at least I want to). And vice versa, of course. 
+Supersplit/join just do that. 
+
+Because I intend to use these methods in numerous one-liners and in my 
+collection of handy filters, an object interface is more often than not 
+cumbersome.  So, this module exports two methods, but it's also all it has.  
+If you think modules shouldn't do that, period, use the object interface, 
+SuperSplit::Obj. TIMTOWTDI
+
+=over 4
+
+=item supersplit($colseparator,$rowseparator,$filehandleref || $string);
+
+The first method, supersplit, returns a 2D-array.  To do that, it needs data
+and the strings to split with.  Data may be provided as a reference to a
+filehandle, or as a string.  If you want use a string for the data, you MUST
+provide the strings to split with (3 argument mode).  If you don't provide
+data, supersplit works on STDIN. If you provide a filehandle (a ref to it,
+anyway), supersplit doesn't need the splitting strings, and assumes columns
+are separated by whitespace, and rows are separated by newlines.  Strings
+are passed directly to split.
+
+Supersplit returns a 2D-array or undef if an error occurred. 
+ 
+=item superjoin( $colseparator, $rowseparator, $array2D );
+
+The second and last method, superjoin, takes a 2D-array and returns it as a 
+string. In the string, columns (adjacent cells) are separated by the first 
+argument provided. Rows (normally lines) are separated by the second 
+argument. Alternatively, you may give the 2D-array as the only argument. 
+In that case, superjoin joins columns with a tab ("\t"), and rows with a 
+newline ("\n"). 
+
+Superjoin returns an undef if an error occurred, for example if you give a 
+ref to an hash. If your first dimension points to hashes, the interpreter
+will give an error (use strict).
+
+=back
+
+&lt;READMORE&gt;
+
+=head1 AUTHOR
+
+J. Elassaiss-Schaap
+
+=head1 LICENSE
+
+Perl/ artisitic license
+
+=head1 STATUS
+
+Alpha
+
+=cut
+
+BEGIN{
+   use Exporter;
+   use vars qw( @EXPORT @ISA @VERSION);
+   @VERSION = 0.01;
+   @ISA = qw( Exporter );
+   @EXPORT = qw( &amp;supersplit &amp;superjoin );
+}
+
+sub supersplit{
+        my $handleref = pop || \*STDIN;
+        unless (ref($handleref) =~ /GLOB/){
+           push(@_, $handleref);
+           undef $handleref;
+        }
+        my $second = $_[0] || '\s+';
+        my $first = $_[1] || '\n';
+        $handleref || (my $text = $_[2]);
+        my $index = 0;
+        my $arrayref = [[]] ; 
+        local $/;
+        undef $/;
+        $text = &lt;$handleref&gt; if( ref($handleref) );
+        my @lines = split( $first, $text );
+        for (@lines){
+            $arrayref-&gt;[$index] = [ (split($second) || $_)];
+            $index++;
+        }
+        return $arrayref;
+}
+
+sub superjoin{
+        my $array = pop || return undef;
+        my $first = shift || "\t";
+        my $second = shift || "\n";
+        my $text = '';
+        return undef unless( ref($array) eq 'ARRAY' );
+        return undef unless( ref($array-&gt;[0]) =~ /ARRAY|HASH/ );
+        my $arrayarray = [];
+        for $arrayarray (@$array) {
+                $text .= join( $first, @$arrayarray );
+                $text .= $second;
+        }
+        return $text;
+}
+
+1;
+</field>
+</data>
+</node>

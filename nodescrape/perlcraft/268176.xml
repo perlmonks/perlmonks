@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="268176" title="Something simpler than HTML::Calendar::Simple" created="2003-06-23 10:27:45" updated="2005-06-21 01:30:38">
+<type id="121">
+perlcraft</type>
+<author id="82627">
+oakbox</author>
+<data>
+<field name="doctext">
+#!/usr/bin/perl
+
+# I wanted something VERY SIMPLE for generating an
+# HTML calendar.  I didn't want to wade through the interface
+# for  HTML::Calendar::Simple, or worry about Entities.
+
+# This script looks at the time, backtracks to the first of
+# the month, and then prints out an HTML calendar for this 
+# month.  You can manipulate the month being printed by fiddling
+# with the $now variable and you can put information into the 
+# calendar easily where commented.
+
+# Oakbox Productions - Richard Still (oakbox)
+
+use strict;
+
+my $message;  # variable to hold output
+
+my $now = time;
+
+my @wday = localtime($now);
+
+my %dayrev = (  "0" =&gt; "Sun",
+	        "1" =&gt; "Mon",
+		"2" =&gt; "Tue",
+		"3" =&gt; "Wed",
+		"4" =&gt; "Thu",
+		"5" =&gt; "Fri",
+		"6" =&gt; "Sat");
+
+my %monrev = (  "0" =&gt; "Jan",
+	        "1" =&gt; "Feb",
+		"2" =&gt; "Mar",
+		"3" =&gt; "Apr",
+		"4" =&gt; "May",
+		"5" =&gt; "Jun",
+		"6" =&gt; "Jul",
+		"7" =&gt; "Aug",
+		"8" =&gt; "Sep",
+		"9" =&gt; "Oct",
+		"10" =&gt; "Nov",
+		"11" =&gt; "Dec");
+
+
+use Time::Local;
+
+$message.=qq(&lt;span class="big"&gt; $monrev{$wday[4]} &lt;/span&gt;
+        &lt;br&gt; &lt;table border="1" cellspacing="0" cellpadding"3" width="100%"&gt;
+               &lt;tr bgcolor="#679cd3" class="big"&gt;
+                 &lt;td align="center"&gt; $dayrev{0} &lt;/td&gt;
+                 &lt;td align="center"&gt; $dayrev{1} &lt;/td&gt;
+                 &lt;td align="center"&gt; $dayrev{2} &lt;/td&gt;
+                 &lt;td align="center"&gt; $dayrev{3} &lt;/td&gt;
+                 &lt;td align="center"&gt; $dayrev{4} &lt;/td&gt;
+                 &lt;td align="center"&gt; $dayrev{5} &lt;/td&gt;
+                 &lt;td align="center"&gt; $dayrev{6} &lt;/td&gt;
+               &lt;/tr&gt;);
+
+# I have to move the start date a little bit to get Sunday
+# over to the first position
+
+my $fday = timelocal(0,0,0,1,$wday[4],$wday[5]);
+my @ltime = localtime($fday);
+if($ltime[6] ne "0"){
+    $message.=qq(&lt;tr&gt;);
+
+  foreach my $cl (0...($ltime[6] - 1)){
+    $message.=qq(&lt;td&gt; &amp;nbsp; &lt;/td&gt; );
+  }
+}else{
+
+    $message.=qq(&lt;tr&gt;);
+
+}
+
+my $endm;
+
+foreach my $daycount (1...31){
+   my $thisday;
+   eval {   $thisday = timelocal(0,0,0,$daycount,$wday[4],$wday[5]);  }; 
+   if( $@ ){ next; }
+   my @ltime = localtime($thisday);
+   $endm = $ltime[6]; # signal to next section about what day we ended on
+
+   my $color = qq();
+
+## This is where you want to put stuff INTO your calendar
+## but that's optional :)
+
+   $message.=qq(&lt;td $color&gt; $daycount&lt;p&gt; &amp;nbsp; &lt;/td&gt;\n);
+
+   if($ltime[6] eq "6"){ $message.=qq(&lt;/tr&gt;&lt;tr&gt;\n); }
+}
+
+# close up the table by filling in any missing days
+
+if($endm ne "6"){
+  foreach my $cl (($endm+1)...6){
+    $message.=qq(&lt;td&gt; &amp;nbsp; &lt;/td&gt; );
+  }
+}
+    $message.=qq(&lt;/tr&gt;&lt;/table&gt;);
+
+
+# little html out template
+
+ my $html_frame=qq(&lt;html&gt;
+			&lt;head&gt;
+&lt;style type="text/css"&gt;
+&lt;!--
+td, body, p {  font-family: Arial, Helvetica, sans-serif; font-size: 12px}
+.big {  font-family: Arial, Helvetica, sans-serif; font-size: 14px}
+--&gt;
+&lt;/style&gt;
+&lt;meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"&gt;
+&lt;/head&gt;
+
+&lt;body bgcolor="#FFFFFF" text="#000000"&gt;
+&lt;p&gt;$message&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;);
+	
+print "Content-type: text/html\n\n";
+print "$html_frame";
+
+exit;</field>
+</data>
+</node>

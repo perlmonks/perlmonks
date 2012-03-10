@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="562746" title="mod_perl / Apache::Registry accidental closures" created="2006-07-20 20:45:07" updated="2006-07-20 16:45:07">
+<type id="956">
+perltutorial</type>
+<author id="502468">
+imp</author>
+<data>
+<field name="doctext">
+When working with Apache::Registry it is very easy to create accidental closures.&lt;br&gt;
+This is due to the way Apache::Registry makes a fake package for your script, as I'll demonstrate in this tutorial.
+&lt;p&gt;
+The only indication that something is amiss (other than the unpredictable behaviour) will be the following line in your error log: &lt;i&gt;Variable "$foo" will not stay shared at ...&lt;/i&gt;
+&lt;p&gt;
+The following code demonstrates the problem with accidental closures when using Apache::Registry.
+&lt;code&gt;
+use strict;
+use warnings;
+
+my $foo = 5;
+
+print "Content-type: text/plain\n";
+print "Content-disposition: inline; filename=foo.txt\n\n";
+
+printf "Package: %s\n", __PACKAGE__;
+printf "[%s] Before: %s\n", $$, $foo;
+badness(5);
+printf "[%s] After: %s\n", $$, $foo;
+
+sub badness {
+    my $val = shift;
+    printf "[%s] badness: %s\n", $$, $foo;
+    $foo += $val;
+}
+&lt;/code&gt;
+&lt;p&gt;
+
+Apache::Registry will take the above code and create a new package for it based on the ServerName and the name of the script,
+ and then wrap the code in a sub handler {} block.
+
+&lt;p&gt;
+
+
+If your script is running on "foo.com" and is named "test.pl", then this is what the above code will look like after Apache::Registry is done:
+&lt;p&gt;
+
+
+&lt;code&gt;
+package Apache::ROOTfoo_2ecom::test_2epl;
+use Apache qw(exit);
+sub handler {
+#line 1 /www/foo.com/test.pl
+use strict;
+use warnings;
+
+my $foo = 5;
+
+print "Content-type: text/plain\n";
+print "Content-disposition: inline; filename=foo.txt\n\n";
+
+printf "Package: %s\n", __PACKAGE__;
+printf "[%s] Before: %s\n", $$, $foo;
+badness(5);
+printf "[%s] After: %s\n", $$, $foo;
+
+sub badness {
+    my $val = shift;
+    printf "[%s] badness: %s\n", $$, $foo;
+    $foo += $val;
+}
+
+}
+&lt;/code&gt;
+
+
+&lt;u&gt;First run:&lt;/u&gt;
+&lt;code&gt;
+Package: Apache::ROOTfoo_2ecom::test_2epl
+[13520] Before: 5
+[13520] badness: 5
+[13520] After: 10
+&lt;/code&gt;
+
+
+&lt;u&gt;Second:&lt;/u&gt;
+&lt;code&gt;
+Package: Apache::ROOTfoo_2ecom::test_2epl
+[19331] Before: 5
+[19331] badness: 5
+[19331] After: 10
+&lt;/code&gt;
+
+&lt;u&gt;Third:&lt;/u&gt;
+&lt;code&gt;
+Package: Apache::ROOTfoo_2ecom::test_2epl
+[19331] Before: 5
+[19331] badness: 10
+[19331] After: 5
+&lt;/code&gt;
+
+
+&lt;u&gt;Fourth:&lt;/u&gt;
+&lt;code&gt;
+Package: Apache::ROOTfoo_2ecom::test_2epl
+[19331] Before: 5
+[19331] badness: 15
+[19331] After: 5
+&lt;/code&gt;
+
+Notice how the number within the badness sub is increasing for each process, but the $foo that is seen by the instance script is never modified after 'badness' after the first execution for that process.
+
+&lt;p&gt;
+
+This is because the badness function is actually an inner function now,
+and it keeps a reference to the instance of $foo that was created for the 
+first run.
+
+&lt;p&gt;
+&lt;b&gt;Edit - example of how to avoid this issue added, per rhesa's suggestion&lt;/b&gt;&lt;br&gt;
+
+&lt;p&gt;
+Thankfully it is easy to avoid these problems once you know why they occur.&lt;br&gt;
+Tips:
+&lt;ul&gt;
+&lt;li&gt;Keep your toplevel script minimal&lt;/li&gt;
+&lt;li&gt;Subroutines should only use the variables that were passed&lt;/li&gt;
+&lt;li&gt;Encapsulate behaviour in supporting objects&lt;/li&gt;
+&lt;/ul&gt;
+
+Example of a working alternative:
+&lt;code&gt;
+use strict;
+use warnings;
+
+my $foo = 5;
+
+print "Content-type: text/plain\n";
+print "Content-disposition: inline; filename=foo.txt\n\n";
+
+printf "Package: %s\n", __PACKAGE__;
+printf "[%s] Before: %s\n", $$, $foo;
+
+badness(\$foo, 5);
+badness(\$foo, 5);
+printf "[%s] After: %s\n", $$, $foo;
+
+sub badness {
+    my ($foo,$val) = @_;
+    printf "[%s] badness: %s\n", $$, $$foo;
+    $$foo += $val;
+}
+&lt;/code&gt;
+
+
+</field>
+</data>
+</node>

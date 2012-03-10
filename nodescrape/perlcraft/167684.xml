@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="167684" title="is_constant() - a routine that detects constant subs" created="2002-05-19 14:23:08" updated="2005-07-21 01:31:35">
+<type id="121">
+perlcraft</type>
+<author id="159343">
+samtregar</author>
+<data>
+<field name="doctext">
+=pod
+
+is_constant($sub_name) - returns true if subroutine is a 
+constant, false if not.  $sub_name must be the fully 
+qualified name (Package::name) of a subroutine.
+
+=cut
+
+sub is_constant {
+    no strict 'refs';
+    my $name = shift;
+    my $code = *{$name}{CODE};
+
+    # must have any empty prototype to be a constant
+    my $proto = prototype($code);
+    return 0 if defined $proto and length $proto;
+
+    # attempt to redefine to itself - this will cause a 
+    # warning for a real constant that starts with "Constant"
+    my $is_const;
+    {
+        local $SIG{__WARN__} = sub { $is_const = 1 if $_[0] =~ /^Constant/ };
+        eval { *{$name} = sub () { "TEST" } };
+    }
+        
+    # set it back
+    {
+        no warnings;
+        eval { *{$name} = $code; };
+    }
+
+    # all done
+    return $is_const;
+}
+</field>
+</data>
+</node>

@@ -1,0 +1,52 @@
+<node>
+  <doctext>#!/usr/bin/perl
+use strict;
+
+use LWP::Simple;
+use HTML::Parse;
+use HTML::FormatText;
+use URI::Escape;
+
+my ($word, $dict, $url, $html, $ascii);
+unless(defined $ARGV[0]){
+        print &quot;usage: \n&quot;;
+        print &quot;dictionary:      lookup.pl &lt;word&gt; | '&lt;phrase&gt;'\n&quot;;
+        print &quot;thesaurus:       lookup.pl -syn &lt;word&gt; | '&lt;phrase&gt;'\n&quot;;
+        print &quot;word du jour:    lookup.pl -wod\n&quot;;
+        print &quot;random word:     lookup.pl -rand [list]\n&quot;;
+
+        exit 1;
+}
+
+if ($ARGV[0] eq &quot;-wod&quot;){
+        $url = &quot;http://www.dictionary.com/wordoftheday/&quot;;
+}elsif($ARGV[0] eq &quot;-syn&quot;){
+        $word = uri_escape($ARGV[1]);
+        $url = &quot;http://www.thesaurus.com/cgi-bin/search?config=roget&amp;words=$word&quot;;
+}elsif($ARGV[0] eq &quot;-rand&quot;){
+        if (defined $ARGV[1]){ $dict = $ARGV[1]}else{$dict = &quot;/usr/dict/words&quot;};
+        open (WORDS, $dict);
+        srand;
+        rand($.) &lt; 1 &amp;&amp; ($word = $_) while &lt;WORDS&gt;;
+        $word = uri_escape($word);
+        $url = &quot;http://www.dictionary.com/cgi-bin/dict.pl?term=$word&quot;;
+}else{
+        $word = uri_escape($ARGV[0]);
+        $url = &quot;http://www.dictionary.com/cgi-bin/dict.pl?term=$word&quot;;
+}
+
+print &quot;getting it...\n&quot;;
+$html = get($url);
+defined $html or die &quot;Can't lookup $ARGV[0] from dictionary.com\n&quot;;
+print &quot;got it.\n&quot;;
+$ascii = HTML::FormatText-&gt;new-&gt;format(parse_html($html));
+print &quot;converted it...\n&quot;;
+print $ascii;
+print $url, &quot;\n&quot;;</doctext>
+  <type_nodetype>121</type_nodetype>
+  <node_id>119006</node_id>
+  <author_user>8867</author_user>
+  <title>lookup.pl - a command line dictionary/thesaurus</title>
+  <createtime>2001-10-15 22:15:15</createtime>
+  <nodeupdated>2005-07-21 01:28:31</nodeupdated>
+</node>

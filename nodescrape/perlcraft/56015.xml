@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="56015" title="apache errorlog" created="2001-02-02 15:24:11" updated="2005-07-30 13:53:51">
+<type id="121">
+perlcraft</type>
+<author id="43868">
+epoptai</author>
+<data>
+<field name="doctext">
+#!perl
+# 1. errorlog.pl parses and displays apache errorlogs
+# 2. just change $error_log and $apache to your paths
+# 3. cookies remember the list size and filter status
+
+use strict;
+use CGI qw(:standard);
+use CGI::Cookie;
+use HTML::Entities;
+
+my$error_log = 'c:\path\to\error.log'; # CHANGE
+my$apache    = 'c:\path\to\Apache\Apache.exe: ';   # CHANGE but, leave space at end.
+my$show  = 10; # default number of errors to show
+my@EL = stat $error_log;
+
+my%cookies = fetch CGI::Cookie;
+my%i = map{$_ =&gt; param($_)} param;
+my$url = url();
+my$time = localtime();
+$time =~s| .{4}$||o;
+
+open (ELOG,"&lt;".$error_log) or die "$!";
+my@elog=&lt;ELOG&gt;;
+close (ELOG) or die "$!";
+
+my($cc,$c1,$c2);
+
+if($cookies{'show'}){
+	unless($i{'n'}=~/\d+/){
+		$show = $cookies{'show'}-&gt;value;
+		}
+	}
+if($i{'n'}=~/\d+/){
+	$show=$i{'n'};
+	$c1 = new CGI::Cookie(-name=&gt;'show',-value=&gt;"$show",-expires=&gt;'+1y');
+	} 
+if(($cookies{'clean'}=~/yes/) or ($i{'do'}=~/clean/)){
+	if($i{'do'}=~/clean/){
+		$c2 = new CGI::Cookie(-name=&gt;'clean',-value=&gt;'yes',-expires=&gt;'+1y');
+		}
+	$cc=' checked';
+	}
+if(($i{'go'}=~/show/) &amp;&amp; ($i{'do'}!~/clean/)){
+ 	$c2 = new CGI::Cookie(-name=&gt;'clean',-value=&gt;'no',-expires=&gt;'+1y');
+	$cc=();
+	}
+
+print header(-cookie=&gt;[$c1,$c2]);
+print&lt;&lt;HTML;
+&lt;html&gt;&lt;head&gt;
+&lt;title&gt;$show Recent $ENV{'SERVER_NAME'} Server Errors&lt;/title&gt;
+&lt;SCRIPT LANGUAGE="JavaScript"&gt;&lt;!--
+function me(){
+document.forms[0].elements[0].select();
+document.forms[0].elements[0].focus();}
+//--&gt;&lt;/SCRIPT&gt;&lt;/head&gt;
+&lt;body bgcolor="#c0c0c0" text="#000000" onload="me()"&gt;
+&lt;table border="0" cellpadding="0" cellspacing="0" width="100%"&gt;
+&lt;tr&gt;&lt;form method="post"&gt;&lt;td&gt;
+&lt;h3&gt;$show Recent &lt;a href="http://$ENV{'SERVER_NAME'}/"&gt;
+$ENV{'SERVER_NAME'}&lt;/a&gt; Server Errors&lt;br&gt;
+&lt;font size="-1"&gt;$time&lt;/font&gt;&lt;br&gt;&lt;/h3&gt;&lt;/td&gt;
+&lt;td align="right"&gt;&lt;small&gt;
+clean&lt;/small&gt;&lt;input type="checkbox" name="do" value="clean"$cc&gt;
+&lt;input type="text" name="n" value="$show" size="3" maxlength="4" onfocus="select()"&gt;
+&lt;input type="submit" name="go" value="show"&gt;&lt;/td&gt;
+&lt;td rowspan="2"&gt;&amp;nbsp;&lt;/td&gt;&lt;/form&gt;&lt;/tr&gt;&lt;/table&gt;
+&lt;hr&gt;
+HTML
+@elog=reverse(@elog);
+my$c=0;
+foreach my $ln(@elog){
+	unless($c==$show){
+		&amp;encode_entities($ln);	
+		$ln=~s|\Q$apache||oi;
+		if($cc=~/checked/){
+			$ln=~s/\s\[(?:notice|error|warn)\]\s\[client.*\]//o;
+			$ln=~s/\s2\d{3}]/\]&lt;br&gt;/o;
+			$ln=~s/\[/&lt;small&gt;&lt;b&gt;/o;
+			$ln=~s|\]|&lt;/b&gt;&lt;/small&gt;\n|o;
+			}
+		print $ln.'&lt;hr&gt;';
+		$c++
+		}
+	}
+print&lt;&lt;HTML;
+&lt;table width="100%"&gt;&lt;tr&gt;&lt;td colspan="2" align="right"&gt;&lt;font size="-1"&gt;
+&lt;a href="file://$error_log"&gt;$error_log&lt;/a&gt; = $EL[7] bytes&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/body&gt;&lt;/html&gt;
+HTML
+exit
+</field>
+</data>
+</node>

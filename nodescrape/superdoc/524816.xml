@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="524816" title="ticker stats" created="2006-01-22 12:52:20" updated="2006-01-22 07:52:20">
+<type id="14">
+superdoc</type>
+<author id="106850">
+pmdev</author>
+<data>
+<field name="doctext">
+&lt;center&gt;
+[%
+  require POSIX;
+  my $all=$DB-&gt;getDatabaseHandle()-&gt;selectall_arrayref(
+    'select *,UNIX_TIMESTAMP(fetchtime) utime from tickerlog '
+    .'order by node_id, tickerkey, user_id, useraddr, userclient, fetchtime',
+    {Slice=&gt;{}}
+  );
+  my %tickers;
+  my %users;
+  my %clients;
+  my %all;
+  my ($mintime,$maxtime)=(~0,0);
+  
+  foreach my $hash ( @$all ) {
+        $tickers{$hash-&gt;{node_id}}{$hash-&gt;{tickerkey}}{hits}++;
+        $users{$hash-&gt;{user_id}}{$hash-&gt;{useraddr}}{$hash-&gt;{userclient}}{hits}++;
+        $clients{$hash-&gt;{userclient}}++;
+        my $uhash=$all{$hash-&gt;{node_id}}{$hash-&gt;{tickerkey}}
+                      {$hash-&gt;{user_id}}{$hash-&gt;{useraddr}}
+                      {$hash-&gt;{userclient}} ||={};
+                      
+        $uhash-&gt;{hits}++;
+        $mintime=$hash-&gt;{utime} if $mintime &gt; $hash-&gt;{utime};
+        $maxtime=$hash-&gt;{utime} if $maxtime &lt; $hash-&gt;{utime};
+        $uhash-&gt;{mintime}=$hash-&gt;{fetchtime} 
+          if !$uhash-&gt;{mintime} or 
+             $uhash-&gt;{mintime} gt $hash-&gt;{fetchtime};
+        $uhash-&gt;{maxtime}=$hash-&gt;{fetchtime} 
+          if $uhash-&gt;{maxtime} lt $hash-&gt;{fetchtime};
+        if (!$uhash-&gt;{ltime}) {
+           $uhash-&gt;{ltime}=$hash-&gt;{utime};
+        } else {
+           $uhash-&gt;{sumtime}+=$hash-&gt;{utime} - $uhash-&gt;{ltime};
+           $uhash-&gt;{count}++;
+           $uhash-&gt;{ltime}=$hash-&gt;{utime};
+        }
+  }
+  my $td_hits=sub { sprintf "&lt;td&gt;%d%s%0.f%%&lt;/td&gt;", $_[0],  $_[1] 
+                    ? "&lt;/td&gt;&lt;td&gt;" : "&lt;br/&gt;", $_[0]/@$all*100 };
+  my $recs=@$all;
+  my $spans=$maxtime-$mintime;
+  $_=htmlcode('parsetimeinstring','',POSIX::strftime('%Y%m%d%H%M%S',localtime $_))
+       for $mintime,$maxtime;
+  $spans=sprintf "%.0f",$spans/60;
+  my $avg=sprintf "%.0f",@$all/($spans||1);
+  my @rows=("&lt;p&gt;Records in log:$recs Spans: $spans mins Hits/Min: $avg&lt;br /&gt;",
+            "Earliest:$mintime Latest:$maxtime&lt;/p&gt;",
+            "&lt;table border='1'&gt;",
+            "&lt;tr&gt;&lt;th colspan='4'&gt;Ticker&lt;/th&gt;&lt;/tr&gt;",
+            "&lt;tr&gt;&lt;th&gt;Source&lt;/th&gt;&lt;th&gt;Variant&lt;/th&gt;&lt;th&gt;Hits&lt;/th&gt;&lt;th&gt;Pct&lt;/th&gt;&lt;/tr&gt;"
+           );
+
+  foreach my $id (sort {$a &lt;=&gt; $b }keys %tickers) {
+    foreach my $tkey (sort keys %{$tickers{$id}}) {
+        push @rows,"&lt;tr&gt;&lt;td&gt;"
+                  .linkNode($id,'',{displaytype=&gt;'viewcode'})
+                  ."&lt;/td&gt;&lt;td&gt;$tkey&amp;nbsp;&lt;/td&gt;"
+                  .$td_hits-&gt;($tickers{$id}{$tkey}{hits},1)
+                  ."&lt;/tr&gt;";
+    }
+  }
+  return join "\n",@rows,"&lt;/table&gt;",""
+    if !isGod($USER);
+
+  # --- below here gods only ---
+
+  push @rows,"&lt;/table&gt;",
+             "&lt;table border='1'&gt;",
+             "&lt;tr&gt;&lt;th colspan='3'&gt;Clients&lt;/th&gt;&lt;/tr&gt;",
+             "&lt;tr&gt;&lt;th&gt;name&lt;/th&gt;&lt;th&gt;Hits&lt;/th&gt;&lt;th&gt;Pct&lt;/th&gt;&lt;/tr&gt;";
+  foreach my $client (sort keys %clients) {
+        push @rows,"&lt;tr&gt;&lt;td&gt;$client&lt;/td&gt;".$td_hits-&gt;($clients{$client},1)."&lt;/tr&gt;";
+  }
+  return join "\n",@rows,"&lt;/table&gt;",""
+    if !isGod($USER);
+
+  # --- below here gods only ---
+
+  push @rows,"&lt;/table&gt;&lt;table border='1'&gt;&lt;tr&gt;&lt;th colspan='4'&gt;Fetchers&lt;/th&gt;&lt;/tr&gt;",
+            "&lt;tr&gt;&lt;th&gt;User ID&lt;/th&gt;&lt;th&gt;IP / Client&lt;/th&gt;&lt;th&gt;Hits&lt;/th&gt;&lt;th&gt;Pct&lt;/th&gt;&lt;/tr&gt;";
+  foreach my $id (sort {$a &lt;=&gt; $b }keys %users) {
+    foreach my $addr (sort keys %{$users{$id}}) {
+      foreach my $client (sort keys %{$users{$id}{$addr}}) {
+        push @rows,"&lt;tr&gt;&lt;td&gt;"
+                  .linkNode($id)
+                  ."&lt;/td&gt;"
+                  ."&lt;td&gt;$addr&lt;br /&gt;$client&lt;/td&gt;"
+                  .$td_hits-&gt;($users{$id}{$addr}{$client}{hits},1)
+                  ."&lt;/tr&gt;";
+      }
+    }
+  }
+  push @rows,"&lt;/table&gt;";
+  push @rows,"&lt;table border='1'&gt;";
+  my @fields=qw(node_id tickerkey user_id userkey fetchtime tickerdata);
+  push @rows,"&lt;tr&gt;&lt;th&gt;Ticker&lt;/th&gt;&lt;th&gt;User&lt;/th&gt;&lt;th&gt;Hits In Log&lt;/th&gt;&lt;th&gt;Avg time between fetch&lt;/th&gt;&lt;/tr&gt;";
+  foreach my $id (sort {$a &lt;=&gt; $b }keys %all) {
+    foreach my $tkey (sort keys %{$all{$id}}) {
+      foreach my $uid (sort {$a &lt;=&gt; $b } keys %{$all{$id}{$tkey}} ) {
+        foreach my $addr (sort keys %{$all{$id}{$tkey}{$uid}}) {
+          foreach my $client (sort keys %{$all{$id}{$tkey}{$uid}{$addr}}) {
+            my $hash=$all{$id}{$tkey}{$uid}{$addr}{$client};
+            push @rows,"&lt;tr&gt;&lt;td&gt;"
+              .linkNode($id,'',{displaytype=&gt;'viewcode'})
+              .($tkey ? "&lt;br/&gt;$tkey" : "" )
+              ."&lt;/td&gt;&lt;td&gt;"
+              .linkNode($uid)." $addr&lt;br /&gt;$client"
+              ."&lt;/td&gt;"
+              .$td_hits-&gt;($hash-&gt;{hits})
+              ."&lt;td&gt;"
+              .($hash-&gt;{count} ? sprintf("%.0f seconds",$hash-&gt;{sumtime}/$hash-&gt;{count}) 
+                                 ."&lt;br /&gt;First: "
+                               : "at ")
+              .htmlcode('parsetimeinstring','',$hash-&gt;{mintime},0,0,'%H:%M:%S')
+              .($hash-&gt;{count} 
+                ? "&lt;br/&gt;Last: "
+                  . htmlcode('parsetimeinstring','',$hash-&gt;{maxtime},0,0,'%H:%M:%S') 
+                : "")
+              ."&lt;/td&gt;&lt;/tr&gt;";
+          }
+        }
+      }
+    }
+  }
+  return join "\n",@rows,"&lt;/table&gt;","";
+%]
+&lt;/center&gt;</field>
+</data>
+</node>

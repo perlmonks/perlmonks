@@ -1,0 +1,138 @@
+<node>
+  <doctext>[%
+   my $isGod=isGod($USER);
+   return &quot;pmdev and gods only. sorry.&quot; 
+    unless ($isGod || Everything::isApproved($USER,getNode(&quot;pmdev&quot;,'usergroup')));
+ 
+
+   my $form = join &quot;\n&quot;,
+         htmlcode('openform'),
+         $q-&gt;submit('Refresh', 'Refresh'),
+         $q-&gt;scrolling_list(-name=&gt;'days',
+                                -values=&gt;[1,7,14,30,$isGod ? (60,90,10000) : ()],
+                                -default=&gt;[1],
+                                -size=&gt;1).&quot; Large values will load slow&quot;,
+         $q-&gt;end_form(),
+     ;
+
+
+  my $days = $q-&gt;param('days') || 1;
+  $days=~s/\D//g;
+  $days = 30 if $days &gt; 30 and !isGod($USER);
+
+  my $list=$DB-&gt;getDatabaseHandle()-&gt;selectcol_arrayref(qq[
+      select user_id from user where lasttime &gt; DATE_SUB( NOW(), INTERVAL $days DAY )
+  ]);
+
+  my %all; # all keys
+  my %nl;  # HOH keys with 'nodelets' in them 
+           # values are split by ',' and subhashes are
+           # counts of the split item.
+  my %nlk; # all of the %nl subkeys at once
+
+  foreach my $item (@$list) {
+    my $id=$item;
+    my $vars=getVars($item);
+    foreach my $key (keys %$vars) {
+       $all{$key}++;
+       if ($key=~/nodelets/) {
+          my @parts = split /,/,$vars-&gt;{$key};
+          if (@parts) {
+            for my $n (@parts) {
+               $nl{$key}{$n}++;
+               $nlk{$n}++;
+            }
+
+          } else {
+            $nl{$key}{$vars-&gt;{$key}}++;
+          }
+       }
+    }
+  }
+
+  local *qquote=sub{
+    require Data::Dumper;
+    my $v=shift;
+    if (not defined $v) { 
+      return &quot;undef&quot;;
+    } elsif(!$v or $v==1) {
+      return $v=~/\d/ ? $v : 
+             htmlcode('parselinksinchatter','',Data::Dumper::qquote($v),1);
+    } elsif ($v=~/\D/) {
+      if ($v!=~/%/ and $v=~/(\d+)/ and $1&gt;1) {
+        my $forid=$1;
+        return htmlcode('parselinksinchatter','',
+            Data::Dumper::qquote($v) . &quot;&lt;sup&gt; &quot;.linkNode($forid).&quot; &lt;/sup&gt;&quot;,1);
+      } else {
+        return htmlcode('parselinksinchatter','',
+            Data::Dumper::qquote($v),1);
+      }
+    } else {
+      return htmlcode('parselinksinchatter','',
+            linkNode($v),1);
+    }
+  };   
+  $days=$days&gt;1 ? &quot;$days days&quot; : &quot;day&quot;;
+  my @html=(&quot;&lt;center&gt;&quot;,
+            &quot;&lt;h1&gt;\$VARS statistics for the &quot;
+            .(0+@$list)
+            .&quot; users logged in over the past $days&lt;/h1&gt;&quot;,
+            &quot;&lt;table&gt;&lt;tr&gt;&lt;td valign='top'&gt;&quot;);
+  
+
+  # nodelet info
+  # all by count
+  push @html,&quot;&lt;h2&gt;Nodelets Usage (combined popularity)&lt;/h2&gt;&quot;;
+  push @html,(&quot;&lt;table border='1'&gt;\n&lt;tr&gt;&lt;th&gt;Nodelet&lt;/th&gt;&lt;th&gt;Count&lt;/th&gt;&lt;/tr&gt;\n&quot;);
+
+  foreach my $key ( sort {$nlk{$b} &lt;=&gt; $nlk{$a} || $a &lt;=&gt; $b} keys %nlk ) {
+    push @html,&quot;&lt;tr&gt;&lt;td&gt;&quot;,qquote($key),&quot;&lt;/td&gt;&lt;td&gt;$nlk{$key}&lt;/td&gt;&lt;/tr&gt;\n&quot;;
+  }
+
+  push @html,&quot;&lt;/table&gt;&lt;/td&gt;&lt;td valign='top'&gt;&quot;;
+  push @html,&quot;&lt;h2&gt;Nodelet Related Values (popularity)&lt;/h2&gt;&quot;;
+  push @html,&quot;&lt;table border='1'&gt;&lt;th&gt;Setting&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;th&gt;Count&lt;/th&gt;&lt;/tr&gt;\n&quot;;
+  foreach my $key ( sort keys %nl ) {
+    my @children=sort { $nl{$key}{$b} &lt;=&gt; $nl{$key}{$a} } keys %{$nl{$key}};
+    push @html,&quot;&lt;tr&gt;&lt;td rowspan='&quot;,0+@children==1 ? 1 : 1+@children,&quot;'&gt;&quot;,qquote($key),&quot;&lt;/td&gt;&quot;;
+    my $addtr=0;
+    if (@children&gt;1) {
+       push @html,&quot;&lt;td&gt;&lt;i&gt;Total&lt;/i&gt;&quot;,
+                  &quot;&lt;/td&gt;&lt;td&gt;$all{$key}&lt;/td&gt;&lt;/tr&gt;&quot;;
+       $addtr++; 
+    }
+    foreach my $child ( @children ) { 
+        push @html,&quot;&lt;tr&gt;&quot; if $addtr++;
+        push @html,&quot;&lt;td&gt;&quot;,qquote($child),
+                   &quot;&lt;/td&gt;&lt;td&gt;$nl{$key}{$child}&lt;/td&gt;&lt;/tr&gt;&quot;;
+    }
+  }  
+  push @html,&quot;&lt;/table&gt;&lt;/td&gt;&lt;td valign='top'&gt;&quot;;
+  # all alphabetically
+  push @html,&quot;&lt;h2&gt;\$VARS Keys (alphabetical)&lt;/h2&gt;&quot;;
+  push @html,(&quot;&lt;table border='1'&gt;\n&lt;th&gt;Setting&lt;/th&gt;&lt;th&gt;Count&lt;/th&gt;&lt;/tr&gt;\n&quot;);
+  foreach my $key ( sort keys %all ) {
+    push @html,&quot;&lt;tr&gt;&lt;td&gt;&quot;,qquote($key),&quot;&lt;/td&gt;&lt;td&gt;$all{$key}&lt;/td&gt;&lt;/tr&gt;\n&quot;;
+  }
+  push @html,&quot;&lt;/table&gt;&quot;;
+
+  if (0) { # all by count
+    push @html,&quot;&lt;h2&gt;\$VARS Keys (popularity)&lt;/h2&gt;&quot;;
+    push @html,(&quot;&lt;table border='1'&gt;\n&lt;tr&gt;&lt;th&gt;Setting&lt;/th&gt;&lt;th&gt;Count&lt;/th&gt;&lt;/tr&gt;\n&quot;);
+    foreach my $key ( sort {$all{$b} &lt;=&gt; $all{$a} || $a cmp $b} keys %all ) {
+      push @html,&quot;&lt;tr&gt;&lt;td&gt;&quot;,qquote($key),
+                 &quot;&lt;/td&gt;&lt;td&gt;$all{$key}&lt;/td&gt;&lt;/tr&gt;\n&quot;;
+    }
+    push @html,&quot;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&quot;;
+  }
+  push @html,&quot;&lt;/center&gt;&quot;;
+  join &quot;\n&quot;,$form,@html;
+%]
+</doctext>
+  <type_nodetype>14</type_nodetype>
+  <node_id>482862</node_id>
+  <author_user>106850</author_user>
+  <title>User Settings Statistics</title>
+  <createtime>2005-08-11 03:27:22</createtime>
+  <nodeupdated>2005-08-22 15:40:20</nodeupdated>
+</node>

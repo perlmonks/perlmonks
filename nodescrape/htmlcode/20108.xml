@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="20108" title="wrapcode" created="2000-06-28 01:00:05" updated="2005-08-06 22:18:44">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+my( $code, $dllink, $preview )= @_;
+$code= $HTMLVARS{codewraptext}
+    if  ! defined $code;
+
+$code =~ tr/\r//d;
+$code =~ s/\t/    /g; # why is this 4 and not 8!?
+my $numlines = split /\n/,$code;
+my $multiline= $numlines&gt;1 ? ' class="code"' : "";
+my $auto= ( $VARS-&gt;{codeautowrap} &amp;&amp; ! $VARS-&gt;{codewrapoff} );
+my $tag =  $auto ? 'span' : 'div';
+if(     $VARS-&gt;{dllink_lines}
+    &amp;&amp;  $numlines &lt; $VARS-&gt;{dllink_lines}
+) {
+    $dllink= "";
+}
+
+my $begin= qq[&lt;tt class=']
+         . ($multiline ? "codetext" : "inlinecode") 
+         . qq['&gt;];
+my $end= qq[&lt;/tt&gt;];
+if ($dllink) {
+   $dllink= "&lt;$tag class='embed-code-dl'&gt;$dllink&lt;/$tag&gt;";
+}
+
+if(  ! $VARS-&gt;{codebig}  ) {
+    $begin .= qq[&lt;font size="-1"&gt;];
+    $end= qq[&lt;/font&gt;$end];
+    $dllink= "&lt;font size='-1'&gt;$dllink&lt;/font&gt;"
+        if $dllink;
+}
+
+if(  $multiline  ) {
+    $code =~ s#^\n##;
+    if(  $dllink  ) {
+        $begin= "&lt;$tag class='codeblock'&gt;". $begin;
+        $end .= "&lt;/$tag&gt;";
+        $end .= $dllink
+             if !$preview;
+    }
+    if( $auto ) {
+        $code =~ s#\n\z##;
+        $begin= "&lt;p$multiline&gt;" . $begin;
+        $end .= "&lt;/p&gt;";
+    } else {
+        $code =~ s#\n?\z#\n#;
+        $begin= "&lt;pre$multiline&gt;" . $begin;
+        $end .= "&lt;/pre&gt;";
+    }
+    $end .= "\n";
+}
+
+return  $begin . $q-&gt;escapeHTML($code) . $end
+   if  $VARS-&gt;{codewrapoff};
+
+my $prefix= $multiline ? $VARS-&gt;{codeprefix} : '';
+my $start= '';
+$start= $1   if  $prefix =~ s#&amp;(\d+);#&amp;d;#;
+
+# deal with a raw &amp;d; below:
+$start= 1   if  $start eq ''  and  $prefix =~ /&amp;d;/;
+# add a trailing space to the prefix if it ends in a line number
+$prefix.=" "   if  $prefix =~ /&amp;d;$/;
+# figure out the right amount of space for the line numbering
+my $d_len= length( ()= $code =~ m/^/gm );
+$d_len= length($start)
+    if  $d_len &lt; length($start);
+
+if(  $VARS-&gt;{codeautowrap}  ||  ! $multiline  ) {
+    my $len= $VARS-&gt;{codewraplength} || 0;
+    if(  $len  &amp;&amp;  $VARS-&gt;{codeautowrap}  ) {
+        my $short= $len - 1 || 1;
+        my $br= qq[&lt;font color="red"&gt;&lt;b&gt;&lt;u&gt;&lt;wbr /&gt;&amp;#173;&lt;/u&gt;&lt;/b&gt;&lt;/font&gt;];
+        $code =~ s[\G(\S{$len})(?=\S)|(\s+|\S+\s*)]{
+            defined($1)
+                ? $q-&gt;escapeHTML($1).$br
+                : $q-&gt;escapeHTML($2)
+        }ge;
+    } else {
+        $code= $q-&gt;escapeHTML($code);
+    }
+    $code =~ s#^#$prefix#   if  $multiline;
+    $code =~ s#\n#&lt;br /&gt;\n$prefix#g;
+    $code =~ s#&amp;d;# sprintf '%*s', $d_len, $start++ #ge
+        if  length $start;
+    # handle spaces after all other processing, especially prefix related
+    $code =~ s#^ #&amp;nbsp;#mg; # handle special case of odd number indent
+    $code =~ s#  # &amp;nbsp;#g; # prevent html rules eating all the spaces
+    $code .= "&lt;br /&gt;\n"   if  $multiline;
+    return $begin . $code . $end;
+}
+my $breaklength= $VARS-&gt;{codewraplength} || 70;
+my $shorter= $breaklength-1 || 1;
+my $str= '';
+while(  $code =~ m{
+        (?:
+          (^|\n)                # Start of a line: $1
+          (.{0,$breaklength})   # Unwrapped part of line: $2
+         |
+          (.{1,$shorter})       # Continuation of line: $3
+        )
+        (?=(.?))                # Next char (more wrapping?): $4
+    }gx
+) {
+    my $line= defined($3) ? $3 : $2;
+    $str .= $1 . $prefix   if  ! defined($3);
+    $str .= $query-&gt;escapeHTML( $line );
+    $str .= qq[&lt;span class="line-breaker"&gt;\n&lt;font color="red"&gt;+&lt;/font&gt;&lt;/span&gt;]
+        if  $4 ne "";
+}
+$str =~ s#&amp;d;# sprintf '%*s', $d_len, $start++ #ge
+    if  length $start;
+return $begin . $str . $end;
+</field>
+</data>
+</node>

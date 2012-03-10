@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="152489" title="Getting Started with GnuPG and GPG" created="2002-03-18 10:25:00" updated="2005-08-15 05:42:58">
+<type id="956">
+perltutorial</type>
+<author id="8930">
+derby</author>
+<data>
+<keywords>
+<keyword rating="">
+chart</keyword>
+</keywords>
+<field name="doctext">
+Since there have been enough posts to this fine site asking
+about encryption, I thought a nice tutorial would be appropriate.
+This tutorial will start of with a general overview of security,
+move into an overview of cryptography and then specifically demonstrate
+how to set up and use GnuPG and GPG.
+&lt;h3&gt;Security&lt;/h3&gt;
+&lt;i&gt;Encryption alone will not solve your security concerns.&lt;/i&gt; Too
+many people believe that encryption will magically make their data
+safe and secure. Not so. In the security realm, security is often
+described as an &lt;a href="http://rr.sans.org/securitybasics/host_sec.php"&gt;
+onion&lt;/a&gt;. The layers as a whole are the true security and each individual
+layer will always have issues and problems. You can have the largest
+encryption key and the best algorithm but store that key in a weak
+container and you're &lt;b&gt;screwed&lt;/b&gt;. So before you proceed implementing
+encryption, ensure you're firewalls are up-to-date, ensure your OS is
+patched with the latest and greatest and ensure the &lt;i&gt;people&lt;/i&gt; working
+with your data are trustworthy.
+&lt;h3&gt;Encryption&lt;/h3&gt;
+To encrypt data is simply to jumble it up so others cannot read it
+without doing some extra work. There are two parts of most encryption
+systems - the &lt;b&gt;key&lt;/b&gt; and the &lt;b&gt;algorithm&lt;/b&gt; - the batman and
+robin of encryption (or is that robin and batman?).
+&lt;p&gt;
+In symmetric encryption the key is shared by both the sender and the
+receiver. &lt;a href="http://www.itl.nist.gov/fipspubs/fip46-2.htm"&gt;DES&lt;/a&gt;
+is the most widely used symmetric encryption algorithm. While better that
+storing/sending in plaintext, symmetric has one big problem - how do
+you share the key? Anyway you think about it, that key is one big Achille's
+heel. You either have to pass it out of band (can be difficult and time
+consuming) or you have to wrap it in another encryption which really just
+pushes the issues to the wrapper.
+&lt;p&gt;
+In asymmetric encryption (aka public key), the key is not shared. Each
+user has two keys - a public key and a private key. These two keys are
+mathematically related in such a way that if another user encrypts using
+my public key then only my private key can decrypt it. There are a lot
+of other things &lt;a href="http://rr.sans.org/encryption/diffie.php"&gt;going
+on&lt;/a&gt; but that's the crux of the situation. With asymmetric cryptography,
+we have to worry &lt;b&gt;less&lt;/b&gt; about the distribution of the key. (But we
+should still worry - remember the onion).
+&lt;h3&gt;GnuPG&lt;/h3&gt;
+&lt;a href="http://www.gnupg.org"&gt;GnuPG&lt;/a&gt; is an implementation of asymmetric
+cryptography. More to the point, it's an implementation of
+&lt;a href="http://www.ietf.org/rfc/rfc2440.txt"&gt;RFC 2440&lt;/a&gt; which describes the
+OpenPG standard which was derived from the work of
+&lt;a href="http://www.philzimmermann.com"&gt;Phil Zimmerman&lt;/a&gt; (another implementation
+is &lt;a href="http://www.openpgp.org"&gt;OpenPGP&lt;/a&gt;). I strongly recommend reading the
+&lt;a href="http://www.gnupg.org/gph/en/manual.html"&gt;The GNU Privacy Handbook&lt;/a&gt;
+from start to finish. It's available in six languages and is extremely informative.
+&lt;h3&gt;Installing GnuPG&lt;/h3&gt;
+The folks at &lt;a href="http://www.gnupg.org"&gt;GnuPG&lt;/a&gt; have made it easy and provide
+GnuPG as either source(tar, debian archive, or mac archive), or precompiled
+(MS-Windows 95/98/NT). Once you install GnuPG, just follow the Privacy Handbook on
+how to create your newpairs (private and public keys). This will create .gnupg
+file in your home directory. Remember the onion? Be sure to not expose this directory
+and it's contents in an unreasonable fashion. You can do all types of fun stuff
+putting extra layers on top of the directory. Move it to a floppy or burn it on
+a cd and then remove it from the filesystem and lock it in a safe (not always
+practical but you get the picture).
+&lt;p&gt;
+Once you have GnuPG installed and keys generated, you can do all types of
+encrypting and decrypting - but only for yourself. You need to get some other
+keys so you can communicate with others. If you're going to use GnuPG with the outside,
+you need to build your &lt;a href="http://www.gnupg.org/gph/en/manual.html#AEN533"&gt;web
+of trust&lt;/a&gt;. If you're going to be using it by yourself, generate another keypair
+(as another user) and then &lt;a href="http://www.gnupg.org/gph/en/manual.html#AEN57"&gt;
+exchange&lt;/a&gt; keys (that is, if you trust yourself).
+&lt;p&gt;
+&lt;b&gt;update:&lt;/b&gt; Of course, you can use a single keypair if you just wish to encrypt/
+decrypt stuff for yourself. I was going to give more examples of using GnuPG/GPG in 
+a web environment where the user running the httpd process would encrypt data with
+the public key of another user. This would have been a good example of another
+layer of security. If the web user is compromised, the data is still fairly secure 
+because it's encrypted with the other user's keys and that keyring is stored in a safe
+somewhere and only brought out to run reports (isn't it?).
+&lt;h3&gt;GPG&lt;/h3&gt;
+There are several cpan modules that interface with GnuPG (and still more with
+OpenPGP). For simplicity, I prefer [cpan://GPG]. It's the easiest to start with.
+[cpan://GPG] utilizes [cpan://IPC::Open3] to communicate directly with the GnuPG
+executable. That does have it's drawbacks but doesn't everything?
+&lt;p&gt;
+For example, let's say you created two users - alice and bob. Here's two simple
+scripts. One where alice encrypts a message for bob, the other where bob decrypts it.
+&lt;h4&gt;alice.pl&lt;/h4&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+use Carp;
+use GPG;
+my( $gpg ) =  new GPG( homedir =&gt; "/home/alice/.gnupg" );
+croak $gpg-&gt;error() if $gpg-&gt;error();
+
+my( $enc ) = $gpg-&gt;encrypt( "Can you read this", "bob\@dot.com" );
+croak $gpg-&gt;error() if $gpg-&gt;error();
+
+print $enc;
+&lt;/code&gt;
+&lt;p&gt;
+Which is rougly equivalent to the gpg command:
+&lt;p&gt;
+&lt;code&gt;
+gpg --encrypt --recipient bob@dot.com
+&lt;/code&gt;
+&lt;p&gt;
+This will produce something like this:
+&lt;p&gt;
+&lt;code&gt;
+-----BEGIN PGP MESSAGE-----
+Comment: For info see http://www.gnupg.org
+
+hQEOA9QD1LpROcE4EAQAg1EHC7h2n6ziXat276UZXrMsMkmYp5CUJx7DFgEMrOcm
+RjGcvF52HRBVjNiiiICN2PohAjWY3ZPCrzS0gALSkHIKQsRW+9eF5sCILtQCUERm
+Zls10oPsuSyGM1nrkfd84t9G3QrlJI7ojUAtzD9CFbQOUm/CFWF0Xn7vVSDfNckD
+/iG43Irj4GmHy5IWclXveZmYe/Z6jSxfwJhn2YqL4ihyRchXIWIykESoaBQSR9rt
+0WUo+h0dbbWK2/NoC3kzfj3IbM2VvHnuGh4jgL8C8FcwFkypzuoP+h5RJesc1H+l
+XHJZBYCZN4y4+YLgSqtlgZBFZMy/PpLFi3smSiqj3HyV0kwB7FJjMswEyRhiAEbc
+9+DMW0Y6m/V9NZ92ORjLBvKmjz/UoLOlHqhA/OR5knD3nn6IJu5OZHXt+IUEUhYC
+QnM+Zs1Rug+v6lYBCpN7
+=Rjs4
+-----END PGP MESSAGE-----
+&lt;/code&gt;
+&lt;p&gt;
+Send that to bob and he can decrypt it like so:
+&lt;h4&gt;bob.pl&lt;/h4&gt;
+&lt;code&gt;
+#!/usr/bin/perl -w
+
+use strict;
+use Carp;
+use GPG;
+
+my( $gpg ) =  new GPG( homedir =&gt; "/home/bob/.gnupg" );
+croak $gpg-&gt;error() if $gpg-&gt;error();
+
+my($text) = join( "", &lt;&gt; );
+
+my( $dec ) = $gpg-&gt;decrypt( BOBS_PASSPHRASE, $text );
+croak $gpg-&gt;error() if $gpg-&gt;error();
+
+print $dec;
+&lt;/code&gt;
+&lt;p&gt;
+Which produces:
+&lt;p&gt;
+&lt;code&gt;
+Can you read this
+&lt;/code&gt;
+&lt;p&gt;
+&lt;b&gt;note:&lt;/b&gt; I leave how to get the bob's passphrase as an exercise. Just remember the
+passphrase is the Achilles heel of GnuPG - lose it and you've lost your ability
+to decrypt records (or worse, you've given someone else the opportunity to
+read your data). Write it down, seal it in an envelope and lock it in a safe and
+have dual control to open it up (remember - onion).
+&lt;h3&gt;Conclusion and Resources&lt;/h3&gt;
+That should get you started on using GnuPG with GPG. There are
+many other things to consider. First and foremost, read
+&lt;a href="http://www.gnupg.org/gph/en/manual.html"&gt;The GNU Privacy Handbook&lt;/a&gt;.
+Also, take a look at Bruce Schneier's &lt;a href="http://www.counterpane.com/crypto-gram.html"&gt;
+Crypto-gram&lt;/a&gt; newsletters. And read his book [isbn://0471117099|Applied Cryptography]. Some may find that
+book a hard read (especially if you're weak on mathematics). A more approachable
+first book is [isbn://0130614661|Network Security - PRIVATE Communication in a PUBLIC World].
+Also many thanks to all those who labored on works like PGP and GnuPG when it was
+an extremely scary time to work on crypto in the US.</field>
+</data>
+</node>

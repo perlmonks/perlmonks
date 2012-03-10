@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="95813" title="Lexical vs. Package Variables (With a little local thrown in)" created="2001-07-11 19:09:58" updated="2005-08-15 01:40:01">
+<type id="956">
+perltutorial</type>
+<author id="6762">
+dsb</author>
+<data>
+<field name="doctext">
+&lt;P&gt;
+Having finally grown comfortable with my own understanding of lexical and package variables(oh, and local too), I figured I'd take a shot at sharing my understanding with the average newbie that may be struggling with these concepts.
+
+&lt;P&gt;
+First off, I'd like to say that it was Damian Conway's Book, &lt;a href="http://www.amazon.com/exec/obidos/ASIN/1884777791/qid=994873991/sr=2-3/102-0799781-9494566"&gt;Object-Oriented Perl&lt;/a&gt;, that cleared things up with his explanation.  Incidentally, this book can be purchases right through &lt;i&gt;Perlmonks&lt;/i&gt;, by going &lt;a href="http://www.perlmonks.org/index.pl?node=Buy%20Stuff&amp;lastnode_id=94007"&gt;here&lt;/a&gt;.  And with that...
+
+&lt;BR&gt;
+&lt;HR&gt;
+&lt;BR&gt;
+
+&lt;P&gt;&lt;B&gt;Package Variables&lt;/B&gt;&lt;BR&gt;
+Package variables all belong to a package, even if only the &lt;TT&gt;main&lt;/TT&gt; package.  They can be called from anywhere within this package at any time, including sub-routines which may have been called from within that package.
+&lt;pre&gt;
+#!/usr/bin/perl
+
+$var = "foo";
+print $var, "\n";
+
+modify_var();
+print $var, "\n";
+
+sub modify_var {
+    $var = "bar";
+}
+
+___OUTPUT___
+foo
+bar
+
+&lt;/pre&gt;
+
+The output from this code demonstrates the ability of package variables to be accessed anywhere in the current package.  &lt;TT&gt;$var&lt;/TT&gt; is being accessed in both the main body of the program, and in the &lt;TT&gt;modify_var&lt;/TT&gt; sub-routine.
+
+&lt;P&gt;
+In cases where package ownership is important, such as when &lt;TT&gt;strict&lt;/TT&gt; is being used, the package and double colon can be appended &lt;i&gt;after&lt;/i&gt; the prefix symbol(&lt;TT&gt;$&lt;/TT&gt;,&lt;TT&gt;@&lt;/TT&gt;,&lt;TT&gt;%&lt;/TT&gt;) and &lt;i&gt;before&lt;/i&gt; the variable name:
+&lt;pre&gt;
+#!/usr/bin/perl
+
+use strict;
+
+$main::var = "foo";
+print $main::var, "\n";
+
+modify_var();
+print $main::var, "\n";
+
+sub modify_var {
+    $main::var = "bar";
+}
+&lt;/pre&gt;
+
+&lt;HR width="50%" align="left"&gt;
+&lt;B&gt;NOTE:&lt;/B&gt; When &lt;TT&gt;strict&lt;/TT&gt; is in use and the package name is not used to fully qualify the variable, this error will be reported:
+&lt;pre&gt;
+Global symbol "$var" requires explicit package name at test.pl line n.
+Execution of test.pl aborted due to compilation errors.
+&lt;/pre&gt;
+Where &lt;i&gt;n&lt;/i&gt; is the line number of the innappropriately accessed variable.  Declaring the variable with the &lt;TT&gt;my&lt;/TT&gt; qualifier will fix the problem also.  This will create a lexical variable, which will be talked about later.
+&lt;HR width="50%" align="left"&gt;
+&lt;P&gt;
+In cases where the &lt;TT&gt;main&lt;/TT&gt; package is in ownership of the variable, the actual word 'main' can be ommitted to yield something like: &lt;TT&gt;$::var&lt;/TT&gt;
+&lt;P&gt;
+&lt;B&gt;UPDATE:&lt;/B&gt; One more point on Package variables.  It is possible to get around having to fully qualify variable names when &lt;TT&gt;strict&lt;/TT&gt; is in use.  Applying a simply &lt;TT&gt;use vars&lt;/TT&gt; to your script, with the variable names as it arguments will get around explicit package names.  Example:
+&lt;code&gt;
+#!/usr/bin/perl
+
+use strict;
+use vars qw($foo);
+
+$foo = "bar";
+print $foo, "\n";
+&lt;/code&gt;
+
+&lt;P&gt;&lt;B&gt;Lexical Variables&lt;/B&gt;&lt;BR&gt;
+Lexical variables must be explicitly declared using the &lt;TT&gt;my&lt;/TT&gt; qualifier.  Lexical variables belong to no package so cannot be fully qualified with a package name.  They can be accessed only within the current block, or, only within the curly braces or file scope in which they are declared.  They cannot be accessed by sub-routines called from within the current code block.
+
+&lt;P&gt;
+Let's look at the first code example, but use lexical variables where previously there were package variables:
+&lt;pre&gt;
+#!/usr/bin/perl
+
+my $var = "foo";
+print $var, "\n";
+
+modify_var($var);
+print $var, "\n";
+
+sub modify_var {
+    my $var = shift;
+    $var = "bar";
+}
+
+___OUTPUT___
+foo
+foo
+&lt;/pre&gt;
+Output from this code demonstrates that localization of the lexical variables.  &lt;TT&gt;$var&lt;/TT&gt; in the &lt;TT&gt;main&lt;/TT&gt; package is treated as a completely different variable than &lt;TT&gt;$var&lt;/TT&gt; in the &lt;TT&gt;modify_var&lt;/TT&gt; sub-routine.
+
+&lt;P&gt;
+As was previously noted, using the &lt;TT&gt;my&lt;/TT&gt; qualifier when &lt;TT&gt;strict&lt;/TT&gt; is in use will prevent the &lt;TT&gt;Global symbol "$var" requires explicit package name at test.pl line n.&lt;/TT&gt; error.  This is because once a variable has been declared lexical, it belongs to no package and does not exist in the package's symbol table.  So, it cannot be fully qualified.
+
+&lt;P&gt;
+&lt;HR width="50%" align="left"&gt;
+&lt;B&gt;NOTE:&lt;/B&gt; I said before that lexical variables are destroyed when the code block in which they are declared ends.  This is &lt;i&gt;usually&lt;/i&gt; the case.  However, when a reference to the lexical variable continues to exist outside of the code block, the lexical variable survives past the block.  It will be destroyed as soon as all references to it are gone.  This is due to a Perl behavior known as reference counting.
+&lt;HR width="50%" align="left"&gt;
+
+&lt;P&gt;&lt;B&gt;How Does &lt;TT&gt;local&lt;/TT&gt; Fit In?&lt;/B&gt;&lt;BR&gt;
+Truthfully, at this point, it doesn't seem to.  I've read in another &lt;a href="http://www.perlmonks.org/index.pl?node_id=94007&amp;lastnode_id=954"&gt;node&lt;/a&gt; that &lt;TT&gt;local&lt;/TT&gt; is useful in ammending code written in Perl4, or when you want to modify one of Perl special variables(&lt;i&gt;see&lt;/i&gt; &lt;a href="http://www.perlmonks.org/index.pl?node=perlman%3Aperlvar&amp;lastnode_id=148"&gt;&lt;TT&gt;man perlvar&lt;/TT&gt;&lt;/a&gt;) such as &lt;TT&gt;$/&lt;/TT&gt;.
+
+&lt;P&gt;
+In any case, a little bit on how &lt;TT&gt;local&lt;/TT&gt; works.
+
+&lt;P&gt;
+&lt;TT&gt;local&lt;/TT&gt; takes a package(global) variable and temporarily replaces its value for the duration of the block in which it is used, meanwhile storing the old value to be replaced when the block ends.  Here's an example:
+&lt;pre&gt;
+$var = "foo";
+print $var, "\n";
+
+if (1) {
+    local $var = "bar";
+    print $var, "\n";
+}
+
+print $var, "\n";
+
+___OUTPUT___
+foo
+bar
+foo
+&lt;/pre&gt;
+Check the output out.  Inside the &lt;TT&gt;if&lt;/TT&gt; block, &lt;TT&gt;$var&lt;/TT&gt; is declared using &lt;TT&gt;local&lt;/TT&gt; and initialized to "bar".  So for the duration of that block &lt;TT&gt;$var&lt;/TT&gt; is storing "bar".  When the &lt;TT&gt;if&lt;/TT&gt; block ends, the previous value "foo" is restored to &lt;TT&gt;$var&lt;/TT&gt;.
+
+&lt;P&gt;
+When I was playing around with all this stuff, I realized that using &lt;TT&gt;my&lt;/TT&gt; and lexical variables externally behaves the same way as local, that is, it only seems like it does.  Internally they behave very differently.  The point is, though, that using lexicals can get the desired "temporary value" result.
+
+&lt;P&gt;&lt;B&gt;When Should I Use Package Variables, and When Should I Use Lexicals?&lt;/B&gt;&lt;BR&gt;
+Package variables are okay for short or uncomplicated Perl scripts, when you don't have to worry about intruding on the variable namespace of other routines or packages.  Lexical variables should be used for large more complex programs.  In truth, I always use lexical variables at this point, just out of habit and because I'm always using &lt;TT&gt;strict&lt;/TT&gt;.
+
+&lt;P&gt;
+&lt;HR&gt;
+That's it for me.  There's my first tutorial.  I hope it helps.</field>
+</data>
+</node>

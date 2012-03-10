@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="39" title="node_menu" created="1999-10-04 18:34:59" updated="2004-11-30 07:56:01">
+<type id="4">
+htmlcode</type>
+<author id="114">
+gods</author>
+<data>
+<field name="code">
+my ($field, @VALUES) = @_;
+my @idlist;
+my %items;
+my @TYPES;
+
+$field or return;
+my ($fieldname, $type) = split /\_/, $field;
+my ($name) = $$NODE{type}{title} .'_'. $field;
+
+#if no explicit types, use the field name to determine
+@VALUES or push @VALUES, $type;
+
+foreach (@VALUES)
+{
+        next if $_ eq "user";
+	if(/^-/)
+	{
+		# If one of the types is in the form of
+		# -name_value, we need to split it apart
+		# and store it.	
+		my ($name, $value);
+		$_ =~ s/^-//;
+		
+		($name, $value) = split '_', $_;
+		push @idlist, $value;
+		$items{$value} = $name;
+
+		undef $_;  # This is not a type	
+	}
+	else
+	{
+		my $TYPE = $DB-&gt;getType($_); 
+		push @TYPES, $TYPE if(defined $TYPE); #replace w/ node refs
+	}
+}
+
+my $NODELIST = $DB-&gt;selectNodeWhere({ type_nodetype =&gt; \@TYPES }, "", "title") if @TYPES;
+
+foreach my $N (@$NODELIST) {
+	$N = $DB-&gt;getNodeById($N, 'light');
+	my $id = getId $N;
+	push @idlist, $id;
+	$items{$id} = $$N{title};
+}
+
+# The default thing to select
+my $SELECT = $$NODE{$field};
+
+if(not defined $items{"0"})
+{
+	# We have no value for zero, make it a default
+	$items{"0"} = "none";
+	push @idlist, "0";
+}
+if(not defined $items{$SELECT}) {
+    my $n= getNodeById($SELECT,"light");
+    $items{$SELECT}= $n-&gt;{title}   if  $n;
+    $items{$SELECT} ||= $SELECT;
+    push @idlist, $SELECT;
+}
+if(not defined $items{$USER-&gt;{node_id}}) {
+    $items{$USER-&gt;{node_id}}= $USER-&gt;{title};
+    push @idlist, $USER-&gt;{node_id};
+}
+
+$query-&gt;popup_menu($name, \@idlist, $SELECT, \%items);
+</field>
+</data>
+</node>

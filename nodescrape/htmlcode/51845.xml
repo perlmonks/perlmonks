@@ -1,0 +1,705 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="51845" title="showprivatemessages2" created="2000-09-01 17:01:08" updated="2005-07-14 10:00:26">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+#!perl
+# ok, this code is a little harsh, my apologies. its the old inbox somewhat
+# refactored and and quite extended, IMO it could do with a complete rewrite
+# but I dont have the time.
+return "Anonymous Monk has no inbox. Sorry."
+   if  getId($USER) == $HTMLVARS{guest_user};
+
+my $DEBUG;
+{
+    last if ! Everything::isApproved($USER,'pmdev');
+    my $var= $q-&gt;param('inboxdebug');
+    if ( defined $var ) {
+        $VARS-&gt;{inboxdebug}= $var;
+        delete $VARS-&gt;{inboxdebug} if !$var;
+    }
+    $DEBUG= $VARS-&gt;{inboxdebug};
+}
+
+my ($length,$offset);
+{
+    for(  $VARS-&gt;{inboxmaxmsgs}  ) {
+        $_ = 50  if  /\D/ || $_ &lt; 0 || 1000 &lt; $_;
+    }
+    $length =  $q-&gt;param('inboxmaxmsgs')
+               || $VARS-&gt;{inboxmaxmsgs};
+    $length = 50  unless  $length =~ /^\d+$/;
+
+    $offset = $q-&gt;param('inboxskipmsgs');
+    $offset = 0  unless  $offset =~ /^\d+$/;
+    if(  defined $q-&gt;param("inboxskip0")  ) {
+        $offset= 0;
+    } elsif(  defined $q-&gt;param("inboxskip-1")  ) {
+        $offset -= $length;
+        $offset= 0  if  $offset &lt; 0;
+    } else {
+        for(  $q-&gt;param()  ) {
+            if(  /^inboxskip(\d+)$/i  ) {
+                $offset= $1;
+                last;
+            }
+        }
+    }
+    if(  $q-&gt;param("set_inboxmaxmsgs")  ) {
+        $VARS-&gt;{inboxmaxmsgs}= $length;
+    }
+}
+
+my $recvId;
+{
+    $recvId= $q-&gt;param('recipient');
+    if(  $recvId =~ /\D/  ) {
+        $recvId= getNode( $recvId, 'usergroup' )
+            || getNode( $recvId, 'user' );
+    } elsif(  $recvId =~ /^\d+$/  ) {
+        getRef( $recvId );
+    }
+    if(    $recvId
+        &amp;&amp;  $recvId-&gt;{type}{title} =~ /^user(group)?$/
+        &amp;&amp;  Everything::isApproved($USER,$recvId)
+    ) {
+        $recvId= getId($recvId);
+    } else {
+        $recvId= getId($USER);
+    }
+    if(  $recvId != getId($USER)  &amp;&amp;  0 == $offset
+        &amp;&amp;  exists $VARS-&gt;{"inbox$recvId"}  ) {
+        $VARS-&gt;{"inbox$recvId"}= $DB-&gt;sqlSelect(
+            "max(message_id)", "message", "for_user=$recvId"
+        ) || 0;
+    }
+}
+
+my $box= getNodeById($recvId);
+my $reverse= !$VARS-&gt;{reverse_messages};
+
+my $vars_id= $box-&gt;{node_id} == $USER-&gt;{node_id}
+           ? "" : $recvId;
+
+my ( %folder_lbls, %folder_counts, @folder_order );
+{
+    htmlcode( 'inbox_folder_settings', '',
+        $box,
+        hash=&gt; \%folder_lbls,
+        order=&gt;\@folder_order,
+        counts=&gt;\%folder_counts,
+    );
+}
+my %folder_lbls_with_counts = map {
+    ( $_ =&gt; "$folder_lbls{$_} ($folder_counts{$_}{count})" )
+} @folder_order;
+my $simple=do {
+    if ( $q-&gt;param('inboxstyle') ) {
+       $VARS-&gt;{"simple_inbox$vars_id"}= 1;
+       delete $VARS-&gt;{"simple_inbox$vars_id"}
+         if $q-&gt;param('inboxstyle') ne 'simple';
+    }
+    $VARS-&gt;{"simple_inbox$vars_id"};
+};
+
+my $del_only= do {
+    if ( defined( my $val= $q-&gt;param('inbox_del_only') ) ) {
+        $VARS-&gt;{"inbox_del_only$vars_id"}=$val;
+        delete $VARS-&gt;{"inbox_del_only$vars_id"} if ! $val;
+    }
+    $VARS-&gt;{"inbox_del_only$vars_id"} || $simple;
+};
+
+
+# Searching from or to
+my %srch_type;
+{
+    my @t=$q-&gt;param('srch_recip_type');
+    @t=($VARS-&gt;{"inbox_srch_type$vars_id"})
+        if !@t &amp;&amp; !$q-&gt;param('set_inbox');
+    %srch_type = map { /^(From|To)$/ ? ($_ =&gt; 1) : ()}
+                 map { split /\s*,\s*/, $_ } @t;
+    if ( !%srch_type ) {
+        $srch_type{To}= 1;
+    }
+    $VARS-&gt;{"inbox_srch_type$vars_id"}=join ",",keys %srch_type;
+}
+
+# Folder To Search
+my ($Not, @srch_folder, %srch_folder);
+{
+    $Not= $q-&gt;param('not_folders');
+    @srch_folder= $q-&gt;param('srch_folder');
+    @srch_folder=grep {
+            /^(-?\d+)$/ &amp;&amp; $_ &gt; -2 &amp;&amp; !$srch_folder{$_}++
+        } map { split /\s*,\s*/,$_ } @srch_folder;
+    if (!$Not &amp;&amp; !@srch_folder &amp;&amp; !$q-&gt;param('set_inbox')) {
+        $Not= $VARS-&gt;{"not_folders$vars_id"} || "";
+        @srch_folder= @{ $VARS-&gt;{"srch_folder$vars_id"} || [] };
+    }
+    if ($srch_folder{-1}) {
+        # -1 means -2 as well.
+        push @srch_folder,-2;
+        $srch_folder{-2}= 1;
+    }
+    if ( $Not ) {
+        # since we are negating we need to include -3 so
+        # that it is not included.
+        push @srch_folder, -3;
+        $Not= "not";
+        $VARS-&gt;{"not_folders$vars_id"}= $Not;
+    } else {
+        delete $VARS-&gt;{"not_folders$vars_id"};
+        $Not= ""; # make sure its an empty string
+    }
+    # if we aren't negated and no folder is chosen show the inbox
+    # the -3 logic guarantees that if we are negating we will
+    # have at least one member in @srch_folder
+    if ( ! @srch_folder ) {
+        for (0, $vars_id ? 1 : () ) {
+            push @srch_folder, $_;
+            $srch_folder{$_}++;
+        }
+    }
+    $VARS-&gt;{"srch_folder$vars_id"}= \@srch_folder;
+}
+
+my @upd_clause;
+my @and_clause; # anded together
+{
+    my @or_clause=(); # or'ed together
+    my $ids;
+                  #recip  srch-field       key-field     folder
+    for my $type (['To', 'author_user',  'for_user',    'archive'   ],
+                  ['From',   'for_user',     'author_user', 'folder']) {
+        my ($recip,$srch,$key,$fldr)=@$type;
+        my $str;
+        if ($srch_type{$recip}) {
+          # we only want messages by this user
+          # if they are for us.
+            $str= "$key = $recvId";
+
+            $str.= " and $fldr $Not in ("
+             . join(",",@srch_folder)
+             . ")";
+                            # set            # constraint
+            push @upd_clause,[ $fldr, "$key = $recvId" ];
+            if ( $q-&gt;param('srch_author_user') ) {
+                $ids||=[map {
+                        my $node= $_=~/\D/
+                                  ? getNode($_,'user')
+                                  : getNodeById($_);
+                        $node ? $node-&gt;{node_id} : ()
+                    } split /,/, $q-&gt;param('srch_author_user')];
+                if (@$ids&gt;1) {
+                    $str.= " and $srch in (". join( ",", @$ids). ")";
+                } elsif ( @$ids ) {
+                    $str.= " and $srch = $ids-&gt;[0]";
+                }
+            }
+        }
+        push @or_clause,"( $str )" if $str;
+    }
+    my $str=join " or ",@or_clause;
+    push @and_clause, "( $str )" if $str;
+}
+
+if ($q-&gt;param('srch_msgtxt')) {
+    my $v=$q-&gt;param('srch_msgtxt');
+    $v="%$v%" if $v!~/%/;
+    push @and_clause,"msgtext like ".$DB-&gt;quote($v);
+}
+
+
+my $and_clause=join " and ",grep $_,@and_clause;
+# Everything::printLog("sandpit: $and_clause");
+
+# output
+my @html;
+
+push @html, "&lt;code&gt;\n$and_clause\n&lt;/code&gt;"
+          if $DEBUG;
+
+my( $total )= $DB-&gt;sqlSelect(
+    'count(*)',
+    'message',
+    $and_clause,
+);
+my ($bulk)=grep { /^bulk_update_\d+_\d+$/ } $q-&gt;param();
+my @sel=grep { $q-&gt;param( "sel_$_" ) }
+        map { /^sel_(\d+)$/ ? $1 : () } $q-&gt;param();
+
+if ($bulk and $q-&gt;param($bulk)=~/^(-1|\d+)$/) {
+    my $sel="";
+    if (@sel) {
+       if ($q-&gt;param('bulk_selected') eq 'except') {
+         $sel=" and message_id not in ";
+       } else {
+         $sel=" and message_id in ";
+       }
+       $sel.="(" . join( ",", @sel) . ")"
+    }
+    my $moveto= 0+$1;
+    my ($min,$max)= $bulk=~/_(\d+)_(\d+)$/;
+    foreach my $upd (@upd_clause) {
+        my ($field,$constraint)=@$upd;
+        my $where= "($and_clause) and $constraint"
+            . " and message_id &gt;= $min"
+            . " and message_id &lt;= $max"
+            . $sel;
+        my $res= $DB-&gt;sqlUpdate(
+            'message',
+            {
+                $field  =&gt; $moveto,
+                -tstamp =&gt; 'tstamp',
+            },
+            $where,
+        );
+        push @html, "&lt;code&gt;\n$field=$moveto\n$where\n'$res'&lt;/code&gt;"
+          if $DEBUG;
+    }
+}
+
+# Run Query
+my ($minid,$maxid);
+my @msgs;
+{
+    my $csr= $DB-&gt;sqlSelectMany(
+        '*',
+        'message',
+        $and_clause,
+        "order by message_id desc limit $offset, $length"
+    );
+
+    while  ($_ = $csr-&gt;fetchrow_hashref()) {
+        push @msgs, $_;
+    }
+    if (@msgs) {
+        $maxid= $msgs[ 0]{message_id};
+        $minid= $msgs[-1]{message_id};
+        ($minid, $maxid) = ($maxid, $minid) if $minid &gt; $maxid;
+    }
+    $csr-&gt;finish();
+
+    if( $reverse ) {
+        @msgs= reverse @msgs;
+    }
+}
+my $count= @msgs;
+# Build Html
+
+=for uedit
+sub self_link{}
+
+=cut
+
+my $self_link=sub {
+    my ($text,%opts)=@_;
+    my @clean=grep { $_&gt;-2 } @srch_folder;
+    linkNode( $NODE, $text,
+                {
+                    @clean ? (srch_folder =&gt; join(",",@clean)) : (),
+                    srch_recip_type =&gt; join( ",",keys %srch_type),
+                    not_folders =&gt; $Not||0,
+                    $vars_id ? ( recipient =&gt; $vars_id ) : (),
+                    %opts
+                });
+};
+
+=for uedit
+sub do_recipient{}
+
+=cut
+
+my $do_recipient= sub {
+    my $hidden= shift;
+    if( !$hidden &amp;&amp; isGod($USER)  ) {
+        push @html, qq[&lt;br /&gt; Show Inbox: ]
+              .  $q-&gt;textfield( "recipient" )
+              .  "\n";
+    } elsif(  $vars_id  ) {
+        push @html, $q-&gt;hidden(
+                    -name =&gt; "recipient",
+                    -value =&gt; $recvId,
+                    -override =&gt; 1 );
+    }
+};
+
+=for uedit
+
+sub do_search{}
+
+=cut
+my $do_search= sub {
+    my $switch;
+    if ($simple) {
+        $switch=$self_link-&gt;("Search Mode",inboxstyle=&gt;'searchable');
+    } else {
+        $switch=$self_link-&gt;("Simple Mode",inboxstyle=&gt;'simple');
+    }
+    push @html,
+          htmlcode('state_link', '', 512013,
+              in_form =&gt; 1, other =&gt; $switch );
+
+    my $who= qq[Showing messages ]
+           .$q-&gt;checkbox_group(
+                 -name=&gt;'srch_recip_type',
+                 -values=&gt;['From','To'],
+                 -default=&gt;'To',
+            )
+           ." ".linkNode( $recvId );
+    if  ($recvId != getId($USER)) {
+       $who = qq[&lt;b&gt;$who&lt;/b&gt;]
+    }
+
+    push @html,
+        htmlcode('openform'),
+        $q-&gt;hidden('set_inbox',1),
+        "&lt;p align='left'&gt;$who&lt;br/&gt;(",
+        $q-&gt;checkbox(
+                -name =&gt; "not_folders",
+                -checked =&gt; $Not,
+                -override =&gt; 1,
+                -value =&gt; "yes",
+                -label =&gt; "not"
+        ),
+        ") in &lt;b&gt;folders&lt;/b&gt; ",
+        $q-&gt;checkbox_group(
+             -name=&gt;'srch_folder',
+             -values=&gt;\@folder_order,
+             -default=&gt;\@srch_folder,
+             -labels=&gt;\%folder_lbls_with_counts,
+             -override =&gt; 1,
+        ),
+    ;
+
+
+    if ( !$simple ) {
+        push @html, "&lt;br/&gt;constrain by &lt;b&gt;content&lt;/b&gt;: "
+              .  $q-&gt;textfield(
+                        -name =&gt; "srch_msgtxt",
+                        -size =&gt; 30 )
+              .  "&lt;br /&gt;and/or by &lt;b&gt;user&lt;/b&gt; "
+              .  $q-&gt;textfield(
+                        -name =&gt; "srch_author_user",
+                        -size =&gt; 10 )
+              .  $q-&gt;submit( "sexisgood", "constrain" )
+        ;
+    } elsif ($q-&gt;param('srch_msgtxt') || $q-&gt;param('srch_author_user')) {
+
+        push @html, "&lt;br/&gt;Constrained by ";
+
+        push @html, "&lt;b&gt;content&lt;/b&gt;: "
+              . "&lt;i&gt;".$q-&gt;param('srch_msgtxt')."&lt;/i&gt;"
+              . $q-&gt;hidden('srch_msgtxt',$q-&gt;param('srch_msgtxt'))
+            if $q-&gt;param('srch_msgtxt');
+
+        push @html, "&lt;br&gt;and by"
+            if $q-&gt;param('srch_msgtxt')
+            &amp;&amp; $q-&gt;param('srch_author_user');
+
+        push @html, "&lt;b&gt;user&lt;/b&gt; "
+              . "&lt;i&gt;".$q-&gt;param('srch_author_user')."&lt;/i&gt;"
+              . $q-&gt;hidden('srch_author_user',$q-&gt;param('srch_author_user'))
+            if $q-&gt;param('srch_author_user');
+        #push @html, "&lt;br/&gt;"
+        #    . $self_link-&gt;("Clear Constraint");
+    }
+
+    if ( $simple ) {
+        push @html,"&lt;br /&gt;", $q-&gt;submit( "sexisgood", "change" );
+    }
+    $do_recipient-&gt;();
+    push @html, "&lt;/form&gt;&lt;/p&gt;",htmlcode("openform"),
+        @srch_folder ? $q-&gt;hidden('srch_folder',@srch_folder) : (),
+        $q-&gt;hidden( 'srch_recip_type', grep { $srch_type{$_} }
+                   keys %srch_type ),
+        $Not ? $q-&gt;hidden('not_folders',1) : (),
+        (map { $q-&gt;param($_) ? $q-&gt;hidden($_,$q-&gt;param($_)) : () }
+        qw( srch_msgtxt srch_author_user  )),
+        "&lt;hr /&gt;";
+};
+
+=for uedit
+sub do_totals{}
+
+=cut
+
+
+my $do_totals=sub {
+    if( $count &lt; $total ) {
+        my $extra= $total - $count - $offset;
+        $extra= 0  if  $extra &lt; 0;
+        push @html, qq[&lt;tr&gt;&lt;td&gt;&lt;/td&gt;\n]
+              .  qq[&lt;td&gt;&lt;center&gt;Plus $extra earlier]
+              .  qq[ (of &lt;b&gt;$total&lt;/b&gt;) ]
+              .  qq[messages not shown.]
+              .  qq[&lt;/center&gt;&lt;/td&gt;\n]
+              .  qq[&lt;td colspan='3'&gt;&lt;/td&gt;&lt;/tr&gt;\n];
+    }
+};
+
+=for uedit
+sub do_skip_and_max{}
+
+=cut
+
+my $fits= 1;   # does the entire inbox fit on the page
+my $do_skip_and_max=sub {
+
+    if( 0 &lt; $offset ||  $count &lt; $total ) {
+        $fits= 0;
+        push @html, qq[&lt;tr&gt;&lt;td&gt;&lt;/td&gt;\n]
+              .  qq[&lt;td colspan='4'&gt;];
+        push @html, $q-&gt;submit(
+                    "inboxskip".($offset+$length),
+                    "Earlier" )
+            if  $offset+$count &lt; $total;
+        push @html, " Show " . $q-&gt;textfield(
+                    -name =&gt; "inboxmaxmsgs",
+                    -default =&gt; $length,
+                    -override =&gt; 1,
+                    -size =&gt; 4 );
+        push @html, $q-&gt;checkbox(
+                    -name =&gt; "set_inboxmaxmsgs",
+                    -checked =&gt; 0,
+                    -override =&gt; 1,
+                    -value =&gt; "yes",
+                    -label =&gt; "always." )
+            if  $recvId == getId($USER);
+        push @html, " Skip " . $q-&gt;textfield(
+                    -name =&gt; "inboxskipmsgs",
+                    -default =&gt; $offset,
+                    -override =&gt; 1,
+                    -size =&gt; 4 );
+        push @html, $q-&gt;submit( "inboxskip-1", "Later" )
+              .  qq[&lt;/td&gt;\n&lt;td&gt;\n]
+              .  $q-&gt;submit( "inboxskip0", "Latest" )
+            if  0 &lt; $offset;
+        push @html, qq[&lt;/td&gt;&lt;/tr&gt;\n];
+    }
+    if(  $fits  ) {
+        push @html, qq[&lt;tr&gt;&lt;td&gt;&lt;/td&gt;]
+              .  qq[&lt;td colspan='4'&gt;Max messages to show:\n]
+              .  $q-&gt;textfield(
+                    -name =&gt; "inboxmaxmsgs",
+                    -default =&gt; $length,
+                    -override =&gt; 1,
+                    -size =&gt; 4 );
+        push @html, $q-&gt;checkbox(
+                    -name =&gt; "set_inboxmaxmsgs",
+                    -checked =&gt; 0,
+                    -override =&gt; 1,
+                    -value =&gt; "yes",
+                    -label =&gt; "Use this value in future sessions" )
+            if  $recvId == getId($USER);
+        push @html, "\n". $q-&gt;submit( "sexisgood", "Set" );
+        push @html, qq[&lt;/td&gt;&lt;/tr&gt;\n];
+    }
+};
+
+=for uedit
+sub do_messages{}
+
+=cut
+
+
+my $do_messages=sub {
+    push @html, "&lt;tr&gt;"
+          .  join("\n",map { /^&lt;/ ? $_ : "&lt;th&gt;$_&lt;/th&gt;" }
+               "Reply to",
+               !$del_only ? "&lt;th colspan=2&gt;Message&lt;/th&gt;" : "Message",
+               $del_only ? ("Folder","(Un)&lt;br/&gt;Del") : "Folder",
+               "Sel", )
+          .  "&lt;/tr&gt;";
+
+    my $approvedtags = getVars(
+        getNode( 'approved chatter tags', 'setting' ) );
+    for my $MSG (  @msgs  ) {
+        my $we_sent= $MSG-&gt;{for_user} != $recvId;
+
+        my $title = htmlcode(
+            'parseTimeInString',
+            $MSG-&gt;{tstamp}
+        );
+        my $msgtext= do {
+            local $AUTHOR= getNodeById( $MSG-&gt;{author_user}, 'light' );
+            # as in [add_public_chatter]
+            # double screen?
+            htmlScreen(
+                htmlcode( 'parselinksinchatter','', $MSG-&gt;{msgtext}, 0 ),
+                $approvedtags
+            );
+        };
+
+        my ($fld_name,$fld_id,$msg_uid);
+        if ( $we_sent ) {
+            $msg_uid=$MSG-&gt;{for_user};
+            $fld_id= $MSG-&gt;{folder};
+            $fld_name= "move";
+        } else {
+            $msg_uid=$MSG-&gt;{author_user};
+            $fld_id= $MSG-&gt;{archive};
+            $fld_name= "archive";
+        }
+        $fld_id= -1 if $fld_id == -2;
+        my $msg_id= $MSG-&gt;{message_id};
+        my $opmsgcmd=join("_",$fld_name,$msg_id,$fld_id);
+
+        push @html, qq[&lt;tr class="inbox_message"&gt;&lt;td valign="top"&gt;&lt;center&gt;]
+          . qq[&lt;input type="radio" name="replyto" value="]
+          . $q-&gt;escapeHTML( $msg_id ) . qq["&gt;]
+          . qq[&lt;/center&gt;&lt;/td&gt;\n]
+          . qq[&lt;td valign="top"]
+          . (!$del_only ? ' colspan="2"' : "")
+          . qq[&gt;&lt;span title="]
+          . $q-&gt;escapeHTML( $title )
+          . qq["&gt;&lt;i&gt;]
+          . ( $we_sent ? "told " : "" )
+          . linkNode(
+                $msg_uid,
+                undef, # look up title
+                # some browsers ignore span title (?)
+                # so put another here:
+                { -title =&gt; $title },
+                { trusted =&gt; 'yes' },
+            )
+          . ( $we_sent ? "" : " says" )
+          . qq[&lt;/i&gt;&lt;/span&gt;\n]
+          . $msgtext
+          . qq[&lt;!-- --&gt;&lt;/td&gt;\n]
+          . ( $del_only ?
+                qq[&lt;td valign="top" align='center'&gt;&lt;small&gt;]
+              . qq[$folder_lbls{$fld_id}&lt;/small&gt;&lt;/td&gt;]
+            :   ""
+            )
+          . qq[&lt;td valign="top"&gt;&lt;center&gt;]
+          . (!$del_only
+              ? $q-&gt;popup_menu(
+                    -name=&gt; $opmsgcmd,
+                    -values =&gt; \@folder_order,
+                    -default =&gt; $fld_id ,
+                    -labels =&gt; \%folder_lbls,
+                )
+              : $q-&gt;checkbox(
+                    -name =&gt; $opmsgcmd,
+                    -checked =&gt; 0,
+                    -override =&gt; 1,
+                    -value =&gt; $fld_id==-1 ? 0 : -1 ,
+                    -label =&gt; $fld_id==-1
+                        ? "&lt;br /&gt;&lt;sup&gt;&lt;b&gt;un&lt;/b&gt;&lt;/sup&gt;"
+                        : "",
+                )
+            )
+          . qq[&lt;/center&gt;&lt;/td&gt;&lt;td  valign="top"&gt;&lt;center&gt;]
+          . $q-&gt;checkbox(
+                -name =&gt; "sel_$msg_id",
+                -checked =&gt; 0,
+                -override =&gt; 1,
+                -value =&gt; "yes",
+                -label =&gt; "",
+            )
+          . qq[&lt;/center&gt;&lt;/td&gt;&lt;/tr&gt;\n];
+    }
+
+};
+
+=for uedit
+sub do_reply_fields{}
+
+=cut
+
+
+my $do_reply_fields=sub {
+    #push @html, qq[&lt;tr&gt;&lt;td colspan='5'&gt;&lt;table&gt;];
+    push @html, qq[&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td colspan='3'&gt;]
+          .  $q-&gt;param("sentmessage")
+          .  qq[&lt;/td&gt;\n]
+          .  qq[&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;\n]
+        if  $q-&gt;param("sentmessage");
+    push @html, qq[&lt;tr&gt;]
+          .  qq[&lt;td valign="center"&gt;]
+          .  $q-&gt;submit( "sexisgood", "Send" )
+          .  qq[&lt;/td&gt;]
+          .  qq[&lt;td colspan='4'&gt;]
+          .  $q-&gt;textfield(
+                -name=&gt;'replytotext',
+                -size=&gt;60,
+                -maxlength=&gt;255 )
+          .  qq[&lt;/td&gt;]
+          .  qq[&lt;/tr&gt;\n]
+          .  qq[&lt;tr&gt;&lt;td&gt;&lt;center&gt;&lt;b&gt;To&amp;nbsp;User:&lt;/b&gt;]
+          .  qq[&lt;input type="radio" name="replyto" value="user"&gt;&lt;/center&gt;&lt;/td&gt;]
+          .  qq[&lt;td  valign='center' colspan='4'&gt;]
+          .  $q-&gt;textfield(
+                -name=&gt;'sendto',
+                -size=&gt;20,
+                -maxlength=&gt;255 )
+          .  qq[ or &lt;input type="radio" name="replyto" value="0" checked="checked"&gt;]
+          .  qq[ &lt;b&gt;Don't&amp;nbsp;Send&amp;nbsp;At&amp;nbsp;All&lt;/b&gt;&lt;/td&gt;\n]
+          .  qq[&lt;/tr&gt;]
+          .  (!$total ? '' : "&lt;tr&gt;&lt;td colspan='5' align='right' valign='bottom'&gt;"
+          .  $q-&gt;submit('sexisgood','Move')
+          .  " ("
+          .  $q-&gt;checkbox(
+               -name=&gt;"bulk_selected",
+               -value=&gt;'except',
+               -checked=&gt;0,
+               -force=&gt;1,
+               -label=&gt;'all but')
+          .  ") selected to "
+          .  $q-&gt;popup_menu(
+               -name=&gt;"bulk_update_${minid}_${maxid}",
+               -values=&gt;[ @folder_order,-2 ],
+               -default =&gt; -2,
+               -force=&gt;1,
+               -labels=&gt; {
+                           -2 =&gt; '(nowhere)',
+                           %folder_lbls,
+                         },)
+             )
+          .  qq[&lt;/td&gt;]
+          .  qq(&lt;/tr&gt;\n)
+    ;
+    push @html, qq(&lt;tr&gt;&lt;td&gt;&lt;/td&gt;)
+          . qq(&lt;td colspan=3&gt;)
+          . qq(To help someone by giving Writeup Formatting Tips, )
+          . qq(link to it by including &lt;tt&gt;[id://17558]&lt;/tt&gt; in your message.)
+          . qq(&lt;/td&gt;)
+          . qq(&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;)
+        if $q-&gt;param('replytotext') =~ m|^Re \[id://|;
+
+    if(  0 &lt; $offset  ) {
+        push @html, qq[&lt;tr&gt;&lt;td&gt;&lt;/td&gt;\n]
+              .  qq[&lt;td colspan='3'&gt;&lt;center&gt;Most recent $offset]
+              .  qq[ messages not displayed]
+              .  qq[&lt;/center&gt;&lt;/td&gt;]
+              .  qq[&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;\n];
+    }
+};
+
+
+
+push @html,
+  qq{&lt;p align="right"&gt;&lt;a href="/?node_id=419625"&gt;Help for this page&lt;/a&gt;&lt;/p&gt;\n};
+
+$do_search-&gt;();
+my $border= $DEBUG ? 1 : 0;
+push @html,
+   '&lt;input type="hidden" name="op" value="message" /&gt;',
+   "&lt;table border='$border' width='100%'&gt;\n";
+$do_reply_fields-&gt;();
+$do_messages-&gt;();
+$do_totals-&gt;();
+$do_skip_and_max-&gt;();
+push @html, "&lt;/table&gt;\n";
+$do_recipient-&gt;(1);
+
+return join("",@html,'&lt;/form&gt;')
+;
+</field>
+</data>
+</node>

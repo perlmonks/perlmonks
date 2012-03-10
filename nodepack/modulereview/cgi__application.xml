@@ -1,0 +1,168 @@
+<node>
+  <doctext>&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;font size=&quot;+2&quot;&gt;&lt;b&gt;CGI::Application&lt;/b&gt;&lt;/font&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;i&gt;Item description :&lt;/i&gt; Framework for building reusable web-applications in an object-orientated and extensible fashion&lt;br/&gt;
+&lt;i&gt;Review Synopsis :&lt;/i&gt; An excellent and well-thought out module implementing powerful and downright easy methods to write and build CGI-based applications.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;Why use CGI::Application?&lt;/b&gt;&lt;/font&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+The [cpan://CGI::Application] module implements this object-orientated framework within which to build your application by creating a super-class within which specific 'run-modes' can be defined.  Each run-mode can be correlated to a particular stage of the HTML/CGI user interface.  Furthermore, the [cpan://CGI::Application] module implements methods to address the [cpan://CGI].pm and [cpan://HTML::Template] modules, facilitating powerful methods by which to build extensible and portable web applications - It is obvious that the module author, Jesse Erlbaum (jesse at vm dot com), has put a lot of work into the development and writing of this module.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+This module allows you to do away with ugly code through the combination of [cpan://CGI].pm, [cpan://HTML::Template] and methods provided by [cpan://CGI::Application] to implement persistent variables across execution states.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+(Part of the reason too as to my personal usage of this module is its integration with my preferred templating framework, [cpan://HTML::Template] - Different web application frameworks were reviewed by [princepawn] at [Web Application Frameworks and their Templating Engines with a Comparative Study of Template and HTML::Template])
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;Why avoid CGI::Application?&lt;/b&gt;&lt;/font&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+There seems to be few reasons why to avoid using the [cpan://CGI::Application] module - Usage may not be necessary if persistence and state methods are implemented with other frameworks such as [cpan://Apache::Session], [cpan://HTML::Mason] or [cpan://HTML::Embperl].
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;How to use CGI::Application?&lt;/b&gt;&lt;/font&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+The documentation for the [cpan://CGI::Application] module is excellent and covers the building of a (theoretical) database search application.  In short, this module promotes the building of applications as self-styled modules based on the [cpan://CGI::Application] framework - The end script (application) consists of an instance script and a module package.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+An example instance script may look like this:
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+#!/usr/bin/perl
+
+#   Use our self-styled application module built on the CGI::Application framework
+#
+use self;
+
+#   Create constructor for our application module (self-&gt;new()) and execute this module in the desired run mode (self-&gt;run()) - The desired run mode is set via the value of a CGI parameter specified by the mode_param() method of this module (see self-styled CGI::Application module package).
+#
+my ($application) = self-&gt;new();
+$application-&gt;run();
+
+exit 0;
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+The corresponding module (self) based on the [cpan://CGI::Application] framework may look like this:
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+package self;
+
+sub setup {
+    my ($self) = shift;
+
+    #   Set the CGI parameter from which the run-mode of the application is derived to be 'stage' - This method allows you to set your own run-mode specifier, passed to your CGI script via hidden HTML form input tags
+    #
+    $self-&gt;mode_param('stage');
+
+    #   Set the matched run-mode / subroutine functions to determine which function should be executed for a given run-mode - This method is that which allows reusable code to be easily implemented for separate run-mode.
+    #
+    #   In this example, the subroutines 'display_form' and 'display_results' have been specified to run for run-modes '1' and '2' respectively.  The subroutines can be defined as either a hard reference to the run-mode method or the name of the run-mode method to be called.
+    #
+    $self-&gt;run_modes({
+        '1'     =&gt;  \&amp;display_form,
+        '2'     =&gt;  'display_results',
+    });
+
+    #   Set the mode which should be run in the first instance of the script, where no run-mode may be specified by a passed CGI variable - By default, this mode is called 'start', which too must be referenced to a subroutine via the run_modes() method.
+    #
+    $self-&gt;start_mode('1');
+};
+
+1;
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+This is a very basic example of the totality of module framework required to implement the [cpan://CGI::Application] framework - The example above is lacking the referenced subroutines display_form and display_results but provides a clear example of HOW the module framework works.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+Additional methods within the [cpan://CGI::Application] framework include:
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;
+&lt;b&gt;param()&lt;/b&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;This method allows to create parameter references which can be referenced across all module/application run modes - This method is most obviously used in the setup() method to implement such references such as [cpan://DBI] connections, [cpan://HTML::FormValidator] schema, etc. eg.
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+sub setup {
+    my ($self) = shift;
+    $self-&gt;mode_param('stage');
+    $self-&gt;run_modes({
+        '1'     =&gt;  \&amp;display_form,
+        '2'     =&gt;  'display_results',
+    });
+    $self-&gt;start_mode('1');
+
+    #   Create DBI connection handle and make accessible to all run-modes via CGI::Application param() method
+    #
+    $self-&gt;param('dbh' =&gt; DBI-&gt;connect());
+};
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;/dd&gt;&lt;/dl&gt;
+&lt;b&gt;teardown()&lt;/b&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;The paired partner of setup(), this method is implemented automatically after the application is run and can be used for clean up persistent variable and database connections. eg.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+sub teardown {
+    my ($self) = shift;
+
+    #   Disconnect the (persistent, with Apache::DBI) DBI handle created in setup() and passed via the param() method
+    #
+    $self-&gt;param('dbh')-&gt;disconnect;
+};
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;b&gt;query()&lt;/b&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;This method retrieves the [cpan://CGI].pm object (&lt;code&gt;CGI-&gt;new()&lt;/code&gt;) created with the instance of your self-styled [cpan://CGI::Application] module.  All methods for [cpan://CGI].pm can be applied to the blessed reference returned.&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;b&gt;load_tmpl()&lt;/b&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;This method creates a [cpan://HTML::Template] object (&lt;code&gt;HTML::Template-&gt;new()&lt;/code&gt;), allowing HTML templates to be employed, aiding in the pyrrhic (depending on your viewpoint) goal of separating code and design.  All methods for [cpan://HTML::Template] can be applied to the blessed reference returned.&lt;/dd&gt;&lt;/dl&gt;
+&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;font size=&quot;+1&quot;&gt;&lt;b&gt;Tips and Gotchas for CGI::Application&lt;/b&gt;&lt;/font&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+The primary note made about run-mode methods in the [cpan://CGI::Application] documentation is to avoid printing directly to STDOUT, instead returning the HTML output (&lt;code&gt;$html-&gt;output&lt;/code&gt;, if $html is a [cpan://HTML::Template] blessed reference created via &lt;code&gt;load_tmpl()&lt;/code&gt;) at the end of the run-mode subroutine to the [cpan://CGI::Application] framework.
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+For example:
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;&lt;code&gt;
+#   An example run-mode method
+#
+sub display_page {
+    my ($self) = shift;
+
+    #   Create a HTML::Template blessed reference with the template file, page.html
+    #
+    my ($html) = $self-&gt;load_tmpl('page.html');
+
+    print STDOUT $html-&gt;output;     #   printing template output directly to STDOUT (*BAD*)
+
+    return $html-&gt;output;           #   return template output to CGI::Application framework for display (*GOOD*)
+};
+&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+With the handling of HTML output to STDOUT by the [cpan://CGI::Application] framework rather than within the run-mode subroutine itself, header types and properties should also not be directly manipulated via CGI methods within run-mode methods.  Instead, the [cpan://CGI::Application] framework provides two methods for handling header types and properties indirectly - These methods are described below:
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;
+&lt;b&gt;header_type(&lt;'header' || 'redirect'&gt;)&lt;/b&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;This method specifies the type of HTTP headers which should be sent back to the client browser by the [cpan://CGI::Application] framework.&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;b&gt;header_props()&lt;/b&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+&lt;dl&gt;&lt;dd&gt;This method specifies the HTTP header properties which should be sent back to the client browser by the [cpan://CGI::Application] framework - This method correlates to the &lt;code&gt;header()&lt;/code&gt; (and &lt;code&gt;redirect()&lt;/code&gt;) methods of the [cpan://CGI].pm module.&lt;/dd&gt;&lt;/dl&gt;
+&lt;/dd&gt;&lt;/dl&gt;
+&lt;br/&gt;&amp;nbsp;&lt;br/&gt;
+Another tip in the documentation of [cpan://CGI::Application] is the definition the run-mode '&lt;code&gt;AUTOLOAD&lt;/code&gt;' - This run-mode is evoked if the &lt;code&gt;mode_param()&lt;/code&gt; CGI parameter calls a run-mode definition not matched to a package subroutine via &lt;code&gt;run_modes()&lt;/code&gt; method.  This allows the the implementation of 'user-friendly' error pages rather than the default [cpan://CGI::Application] behaviour to &lt;code&gt;croak()&lt;/code&gt; on such errors.  If evoked, the name of the intended run-mode passed via the &lt;code&gt;mode_param()&lt;/code&gt; CGI parameter is passed to the &lt;code&gt;AUTOLOAD&lt;/code&gt; run-mode as an argument.</doctext>
+  <type_nodetype>31663</type_nodetype>
+  <author_user>65703</author_user>
+  <createtime>2001-07-27 14:37:38</createtime>
+  <itemdescription>Framework for building reusable web-applications in an object-orientated and extensible fashion</itemdescription>
+  <identifier></identifier>
+  <node_id>100315</node_id>
+  <usercomment></usercomment>
+  <title>CGI::Application</title>
+  <nodeupdated>2005-08-15 00:47:20</nodeupdated>
+</node>

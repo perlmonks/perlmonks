@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="29452" title="personalnodelethandler" created="2000-08-24 16:47:49" updated="2005-08-05 06:54:11">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+use strict;
+use warnings;
+
+
+return ''   if  $HTMLVARS{guest_user} == getId($USER);
+my %opts=@_;
+
+if (my $field = $q-&gt;param('addtoscratchpad')){
+  # this used to be an opcode. no point anymore.
+  my $str = "\n&lt;br /&gt;[id://" . $q-&gt;param('node_id') . ']';
+
+  $field  = 'privatetext'
+    unless $field =~ /^(private|doc)text$/;
+
+  if ( my $pad_id = htmlcode( 'scratchpad_link','',getId($USER),'',{},1,1 ) )
+  {
+    my $pad=getNodeById($pad_id);
+    $pad-&gt;{$field} .= $str
+       unless  $pad-&gt;{$field} =~ s/(&lt;!--INSERTHERE--&gt;|&lt;INSERTHERE&gt;)/$str$1/i;
+    updateNode($pad,$USER);
+  }
+}
+
+
+my $Delim='*';
+my $Delim_qm=quotemeta($Delim);
+my $Esc='^';
+my $Esc_qm=quotemeta($Esc);
+my $Enc_Ver='DMQ2';
+
+my $PN='personal_nodelet';
+my $HV  ='hide_personal_nodelets';
+my $MNV ='show_in_personal_nodelet';
+my $AD  ='allow_dupe_personal_nodelet_entries';
+my $append_param='append_to_personal_nodelet';
+my $delete_param='delete_from_personal_nodelet';
+
+my $max_to_show=$VARS-&gt;{$MNV} || $HTMLVARS{personalNodeletLimit} || 100;
+my $debug=$q-&gt;param('debug_pnh');
+
+my @html;
+my @pns;
+my $must_update=0;
+
+
+my $pn=$VARS-&gt;{$PN}||'';
+push @html,qq|&lt;!--\$pn="$pn"--&gt;|
+  if $debug;
+
+my $delLink = 0; # set to id if $NODE is linked in nodelet
+if ( $pn =~ s/^\Q$Enc_Ver:\E// ) {
+  @pns=map {
+    s/$Esc_qm(.)/($Esc,$Delim)[$1]/ge;
+    s/^\[\s*(&lt;.*&gt;)\s*\]$/$1/g;
+    $delLink = $1 if m|//(\d+)]| and $1 == getId ($NODE);
+    $_
+  } split /$Delim_qm/,$pn;
+}
+elsif ( $pn =~ /^DMQ\d:/ ) {
+  $must_update=1;
+  @pns=();
+}
+else {
+  push @html, "&lt;!--Old style--&gt;";
+  @pns=map {
+    my $result =
+      /^(\d+)$/
+      ? "[id://$1]"
+      : !$_
+        ? ()
+        : /^\s*&lt;/
+          ? $_
+          : "[$_]";
+    $delLink = $1 if m|//(\d+)]| and $1 == getId ($NODE);
+    $result;
+  }
+  split /&lt;br&gt;/,$pn;
+  $must_update=1;
+}
+
+if ( $opts{show_form} &amp;&amp; $q-&gt;param('modifypn') ) {
+  push @html,"&lt;!--modifypn--&gt;" if $debug;
+  my %new;
+  my @order;
+  my $index=0;
+  foreach my $param ( sort $q-&gt;param ) {
+    my $val=$q-&gt;param($param);
+    if ( $param =~ /prc0_pn_lnk_((new)?\d+)_val/ and $val ) {
+      $new{$1}=$val;
+    }
+    if ( $param =~ /prc1_pn_lnk_((new)?\d+)_pos/ ) {
+      my $item=$1;
+      my $is_new=$2;
+      next if $is_new and !$new{$item};
+      if ( $val =~ /^\s*\+\s*$/ ) {
+        $val=9999998; # big number to sort to the end.
+      }
+      elsif ( $val =~ /^\s*\-\s*$/ ) {
+        $val=-9999998; # small number to sort to the start.
+      }
+      if ( !$val or $val !~ /^-?\d{1,10}(?:\.\d{1,10})?$/ ) {
+        $val=0;
+      }
+      push @order, [$item,0+$val,$index++]
+        if $val and $new{$item} || $item&lt;=@pns;
+    }
+  }
+  @pns=map  { $new{$_-&gt;[0]} ? $new{$_-&gt;[0]} : $pns[$_-&gt;[0]] }
+    sort { $a-&gt;[1] &lt;=&gt; $b-&gt;[1] || $a-&gt;[2] &lt;=&gt; $b-&gt;[2] }
+    @order;
+
+  $must_update=1;
+  ($VARS-&gt;{$MNV})=$1 if $q-&gt;param("param_$MNV") =~ m/^(-?\d+)$/;
+  ($VARS-&gt;{$HV})=($q-&gt;param("param_$HV")||'') eq 'hide';
+  ($VARS-&gt;{$AD})=($q-&gt;param("param_$AD")||'') eq 'allow';
+}
+
+if ( my $link=$q-&gt;param($append_param) ) {
+  push @html,"&lt;!--append:$link--&gt;" if $debug;
+  $link =~ s/^\s*|\s*$//g;
+  push @pns,$link if $link =~ /\S/;
+  $must_update=1;
+  ($delLink) = $link =~ m|//(\d+)]|;
+  $q-&gt;param($append_param,''); # clear the option once we are done
+}
+
+if ( my $nodeId=$q-&gt;param($delete_param) ) {
+  push @html,"&lt;!--delete:$nodeId--&gt;" if $debug;
+  $nodeId =~ s/(\d+)/$1/;
+  for ( 0 .. $#pns ) {
+    next if $pns[$_] !~ m|//$nodeId\]|;
+    splice @pns, $_, 1;
+    $must_update=1;
+    last;
+  }
+  $q-&gt;param($delete_param,'0'); # clear the option once we are done
+  $delLink = 0;
+}
+
+if ( $must_update ) {
+  push @html,"&lt;!--must_update--&gt;" if $debug;
+  unless ( $VARS-&gt;{$AD} ) {
+    my %seen;
+    @pns=grep { !$seen{$_}++ } @pns;
+  }
+
+  $VARS-&gt;{$PN} = "$Enc_Ver:" .
+    join $Delim,
+    map {
+      ( my $s = $_ ) =~ 
+        s/([$Esc_qm$Delim_qm])/$Esc.index($Esc.$Delim,$1)/eg;
+      $s
+    } @pns;
+  push @html,qq|&lt;!--new \$pn="$pn"--&gt;|
+    if $debug;
+}
+
+
+my $node_id = getId($NODE); # used when linking
+my @pns_html=map {
+  my $copy=$_;
+  if ( $node_id == 142755  ) { # [tye&amp;nbsp;] for testing
+    $copy =~ s{\[([^\]]+)\]}
+      {
+        my $x=$1;
+        htmlcode( 'linkHandler','', $x, $node_id );
+      }ges;
+  }
+  else {
+    $copy =~ s{\[([^\]]+)\]}
+      {
+        my $x=$1;
+        handleLinks($x,$node_id)
+      }ges;
+  }
+  $copy
+} @pns;
+
+if ($opts{show_form}) {
+  push @html, '&lt;!--showform--&gt;' if $debug;
+  push @html, htmlcode('openform') if $opts{formwrap};
+
+  push @html, (
+    '&lt;div id="options"&gt;',
+
+    htmlcode( 'get_sitedoclet','',
+      'Personal Nodelet Settings sitedoclet', 'MAX_USAGE' ),
+
+    '&lt;b&gt;Number of items to show:&lt;/b&gt;'.
+    $q-&gt;textfield(
+      -name =&gt; "param_$MNV",
+      -value =&gt; $VARS-&gt;{$MNV}||0,
+      -force =&gt; 1,
+      -size =&gt; 4,
+      -maxlength =&gt; 4
+    ),
+    '&lt;br /&gt;',
+
+    $q-&gt;checkbox(
+      -name =&gt; "param_$HV",
+      -checked =&gt; $VARS-&gt;{$HV},
+      -force =&gt; 1,
+      -value =&gt; 'hide',
+      -label =&gt; '&lt;b&gt;Hide Items In Nodelet Viewer&lt;/b&gt;'
+        . ' (Only use it to capture node bookmarks)'
+    ),
+    '&lt;br /&gt;',
+
+    $q-&gt;checkbox(
+      -name =&gt; "param_$AD",
+      -checked =&gt; $VARS-&gt;{$AD},
+      -force =&gt; 1,
+      -value =&gt; 'allow',
+      -label =&gt; '&lt;b&gt;Allow Duplicates&lt;/b&gt;'
+        . ' (By default, duplicates are ignored)'
+    ),
+
+    htmlcode( 'get_sitedoclet','',
+      'Personal Nodelet Settings sitedoclet', 'TABLE_USAGE' ),
+
+    '&lt;/div&gt;',
+  );
+
+  push @html, (
+    $q-&gt;start_table({border=&gt;0,width=&gt;'100%'}),
+    '&lt;col width="10%" span=1 align="center" /&gt;',
+    '&lt;col width="30%" span=1 align="center" /&gt;',
+    '&lt;col width="60%" span=1 align="center" /&gt;',
+    $q-&gt;Tr( $q-&gt;th([qw(Position Rendered Source)]) ),
+  );
+
+  foreach my $idx ( 0..$#pns+5 ) {
+    my $name=$idx&lt;@pns ? $idx : "new".$idx;
+    my $pos=$q-&gt;textfield(
+        -name =&gt; "prc1_pn_lnk_${name}_pos",
+        -value =&gt; ($idx&lt;@pns ? $idx+.1 : '+'),
+        -force =&gt; 1,
+        -size =&gt; 6,
+        -maxlength =&gt; 10,
+      );
+    my $lnk=$idx&lt;@pns ? $pns_html[$idx] : '(new)';
+    my $txt=$q-&gt;textfield(
+        -name =&gt; "prc0_pn_lnk_${name}_val",
+        -value =&gt; $idx&lt;@pns ? $pns[$idx] : '',
+        -force =&gt; 1,
+        -size =&gt; 64,
+        -maxlength =&gt; 1024,
+      );
+    push @html, $q-&gt;Tr( $q-&gt;td([$pos,$lnk,$txt]) );
+  }
+
+  push @html,$q-&gt;end_table;
+  push @html,$q-&gt;hidden(-name=&gt;'modifypn',-value=&gt;'modifypn');
+  push @html,htmlcode('closeform') if $opts{formwrap};
+}
+else {
+  push @html,'&lt;!--default(nodelet)--&gt;' if $debug;
+  my $br = "\n&lt;br /&gt;\n";
+
+  my @show = $max_to_show&lt;0
+    ? @pns_html[0..(-1-$max_to_show)]
+    : @pns_html[-$max_to_show..-1];
+
+  push @html,"&lt;!--max:$max_to_show--&gt;" if $debug;
+
+  unless ( $VARS-&gt;{$HV} ) {
+    push @html,
+      '&lt;div class="pn_links"&gt;',
+      join( $br, grep /\S/, @show ),
+      '&lt;/div&gt;',
+      $br;
+  }
+
+  push @html,
+    '&lt;div class="pn_addlnks"&gt;',
+      linkNode( 366609, 'Edit'),
+      '|',
+      ($delLink == 0
+        ? linkNode( $NODE,'Add', {$append_param =&gt; '[id://'.getId($NODE).']'})
+        : linkNode( $NODE,'Remove', {$delete_param =&gt; $delLink}) ),
+      ' current node',
+    $br,
+                  'Add to ',
+      linkNode( $NODE, 'public', {addtoscratchpad=&gt;'doctext'}),
+      '&amp;nbsp;/&amp;nbsp;',
+      linkNode( $NODE, 'private', {addtoscratchpad=&gt;'privatetext'}),
+      ' pad',
+    '&lt;/div&gt;';
+}
+return join "\n",
+  "&lt;!--begin:personalnodelethandler--&gt;",
+  ( map { if (/^&lt;!--/) { s/\[/&amp;#91;/g; s/\]/&amp;#93;/g; $_ } else {$_} } @html ),
+  "&lt;!--end:personalnodelethandler--&gt;";
+</field>
+</data>
+</node>

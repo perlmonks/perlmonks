@@ -1,0 +1,40 @@
+<node>
+  <type_nodetype>4</type_nodetype>
+  <node_id>697548</node_id>
+  <author_user>518801</author_user>
+  <title>attribution_string</title>
+  <createtime>2008-07-14 15:43:59</createtime>
+  <code># this works because a user is the author of her own homenode.
+# caller will want to pass true for 2nd arg when
+# requesting attribute for page of node (i.e. not replies)
+#   ($uid == $NODE-&gt;{author_user})
+# for reply notes, don't need to pass anything.
+my( $node, $exclaim_yourself ) = @_;
+$node ||= $NOTE;
+getRef($node);
+my $uid = $node-&gt;{author_user};
+
+$HTMLVARS{level_titles} ||= getVars( getNode('level titles','setting') );
+
+my $attrib_fmt = qq(&lt;span class=&quot;attribution&quot;&gt;%s&lt;/span&gt;);
+
+return sprintf $attrib_fmt, linkNode( $uid )
+    if $uid == $HTMLVARS{guest_user};
+
+return sprintf $attrib_fmt, linkNode( $uid, 'you' ) . '!!!'
+    if $exclaim_yourself;
+
+
+getRef(my $user = $uid);
+
+return sprintf $attrib_fmt, linkNode( $uid )
+# use appropriate test of &quot;worthiness&quot; here.
+    unless exists $user-&gt;{experience} &amp;&amp; $user-&gt;{experience} &gt;= 0;
+
+my $title = $HTMLVARS{level_titles}{getLevel($user)};
+$title = $q-&gt;span( { class =&gt; 'attribution-title' }, &quot; ($title)&quot; ) if $title;
+
+return sprintf $attrib_fmt, linkNode( $uid ) . $title;
+</code>
+  <nodeupdated>2008-07-14 11:43:59</nodeupdated>
+</node>

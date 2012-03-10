@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<node id="25180" title="rearrangenodelets" created="2000-07-28 13:51:47" updated="2004-09-21 15:00:18">
+<type id="4">
+htmlcode</type>
+<author id="929">
+developers</author>
+<data>
+<field name="code">
+#######
+#  this function allows users to select which nodelets
+#  they want to see and then order them
+#  usage: [{rearrangenodelets:nodelets,default nodelets}]
+#  first parameter:  user variable which stores the comma delimited list of selected node_id's ie $$VARS{nodelets}
+#  second parameter: nodeletgroup which contains nodelets a user can choose from
+#  optional third parameter: pass it a true value if you don't want to 
+#        open and close the form by default.
+#######
+my($varsfield,$nodeletgroup,$formoff)=@_;
+return if(getId($USER)==$HTMLVARS{guest_user});
+return "You need to pass me a varsfield" unless $varsfield;
+my $NG=getNode $nodeletgroup,"nodeletgroup";
+my $GROUP=$$NG{group};
+my @others;
+use lib $HTMLVARS{uselib};
+use Everything::Experience;
+my $ED    = getNode('editors','usergroup');
+my $PMDEV = getNode('pmdev','usergroup');
+my $SDC   = getNode('SiteDocClan', 'usergroup');
+
+push @others, getId(getNode('approval nodelet','nodelet'))   if Everything::isApproved($USER,'CanConsider');
+push @others, getId(getNode('editors nodelet', 'nodelet'))   if Everything::isApproved($USER,$ED);
+push @others, getId(getNode('Admin Nodelet',  'nodelet'))    if isGod($USER);
+push @others, getId(getNode('New Nodes',      'nodelet'))    if isGod($USER);
+push @others, getId(getNode('Node Statistics','nodelet'))    if isGod($USER);
+push @others, getId(getNode('Statistics Nodelet','nodelet')) if isGod($USER);
+push @others, getId(getNode('PmDev Nodelet', 'nodelet')) if Everything::isApproved($USER,$PMDEV);
+push @others, getId(getNode('SiteDocClan nodelet', 'nodelet')) if Everything::isApproved($USER, $SDC);
+my %unselected;
+my $addprefix=$varsfield."_add_";
+my $removeprefix=$varsfield."_rem_";
+
+
+map {$unselected{$_}=1} (@{$GROUP},@others);
+my (@nodelets)=split(/,/,$$VARS{$varsfield});
+foreach(@nodelets){
+   delete $unselected{$_};
+}
+my $str;
+if($query-&gt;param('nodeletclass') eq $varsfield){
+   my $pos=$query-&gt;param('pos');
+   if($query-&gt;param('dir') eq 'up'){
+      ($nodelets[$pos],$nodelets[$pos-1])=($nodelets[$pos-1],$nodelets[$pos]) if $pos!=0;
+   } elsif ($query-&gt;param('dir') eq 'down'){
+      ($nodelets[$pos],$nodelets[$pos+1])=($nodelets[$pos+1],$nodelets[$pos]) if $pos!=$#nodelets;
+   }
+}
+foreach(grep{/^$addprefix/} $query-&gt;param()){
+   /^$addprefix(.*)/;
+   push @nodelets, $1 if $unselected{$1};
+   delete $unselected{$1};
+}
+my %remove;
+foreach(grep{/^$removeprefix/} $query-&gt;param()){
+   /^$removeprefix(.*)/;
+   $remove{$1}=1;
+   $unselected{$1}=1;
+}
+@nodelets=grep !$remove{$_}, @nodelets;
+
+$$VARS{$varsfield}=join(',',@nodelets);
+my($uptag,$downtag);
+$uptag||="up";
+$downtag||="down";
+$str.=htmlcode('openform') unless $formoff;
+$str.="&lt;TABLE&gt;&lt;TR&gt;&lt;TD&gt;Remove&lt;/TD&gt;&lt;/TR&gt;";
+for(my $i=0; $i&lt;@nodelets; $i++){
+   my $CURNODE=getNodeById($nodelets[$i]);
+   $str.="&lt;TR&gt;&lt;TD&gt;".$query-&gt;checkbox(-name=&gt;"$removeprefix".getId($CURNODE),-label=&gt;"")."&lt;/TD&gt;&lt;TD&gt;$$CURNODE{title}&lt;/TD&gt;";
+   unless($i==0 or $i==$#nodelets){
+      $str.="&lt;TD&gt;&lt;a href=".urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',nodeletclass=&gt;$varsfield,pos=&gt;$i,dir=&gt;'up'})."&gt;$uptag&lt;/A&gt;&lt;/TD&gt;".
+         "&lt;TD&gt;&lt;a href=".urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',nodeletclass=&gt;$varsfield,pos=&gt;$i,dir=&gt;'down'})."&gt;$downtag&lt;/A&gt;&lt;/TD&gt;&lt;/TR&gt;";
+  
+   } elsif($i==0){
+         $str.="&lt;TD&gt;&lt;/TD&gt;&lt;TD&gt;&lt;a href=".urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',nodeletclass=&gt;$varsfield,pos=&gt;$i,dir=&gt;'down'})."&gt;$downtag&lt;/A&gt;&lt;/TD&gt;&lt;/TR&gt;";
+   } elsif($i==$#nodelets){
+         $str.="&lt;TD&gt;&lt;a href=".urlGen({node_id=&gt;getId($NODE),displaytype=&gt;'display',nodeletclass=&gt;$varsfield,pos=&gt;$i,dir=&gt;'up'})."&gt;$uptag&lt;/A&gt;&lt;/TD&gt;&lt;TD&gt;&lt;/TD&gt;&lt;/TR&gt;";
+   }
+}
+foreach(keys %unselected){
+    my $CURNODE=getNodeById($_);
+    $str.="&lt;TR&gt;&lt;TD&gt;&lt;/TD&gt;&lt;TD&gt;$$CURNODE{title}&lt;/TD&gt;&lt;TD colspan=2&gt;".$query-&gt;checkbox(-name=&gt;$addprefix.$$CURNODE{node_id},-label=&gt;" add")."&lt;/TD&gt;&lt;/TR&gt;";
+}
+$str.="&lt;/TABLE&gt;";
+$str.=htmlcode('closeform') unless $formoff;
+return $str;
+"";</field>
+</data>
+</node>
