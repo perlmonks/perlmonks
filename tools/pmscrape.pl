@@ -21,9 +21,10 @@ my $urls_to_grab;
 my $queued_nodes = 0;
 foreach my $type(@{$forms->[1]->{inputs}->[1]->{menu}})
 {
+	next unless $type->{name} eq "dbtable";
 
 	print "Investigating ".$type->{name}." (".$type->{value}.")...\n";
-	
+
 	my $next = 0;
 	my $numnodes = 0;
 
@@ -59,26 +60,52 @@ foreach my $type(@{$forms->[1]->{inputs}->[1]->{menu}})
 		$next += 100;
 	}
 }
-#$mech->get("$url/?node_id=1;displaytype=xml", ":content_file" => "1.xml");
 print "Got $queued_nodes in queue...\n";
 
 foreach my $type (keys %{$urls_to_grab})
 {
-	`mkdir -p $type`;
+	`mkdir -p nodescrape/$type`;
 	foreach my $href (@{$urls_to_grab->{$type}})
 	{
-		if($href =~ /node_id=(\d+)/)
+		# Node lister is grabbed by accident some times
+
+		if(my ($node_id) = $href =~ /node_id=(\d+)/)
 		{
-			if(-e "$type/$1.xml")
+			if($type eq "dbtable")
+			{
+				if(-e "nodescrape/$type/$node_id.create")
+				{
+					print "Found $type/$node_id.create on disk, skipping";
+					next;
+				}else{
+					print "Fetching create statement for node_id=$node_id\n";
+				}
+				
+				$mech->get("$url/?node_id=$1");
+				
+				my $content = $mech->content();
+				if($content =~ /<textarea.*?>(.*)<\/textarea>/s)
+				{
+					$content = $1;
+					my $createhandle; open $createhandle,">nodescrape/$type/$node_id.create";
+					print $createhandle $content;
+					close $createhandle;
+					print "Wrote $type/$node_id.create\n";
+				}
+			}
+
+
+			if(-e "nodescrape/$type/$1.xml")
 			{
 				print "Found $type/$1.xml on disk, skipping\n";
 				next;
 			}
 			print "Fetching: $href\n";
-			$mech->get("$url$href", ":content_file" => "$type/$1.xml");
+			$mech->get("$url$href", ":content_file" => "nodescrape/$type/$1.xml");
 		}else{
 			print "...could not find node_id in href '$href'\n";
 		}
+
 		sleep(1);
 	}
 }

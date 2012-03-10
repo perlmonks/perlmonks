@@ -58,6 +58,32 @@ foreach my $file(@$files)
 			push @{$node->{vars}}, {"key" => $var->{name}, "value" => strip_starter_whitespace($var->{content})};
 		}
 	}
+
+	if($type eq "dbtable")
+	{
+		my $createfile = $file;
+		$createfile =~ s/\.xml$/\.create/;
+		my $handle;
+		if(open $handle,$createfile)
+		{
+			local $/ = undef;
+			$node->{_create_table_statement} = <$handle>;
+			close $handle;
+		}
+	}
+
+	if($type eq "pmmodule" and exists($node->{filetext}))
+	{
+		my $filetext = $node->{filetext};
+		my $modulename = $node->{title};
+		my ($moduledir) = $modulename =~ /(.*)\//;
+		`mkdir -p nodepack/_pm/$moduledir`;
+				
+		my $handle;
+		open $handle,">nodepack/_pm/$modulename";
+		print $handle $filetext;
+		close $handle; 
+	}
 	`mkdir -p nodepack/$type`;
 	my $outtitle = $$node{title};
 	$outtitle = lc($outtitle);
