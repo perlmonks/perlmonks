@@ -13,13 +13,14 @@ my $xsout = XML::Simple->new("NoSort" => 1, "KeepRoot" => 1, "SuppressEmpty" => 
 my $options;
 $options->{nodepack} = "./nodescrape";
 
+my $nodegroup_ordinal;
+
 my $files;
 
 find(sub{ if(-e $_ && $File::Find::dir ne "$$options{nodepack}/_data" && $File::Find::name =~ /\.xml$/){push @$files,$File::Find::name; }}, $options->{nodepack});
 
 foreach my $file(@$files)
 {
-	#next if $file =~ /\/397983\.xml$/;
 	next if $file =~ /\/sqlquery\//;
 	print "$file\n";
 	my $xml = $xs->XMLin($file);
@@ -84,6 +85,25 @@ foreach my $file(@$files)
 		print $handle $filetext;
 		close $handle; 
 	}
+
+	if(exists($xml->{node}->{members}))
+	{
+		`mkdir -p nodepack/_data/`;
+		
+		my $nodegroup;
+		if(-e "nodepack/_data/nodegroup.xml")
+		{
+			$nodegroup = $xsout->XMLin("nodepack/_data/nodegroup.xml");
+			$nodegroup = $nodegroup->{nodegroup};
+		}else{
+			$nodegroup->{group} = [];
+		}
+		push @{$nodegroup->{group}},@{unroll_nodegroup($node->{node_id},$xml->{node}->{members}->{member})};
+		my $handle;
+		open $handle, ">nodepack/_data/nodegroup.xml";
+		print $handle $xsout->XMLout({nodegroup => $nodegroup});
+		close $handle;
+	}
 	`mkdir -p nodepack/$type`;
 	my $outtitle = $$node{title};
 	$outtitle = lc($outtitle);
@@ -95,6 +115,28 @@ foreach my $file(@$files)
 	close $handle;
 }
 
+sub unroll_nodegroup
+{
+	my ($nodegroup_id, $member_array) = @_;
+	if(ref $member_array ne "ARRAY")
+	{
+		$member_array = [$member_array];
+	}
+	my $group_array = [];
+
+	foreach my $member (@$member_array)
+	{
+		$nodegroup_ordinal->{$nodegroup_id} ||= 0;
+		$nodegroup_ordinal->{$nodegroup_id}++;
+		push @$group_array, { "node_id" => $member->{node_id}, "nodegroup_id" => $nodegroup_id, "rank" => $nodegroup_ordinal->{$nodegroup_id}, "orderby" => $nodegroup_ordinal->{$nodegroup_id}};
+		if(exists($member->{member}))
+		{
+			push @$group_array,@{unroll_nodegroup($member->{node_id},$member->{member})};
+		}
+	}
+
+	return $group_array;
+}
 
 sub strip_starter_whitespace
 {
