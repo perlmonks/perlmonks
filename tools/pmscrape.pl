@@ -21,7 +21,7 @@ my $urls_to_grab;
 my $queued_nodes = 0;
 foreach my $type(@{$forms->[1]->{inputs}->[1]->{menu}})
 {
-	next unless $type->{name} eq "dbtable";
+	#next unless $type->{name} eq "htmlpage";
 
 	print "Investigating ".$type->{name}." (".$type->{value}.")...\n";
 
@@ -75,7 +75,7 @@ foreach my $type (keys %{$urls_to_grab})
 			{
 				if(-e "nodescrape/$type/$node_id.create")
 				{
-					print "Found $type/$node_id.create on disk, skipping";
+					print "Found $type/$node_id.create on disk, skipping\n";
 					next;
 				}else{
 					print "Fetching create statement for node_id=$node_id\n";
