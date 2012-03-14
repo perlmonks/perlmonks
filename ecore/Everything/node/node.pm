@@ -54,7 +54,7 @@ sub node_to_xml
 	my $vars_out;
 	if(exists($NODE->{vars}))
 	{
-		$vars_out = {Everything::getVarHashFromStringFast($NODE->{vars})};
+		$vars_out = {Everything::unpackVars($NODE->{vars})};
 		$NODE->{vars} = [];
 		foreach my $key(keys %$vars_out)
 		{
@@ -118,7 +118,7 @@ sub _repack_node_vars
 	}
 	$vars_in ||= {};
 
-	$NODE->{vars} = Everything::getVarStringFromHash($vars_in);
+	$NODE->{vars} = Everything::packVars($vars_in);
 
 	return $NODE;
 }
