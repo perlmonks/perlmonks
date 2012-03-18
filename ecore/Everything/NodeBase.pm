@@ -1613,6 +1613,12 @@ sub deriveType
     $$NODETYPE{sqltablelist} = $$NODETYPE{sqltable};
     $PARENT = $this->getType($$NODETYPE{extends_nodetype});
 
+    if(not defined $$NODETYPE{sqltablelist})
+    {
+	# We'll want a cleaner way of doing this, for now this suppresses errors on bootstrap
+	$$NODETYPE{sqltablelist} = "";
+    }
+
     if(defined $PARENT)
     {
         foreach $field (keys %$PARENT)
