@@ -2290,9 +2290,11 @@ sub flattenNodegroup
     $array ||= [];
 
     $this->getRef($GROUP);
+    
+    return [] unless defined($GROUP->{group});
 
     if(  $this->isGroup( $GROUP->{type} )  ) {
-        my @items= @{ $GROUP->{group} };
+	my @items= @{ $GROUP->{group} };
         $this->getRef( @items );
         foreach my $item (  @items  ) {
             if(  ! $seen->{$item->{node_id}}++  ) {
