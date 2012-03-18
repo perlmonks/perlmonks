@@ -1626,6 +1626,11 @@ sub deriveType
                 "resolvedInheritance" => 1 );
 
             next if(exists $skipfields{$field});
+	    # This basically helps if a base nodetype field is NULL.
+	    # In perlmonks there are two columns in node which default to NULL, so 
+	    # this squashes a lot of warnings
+
+	    next if(not defined $$NODETYPE{$field});
 
             # If a field in a nodetype is '-1', this field is derived from
             # its parent.
